@@ -5,12 +5,14 @@ from django.utils.html import format_html
 
 from .models import DataSource, ImportRun, SourceArtifact
 from .services import (
+    ArtifactRejected,
     create_data_source,
     register_artifact,
     register_external_reference,
     update_data_source,
+    validate_artifact_upload,
 )
-from .views import DOWNLOAD_PERMISSION, artifact_download
+from .views import artifact_download
 
 
 @admin.register(DataSource)
@@ -84,6 +86,15 @@ class SourceArtifactAdminForm(forms.ModelForm):
         reference = (cleaned.get("external_reference") or "").strip()
         if bool(upload) == bool(reference):
             raise forms.ValidationError("Määra täpselt üks: kas fail või väline viide.")
+        # Run the registration rules here as well, so a rejected upload is a
+        # readable form error instead of an unhandled exception in save_model.
+        # The service re-validates on the authoritative path.
+        source = cleaned.get("source")
+        if upload and source is not None:
+            try:
+                validate_artifact_upload(source=source, upload=upload)
+            except ArtifactRejected as error:
+                self.add_error("upload", error)
         return cleaned
 
     def _post_clean(self):
@@ -226,7 +237,3 @@ class ImportRunAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return False
-
-
-# Re-exported so the permission string has one definition in the codebase.
-__all__ = ["DOWNLOAD_PERMISSION"]

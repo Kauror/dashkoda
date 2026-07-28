@@ -41,6 +41,15 @@ class PrivateArtifactStorage(FileSystemStorage):
         )
 
 
+def extension_not_allowed_message(extension: str) -> str:
+    """One shared message for every place that enforces the allowlist."""
+    allowed = settings.SOURCE_ARTIFACT_ALLOWED_EXTENSIONS
+    return (
+        f"Faili laiend ei ole lubatud: {extension or '(puudub)'}. "
+        f"Lubatud: {', '.join(sorted(allowed))}."
+    )
+
+
 def artifact_upload_path(instance, filename: str) -> str:
     """Build the stored path.
 
@@ -49,10 +58,6 @@ def artifact_upload_path(instance, filename: str) -> str:
     random UUID. The original name is kept as ordinary metadata on the model.
     """
     extension = Path(filename).suffix.lower()
-    allowed = settings.SOURCE_ARTIFACT_ALLOWED_EXTENSIONS
-    if extension not in allowed:
-        raise ValidationError(
-            f"Faili laiend ei ole lubatud: {extension or '(puudub)'}. "
-            f"Lubatud: {', '.join(sorted(allowed))}."
-        )
+    if extension not in settings.SOURCE_ARTIFACT_ALLOWED_EXTENSIONS:
+        raise ValidationError(extension_not_allowed_message(extension))
     return f"sources/{instance.source_id}/{uuid.uuid4().hex}{extension}"

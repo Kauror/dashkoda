@@ -7,16 +7,13 @@ from apps.sources.admin import DataSourceAdmin, ImportRunAdmin, SourceArtifactAd
 from apps.sources.models import DataSource, ImportRun, SourceArtifact
 from apps.sources.services import build_import_run, register_artifact, start_import_run
 
+from .conftest import sign_in
+
 pytestmark = pytest.mark.django_db
 
 
 def admin_for(model):
     return admin.site._registry[model]
-
-
-def sign_in(client, user, authenticate_viewer):
-    authenticate_viewer(client)
-    client.force_login(user)
 
 
 # --------------------------------------------------------------------------
@@ -164,6 +161,48 @@ def test_artifact_admin_refuses_both_file_and_reference(
 
     assert response.status_code == 200
     assert SourceArtifact.objects.count() == 0
+
+
+def test_artifact_admin_reports_a_rejected_extension_as_a_form_error(
+    client, authenticate_viewer, superuser, data_source, upload
+):
+    sign_in(client, superuser, authenticate_viewer)
+
+    response = client.post(
+        reverse("admin:sources_sourceartifact_add"),
+        {
+            "source": str(data_source.pk),
+            "external_reference": "",
+            "access_level": "staff_only",
+            "upload": upload(name="payload.exe"),
+        },
+    )
+
+    # A refused upload is a readable form error, never an unhandled exception.
+    assert response.status_code == 200
+    assert "laiend" in response.content.decode()
+    assert SourceArtifact.objects.count() == 0
+
+
+def test_artifact_admin_reports_a_duplicate_upload_as_a_form_error(
+    client, authenticate_viewer, superuser, data_source, upload
+):
+    register_artifact(source=data_source, upload=upload())
+    sign_in(client, superuser, authenticate_viewer)
+
+    response = client.post(
+        reverse("admin:sources_sourceartifact_add"),
+        {
+            "source": str(data_source.pk),
+            "external_reference": "",
+            "access_level": "staff_only",
+            "upload": upload(),
+        },
+    )
+
+    assert response.status_code == 200
+    assert "sama sisuga" in response.content.decode()
+    assert SourceArtifact.objects.count() == 1
 
 
 def test_artifact_detail_page_never_shows_a_file_url(

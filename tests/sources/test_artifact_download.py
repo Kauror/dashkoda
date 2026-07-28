@@ -7,7 +7,7 @@ from apps.audit.models import AuditAction, AuditEvent
 from apps.sources.models import AccessLevel
 from apps.sources.services import register_artifact, register_external_reference
 
-from .conftest import SYNTHETIC_CSV
+from .conftest import SYNTHETIC_CSV, sign_in
 
 pytestmark = pytest.mark.django_db
 
@@ -19,11 +19,6 @@ def artifact(data_source, upload):
 
 def download_url(artifact):
     return reverse("admin:sources_sourceartifact_download", args=[artifact.pk])
-
-
-def sign_in(client, user, authenticate_viewer):
-    authenticate_viewer(client)
-    client.force_login(user)
 
 
 def test_download_url_lives_under_admin_and_is_not_public(artifact, client):

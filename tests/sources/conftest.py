@@ -10,6 +10,12 @@ from apps.sources.services import create_data_source
 SYNTHETIC_CSV = b"as_of_date,total_members\n2099-01-01,0\n"
 
 
+def sign_in(client, user, authenticate_viewer):
+    """Pass the viewer gate, then authenticate as the given admin user."""
+    authenticate_viewer(client)
+    client.force_login(user)
+
+
 @pytest.fixture
 def data_source(db):
     return create_data_source(
