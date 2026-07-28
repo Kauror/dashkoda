@@ -1,31 +1,96 @@
-import importlib
+import os
+import subprocess
 import sys
+from pathlib import Path
+
+import pytest
+from django.conf import settings
+
+PRODUCTION_ENVIRONMENT = (
+    "DJANGO_SECRET_KEY",
+    "DJANGO_ALLOWED_HOSTS",
+    "POSTGRES_DB",
+    "POSTGRES_USER",
+    "POSTGRES_PASSWORD",
+    "POSTGRES_HOST",
+    "POSTGRES_PORT",
+)
 
 
-def test_nonproduction_settings_modules_are_importable():
-    for module_name in (
-        "config.settings.base",
-        "config.settings.local",
-        "config.settings.test",
-    ):
-        assert importlib.import_module(module_name)
+def test_test_settings_use_estonian_locale_and_postgresql():
+    assert settings.LANGUAGE_CODE == "et"
+    assert settings.TIME_ZONE == "Europe/Tallinn"
+    assert settings.DATABASES["default"]["ENGINE"] == "django.db.backends.postgresql"
 
 
-def test_production_settings_are_importable_with_required_secret(monkeypatch):
-    monkeypatch.setenv("DJANGO_SECRET_KEY", "injected-production-secret")
-    monkeypatch.setenv("DJANGO_ALLOWED_HOSTS", "dash.orgusaar.ee")
-    sys.modules.pop("config.settings.production", None)
+@pytest.mark.parametrize("missing_name", PRODUCTION_ENVIRONMENT)
+def test_production_settings_require_environment_variables(missing_name):
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[2])
+    environment.update(
+        {
+            "DJANGO_SECRET_KEY": "test-only-production-secret-with-sufficient-length",
+            "DJANGO_ALLOWED_HOSTS": "dash.orgusaar.ee",
+            "POSTGRES_DB": "dashkoda",
+            "POSTGRES_USER": "dashkoda",
+            "POSTGRES_PASSWORD": "test-only-password",
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": "5432",
+        }
+    )
+    environment.pop(missing_name)
 
-    production = importlib.import_module("config.settings.production")
+    result = subprocess.run(
+        [sys.executable, "-c", "import config.settings.production"],
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+    )
 
-    assert production.DEBUG is False
-    assert production.SECRET_KEY == "injected-production-secret"
-    assert production.ALLOWED_HOSTS == ["dash.orgusaar.ee"]
+    assert result.returncode != 0
+    assert missing_name in result.stderr
 
 
-def test_base_settings_use_estonian_locale_and_no_persistent_database():
-    base = importlib.import_module("config.settings.base")
+def test_production_settings_accept_complete_environment():
+    environment = os.environ.copy()
+    environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[2])
+    environment.update(
+        {
+            "DJANGO_SECRET_KEY": "test-only-production-secret-with-sufficient-length",
+            "DJANGO_ALLOWED_HOSTS": "dash.orgusaar.ee",
+            "POSTGRES_DB": "dashkoda",
+            "POSTGRES_USER": "dashkoda",
+            "POSTGRES_PASSWORD": "test-only-password",
+            "POSTGRES_HOST": "127.0.0.1",
+            "POSTGRES_PORT": "5432",
+        }
+    )
 
-    assert base.LANGUAGE_CODE == "et"
-    assert base.TIME_ZONE == "Europe/Tallinn"
-    assert base.DATABASES["default"]["ENGINE"] == "django.db.backends.dummy"
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "from config.settings import production as p;"
+                "assert p.DEBUG is False;"
+                "assert p.ALLOWED_HOSTS == ['dash.orgusaar.ee'];"
+                "assert p.DATABASES['default']['ENGINE'] == "
+                "'django.db.backends.postgresql'"
+            ),
+        ],
+        capture_output=True,
+        check=False,
+        env=environment,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+
+
+def test_gitignore_excludes_environment_files_but_keeps_example():
+    gitignore = (Path(__file__).resolve().parents[2] / ".gitignore").read_text(encoding="utf-8")
+
+    assert "\n.env\n" in f"\n{gitignore}"
+    assert "\n.env.*\n" in f"\n{gitignore}"
+    assert "\n!.env.example\n" in f"\n{gitignore}"
