@@ -38,6 +38,10 @@ jobs:
       POSTGRES_PASSWORD: ci-only-password
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: 5432
+      VIEWER_PIN_HASH: 'pbkdf2_sha256$1000000$ISWGm2iaWYDO60zg6cKsch$aa1cqy5nqDB6mUqSjp+IdmKSbF0ANciYXAprUkgNVbQ='
+      VIEWER_PIN_VERSION: 1
+      VIEWER_RATE_LIMIT_SECRET: ci-only-synthetic-rate-limit-secret
+      TRUST_CLOUDFLARE_IP_HEADER: "false"
 
     steps:
       - name: Check out repository
@@ -99,6 +103,22 @@ jobs:
             http://127.0.0.1:8000/health/live/
           curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 1 \
             http://127.0.0.1:8000/health/ready/
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-Proto: https' \
+            http://127.0.0.1:8000/)" = "302"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-Proto: https' \
+            http://127.0.0.1:8000/sisene/)" = "200"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-Proto: https' \
+            http://127.0.0.1:8000/admin/)" = "302"
+          test "$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-Proto: https' \
+            http://127.0.0.1:8000/robots.txt)" = "200"
+          logout_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+            --header 'X-Forwarded-Proto: https' \
+            --request POST http://127.0.0.1:8000/logi-valja/)"
+          test "${logout_status}" -ge 300
           if [ -n "$(docker compose -f compose.yaml -f compose.dev.yaml port db 5432 2>/dev/null)" ]; then
             echo "PostgreSQL must not publish a host port"
             exit 1

@@ -1,0 +1,27 @@
+<!doctype html>
+{% load static %}
+<html lang="et">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sisene – DashKoda</title>
+  <link rel="stylesheet" href="{% static 'access/access.css' %}">
+</head>
+<body>
+  <main>
+    <h1>DashKoda</h1>
+    <p>Sisesta ligipääsuks PIN-kood.</p>
+    <form method="post" action="{% url 'viewer-login' %}">
+      {% csrf_token %}
+      <input type="hidden" name="next" value="{{ next }}">
+      {{ form.pin.label_tag }}
+      {{ form.pin }}
+      <div aria-live="polite">
+        {% for error in form.pin.errors %}<p>{{ error }}</p>{% endfor %}
+        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
+      </div>
+      <button type="submit">Sisene</button>
+    </form>
+  </main>
+</body>
+</html>
