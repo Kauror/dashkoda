@@ -41,7 +41,7 @@ jobs:
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Install uv and Python
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
@@ -94,8 +94,11 @@ jobs:
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py migrate
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py collectstatic --noinput
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web uv run pytest
-          curl --fail --silent http://127.0.0.1:8000/health/live/
-          curl --fail --silent http://127.0.0.1:8000/health/ready/
+          docker compose -f compose.yaml -f compose.dev.yaml ps
+          curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 1 \
+            http://127.0.0.1:8000/health/live/
+          curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 1 \
+            http://127.0.0.1:8000/health/ready/
           if [ -n "$(docker compose -f compose.yaml -f compose.dev.yaml port db 5432 2>/dev/null)" ]; then
             echo "PostgreSQL must not publish a host port"
             exit 1

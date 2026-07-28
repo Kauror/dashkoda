@@ -30,6 +30,7 @@ services:
       start_period: 10s
     restart: unless-stopped
     networks:
+      - frontend
       - backend
 
   db:
@@ -53,6 +54,7 @@ services:
       - backend
 
 networks:
+  frontend:
   backend:
     internal: true
 

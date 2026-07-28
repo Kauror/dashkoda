@@ -40,11 +40,14 @@ WORKDIR /app
 
 FROM runtime-base AS development
 
-ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+ENV UV_CACHE_DIR=/tmp/uv-cache \
+    UV_PROJECT_ENVIRONMENT=/opt/venv
 
 COPY --from=development-builder /usr/local/bin/uv /usr/local/bin/uv
 COPY --from=development-builder --chown=dashkoda:dashkoda /opt/venv /opt/venv
 COPY --from=development-builder --chown=dashkoda:dashkoda /app /app
+RUN mkdir -p /app/.pytest_cache \
+    && chown dashkoda:dashkoda /app/.pytest_cache
 
 USER dashkoda
 EXPOSE 8000

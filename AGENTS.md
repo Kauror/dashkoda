@@ -17,6 +17,8 @@ These rules apply to the whole repository.
 - Do not create placeholder Django apps for future modules.
 - Keep the core liveness endpoint public, database-independent, and minimal.
 - Do not use SQLite as a shortcut; PostgreSQL is the planned persistent database.
+- Keep PostgreSQL on the private backend network and never publish its port to the host.
+- Bind the local development web port to loopback unless a later brief explicitly changes it.
 - Keep settings separated into base, local, test, and production modules.
 - Production must never default to debug mode or a hard-coded secret.
 - Use Estonian UI language and `Europe/Tallinn` application time.
