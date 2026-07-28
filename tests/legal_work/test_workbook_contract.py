@@ -88,10 +88,13 @@ def test_formula_inside_the_data_table_is_rejected(make_workbook):
 
 
 def test_real_dates_and_booleans_are_parsed_as_such(make_workbook):
-    parsed = parse_workbook(make_workbook())
+    """Excel types survive as Python types, not as strings."""
+    rows = [synthetic_row(record_id="SYN-1", received_date=dt.date(2026, 5, 29), is_open=True)]
+
+    parsed = parse_workbook(make_workbook(rows=rows))
     first = parsed.rows[0]
 
-    assert first.received_date == dt.date(2099, 1, 10)
+    assert first.received_date == dt.date(2026, 5, 29)
     assert isinstance(first.received_date, dt.date)
     assert first.is_open is True
     assert isinstance(first.is_open, bool)
