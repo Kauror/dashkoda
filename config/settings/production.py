@@ -10,6 +10,9 @@ VIEWER_PIN_HASH = required_env("VIEWER_PIN_HASH")
 VIEWER_PIN_VERSION = positive_int_env("VIEWER_PIN_VERSION")
 VIEWER_RATE_LIMIT_SECRET = required_env("VIEWER_RATE_LIMIT_SECRET")
 TRUST_CLOUDFLARE_IP_HEADER = boolean_env("TRUST_CLOUDFLARE_IP_HEADER")
+# Required, with no fallback: production must never silently write source
+# artifacts to an ephemeral container path or anywhere a static handler serves.
+SOURCE_ARTIFACT_ROOT = required_env("SOURCE_ARTIFACT_ROOT")
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = True
