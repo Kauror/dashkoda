@@ -4,70 +4,83 @@ DashKoda is a planned internal management dashboard for the Estonian Chamber of
 Commerce and Industry. It is intended for Chamber staff who need one consistent,
 auditable view of operational and membership information.
 
-The project is at the bootstrap stage. PR-01 establishes only the Django core,
-split settings, developer tooling, tests, and a public liveness endpoint. It does
-not implement the product dashboard or any business data.
+The project is at the runtime-foundation stage. PR-01 established the Django
+core; PR-02 adds the local Docker Compose runtime, PostgreSQL, readiness checks,
+static-file serving, and CI. No product dashboard or business data exists yet.
 
-## Local assumptions
+## Requirements
 
-- Python 3.14
-- [`uv`](https://docs.astral.sh/uv/) for Python and dependency management
-- no database or container runtime is required for PR-01
-- all commands are run from the repository root
+- Docker with Compose v2 for the supported local runtime
+- Python 3.14 and [`uv`](https://docs.astral.sh/uv/) for host-side static checks
+- all commands run from the repository root
 
-PR-01 deliberately uses Django's dummy database backend. It is nonpersistent
-and exists only because Django expects a database setting. PostgreSQL replaces
-it in PR-02; SQLite is not part of the planned architecture.
+## Start the local runtime
 
-## Set up
-
-Install the locked dependencies:
+Create a local environment file and replace every example secret:
 
 ```powershell
-uv sync --locked
+Copy-Item .env.example .env
 ```
 
-## Quality checks
+Validate, build, and start the two-service runtime:
 
 ```powershell
-uv run ruff format --check .
-uv run ruff check .
-uv run pytest
-uv run python manage.py check
+docker compose -f compose.yaml -f compose.dev.yaml config
+docker compose -f compose.yaml -f compose.dev.yaml build
+docker compose -f compose.yaml -f compose.dev.yaml up -d
 ```
 
-To apply formatting locally:
+The development override publishes only the web application on
+`127.0.0.1:${DASHKODA_PORT:-8000}` through the frontend network. PostgreSQL
+remains only on the internal backend network and has no host port.
+
+Apply the built-in Django migrations and collect static files:
 
 ```powershell
-uv run ruff format .
+docker compose -f compose.yaml -f compose.dev.yaml exec web python manage.py migrate
+docker compose -f compose.yaml -f compose.dev.yaml exec web python manage.py collectstatic --noinput
 ```
 
-## Run locally
-
-```powershell
-uv run python manage.py runserver
-```
-
-The public liveness endpoint is then available at:
+Check the endpoints:
 
 ```text
 http://127.0.0.1:8000/health/live/
+http://127.0.0.1:8000/health/ready/
 ```
 
-Its complete successful response is:
+Liveness is independent of PostgreSQL. Readiness performs only a minimal
+database query and returns a detail-free `503` response when the database is
+unavailable.
 
-```json
-{"status": "ok"}
+See [docs/local-runtime.md](docs/local-runtime.md) for tests, shutdown, and
+intentional local-data removal.
+
+## Host-side quality checks
+
+Set the `POSTGRES_*` variables to a reachable PostgreSQL test database before
+running database-backed commands directly on the host. The supported Compose
+runtime keeps PostgreSQL private, so its complete test suite is normally run in
+the development web container.
+
+```powershell
+uv sync --locked
+uv run ruff format --check .
+uv run ruff check .
+uv run python manage.py makemigrations --check
+uv run python manage.py check
 ```
 
-## Planned later work
+Run the PostgreSQL-backed suite inside the development container:
 
-Later pull requests will add Docker and Unraid-compatible runtime packaging,
-PostgreSQL, PIN-based access, server-rendered frontend foundations, membership
-and dashboard modules, and the remaining agreed functionality. Production is
-planned for `dash.orgusaar.ee`, but PR-01 makes no server, DNS, Cloudflare, or
-deployment changes.
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml exec web uv run pytest
+```
+
+## Current boundaries
+
+Unraid, Cloudflare, DNS, and `dash.orgusaar.ee` are not configured by this
+repository stage. PR-02 performs no deployment and does not alter any server or
+existing container.
 
 Do not commit secrets, `.env` files, production data, or real member data. The
-repository must contain only synthetic fixtures when a later test explicitly
-needs them.
+repository may contain only intentionally synthetic test values.

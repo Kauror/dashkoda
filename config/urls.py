@@ -1,7 +1,8 @@
 from django.urls import path
 
-from apps.core.views import liveness
+from apps.core.views import liveness, readiness
 
 urlpatterns = [
     path("health/live/", liveness, name="health-live"),
+    path("health/ready/", readiness, name="health-ready"),
 ]

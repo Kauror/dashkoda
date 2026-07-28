@@ -1,0 +1,116 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  test-and-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:18.4-bookworm@sha256:1961f96e6029a02c3812d7cb329a3b03a3ac2bb067058dec17b0f5596aca9296
+        env:
+          POSTGRES_DB: dashkoda
+          POSTGRES_USER: dashkoda
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U dashkoda -d dashkoda"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      COMPOSE_PROJECT_NAME: dashkoda_ci
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      DJANGO_SECRET_KEY: ci-only-secret-with-sufficient-length-not-for-production
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,dash.orgusaar.ee
+      POSTGRES_DB: dashkoda
+      POSTGRES_USER: dashkoda
+      POSTGRES_PASSWORD: ci-only-password
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: 5432
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          version: 0.11.29
+          python-version: 3.14.6
+          enable-cache: true
+
+      - name: Install locked dependencies
+        run: uv sync --locked
+
+      - name: Check formatting
+        run: uv run ruff format --check .
+
+      - name: Lint
+        run: uv run ruff check .
+
+      - name: Apply migrations to clean PostgreSQL
+        run: uv run python manage.py migrate --noinput
+
+      - name: Test
+        run: uv run pytest
+
+      - name: Check for missing migrations
+        run: uv run python manage.py makemigrations --check
+
+      - name: Run Django system check
+        run: uv run python manage.py check
+
+      - name: Run production deployment check
+        run: uv run python manage.py check --deploy --settings=config.settings.production
+
+      - name: Collect static files
+        run: uv run python manage.py collectstatic --noinput
+
+      - name: Validate Compose configuration
+        run: |
+          cp .env.example .env
+          docker compose -f compose.yaml -f compose.dev.yaml config
+
+      - name: Build production image
+        run: docker compose -f compose.yaml build
+
+      - name: Build development runtime
+        run: docker compose -f compose.yaml -f compose.dev.yaml build
+
+      - name: Run Compose integration smoke
+        run: |
+          docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
+          docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py migrate
+          docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py collectstatic --noinput
+          docker compose -f compose.yaml -f compose.dev.yaml exec -T web uv run pytest
+          docker compose -f compose.yaml -f compose.dev.yaml ps
+          curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 1 \
+            http://127.0.0.1:8000/health/live/
+          curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 1 \
+            http://127.0.0.1:8000/health/ready/
+          if [ -n "$(docker compose -f compose.yaml -f compose.dev.yaml port db 5432 2>/dev/null)" ]; then
+            echo "PostgreSQL must not publish a host port"
+            exit 1
+          fi
+          volume_name="$(docker volume ls \
+            --filter label=com.docker.compose.project=dashkoda_ci \
+            --filter label=com.docker.compose.volume=postgres_data \
+            --quiet)"
+          test -n "${volume_name}"
+          docker compose -f compose.yaml -f compose.dev.yaml down
+          docker volume inspect "${volume_name}"
+
+      - name: Clean up Compose runtime
+        if: always()
+        run: docker compose -f compose.yaml -f compose.dev.yaml down --volumes --remove-orphans

@@ -1,0 +1,16 @@
+.git
+.github
+.venv
+.uv-cache
+.uv-python
+__pycache__
+*.py[cod]
+.pytest_cache
+.ruff_cache
+.coverage
+htmlcov
+staticfiles
+.env
+.env.*
+!.env.example
+prepared-assets

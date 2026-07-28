@@ -1,0 +1,6 @@
+services:
+  web:
+    build:
+      target: development
+    ports:
+      - "127.0.0.1:${DASHKODA_PORT:-8000}:8000"
