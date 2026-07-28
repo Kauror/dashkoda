@@ -27,9 +27,17 @@ test("the shell renders every section with a truthful empty state", async ({ pag
 test("the Chamber logo is visible and undistorted", async ({ page }) => {
   await signIn(page);
 
+  if (page.viewportSize().width < 1024) {
+    // Narrow layouts show the product name as text in the top bar and keep the
+    // Chamber logo in the drawer, so only one mark is ever on screen.
+    await expect(page.getByText("DashKoda", { exact: true }).first()).toBeVisible();
+    await page.getByRole("button", { name: "Ava menüü" }).click();
+  }
+
   const logo = page.getByRole("img", { name: /Kaubandus-Tööstuskoda/ }).first();
-  await logo.scrollIntoViewIfNeeded();
-  const ratio = await logo.evaluate((image) => {
+  await expect(logo).toBeVisible();
+
+  const measured = await logo.evaluate((image) => {
     const box = image.getBoundingClientRect();
     return {
       rendered: box.width / box.height,
@@ -38,8 +46,8 @@ test("the Chamber logo is visible and undistorted", async ({ page }) => {
     };
   });
 
-  expect(ratio.width).toBeGreaterThan(0);
-  expect(Math.abs(ratio.rendered - ratio.natural)).toBeLessThan(0.02);
+  expect(measured.width).toBeGreaterThan(0);
+  expect(Math.abs(measured.rendered - measured.natural)).toBeLessThan(0.02);
 });
 
 test("no fabricated business number is shown anywhere on the shell", async ({ page }) => {
@@ -63,10 +71,14 @@ test("the page never scrolls sideways", async ({ page }) => {
 });
 
 test("the shell stays usable at 200% zoom", async ({ page }) => {
+  test.skip(page.viewportSize().width < 1024, "measured from the desktop viewport");
+
   await signIn(page);
-  await page.evaluate(() => {
-    document.documentElement.style.zoom = "200%";
-  });
+  // Browser zoom halves the CSS-pixel viewport, so emulate it by halving the
+  // viewport rather than by setting CSS zoom, which does not scale the layout
+  // viewport and makes overflow measurements meaningless.
+  const { width, height } = page.viewportSize();
+  await page.setViewportSize({ width: Math.round(width / 2), height: Math.round(height / 2) });
 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expectNoHorizontalOverflow(page);

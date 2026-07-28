@@ -16,10 +16,13 @@ test("navigation lists every planned module and routes only the overview", async
   const menu = page.getByRole("navigation", { name: "Peamenüü" }).last();
   await expect(menu.getByRole("link", { name: "Ülevaade" })).toBeVisible();
   for (const label of PLANNED) {
-    await expect(menu.getByText(label, { exact: true })).toBeVisible();
+    // A planned module is an inert item carrying its label and the Lisamisel
+    // badge, never a link.
+    const item = menu.locator('[aria-disabled="true"]', { hasText: label });
+    await expect(item).toBeVisible();
+    await expect(item).toContainText("Lisamisel");
     await expect(menu.getByRole("link", { name: label })).toHaveCount(0);
   }
-  await expect(menu.getByText("Lisamisel").first()).toBeVisible();
 });
 
 test("the desktop sidebar is persistent and the hamburger is absent", async ({ page }) => {
