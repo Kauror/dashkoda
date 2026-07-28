@@ -1,0 +1,39 @@
+#!/bin/bash
+#
+# DashKoda legal-work synchronisation, intended for the Unraid host's own
+# scheduler. Copy this file, replace the deployment directory, make it
+# executable, and schedule it. This repository installs nothing.
+#
+#   cp sync_oigusloome.sh.example /boot/config/plugins/user.scripts/sync_oigusloome.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_oigusloome.sh
+#
+# Intended schedule — 07:00 every day, Europe/Tallinn:
+#
+#   0 7 * * *
+#
+# Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn
+# before enabling it. Estonia observes daylight saving, so a host left on UTC
+# runs this job an hour early or late depending on the season:
+#
+#   timedatectl                      # look for "Time zone: Europe/Tallinn"
+#   date +'%Z %z %H:%M'              # expect EET +0200 in winter, EEST +0300 in summer
+#
+# The application already refuses overlapping runs through a PostgreSQL
+# advisory lock, so this script needs no locking of its own. The optional
+# flock below is defence in depth for the case where the container itself is
+# slow to start.
+#
+# Exit codes: 0 imported or unchanged, 1 failed, 3 another run was in progress.
+
+set -euo pipefail
+
+# Replace with the directory holding compose.yaml on the Unraid host.
+DEPLOYMENT_DIRECTORY="<DASHKODA_DEPLOYMENT_DIRECTORY>"
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+exec flock --nonblock /tmp/dashkoda-sync-oigusloome.lock \
+  docker compose exec -T web \
+    python manage.py sync_oigusloome --json

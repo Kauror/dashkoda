@@ -24,6 +24,22 @@ class AuditAction(models.TextChoices):
     IMPORT_RUN_CREATED = "import_run.created", "Impordikäivitus loodud"
     IMPORT_RUN_SUCCEEDED = "import_run.succeeded", "Impordikäivitus õnnestus"
     IMPORT_RUN_FAILED = "import_run.failed", "Impordikäivitus ebaõnnestus"
+    LEGAL_WORK_SNAPSHOT_IMPORTED = (
+        "legal_work.snapshot_imported",
+        "Õigusloome hetkeseis imporditud",
+    )
+    LEGAL_WORK_SNAPSHOT_PUBLISHED = (
+        "legal_work.snapshot_published",
+        "Õigusloome hetkeseis kehtestatud",
+    )
+    LEGAL_WORK_SYNC_UNCHANGED = (
+        "legal_work.sync_unchanged",
+        "Õigusloome sünkroonimine: muutusteta",
+    )
+    LEGAL_WORK_SYNC_FAILED = (
+        "legal_work.sync_failed",
+        "Õigusloome sünkroonimine ebaõnnestus",
+    )
 
 
 class AuditEventQuerySet(models.QuerySet):

@@ -1,0 +1,169 @@
+{% extends "dashboard/shell.html" %}
+
+{% comment %}
+Õigusloome page.
+
+Shows exactly the four things the brief asked for: what is being worked on now,
+what went out most recently, what came in most recently, and how trustworthy
+the data is. Nothing else is displayed — no responsible lawyer, no member
+feedback, no source-row numbers, no warning internals and no Microsoft
+identifiers. Those either do not exist in the model or are deliberately not
+rendered.
+
+Every value on this page comes from one imported snapshot. When there is no
+current snapshot the page renders the documented empty states instead.
+{% endcomment %}
+
+{% block title %}Õigusloome – DashKoda{% endblock %}
+{% block breadcrumb %}Õigusloome{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+
+  <header class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Õigusloome</h1>
+      <p class="text-sm text-text-secondary">Koja jälgitavad eelnõud ja esitatud arvamused</p>
+    </div>
+
+    <div class="rounded-lg border border-border bg-surface px-4 py-3">
+      {% include "legal_work/partials/data_state.html" %}
+    </div>
+  </header>
+
+  {# ---------------- 1. Hetkel töös ---------------- #}
+  <section aria-labelledby="section-open" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Hetkel töös" heading_id="section-open" description="Teemad, mille menetlus ei ole lõppenud." only %}
+    {% if open_items %}
+      <div class="w-full overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <caption class="sr-only">Hetkel töös olevad õigusloome teemad</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Õigusakti liik</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sisse</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Arvamuse tähtaeg</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Järgmiseks</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in open_items %}
+              <tr>
+                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.act_type|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
+                  {% if item.received_date %}{{ item.received_date|date:"d.m.Y" }}{% else %}—{% endif %}
+                </td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
+                  {% if item.deadline_date %}{{ item.deadline_date|date:"d.m.Y" }}{% else %}—{% endif %}
+                </td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.next_step|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Hetkel töös olevad teemad ilmuvad siia pärast esimest edukat sünkroonimist." only %}
+      </div>
+    {% endif %}
+  </section>
+
+  {# ---------------- 2. Viimati välja läinud ---------------- #}
+  <section aria-labelledby="section-sent" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Viimati välja läinud" heading_id="section-sent" description="Koja viimati esitatud arvamused." only %}
+    {% if sent_items %}
+      <div class="w-full overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <caption class="sr-only">Viimati välja läinud arvamused</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Välja</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kellele</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in sent_items %}
+              <tr>
+                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.sent_date|date:"d.m.Y" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.recipient|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+      </div>
+    {% endif %}
+  </section>
+
+  {# ---------------- 3. Uusimad sisse tulnud ---------------- #}
+  <section aria-labelledby="section-received" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Uusimad sisse tulnud" heading_id="section-received" description="Viimati kojale saabunud eelnõud ja teemad." only %}
+    {% if received_items %}
+      <div class="w-full overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <caption class="sr-only">Uusimad sisse tulnud teemad</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sisse</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Õigusakti liik</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Arvamuse tähtaeg</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in received_items %}
+              <tr>
+                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.received_date|date:"d.m.Y" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.act_type|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
+                  {% if item.deadline_date %}{{ item.deadline_date|date:"d.m.Y" }}{% else %}—{% endif %}
+                </td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+      </div>
+    {% endif %}
+  </section>
+
+  {# ---------------- 4. Andmete seis ---------------- #}
+  <section aria-labelledby="section-data-state" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="section-data-state" description="Kust andmed pärinevad ja kui värsked need on." only %}
+    <div class="dk-section-body flex flex-col gap-3">
+      {% include "legal_work/partials/data_state.html" %}
+      {% if summary.has_data %}
+        <dl class="flex flex-wrap gap-x-6 gap-y-2 border-t border-border pt-3 text-sm">
+          <div class="flex items-center gap-1.5">
+            <dt class="text-text-muted">Kirjeid kokku:</dt>
+            <dd class="font-medium text-text">{{ summary.total_count }}</dd>
+          </div>
+          <div class="flex items-center gap-1.5">
+            <dt class="text-text-muted">Hetkel töös:</dt>
+            <dd class="font-medium text-text">{{ summary.open_count }}</dd>
+          </div>
+        </dl>
+      {% endif %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}

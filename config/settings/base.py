@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parents[2]
@@ -14,6 +15,7 @@ INSTALLED_APPS = [
     "apps.dashboard.apps.DashboardConfig",
     "apps.sources.apps.SourcesConfig",
     "apps.audit.apps.AuditConfig",
+    "apps.legal_work.apps.LegalWorkConfig",
 ]
 
 MIDDLEWARE = [
@@ -103,3 +105,22 @@ SOURCE_ARTIFACT_ALLOWED_EXTENSIONS = frozenset(
         ".pptx",
     }
 )
+
+# Legal-work feed.
+#
+# The Microsoft Graph values are intentionally optional and blank by default:
+# the web application must start, and CI must run, without any Graph
+# credentials. Only `sync_oigusloome` and `resolve_oigusloome_share` require
+# them, and they fail with an explicit message listing what is missing.
+#
+# The sharing URL is never configuration. It is resolved once to a stable
+# drive/item pair through the one-time resolver command.
+LEGAL_WORK_SOURCE_SLUG = "oigusloome-onedrive"
+MS_GRAPH_TENANT_ID = os.environ.get("MS_GRAPH_TENANT_ID", "")
+MS_GRAPH_CLIENT_ID = os.environ.get("MS_GRAPH_CLIENT_ID", "")
+MS_GRAPH_CLIENT_SECRET = os.environ.get("MS_GRAPH_CLIENT_SECRET", "")
+OIGUSLOOME_DRIVE_ID = os.environ.get("OIGUSLOOME_DRIVE_ID", "")
+OIGUSLOOME_ITEM_ID = os.environ.get("OIGUSLOOME_ITEM_ID", "")
+MS_GRAPH_TIMEOUT_SECONDS = 30
+MS_GRAPH_MAX_ATTEMPTS = 4
+LEGAL_WORK_MAX_DOWNLOAD_BYTES = SOURCE_ARTIFACT_MAX_BYTES

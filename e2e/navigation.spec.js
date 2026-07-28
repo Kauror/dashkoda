@@ -2,11 +2,12 @@ import { expect, test } from "@playwright/test";
 
 import { signIn, watchConsole } from "./helpers.js";
 
-const PLANNED = ["Liikmeskond", "Õigusloome", "Arvamused", "Sündmused", "Uudised", "Finantsid"];
+const PLANNED = ["Liikmeskond", "Arvamused", "Sündmused", "Uudised", "Finantsid"];
+const ROUTED = ["Ülevaade", "Õigusloome"];
 
 const isDesktop = (page) => page.viewportSize().width >= 1024;
 
-test("navigation lists every planned module and routes only the overview", async ({ page }) => {
+test("navigation routes the implemented modules and marks the rest planned", async ({ page }) => {
   await signIn(page);
 
   if (!isDesktop(page)) {
@@ -14,7 +15,9 @@ test("navigation lists every planned module and routes only the overview", async
   }
 
   const menu = page.getByRole("navigation", { name: "Peamenüü" }).last();
-  await expect(menu.getByRole("link", { name: "Ülevaade" })).toBeVisible();
+  for (const label of ROUTED) {
+    await expect(menu.getByRole("link", { name: label })).toBeVisible();
+  }
   for (const label of PLANNED) {
     // A planned module is an inert item carrying its label and the Lisamisel
     // badge, never a link.
