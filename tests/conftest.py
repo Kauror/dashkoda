@@ -10,6 +10,19 @@ def viewer_access_settings(settings):
     settings.TRUST_CLOUDFLARE_IP_HEADER = False
 
 
+@pytest.fixture(autouse=True)
+def private_artifact_root(settings, tmp_path):
+    """Point private artifact storage at a per-test temporary directory.
+
+    pytest removes it afterwards, so no test ever writes into the repository or
+    leaves an original file behind.
+    """
+    root = tmp_path / "source-artifacts"
+    root.mkdir()
+    settings.SOURCE_ARTIFACT_ROOT = str(root)
+    return root
+
+
 @pytest.fixture
 def viewer_pin():
     return "8642"

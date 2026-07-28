@@ -9,6 +9,8 @@ __pycache__/
 .coverage
 htmlcov/
 staticfiles/
+# Private source artifacts are never committed.
+.private-media/
 node_modules/
 static/build/*
 !static/build/.gitkeep

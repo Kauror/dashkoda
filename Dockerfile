@@ -44,6 +44,7 @@ RUN POSTGRES_DB=build \
     VIEWER_PIN_VERSION=1 \
     VIEWER_RATE_LIMIT_SECRET=build-only-not-a-runtime-rate-limit-secret \
     TRUST_CLOUDFLARE_IP_HEADER=false \
+    SOURCE_ARTIFACT_ROOT=/tmp/build-only-not-a-runtime-artifact-root \
     /opt/venv/bin/python manage.py collectstatic --noinput
 
 FROM builder AS development-builder
@@ -58,6 +59,13 @@ ENV PATH=/opt/venv/bin:$PATH \
 
 RUN groupadd --gid 10001 dashkoda \
     && useradd --uid 10001 --gid dashkoda --no-create-home --shell /usr/sbin/nologin dashkoda
+
+# Mount point for the private source-artifact volume. Creating it here with the
+# right ownership means Compose initialises the named volume as writable by the
+# non-root runtime user. It is deliberately outside /app and outside every
+# static path, so no web server can reach it.
+RUN mkdir -p /srv/dashkoda/source-artifacts \
+    && chown -R dashkoda:dashkoda /srv/dashkoda
 
 WORKDIR /app
 

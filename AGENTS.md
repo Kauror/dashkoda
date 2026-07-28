@@ -35,7 +35,19 @@ These rules apply to the whole repository.
 - Do not expose versions, dependencies, server details, or database state from health endpoints.
 - Do not change Unraid, Docker runtime, Cloudflare, DNS, or production services unless
   the current brief explicitly authorizes it.
-- Treat `dash.orgusaar.ee` as the planned production host, not as an existing deployment.
+- `dash.orgusaar.ee` is a running development/pilot deployment, but this repository
+  does not own Cloudflare, DNS, the tunnel or the Unraid host, and `cloudflared` is
+  managed separately from the DashKoda Compose stack.
+- Never commit a tunnel token, Cloudflare credential, production environment value or
+  server path holding real data.
+- Backup, restore, rollback and the operations runbook are not done; do not describe the
+  operations milestone as complete.
+- Keep original source files out of PostgreSQL, out of Git and off every served path;
+  the only way to fetch one is the permission-guarded staff download.
+- Write audit events only through `apps.audit.services.record_event`; never update or
+  delete one.
+- Route source, artifact and import state changes through `apps/sources/services.py`
+  rather than through views, admin callbacks or signals.
 
 ## Product and visual direction
 

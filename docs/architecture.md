@@ -2,10 +2,16 @@
 
 ## Agreed direction
 
-DashKoda is a Django modular monolith. Its planned production runtime is Docker
-on Unraid, backed by PostgreSQL and eventually published at
-`dash.orgusaar.ee`. PR-03 added the local viewer-access boundary and PR-04 adds
-the dashboard shell; neither configures or deploys to those production systems.
+DashKoda is a Django modular monolith. It runs as a development/pilot
+deployment on Docker on Unraid, backed by PostgreSQL and reachable at
+`https://dash.orgusaar.ee` through an existing Cloudflare Tunnel.
+
+That deployment happened ahead of the planned operations milestone and is a
+sequencing deviation, not a finished operations stage. This repository does not
+own or configure Cloudflare, DNS, the tunnel or the Unraid host; `cloudflared`
+is managed separately from the DashKoda Compose application, and no tunnel
+token, route definition or production environment value belongs in Git. See
+[deployment-status.md](deployment-status.md) for what is and is not done.
 
 The presentation layer is server-rendered Django templates with HTMX and the
 Alpine.js CSP build under a strict Content Security Policy. Tailwind CSS 4
@@ -13,8 +19,9 @@ provides styling and ECharts is bundled for charts, though no chart is rendered
 yet. Web typography uses
 `system-ui, -apple-system, "Segoe UI", Arial, sans-serif`.
 
-See [design-system.md](design-system.md) for the visual language and
-[frontend.md](frontend.md) for the build, asset strategy and logo provenance.
+See [design-system.md](design-system.md) for the visual language,
+[frontend.md](frontend.md) for the build, asset strategy and logo provenance,
+and [data-model.md](data-model.md) for the source, import and audit foundation.
 
 ## Runtime topology
 
@@ -83,9 +90,12 @@ The future monolith will separate shared infrastructure from business modules:
   presentation, the shared visual components and the neutral HTMX fragment. It
   owns no business data, no source or audit model, no authentication and no
   import pipeline.
+- `sources` owns source registration, private original files, the import-run
+  registry and private artifact access. It owns no domain data and performs no
+  parsing.
+- `audit` owns append-only records of significant actions and depends on no
+  domain module.
 - membership will own member-domain data and membership views.
-- ingestion will own source registration, artifacts, and import runs.
-- audit will own immutable records of significant actions.
 - dashboard modules will read prepared application data and present focused views.
 
 Exact future app names and models are introduced only by their implementing pull
@@ -116,13 +126,26 @@ the six planned modules appear in the navigation as inert entries marked
 - one neutral HTMX fragment and its `HX-Redirect` session handling
 - locally bundled ECharts bootstrap that no page renders yet
 - Playwright browser smoke suite across four viewports in CI
+- `sources` app: `DataSource`, private `SourceArtifact`, `ImportRun` registry
+- private artifact storage outside every served path, with a staff-only,
+  permission-guarded download
+- `audit` app: append-only `AuditEvent` with redaction and a database trigger
+- explicit service layer for checksums, import keys and import state transitions
 
 ## Not implemented yet
 
-There is no production deployment, Unraid override, Cloudflare or DNS
-configuration, backup/restore automation, membership or ingestion domain model,
-audit event model, CSV import, chart, demo data, or real data. The dashboard
-shows structure only: every section is an explicit empty state because no data
-source is connected.
+There is no Unraid override, Cloudflare or DNS configuration, backup or restore
+automation, rollback tooling, staging environment, membership domain model, CSV
+importer, chart, demo data, or real data in this repository. The dashboard shows
+structure only: every section is an explicit empty state because no data source
+is connected.
 
-The next planned stage is PR-05 `sources-audit`.
+PR-05 adds the registry that later imports will use, but **no importer runs and
+nothing is scheduled**. Creating an `ImportRun` records an attempt; it never
+writes a domain record.
+
+An application deployment exists at `dash.orgusaar.ee`, but the operations
+milestone it belongs to is not complete. See
+[deployment-status.md](deployment-status.md).
+
+The next planned stage is PR-06 `membership-domain`.

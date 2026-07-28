@@ -20,3 +20,8 @@ TRUST_CLOUDFLARE_IP_HEADER = os.environ.get("TRUST_CLOUDFLARE_IP_HEADER", "false
 STORAGES["staticfiles"] = {  # noqa: F405
     "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
 }
+# Outside the repository tree's served paths and git-ignored.
+SOURCE_ARTIFACT_ROOT = os.environ.get(
+    "SOURCE_ARTIFACT_ROOT",
+    str(BASE_DIR / ".private-media" / "source-artifacts"),  # noqa: F405
+)

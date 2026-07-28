@@ -12,6 +12,8 @@ INSTALLED_APPS = [
     "apps.core.apps.CoreConfig",
     "apps.access.apps.AccessConfig",
     "apps.dashboard.apps.DashboardConfig",
+    "apps.sources.apps.SourcesConfig",
+    "apps.audit.apps.AuditConfig",
 ]
 
 MIDDLEWARE = [
@@ -74,3 +76,30 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 
 VIEWER_SESSION_AUTHENTICATED_KEY = "viewer_authenticated"
 VIEWER_SESSION_VERSION_KEY = "viewer_pin_version"
+
+# Private source artifacts.
+#
+# `SOURCE_ARTIFACT_ROOT` is defined per environment and must never point inside
+# `STATIC_ROOT` or any `STATICFILES_DIRS` entry: WhiteNoise must not be able to
+# reach an original file, and there is no media URL at all.
+#
+# Uploads are stored, never parsed. The allowlist is limited to the inert
+# document and data formats this project actually receives; anything
+# executable, archived or scriptable is rejected.
+SOURCE_ARTIFACT_MAX_BYTES = 25 * 1024 * 1024
+SOURCE_ARTIFACT_ALLOWED_EXTENSIONS = frozenset(
+    {
+        ".csv",
+        ".tsv",
+        ".txt",
+        ".json",
+        ".xml",
+        ".pdf",
+        ".doc",
+        ".docx",
+        ".xls",
+        ".xlsx",
+        ".ppt",
+        ".pptx",
+    }
+)
