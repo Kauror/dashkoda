@@ -21,7 +21,9 @@ yet. Web typography uses
 
 See [design-system.md](design-system.md) for the visual language,
 [frontend.md](frontend.md) for the build, asset strategy and logo provenance,
-and [data-model.md](data-model.md) for the source, import and audit foundation.
+[data-model.md](data-model.md) for the source, import and audit foundation, and
+[legal-work-feed.md](legal-work-feed.md) for the first module carrying real
+business data.
 
 ## Runtime topology
 
@@ -95,13 +97,28 @@ The future monolith will separate shared infrastructure from business modules:
   parsing.
 - `audit` owns append-only records of significant actions and depends on no
   domain module.
+- `legal_work` owns the imported legal-work snapshots and rows, their
+  selectors, the Õigusloome page, the workbook importer and the OneDrive feed
+  state. It owns no generic artifact or import-run lifecycle, no audit
+  infrastructure, no authentication and no other OneDrive file.
 - membership will own member-domain data and membership views.
 - dashboard modules will read prepared application data and present focused views.
 
 Exact future app names and models are introduced only by their implementing pull
-requests. Neither PR-03 nor PR-04 creates placeholder business apps or models:
-the six planned modules appear in the navigation as inert entries marked
-`Lisamisel` and have no routes.
+requests. No pull request creates placeholder business apps or models. The
+overview and Õigusloome are routed; the five still-planned modules appear in the
+navigation as inert entries marked `Lisamisel` and have no routes.
+
+## Data collection boundary
+
+Collecting data from an external system is a scheduled command, never part of a
+web request. A page render reads PostgreSQL and nothing else: it does not call
+Microsoft Graph, download or parse a workbook, or wait on OneDrive. A slow or
+broken external system can therefore delay tomorrow's data, but it can never
+make the dashboard slow, broken or untruthful.
+
+Publication is all-or-nothing, and a failed collection never replaces or removes
+the last good data. See [legal-work-feed.md](legal-work-feed.md).
 
 ## Implemented through PR-05
 
@@ -131,21 +148,32 @@ the six planned modules appear in the navigation as inert entries marked
   permission-guarded download
 - `audit` app: append-only `AuditEvent` with redaction and a database trigger
 - explicit service layer for checksums, import keys and import state transitions
+- `legal_work` app: immutable `LegalWorkSnapshot`, `LegalWorkItem` and the
+  `LegalWorkFeedState` record of the last synchronisation attempt
+- deterministic `legal_work_xlsx` importer with an all-or-nothing snapshot
+  publication and a documented workbook contract
+- read-only Microsoft Graph collector for exactly one OneDrive workbook
+- `import_oigusloome`, `sync_oigusloome` and `resolve_oigusloome_share` commands
+- the Õigusloome page and the overview's legal-work summary
+- an Unraid script template for a 07:00 `Europe/Tallinn` schedule
 
 ## Not implemented yet
 
 There is no Unraid override, Cloudflare or DNS configuration, backup or restore
-automation, rollback tooling, staging environment, membership domain model, CSV
-importer, chart, demo data, or real data in this repository. The dashboard shows
-structure only: every section is an explicit empty state because no data source
-is connected.
+automation, rollback tooling, staging environment, membership domain model,
+chart or demo data in this repository.
 
-PR-05 adds the registry that later imports will use, but **no importer runs and
-nothing is scheduled**. Creating an `ImportRun` records an attempt; it never
-writes a domain record.
+Every dashboard section except Õigusloome is still an explicit empty state,
+because no other data source is connected.
+
+The 07:00 schedule is **documented as a template and is not installed**. Live
+Microsoft Graph acceptance has **not** been performed: no credentials existed
+during development, so the collector is covered by mocked transports only.
 
 An application deployment exists at `dash.orgusaar.ee`, but the operations
 milestone it belongs to is not complete. See
 [deployment-status.md](deployment-status.md).
 
-The next planned stage is PR-06 `membership-domain`.
+The legal-work feed is a deliberate change in feature order: it is the first
+end-to-end proof of concept with real business data, delivered ahead of the
+membership domain. The next planned stage remains `membership-domain`.

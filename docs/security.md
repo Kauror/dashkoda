@@ -49,6 +49,36 @@ archives and macro-enabled office formats are refused.
 See [data-model.md](data-model.md) for the full model, and note that the audit
 trail's append-only guarantee has documented limits.
 
+## External data collection
+
+The legal-work feed reads one OneDrive workbook through Microsoft Graph. It
+widens the boundary as little as possible:
+
+- collection is **read-only**. The application holds the `Files.Read.All`
+  application permission and never requests write access to OneDrive.
+- collection happens only in a scheduled command. There is **no webhook, no
+  public ingestion endpoint and no route that accepts a remote file or URL**.
+  Nothing external can push data into DashKoda.
+- the target is one drive item fixed in configuration. There is no file
+  browsing, no folder crawling and no arbitrary path.
+- Graph credentials live only in the deployment environment. They are never
+  committed, never stored in the database, never logged and never rendered.
+- downloads follow Graph's redirect to a pre-authenticated URL, and the bearer
+  token is deliberately not forwarded to that host. That signed URL is never
+  logged or stored.
+- downloads are size-capped while streaming, accept only XLSX, and are written
+  to a temporary directory that is removed afterwards.
+- the workbook is stored and checksummed as an ordinary private artifact, under
+  exactly the rules above. Its contents never reach logs, audit summaries or
+  import diagnostics.
+- `LegalWorkFeedState` records only non-secret content metadata — etag, size and
+  modification time — plus a sanitized, truncated error summary.
+
+`dash.orgusaar.ee` now serves real internal Chamber information rather than
+empty states. Cloudflare Access in front of the tunnel remains the recommended
+next control before treating the pilot as a production system for confidential
+data. **This pull request does not change Cloudflare, DNS or the tunnel.**
+
 ## Runtime settings
 
 - `VIEWER_PIN_HASH`: output from `generate_viewer_pin_hash`

@@ -89,11 +89,13 @@ def test_future_received_dates_are_excluded_from_newest_received(
 
 
 def test_recent_lists_are_limited(make_workbook, register_workbook):
+    today = dt.date.today()
     rows = [
         synthetic_row(
             record_id=f"SYN-{index:03d}",
             topic=f"Teema {index}",
-            received_date=dt.date(2099, 1, 1) + dt.timedelta(days=index),
+            # All in the past, so the future-exclusion rule does not apply here.
+            received_date=today - dt.timedelta(days=index + 1),
             source_row=index + 2,
         )
         for index in range(20)

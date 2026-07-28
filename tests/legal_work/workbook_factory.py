@@ -31,8 +31,15 @@ WARNINGS_COLUMNS = (
     "explanation",
 )
 
-REPORTING_DATE = dt.date(2099, 3, 1)
-GENERATED_AT = dt.datetime(2099, 3, 1, 6, 30, 0)
+# Dates are relative to today and always in the past. A fixed future year would
+# be filtered out by the "received date must not be in the future" rule, which
+# is exactly the behaviour the selectors are supposed to have.
+TODAY = dt.date.today()
+REPORTING_DATE = TODAY - dt.timedelta(days=1)
+GENERATED_AT = dt.datetime.combine(REPORTING_DATE, dt.time(6, 30))
+
+DEFAULT_RECEIVED = TODAY - dt.timedelta(days=60)
+DEFAULT_DEADLINE = TODAY - dt.timedelta(days=30)
 
 
 def synthetic_row(
@@ -42,8 +49,8 @@ def synthetic_row(
     source_nr: int = 1,
     topic: str = "Sünteetiline testteema",
     act_type: str = "Sünteetiline liik",
-    received_date: dt.date | None = dt.date(2099, 1, 10),
-    deadline_date: dt.date | None = dt.date(2099, 2, 10),
+    received_date: dt.date | None = DEFAULT_RECEIVED,
+    deadline_date: dt.date | None = DEFAULT_DEADLINE,
     sent_date: dt.date | None = None,
     sent_status: str = "pending",
     recipient: str = "Sünteetiline saaja",
@@ -83,15 +90,15 @@ def default_rows() -> list[list]:
         synthetic_row(
             record_id="SYN-0001",
             topic="Sünteetiline avatud teema",
-            received_date=dt.date(2099, 1, 10),
+            received_date=TODAY - dt.timedelta(days=60),
             is_open=True,
             source_row=2,
         ),
         synthetic_row(
             record_id="SYN-0002",
             topic="Sünteetiline saadetud teema",
-            received_date=dt.date(2099, 1, 20),
-            sent_date=dt.date(2099, 2, 1),
+            received_date=TODAY - dt.timedelta(days=50),
+            sent_date=TODAY - dt.timedelta(days=20),
             sent_status="sent",
             stage="jõustunud",
             stage_key="jõustunud",
@@ -101,7 +108,7 @@ def default_rows() -> list[list]:
         synthetic_row(
             record_id="SYN-0003",
             topic="Sünteetiline saatmata teema",
-            received_date=dt.date(2099, 1, 25),
+            received_date=TODAY - dt.timedelta(days=45),
             sent_status="not_sent",
             is_open=True,
             warning_codes="missing_stage",

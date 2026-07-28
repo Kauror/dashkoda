@@ -180,13 +180,20 @@ def test_overview_discloses_a_failed_sync_alongside_old_data(
     assert "Kuvatakse viimase eduka impordi andmeid." in content
 
 
-def test_overview_never_claims_today_merely_because_the_page_loaded(
+def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
     client, authenticate_viewer, imported_snapshot
 ):
+    """The claim must be "data as of <workbook date>", not "loaded today".
+
+    The shell's own freshness region legitimately shows the current time — that
+    is a fact about the application, not about the data — so this checks the
+    legal-work claim specifically.
+    """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
+    reporting_date = imported_snapshot.reporting_date
 
-    # The stated date is the workbook's own reporting date, not today.
-    assert imported_snapshot.reporting_date.strftime("%d.%m.%Y") in content
-    assert dt.date.today().strftime("%d.%m.%Y") not in content
+    assert reporting_date != dt.date.today()
+    assert "Andmed seisuga" in content
+    assert reporting_date.strftime("%d.%m.%Y") in content

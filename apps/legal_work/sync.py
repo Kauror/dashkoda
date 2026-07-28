@@ -32,7 +32,7 @@ from apps.sources.services import calculate_sha256, register_artifact
 
 from .bootstrap import ensure_legal_work_source
 from .graph import GraphClient, GraphError, RemoteFile, load_graph_settings
-from .importer import IMPORTER_NAME, LegalWorkImportError, import_artifact
+from .importer import IMPORTER_NAME, import_artifact
 from .models import LegalWorkFeedState, LegalWorkSnapshot, SyncResult
 
 logger = logging.getLogger("dashkoda.legal_work.sync")
@@ -199,8 +199,13 @@ def synchronize(
                 actor=actor,
                 correlation_id=correlation_id,
             )
-        except (LegalWorkImportError, ValueError) as error:
-            message = str(error).replace("\n", " ")
+        except Exception as error:
+            # Deliberately broad. This is a nightly unattended job: every
+            # failure, including a constraint violation from the import
+            # registry, must be recorded and reported rather than escaping as a
+            # traceback. The previous snapshot is already safe, because the
+            # importer rolled its transaction back.
+            message = f"{type(error).__name__}: {error}".replace("\n", " ")
             _record_failure(state, message, correlation_id=correlation_id)
             logger.warning("legal_work.sync failed during import: %s", message)
             return SyncOutcome(result=SyncResult.FAILED, detail=message)
