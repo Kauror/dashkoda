@@ -5,8 +5,9 @@ as-of date for. This module returns only facts about the application itself:
 that no source is connected and when that was last checked. It deliberately
 does not invent an as-of date, a coverage percentage or a source name.
 
-PR-05 (`sources-audit`) replaces the constant below with real registered
-sources; the template contract stays the same.
+PR-05 (`sources-audit`) added the source registry but deliberately connected
+nothing to the dashboard. The first data module replaces the constant below
+with real registered sources; the template contract stays the same.
 """
 
 from dataclasses import dataclass

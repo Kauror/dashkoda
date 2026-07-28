@@ -18,7 +18,25 @@ PRODUCTION_ENVIRONMENT = (
     "VIEWER_PIN_VERSION",
     "VIEWER_RATE_LIMIT_SECRET",
     "TRUST_CLOUDFLARE_IP_HEADER",
+    "SOURCE_ARTIFACT_ROOT",
 )
+
+# Complete synthetic production environment. Every required name is set
+# explicitly, so these tests never depend on ambient variables from CI.
+COMPLETE_ENVIRONMENT = {
+    "DJANGO_SECRET_KEY": "test-only-production-secret-with-sufficient-length",
+    "DJANGO_ALLOWED_HOSTS": "dash.orgusaar.ee",
+    "POSTGRES_DB": "dashkoda",
+    "POSTGRES_USER": "dashkoda",
+    "POSTGRES_PASSWORD": "test-only-password",
+    "POSTGRES_HOST": "127.0.0.1",
+    "POSTGRES_PORT": "5432",
+    "VIEWER_PIN_HASH": "synthetic-hash-placeholder",
+    "VIEWER_PIN_VERSION": "1",
+    "VIEWER_RATE_LIMIT_SECRET": "synthetic-rate-limit-secret",
+    "TRUST_CLOUDFLARE_IP_HEADER": "false",
+    "SOURCE_ARTIFACT_ROOT": "/tmp/synthetic-production-artifact-root",
+}
 
 
 def test_test_settings_use_estonian_locale_and_postgresql():
@@ -31,21 +49,7 @@ def test_test_settings_use_estonian_locale_and_postgresql():
 def test_production_settings_require_environment_variables(missing_name):
     environment = os.environ.copy()
     environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[2])
-    environment.update(
-        {
-            "DJANGO_SECRET_KEY": "test-only-production-secret-with-sufficient-length",
-            "DJANGO_ALLOWED_HOSTS": "dash.orgusaar.ee",
-            "POSTGRES_DB": "dashkoda",
-            "POSTGRES_USER": "dashkoda",
-            "POSTGRES_PASSWORD": "test-only-password",
-            "POSTGRES_HOST": "127.0.0.1",
-            "POSTGRES_PORT": "5432",
-            "VIEWER_PIN_HASH": "synthetic-hash-placeholder",
-            "VIEWER_PIN_VERSION": "1",
-            "VIEWER_RATE_LIMIT_SECRET": "synthetic-rate-limit-secret",
-            "TRUST_CLOUDFLARE_IP_HEADER": "false",
-        }
-    )
+    environment.update(COMPLETE_ENVIRONMENT)
     environment.pop(missing_name)
 
     result = subprocess.run(
@@ -63,21 +67,7 @@ def test_production_settings_require_environment_variables(missing_name):
 def test_production_settings_accept_complete_environment():
     environment = os.environ.copy()
     environment["PYTHONPATH"] = str(Path(__file__).resolve().parents[2])
-    environment.update(
-        {
-            "DJANGO_SECRET_KEY": "test-only-production-secret-with-sufficient-length",
-            "DJANGO_ALLOWED_HOSTS": "dash.orgusaar.ee",
-            "POSTGRES_DB": "dashkoda",
-            "POSTGRES_USER": "dashkoda",
-            "POSTGRES_PASSWORD": "test-only-password",
-            "POSTGRES_HOST": "127.0.0.1",
-            "POSTGRES_PORT": "5432",
-            "VIEWER_PIN_HASH": "synthetic-hash-placeholder",
-            "VIEWER_PIN_VERSION": "1",
-            "VIEWER_RATE_LIMIT_SECRET": "synthetic-rate-limit-secret",
-            "TRUST_CLOUDFLARE_IP_HEADER": "false",
-        }
-    )
+    environment.update(COMPLETE_ENVIRONMENT)
 
     result = subprocess.run(
         [

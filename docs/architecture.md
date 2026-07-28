@@ -103,7 +103,7 @@ requests. Neither PR-03 nor PR-04 creates placeholder business apps or models:
 the six planned modules appear in the navigation as inert entries marked
 `Lisamisel` and have no routes.
 
-## Implemented through PR-04
+## Implemented through PR-05
 
 - minimal Django project and `core` app
 - split base, local, production, and test settings

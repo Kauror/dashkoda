@@ -25,14 +25,16 @@ def check_pin(client_key: str, pin: str) -> PinCheckResult:
     now = timezone.now()
 
     with transaction.atomic():
-        bucket, _created = ViewerRateLimitBucket.objects.get_or_create(
+        # One locked fetch-or-create: a separate unlocked get_or_create followed
+        # by a locking re-fetch leaves a window in which a concurrent successful
+        # login can delete the bucket and make the re-fetch crash.
+        bucket, _created = ViewerRateLimitBucket.objects.select_for_update().get_or_create(
             client_key=client_key,
             defaults={
                 "window_started_at": now,
                 "failure_count": 0,
             },
         )
-        bucket = ViewerRateLimitBucket.objects.select_for_update().get(pk=bucket.pk)
 
         if bucket.locked_until and bucket.locked_until > now:
             retry_after = max(1, math.ceil((bucket.locked_until - now).total_seconds()))

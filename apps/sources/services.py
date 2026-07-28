@@ -17,6 +17,7 @@ from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 
 from .models import DataSource, ImportRun, ImportStatus, SourceArtifact
+from .storage import extension_not_allowed_message
 
 CHUNK_SIZE = 64 * 1024
 
@@ -124,6 +125,37 @@ def calculate_sha256(file_object) -> tuple[str, int]:
     return digest.hexdigest(), size
 
 
+def validate_artifact_upload(
+    *,
+    source: DataSource,
+    upload,
+    original_name: str | None = None,
+) -> tuple[str, int]:
+    """Check every registration rule for an upload.
+
+    Returns the server-computed ``(sha256, size)`` on success and raises
+    :class:`ArtifactRejected` otherwise. Shared by :func:`register_artifact`
+    and the admin form, so a rejected upload becomes a form error there instead
+    of an unhandled exception.
+    """
+    name = original_name or getattr(upload, "name", "") or ""
+    extension = Path(name).suffix.lower()
+    if extension not in settings.SOURCE_ARTIFACT_ALLOWED_EXTENSIONS:
+        raise ArtifactRejected(extension_not_allowed_message(extension))
+
+    checksum, size = calculate_sha256(upload)
+    limit = settings.SOURCE_ARTIFACT_MAX_BYTES
+    if size > limit:
+        raise ArtifactRejected(f"Fail on liiga suur: {size} baiti. Lubatud kuni {limit} baiti.")
+    if size == 0:
+        raise ArtifactRejected("Tühja faili ei registreerita.")
+
+    if SourceArtifact.objects.filter(source=source, sha256=checksum).exists():
+        raise ArtifactRejected("Selle allika all on sama sisuga fail juba registreeritud.")
+
+    return checksum, size
+
+
 def register_artifact(
     *,
     source: DataSource,
@@ -137,23 +169,7 @@ def register_artifact(
 ) -> SourceArtifact:
     """Register one immutable original file under a source."""
     name = original_name or getattr(upload, "name", "") or ""
-    extension = Path(name).suffix.lower()
-    allowed = settings.SOURCE_ARTIFACT_ALLOWED_EXTENSIONS
-    if extension not in allowed:
-        raise ArtifactRejected(
-            f"Faili laiend ei ole lubatud: {extension or '(puudub)'}. "
-            f"Lubatud: {', '.join(sorted(allowed))}."
-        )
-
-    checksum, size = calculate_sha256(upload)
-    limit = settings.SOURCE_ARTIFACT_MAX_BYTES
-    if size > limit:
-        raise ArtifactRejected(f"Fail on liiga suur: {size} baiti. Lubatud kuni {limit} baiti.")
-    if size == 0:
-        raise ArtifactRejected("Tühja faili ei registreerita.")
-
-    if SourceArtifact.objects.filter(source=source, sha256=checksum).exists():
-        raise ArtifactRejected("Selle allika all on sama sisuga fail juba registreeritud.")
+    checksum, size = validate_artifact_upload(source=source, upload=upload, original_name=name)
 
     artifact = SourceArtifact(
         source=source,

@@ -73,7 +73,7 @@ def test_expired_failure_window_starts_again_at_one(client):
 
 
 @pytest.mark.django_db(transaction=True)
-def test_concurrent_failures_are_serialized(settings):
+def test_concurrent_failures_are_serialized():
     def fail_once():
         close_old_connections()
         try:

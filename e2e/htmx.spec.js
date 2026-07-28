@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { signIn, watchConsole } from "./helpers.js";
+import { TEST_PIN, signIn, watchConsole } from "./helpers.js";
 
 test("the freshness fragment is swapped in place without leaving the page", async ({ page }) => {
   const errors = watchConsole(page);
@@ -41,7 +41,7 @@ test("without JavaScript the refresh control is an ordinary form submission", as
   const page = await context.newPage();
 
   await page.goto("/sisene/");
-  await page.getByLabel("PIN-kood").fill(process.env.DASHKODA_E2E_PIN || "4071");
+  await page.getByLabel("PIN-kood").fill(TEST_PIN);
   await page.getByRole("button", { name: "Sisene" }).click();
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja juhatuse töölaud");
 
