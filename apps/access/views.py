@@ -34,7 +34,6 @@ def login_view(request):
     retry_after = None
     if request.method == "POST" and form.is_valid():
         result = check_pin(client_key(request), form.cleaned_data["pin"])
-        form = ViewerLoginForm()
         if result.authenticated:
             request.session.cycle_key()
             request.session[settings.VIEWER_SESSION_AUTHENTICATED_KEY] = True

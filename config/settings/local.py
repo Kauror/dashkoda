@@ -17,3 +17,6 @@ VIEWER_RATE_LIMIT_SECRET = os.environ.get(
     "dashkoda-local-only-rate-limit-secret",
 )
 TRUST_CLOUDFLARE_IP_HEADER = os.environ.get("TRUST_CLOUDFLARE_IP_HEADER", "false").lower() == "true"
+STORAGES["staticfiles"] = {  # noqa: F405
+    "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
+}

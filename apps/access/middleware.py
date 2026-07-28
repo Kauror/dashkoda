@@ -33,6 +33,8 @@ class SecurityHeadersMiddleware:
         response.headers["Referrer-Policy"] = "same-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["X-Robots-Tag"] = "noindex, nofollow"
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
         if getattr(request, "viewer_access_protected", False):
             response.headers["Cache-Control"] = "private, no-store"
         return response
