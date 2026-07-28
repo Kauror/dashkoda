@@ -149,6 +149,39 @@ def test_the_database_itself_refuses_raw_updates_and_deletes():
     assert AuditEvent.objects.get(pk=event.pk).action == "a"
 
 
+def test_the_only_permitted_mutation_is_releasing_the_actor(actor):
+    """SET_NULL needs one narrow exception; nothing may ride along with it."""
+    event = record_event(action="a", object_type="t", object_id="1", actor=actor)
+
+    with pytest.raises(Exception), transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE audit_auditevent SET actor_id = NULL, action = %s WHERE id = %s",
+                ["tampered", event.pk],
+            )
+
+    # Clearing the actor alone is allowed, which is what user deletion does.
+    with connection.cursor() as cursor:
+        cursor.execute("UPDATE audit_auditevent SET actor_id = NULL WHERE id = %s", [event.pk])
+
+    stored = AuditEvent.objects.get(pk=event.pk)
+    assert stored.actor_id is None
+    assert stored.action == "a"
+
+
+def test_an_actor_cannot_be_attached_after_the_fact(actor):
+    event = record_event(action="a", object_type="t", object_id="1")
+
+    with pytest.raises(Exception), transaction.atomic():
+        with connection.cursor() as cursor:
+            cursor.execute(
+                "UPDATE audit_auditevent SET actor_id = %s WHERE id = %s",
+                [actor.pk, event.pk],
+            )
+
+    assert AuditEvent.objects.get(pk=event.pk).actor_id is None
+
+
 # --------------------------------------------------------------------------
 # Redaction
 # --------------------------------------------------------------------------

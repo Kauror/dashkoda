@@ -194,4 +194,6 @@ def test_import_run_admin_offers_no_way_to_start_one(
 
     assert response.status_code == 200
     assert "synthetic" in content
-    assert "addlink" not in content
+    # No add route for import runs, and no importer to trigger.
+    assert "/admin/sources/importrun/add/" not in content
+    assert "Käivita" not in content

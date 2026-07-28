@@ -210,8 +210,30 @@ def test_a_failed_live_run_may_be_repeated(artifact):
 def test_only_one_successful_live_import_per_key(artifact):
     _succeed(artifact, dry_run=False)
 
-    with pytest.raises(IntegrityError), transaction.atomic():
+    # The service validates constraints before writing, so the duplicate is
+    # reported as a validation error rather than as a database failure.
+    with pytest.raises(ValidationError, match="importrun_unique_successful_live_import"):
         _succeed(artifact, dry_run=False)
+
+
+def test_the_database_also_refuses_a_duplicate_successful_live_import(artifact):
+    first = _succeed(artifact, dry_run=False)
+
+    duplicate = ImportRun(
+        source=artifact.source,
+        artifact=artifact,
+        importer_name=IMPORTER,
+        schema_version=SCHEMA,
+        import_key=first.import_key,
+        dry_run=False,
+        status=ImportStatus.SUCCEEDED,
+        started_at=first.started_at,
+        finished_at=first.finished_at,
+    )
+
+    # Bypassing full_clean proves the guarantee lives in the database too.
+    with pytest.raises(IntegrityError), transaction.atomic():
+        duplicate.save()
 
 
 def test_a_different_schema_version_is_a_different_key(artifact):

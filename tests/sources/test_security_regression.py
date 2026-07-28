@@ -65,10 +65,22 @@ def test_no_new_public_route_was_added():
         reverse("sources:artifact-download")
 
 
-def test_no_media_url_is_configured():
-    assert getattr(settings, "MEDIA_URL", "") in {"", "/media/"}
-    # Whatever MEDIA_URL says, nothing routes it and artifacts do not use it.
-    assert "django.contrib.staticfiles" in settings.INSTALLED_APPS
+def test_artifact_storage_refuses_to_produce_any_url(data_source, upload):
+    """MEDIA_URL is irrelevant here: the storage backend has no URL at all."""
+    from django.core.exceptions import SuspiciousFileOperation
+
+    artifact = register_artifact(source=data_source, upload=upload())
+
+    with pytest.raises(SuspiciousFileOperation):
+        artifact.file.storage.url(artifact.file.name)
+
+
+def test_no_url_pattern_serves_uploaded_media():
+    from django.urls import get_resolver
+
+    patterns = [str(pattern.pattern) for pattern in get_resolver().url_patterns]
+
+    assert not any("media" in pattern for pattern in patterns)
 
 
 def test_artifact_root_is_not_served_by_whitenoise(data_source, upload, private_artifact_root):

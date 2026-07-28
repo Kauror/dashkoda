@@ -86,6 +86,16 @@ class SourceArtifactAdminForm(forms.ModelForm):
             raise forms.ValidationError("Määra täpselt üks: kas fail või väline viide.")
         return cleaned
 
+    def _post_clean(self):
+        """Skip model validation of the half-built instance.
+
+        The upload is not the model's file field, so the instance this form
+        would construct always looks like it has neither a file nor a reference
+        and would fail the XOR rule spuriously. The service builds the real
+        instance and runs `full_clean` on it, which is what actually matters.
+        """
+        return
+
 
 @admin.register(SourceArtifact)
 class SourceArtifactAdmin(admin.ModelAdmin):
@@ -159,7 +169,10 @@ class SourceArtifactAdmin(admin.ModelAdmin):
                 uploaded_by=request.user,
                 actor=request.user,
             )
-        obj.pk = created.pk
+        # `obj` came from a form that skipped model construction, so copy the
+        # registered row onto it for the admin's log entry and redirect.
+        for field in SourceArtifact._meta.fields:
+            setattr(obj, field.attname, getattr(created, field.attname))
 
     def get_urls(self):
         return [

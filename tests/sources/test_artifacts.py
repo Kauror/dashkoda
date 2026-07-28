@@ -124,8 +124,9 @@ def test_stored_path_never_uses_the_client_filename(data_source, upload):
     assert "passwd-attempt" not in artifact.file.name
     assert stored.suffix == ".csv"
     assert stored.parts[0] == "sources"
-    # The original name survives only as metadata.
-    assert artifact.original_name == "../../etc/passwd-attempt.csv"
+    # Django strips directory components from an uploaded name before we ever
+    # see it, and what remains is kept only as metadata, never as a path.
+    assert artifact.original_name == "passwd-attempt.csv"
 
 
 def test_stored_file_stays_inside_the_private_root(data_source, upload, private_artifact_root):
