@@ -28,8 +28,9 @@ Django admin performs its own normal user login.
   reached only through the trusted Cloudflare proxy path
 
 The real PIN and its plaintext value must never be written to source, tests,
-workflow files, documentation, shell history, or logs. Generate its hash using
-hidden terminal input:
+workflow files, documentation, shell history, or logs. The browser smoke suite
+uses a separate synthetic PIN that exists only for CI; it grants nothing outside
+a throwaway container. Generate the real hash using hidden terminal input:
 
 ```powershell
 python manage.py generate_viewer_pin_hash
@@ -49,10 +50,12 @@ database-backed viewer session. Logout is POST-only, CSRF protected, and flushes
 the session. Login accepts a `next` destination only when Django verifies it as
 an internal URL, preventing open redirects.
 
-The current response for an unauthenticated protected request is a normal HTTP
-redirect to `/sisene/`. Future HTMX integration may translate that response to
-`HX-Redirect`, but it must retain the same default-deny route policy and internal
-destination validation.
+The response for an unauthenticated protected request is a normal HTTP redirect
+to `/sisene/`. A request carrying `HX-Request: true` receives `204` with an
+`HX-Redirect` header holding the same login URL, which makes htmx navigate the
+browser instead of swapping the login page into a fragment. Both paths use the
+identical default-deny route policy and internal destination validation, and no
+HTMX route is on the public allowlist.
 
 ## Brute-force control and client identity
 
@@ -83,3 +86,30 @@ MIME sniffing, camera, microphone, and geolocation; restricts referrers to the
 same origin; and sends anti-indexing headers. Protected HTML uses
 `Cache-Control: private, no-store`. `/robots.txt` disallows all crawling as an
 additional signal, not as an access-control mechanism.
+
+The policy is unchanged by the PR-04 frontend. It remains exactly:
+
+```text
+default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none';
+form-action 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:;
+connect-src 'self'
+```
+
+Keeping it that strict required three deliberate choices:
+
+- every script and stylesheet is bundled locally and loaded from `/static/`;
+  there is no CDN, no external font and no inline `<script>` or `style`
+  attribute in any template;
+- Alpine.js runs as its CSP build, so directives name component properties and
+  methods instead of being evaluated as expressions;
+- htmx is configured with `includeIndicatorStyles: false`, so it never injects an
+  inline `<style>` element, and with `allowEval: false` and
+  `allowScriptTags: false`. `hx-on` attributes and `js:` values are not used.
+
+Chart payloads are read from non-executable `<script type="application/json">`
+blocks, so adding charts later does not require relaxing the policy either.
+
+Static file serving does not widen the boundary: the middleware exempts only
+paths under the configured `STATIC_URL`, which WhiteNoise serves from the
+collected output directory. No application route lives under that prefix.
+Production builds emit no source maps, so none are served.
