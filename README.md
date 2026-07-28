@@ -4,14 +4,21 @@ DashKoda is a planned internal management dashboard for the Estonian Chamber of
 Commerce and Industry. It is intended for Chamber staff who need one consistent,
 auditable view of operational and membership information.
 
-The project is at the dashboard-shell stage. PR-01 established the Django core,
-PR-02 added the local runtime and PostgreSQL, PR-03 protects application routes
-with a shared PIN session and database-backed rate limiting, and PR-04 adds the
-responsive dashboard shell and its design system.
+The project is at the sources-and-audit stage. PR-01 established the Django
+core, PR-02 added the local runtime and PostgreSQL, PR-03 protects application
+routes with a shared PIN session and database-backed rate limiting, PR-04 added
+the responsive dashboard shell and its design system, and PR-05 adds the
+source, private artifact, import-registry and audit foundation.
 
 **There is no business data yet.** Every section of the dashboard renders an
 explicit empty state, because no data source is connected. Nothing on the page
-is a real or placeholder metric.
+is a real or placeholder metric. PR-05 adds the models that later imports will
+use, but no importer exists and nothing is scheduled.
+
+A development/pilot deployment runs at `https://dash.orgusaar.ee`. That is
+ahead of the planned operations milestone, which is **not** complete: there is
+no backup automation, no tested restore, no rollback tooling and no separate
+staging environment. See [docs/deployment-status.md](docs/deployment-status.md).
 
 ## Requirements
 
@@ -113,17 +120,21 @@ npm run e2e
 ## Documentation
 
 - [docs/architecture.md](docs/architecture.md) — module boundaries and runtime
+- [docs/data-model.md](docs/data-model.md) — sources, artifacts, imports, audit
 - [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
 - [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
 - [docs/security.md](docs/security.md) — viewer access boundary and browser policy
 - [docs/local-runtime.md](docs/local-runtime.md) — Compose runtime operations
+- [docs/deployment-status.md](docs/deployment-status.md) — what runs, what does not
 
 ## Current boundaries
 
-Unraid, Cloudflare, DNS, and `dash.orgusaar.ee` are not configured by this
-repository stage. No pull request so far performs any deployment or alters any
-server or existing container. See [docs/security.md](docs/security.md) for the
-implemented access boundary and its operational settings.
+This repository owns the application only. It does not own or configure Unraid,
+Cloudflare, DNS or the tunnel, and `cloudflared` is managed separately from the
+DashKoda Compose stack. No pull request alters the server or any existing
+container. See [docs/security.md](docs/security.md) for the implemented access
+boundary and [docs/deployment-status.md](docs/deployment-status.md) for the
+current deployment reality.
 
 Do not commit secrets, `.env` files, production data, or real member data. The
 repository may contain only intentionally synthetic test values.

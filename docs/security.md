@@ -19,6 +19,36 @@ allowlist is:
 `/admin/` is intentionally absent. A viewer must pass the shared gate before
 Django admin performs its own normal user login.
 
+## Private source artifacts
+
+Original source files registered from PR-05 onward are the most sensitive thing
+this application stores. They are protected by construction rather than by a
+rule someone has to remember:
+
+- they never enter PostgreSQL;
+- they live under `SOURCE_ARTIFACT_ROOT`, outside `STATIC_ROOT` and outside every
+  `STATICFILES_DIRS` entry, so WhiteNoise cannot serve them;
+- there is no media URL, no media route and no viewer-facing download;
+- the storage backend raises instead of returning a URL, so a template cannot
+  leak one;
+- the stored path is a random UUID; a client-supplied filename never becomes a
+  path component;
+- production requires the root setting explicitly, with no fallback.
+
+The single download route lives under `/admin/`, so it is behind the viewer PIN
+gate and then Django admin authentication, and additionally requires the
+`sources.download_sourceartifact` permission — with superuser status on top for
+artifacts marked `restricted`. Responses are attachment-only, typed
+`application/octet-stream`, `nosniff` and `private, no-store`. Every successful
+download is audited.
+
+Uploads are stored and checksummed, never parsed. Only inert document and data
+formats are accepted, with a conservative size limit; executables, scripts,
+archives and macro-enabled office formats are refused.
+
+See [data-model.md](data-model.md) for the full model, and note that the audit
+trail's append-only guarantee has documented limits.
+
 ## Runtime settings
 
 - `VIEWER_PIN_HASH`: output from `generate_viewer_pin_hash`

@@ -116,7 +116,26 @@ docker compose -f compose.yaml -f compose.dev.yaml down --volumes
 
 This is a local development reset, not a backup or restore procedure.
 
+## Private source artifacts
+
+Original source files are written to `SOURCE_ARTIFACT_ROOT`, never to
+PostgreSQL and never anywhere a web server serves. Compose mounts the named
+`source_artifacts` volume at `/srv/dashkoda/source-artifacts`; host-side
+commands fall back to the git-ignored `.private-media/source-artifacts/`.
+
+Production requires the setting explicitly and has no fallback, so a
+misconfigured deployment fails at startup rather than quietly writing originals
+into a container layer that the next deploy discards.
+
+The volume survives `down` and is deleted by `down --volumes`, exactly like the
+database volume. Treat it as data: it holds the only copies of registered
+originals, and no backup automation exists yet.
+
 ## Deployment boundary
 
-Unraid, Cloudflare, DNS, and `dash.orgusaar.ee` are not configured yet. These
-commands must not be run against existing server services.
+A development/pilot deployment of the application exists at
+`https://dash.orgusaar.ee`. This repository still does not own or configure
+Unraid, Cloudflare, DNS or the tunnel, and `cloudflared` is managed separately
+from the DashKoda Compose stack. The commands in this file are for a local
+runtime and must not be run against the server. See
+[deployment-status.md](deployment-status.md).
