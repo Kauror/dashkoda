@@ -10,6 +10,7 @@ def test_liveness_returns_only_minimal_status(client):
 
     assert response.status_code == 200
     assert response.headers["Content-Type"] == "application/json"
+    assert response.content == b'{"status":"ok"}'
     assert response.json() == {"status": "ok"}
     assert set(response.json()) == {"status"}
 
