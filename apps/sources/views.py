@@ -31,10 +31,14 @@ def artifact_download(request, pk: int) -> FileResponse:
     if artifact.access_level == AccessLevel.RESTRICTED and not request.user.is_superuser:
         raise PermissionDenied("See algfail on piiratud ligipääsuga.")
 
+    # Open before recording, so a file that is unexpectedly missing from disk
+    # fails loudly without leaving an audit event for a download that never
+    # happened. Only successful downloads are audited.
+    file_handle = artifact.file.open("rb")
     record_artifact_download(artifact, actor=request.user)
 
     response = FileResponse(
-        artifact.file.open("rb"),
+        file_handle,
         as_attachment=True,
         filename=artifact.original_name or f"artifact-{artifact.pk}",
         # Never let a browser sniff or render an original in place.
