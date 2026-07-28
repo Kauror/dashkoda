@@ -25,6 +25,18 @@ export async function signIn(page) {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja juhatuse töölaud");
 }
 
+export const LOGOUT_FORM = 'form[action="/logi-valja/"]';
+export const LOGOUT_BUTTON = `${LOGOUT_FORM} button:visible`;
+
+/**
+ * Every logout control that is actually on screen right now. Each layout keeps
+ * its own control in the DOM, so counting only the visible ones is what proves
+ * a layout is not showing a duplicate.
+ */
+export function visibleLogout(page) {
+  return page.locator(LOGOUT_BUTTON);
+}
+
 /** The page itself must never scroll sideways, at any supported width. */
 export async function expectNoHorizontalOverflow(page) {
   const overflow = await page.evaluate(() => {

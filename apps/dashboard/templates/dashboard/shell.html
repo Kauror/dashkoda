@@ -82,12 +82,16 @@ and the <noscript> navigation below keeps the same links reachable on a phone.
 
   {# ---------------- Content column ---------------- #}
   <div class="flex min-w-0 flex-col">
-    <header class="hidden border-b border-border bg-surface px-6 py-3 lg:flex lg:items-center lg:justify-between lg:gap-4">
+    {% comment %}
+    Logout lives at the bottom of the sidebar on desktop, in the top bar on a
+    phone and at the bottom of the drawer, so exactly one logout control is ever
+    visible. The right-hand area here is reserved for the global date and
+    freshness controls a later pull request will add.
+    {% endcomment %}
+    <header id="page-header"
+            class="hidden min-h-14 border-b border-border bg-surface px-6 py-3 lg:flex lg:items-center lg:justify-between lg:gap-4">
       <p class="text-sm font-medium text-text-secondary">{% block breadcrumb %}{% endblock %}</p>
-      <form method="post" action="{% url 'viewer-logout' %}">
-        {% csrf_token %}
-        <button type="submit" class="dk-button dk-button-secondary">Logi välja</button>
-      </form>
+      <div class="flex items-center gap-3">{% block header_actions %}{% endblock %}</div>
     </header>
 
     <main id="main" class="mx-auto w-full max-w-content flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">

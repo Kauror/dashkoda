@@ -91,6 +91,20 @@ def test_overview_keeps_logout_as_a_csrf_protected_post(client, authenticate_vie
     assert "csrfmiddlewaretoken" in content
 
 
+def test_overview_renders_one_logout_control_per_layout(client, authenticate_viewer):
+    authenticate_viewer(client)
+
+    content = client.get("/").content.decode()
+
+    # Exactly three logout forms exist: the mobile top bar, the desktop sidebar
+    # and the drawer's copy of that sidebar. Each layout reveals only its own,
+    # so a viewer never sees two. The desktop header must not add a fourth.
+    # Which of the three is on screen at a given width is asserted by the
+    # browser suite, because it depends on CSS.
+    assert content.count('action="/logi-valja/"') == 3
+    assert content.count("dk-sidebar") == 2
+
+
 def test_overview_loads_only_local_bundled_assets(client, authenticate_viewer):
     authenticate_viewer(client)
 
