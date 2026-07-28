@@ -9,6 +9,13 @@ __pycache__/
 .coverage
 htmlcov/
 staticfiles/
+node_modules/
+static/build/*
+!static/build/.gitkeep
+test-results/
+playwright-report/
+blob-report/
+screenshots/
 .env
 .env.*
 !.env.example

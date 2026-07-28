@@ -10,6 +10,13 @@ __pycache__
 .coverage
 htmlcov
 staticfiles
+node_modules
+static/build
+test-results
+playwright-report
+blob-report
+e2e
+playwright.config.js
 .env
 .env.*
 !.env.example

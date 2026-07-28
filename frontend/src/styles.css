@@ -1,0 +1,283 @@
+@import "tailwindcss";
+
+/* Django templates are the only markup source for utility detection. */
+@source "../../apps";
+@source "../../templates";
+
+/*
+ * DashKoda design tokens.
+ *
+ * V1 is dark only. Chamber blue is an accent, never a page background.
+ * Brand values come from the Chamber CVI: blue R0/G159/B218 (#009FDA) and
+ * dark grey R59/G59/B56 (#3B3B38). The neutral ramp below is derived from that
+ * dark grey, cooled slightly so that brand blue stays legible on top of it.
+ */
+@theme {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Arial, sans-serif;
+
+  --color-bg: #101418;
+  --color-surface: #171c22;
+  --color-elevated: #1e242b;
+  --color-sunken: #0b0e12;
+
+  --color-border: #2a323b;
+  --color-border-strong: #3d4954;
+
+  --color-text: #e8edf2;
+  --color-text-secondary: #9aa7b4;
+  --color-text-muted: #7d8b99;
+  --color-text-inverse: #101418;
+
+  --color-brand: #009fda;
+  --color-brand-hover: #35b8e8;
+  --color-brand-focus: #5cc7ef;
+  --color-brand-soft: #0e2a37;
+  --color-brand-border: #17506a;
+
+  --color-success: #4fbf95;
+  --color-success-soft: #10291f;
+  --color-warning: #e3ac4e;
+  --color-warning-soft: #2b2113;
+  --color-danger: #ef7d6e;
+  --color-danger-soft: #2e1815;
+  --color-info: #5fb3e8;
+  --color-info-soft: #12242f;
+
+  --radius-xs: 0.125rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-raised: 0 2px 6px rgb(0 0 0 / 0.4);
+  --shadow-drawer: 0 0 0 100vmax rgb(0 0 0 / 0.6);
+
+  --text-micro: 0.6875rem;
+  --text-micro--line-height: 1rem;
+  --text-metric: 2rem;
+  --text-metric--line-height: 2.25rem;
+
+  --container-content: 96rem;
+  --spacing-sidebar: 17rem;
+}
+
+/*
+ * Base element defaults.
+ */
+@layer base {
+  :root {
+    color-scheme: dark;
+  }
+
+  html {
+    background-color: var(--color-bg);
+  }
+
+  body {
+    background-color: var(--color-bg);
+    color: var(--color-text);
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+  }
+
+  /* Alpine has not booted yet, or JavaScript is unavailable. */
+  [x-cloak] {
+    display: none !important;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-brand-focus);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/*
+ * Shared component classes. Templates use these for repeated structures and
+ * plain utilities for one-off layout.
+ */
+@layer components {
+  .dk-skip-link {
+    @apply sr-only;
+  }
+
+  .dk-skip-link:focus-visible {
+    @apply not-sr-only fixed top-3 left-3 z-50 rounded-md bg-brand px-4 py-2
+      text-sm font-semibold text-text-inverse;
+  }
+
+  .dk-shell {
+    @apply min-h-dvh lg:grid lg:grid-cols-[var(--spacing-sidebar)_minmax(0,1fr)];
+  }
+
+  .dk-sidebar {
+    @apply flex flex-1 flex-col gap-6 border-r border-border bg-surface px-4 py-5;
+  }
+
+  /* The supplied PNG carries transparent margin to the right of and below the
+     artwork. It is rendered at its natural aspect ratio so that margin becomes
+     clear space; the artwork is never cropped, distorted or recoloured. At this
+     width the mark is well above the CVI minimum size for the horizontal logo. */
+  .dk-brand-mark {
+    @apply block h-auto w-full max-w-60;
+  }
+
+  .dk-nav-list {
+    @apply flex flex-col gap-0.5;
+  }
+
+  .dk-nav-item {
+    @apply flex items-center justify-between gap-3 rounded-md px-3 py-2.5 text-sm
+      font-medium no-underline transition-colors;
+  }
+
+  .dk-nav-item-active {
+    @apply bg-brand-soft text-text;
+    box-shadow: inset 2px 0 0 0 var(--color-brand);
+  }
+
+  .dk-nav-item-link {
+    @apply text-text-secondary hover:bg-elevated hover:text-text;
+  }
+
+  .dk-nav-item-disabled {
+    @apply cursor-default text-text-muted;
+  }
+
+  .dk-icon-button {
+    @apply inline-flex h-11 w-11 items-center justify-center rounded-md border
+      border-border bg-surface text-text-secondary transition-colors
+      hover:border-border-strong hover:text-text;
+  }
+
+  .dk-button {
+    @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-md px-4
+      py-2 text-sm font-semibold transition-colors;
+  }
+
+  .dk-button-primary {
+    @apply bg-brand text-text-inverse hover:bg-brand-hover;
+  }
+
+  .dk-button-secondary {
+    @apply border border-border bg-surface text-text-secondary
+      hover:border-border-strong hover:text-text;
+  }
+
+  .dk-input {
+    @apply min-h-11 w-full rounded-md border border-border bg-elevated px-3 py-2
+      text-base text-text placeholder:text-text-muted;
+  }
+
+  .dk-input-pin {
+    @apply tracking-[0.4em];
+  }
+
+  .dk-card {
+    @apply rounded-lg border border-border bg-surface shadow-card;
+  }
+
+  .dk-section {
+    @apply rounded-lg border border-border bg-surface;
+  }
+
+  .dk-section-body {
+    @apply px-4 py-4 sm:px-5 sm:py-5;
+  }
+
+  .dk-badge {
+    @apply inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5
+      text-micro font-semibold tracking-wide uppercase;
+  }
+
+  .dk-badge-neutral {
+    @apply border-border-strong bg-elevated text-text-secondary;
+  }
+
+  .dk-badge-brand {
+    @apply border-brand-border bg-brand-soft text-brand;
+  }
+
+  .dk-badge-success {
+    @apply border-success/40 bg-success-soft text-success;
+  }
+
+  .dk-badge-warning {
+    @apply border-warning/40 bg-warning-soft text-warning;
+  }
+
+  .dk-badge-danger {
+    @apply border-danger/40 bg-danger-soft text-danger;
+  }
+
+  .dk-badge-info {
+    @apply border-info/40 bg-info-soft text-info;
+  }
+
+  .dk-meta {
+    @apply text-micro text-text-muted;
+  }
+
+  .dk-callout {
+    @apply flex flex-col gap-1 rounded-lg border border-border border-l-2
+      bg-surface px-4 py-3 text-sm shadow-card;
+  }
+
+  .dk-callout-info {
+    border-left-color: var(--color-info);
+  }
+
+  .dk-callout-brand {
+    border-left-color: var(--color-brand);
+  }
+
+  .dk-callout-success {
+    border-left-color: var(--color-success);
+  }
+
+  .dk-callout-warning {
+    border-left-color: var(--color-warning);
+  }
+
+  .dk-callout-danger {
+    border-left-color: var(--color-danger);
+  }
+
+  .dk-skeleton-bar {
+    @apply h-3 rounded-xs bg-elevated;
+    animation: dk-pulse 1.8s ease-in-out infinite;
+  }
+
+  /* htmx.config.includeIndicatorStyles is disabled so that no inline
+     <style> element is injected under the strict CSP. */
+  .dk-indicator {
+    @apply invisible;
+  }
+
+  .htmx-request .dk-indicator,
+  .htmx-request.dk-indicator {
+    @apply visible;
+  }
+}
+
+@keyframes dk-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+
+  50% {
+    opacity: 0.55;
+  }
+}

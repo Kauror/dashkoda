@@ -1,4 +1,20 @@
 ARG PYTHON_IMAGE=python:3.14.6-slim-bookworm@sha256:4ff4b92a68355dbdb52584ab3391dff8d371a61d4e063468bfd0130e3189c6d9
+ARG NODE_IMAGE=node:22.23.1-bookworm-slim@sha256:6c74791e557ce11fc957704f6d4fe134a7bc8d6f5ca4403205b2966bd488f6b3
+
+# Frontend build stage. Node exists only here: no Node, npm or node_modules
+# reaches the development or production runtime image.
+FROM ${NODE_IMAGE} AS frontend-builder
+
+WORKDIR /build
+
+COPY package.json package-lock.json ./
+RUN npm ci
+
+# Tailwind scans the templates, so they must be present when the CSS is built.
+COPY frontend ./frontend
+COPY apps ./apps
+COPY templates ./templates
+RUN npm run build
 
 FROM ${PYTHON_IMAGE} AS builder
 
@@ -15,6 +31,7 @@ COPY pyproject.toml uv.lock README.md ./
 RUN uv sync --locked --no-dev --no-install-project
 
 COPY . .
+COPY --from=frontend-builder /build/static/build ./static/build
 RUN POSTGRES_DB=build \
     POSTGRES_USER=build \
     POSTGRES_PASSWORD=build-only-not-a-runtime-secret \
@@ -65,6 +82,8 @@ FROM runtime-base AS runtime
 COPY --from=builder --chown=dashkoda:dashkoda /opt/venv /opt/venv
 COPY --from=builder --chown=dashkoda:dashkoda /app/apps /app/apps
 COPY --from=builder --chown=dashkoda:dashkoda /app/config /app/config
+COPY --from=builder --chown=dashkoda:dashkoda /app/templates /app/templates
+COPY --from=builder --chown=dashkoda:dashkoda /app/static /app/static
 COPY --from=builder --chown=dashkoda:dashkoda /app/manage.py /app/manage.py
 COPY --from=builder --chown=dashkoda:dashkoda /app/staticfiles /app/staticfiles
 
