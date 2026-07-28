@@ -4,9 +4,11 @@ DashKoda is a planned internal management dashboard for the Estonian Chamber of
 Commerce and Industry. It is intended for Chamber staff who need one consistent,
 auditable view of operational and membership information.
 
-The project is at the runtime-foundation stage. PR-01 established the Django
-core; PR-02 adds the local Docker Compose runtime, PostgreSQL, readiness checks,
-static-file serving, and CI. No product dashboard or business data exists yet.
+The project is at the viewer-access stage. PR-01 established the Django core,
+PR-02 added the local runtime and PostgreSQL, and PR-03 protects application
+routes with a shared PIN session and database-backed rate limiting. The
+authenticated home page is intentionally only a placeholder; no product
+dashboard or business data exists yet.
 
 ## Requirements
 
@@ -21,6 +23,18 @@ Create a local environment file and replace every example secret:
 ```powershell
 Copy-Item .env.example .env
 ```
+
+Generate the local PIN hash through hidden terminal input. The command accepts
+no PIN argument and prints only the Django password hash:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml run --rm web python manage.py generate_viewer_pin_hash
+```
+
+Put the output in `VIEWER_PIN_HASH`, choose a positive
+`VIEWER_PIN_VERSION`, and set a separate long random
+`VIEWER_RATE_LIMIT_SECRET`. Keep `TRUST_CLOUDFLARE_IP_HEADER=false` locally.
+Incrementing the version invalidates all existing viewer sessions.
 
 Validate, build, and start the two-service runtime:
 
@@ -44,13 +58,16 @@ docker compose -f compose.yaml -f compose.dev.yaml exec web python manage.py col
 Check the endpoints:
 
 ```text
+http://127.0.0.1:8000/sisene/
 http://127.0.0.1:8000/health/live/
 http://127.0.0.1:8000/health/ready/
+http://127.0.0.1:8000/robots.txt
 ```
 
 Liveness is independent of PostgreSQL. Readiness performs only a minimal
 database query and returns a detail-free `503` response when the database is
-unavailable.
+unavailable. All routes except the exact public allowlist and required static
+files redirect unauthenticated viewers to `/sisene/`; `/admin/` is not exempt.
 
 See [docs/local-runtime.md](docs/local-runtime.md) for tests, shutdown, and
 intentional local-data removal.
@@ -79,8 +96,9 @@ docker compose -f compose.yaml -f compose.dev.yaml exec web uv run pytest
 ## Current boundaries
 
 Unraid, Cloudflare, DNS, and `dash.orgusaar.ee` are not configured by this
-repository stage. PR-02 performs no deployment and does not alter any server or
-existing container.
+repository stage. PR-03 performs no deployment and does not alter any server or
+existing container. See [docs/security.md](docs/security.md) for the implemented
+access boundary and its operational settings.
 
 Do not commit secrets, `.env` files, production data, or real member data. The
 repository may contain only intentionally synthetic test values.
