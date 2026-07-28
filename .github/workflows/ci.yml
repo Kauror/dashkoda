@@ -42,9 +42,11 @@ jobs:
       VIEWER_PIN_VERSION: 1
       VIEWER_RATE_LIMIT_SECRET: ci-only-synthetic-rate-limit-secret
       TRUST_CLOUDFLARE_IP_HEADER: "false"
-      # Synthetic private-artifact root for the host-side checks. Compose sets
-      # its own in-container path and mounts a named volume there.
-      SOURCE_ARTIFACT_ROOT: ${{ runner.temp }}/dashkoda-source-artifacts
+      # Synthetic private-artifact root for the host-side checks. A literal
+      # path, because the `runner` context is not available in job-level env.
+      # The test suite repoints this per test; Compose sets its own
+      # in-container path and mounts a named volume there.
+      SOURCE_ARTIFACT_ROOT: /tmp/dashkoda-ci-source-artifacts
       # Synthetic PIN used only by the browser smoke suite. The real viewer PIN
       # is never present in this repository or in any workflow.
       DASHKODA_E2E_PIN: "4071"
