@@ -66,11 +66,6 @@ def logout_view(request):
 
 
 @require_GET
-def home(request):
-    return render(request, "access/home.html")
-
-
-@require_GET
 def robots(_request):
     return HttpResponse(
         "User-agent: *\nDisallow: /\n",

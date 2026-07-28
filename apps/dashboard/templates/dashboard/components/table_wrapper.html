@@ -1,0 +1,42 @@
+{% comment %}
+Future table wrapper.
+
+Context:
+  caption       – required, describes the table for assistive technology
+  columns       – list of column labels
+  rows          – list of rows, each an iterable of already-formatted cells
+  empty_message – shown instead of the table body when there are no rows
+
+The wrapper owns the horizontal scroll container so that wide tables never make
+the page itself scroll sideways on a phone. PR-04 always renders it empty.
+{% endcomment %}
+<div class="w-full overflow-x-auto">
+  {% if rows %}
+    <table class="w-full min-w-max border-collapse text-sm">
+      <caption class="sr-only">{{ caption }}</caption>
+      <thead>
+        <tr>
+          {% for column in columns %}
+            <th scope="col"
+                class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">
+              {{ column }}
+            </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+          <tr>
+            {% for cell in row %}
+              <td class="border-b border-border px-4 py-2 text-text-secondary last:text-text">{{ cell }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <div class="px-4 py-4 sm:px-5">
+      {% include "dashboard/components/empty_state.html" with message=empty_message|default:"Kontrollitud andmed puuduvad." only %}
+    </div>
+  {% endif %}
+</div>

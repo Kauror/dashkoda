@@ -1,7 +1,7 @@
 from urllib.parse import urlencode
 
 from django.conf import settings
-from django.http import HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseRedirect
 from django.urls import reverse
 
 CSP = (
@@ -60,4 +60,15 @@ class ViewerAccessMiddleware:
             request.session.flush()
 
         query = urlencode({"next": request.get_full_path()})
-        return HttpResponseRedirect(f"{reverse('viewer-login')}?{query}")
+        login_url = f"{reverse('viewer-login')}?{query}"
+
+        # HTMX follows redirects inside the XHR, which would swap the login page
+        # into a fragment target. HX-Redirect makes the browser navigate instead.
+        # The route policy is unchanged: HTMX routes stay protected and are never
+        # added to the public allowlist.
+        if request.headers.get("HX-Request") == "true":
+            response = HttpResponse(status=204)
+            response.headers["HX-Redirect"] = login_url
+            return response
+
+        return HttpResponseRedirect(login_url)

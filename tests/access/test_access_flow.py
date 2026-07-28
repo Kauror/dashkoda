@@ -121,14 +121,11 @@ def test_admin_requires_viewer_access_then_uses_django_admin_login(
     assert viewer_authenticated.url == "/admin/login/?next=/admin/"
 
 
-def test_authenticated_home_contains_only_stage_placeholder(
-    client,
-    authenticate_viewer,
-):
+def test_authenticated_home_renders_the_dashboard_shell(client, authenticate_viewer):
     authenticate_viewer(client)
 
     response = client.get("/")
 
     assert response.status_code == 200
     assert b"DashKoda" in response.content
-    assert "Dashboardi kasutajaliides lisatakse järgmises etapis.".encode() in response.content
+    assert "Koja juhatuse töölaud".encode() in response.content

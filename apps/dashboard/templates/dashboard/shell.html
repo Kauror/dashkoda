@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+
+{% comment %}
+Dashboard shell: skip link (base), brand area, persistent desktop sidebar,
+mobile drawer, top header, main region and CSRF-protected POST logout.
+
+Layout:
+  < 1024 px  – top bar with a real hamburger button and an Alpine drawer
+  >= 1024 px – persistent sidebar, drawer markup removed from layout
+
+Without JavaScript the desktop sidebar is unaffected because it is pure CSS,
+and the <noscript> navigation below keeps the same links reachable on a phone.
+{% endcomment %}
+
+{% block body %}
+<div x-data="mobileNav" x-on:keydown.escape.window="close" class="dk-shell">
+
+  {# ---------------- Mobile top bar ---------------- #}
+  <header class="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-border bg-surface px-3 py-2 lg:hidden">
+    {% comment %}
+    x-cloak keeps the toggle hidden until Alpine has booted, so it is never a
+    dead control when JavaScript is unavailable. The <noscript> navigation below
+    is the fallback in that case.
+    {% endcomment %}
+    <button type="button"
+            x-cloak
+            x-ref="drawerToggle"
+            x-on:click="toggle"
+            aria-controls="main-drawer"
+            :aria-expanded="open"
+            class="dk-icon-button">
+      <svg viewBox="0 0 20 20" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+        <path d="M3 5.5h14M3 10h14M3 14.5h14" stroke-linecap="round"/>
+      </svg>
+      <span class="sr-only">Ava menüü</span>
+    </button>
+
+    <span class="text-sm font-semibold tracking-tight text-text">DashKoda</span>
+
+    <form method="post" action="{% url 'viewer-logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="dk-icon-button">
+        <svg viewBox="0 0 20 20" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+          <path d="M12.5 6.5V4.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1v-2M9 10h8m0 0-2.5-2.5M17 10l-2.5 2.5"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <span class="sr-only">Logi välja</span>
+      </button>
+    </form>
+  </header>
+
+  {# ---------------- Desktop sidebar ---------------- #}
+  <div class="hidden lg:sticky lg:top-0 lg:flex lg:h-dvh lg:flex-col lg:overflow-y-auto">
+    {% include "dashboard/partials/sidebar.html" %}
+  </div>
+
+  {# ---------------- Mobile drawer ---------------- #}
+  <div id="main-drawer" x-cloak x-show="open" class="fixed inset-0 z-40 lg:hidden">
+    <div class="absolute inset-0 bg-sunken/75" x-on:click="close" aria-hidden="true"></div>
+    <div class="relative flex h-full w-(--spacing-sidebar) max-w-[85vw] flex-col overflow-y-auto bg-surface shadow-raised">
+      <div class="flex justify-end px-3 pt-3">
+        <button type="button" x-ref="drawerClose" x-on:click="close" class="dk-icon-button">
+          <svg viewBox="0 0 20 20" class="h-5 w-5" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true">
+            <path d="M5.5 5.5l9 9m0-9-9 9" stroke-linecap="round"/>
+          </svg>
+          <span class="sr-only">Sulge menüü</span>
+        </button>
+      </div>
+      {% include "dashboard/partials/sidebar.html" %}
+    </div>
+  </div>
+
+  <noscript class="lg:hidden">
+    <nav aria-label="Peamenüü (ilma JavaScriptita)" class="border-b border-border bg-surface px-3 py-3">
+      <ul class="dk-nav-list">
+        {% for item in navigation %}
+          <li>{% include "dashboard/components/nav_item.html" with item=item active_nav=active_nav only %}</li>
+        {% endfor %}
+      </ul>
+    </nav>
+  </noscript>
+
+  {# ---------------- Content column ---------------- #}
+  <div class="flex min-w-0 flex-col">
+    <header class="hidden border-b border-border bg-surface px-6 py-3 lg:flex lg:items-center lg:justify-between lg:gap-4">
+      <p class="text-sm font-medium text-text-secondary">{% block breadcrumb %}{% endblock %}</p>
+      <form method="post" action="{% url 'viewer-logout' %}">
+        {% csrf_token %}
+        <button type="submit" class="dk-button dk-button-secondary">Logi välja</button>
+      </form>
+    </header>
+
+    <main id="main" class="mx-auto w-full max-w-content flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+      {% block content %}{% endblock %}
+    </main>
+  </div>
+</div>
+{% endblock %}

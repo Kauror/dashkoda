@@ -1,0 +1,16 @@
+{% comment %}
+Restrained callout.
+
+Context:
+  title   – required
+  message – required
+  variant – info (default) | brand | success | warning | danger
+
+One short, low-contrast note marked by a thin accent edge. It is not a banner,
+carries no icon-only meaning and must not be used to compensate for missing
+data.
+{% endcomment %}
+<div class="dk-callout dk-callout-{{ variant|default:'info' }}">
+  <p class="font-semibold text-text">{{ title }}</p>
+  <p class="text-text-secondary">{{ message }}</p>
+</div>

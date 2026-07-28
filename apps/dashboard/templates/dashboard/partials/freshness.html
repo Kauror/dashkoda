@@ -1,0 +1,16 @@
+{% comment %}
+Freshness fragment.
+
+Swapped into the shell's #freshness-region by HTMX and rendered server-side on
+every full page load, so the information is identical with and without
+JavaScript. It states only facts about the application: that no data source is
+connected yet, and when that was last checked. It is not a data as-of date.
+{% endcomment %}
+<div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+  {% include "dashboard/components/status_badge.html" with label=freshness.state_label variant=freshness.state_variant only %}
+  <p class="text-sm text-text-secondary">{{ freshness.message }}</p>
+  <p class="dk-meta">
+    Ühenduse viimane kontroll
+    <time datetime="{{ freshness.checked_at|date:'c' }}">{{ freshness.checked_at|date:"d.m.Y H:i:s" }}</time>
+  </p>
+</div>
