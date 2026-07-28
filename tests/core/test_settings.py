@@ -14,6 +14,10 @@ PRODUCTION_ENVIRONMENT = (
     "POSTGRES_PASSWORD",
     "POSTGRES_HOST",
     "POSTGRES_PORT",
+    "VIEWER_PIN_HASH",
+    "VIEWER_PIN_VERSION",
+    "VIEWER_RATE_LIMIT_SECRET",
+    "TRUST_CLOUDFLARE_IP_HEADER",
 )
 
 
@@ -36,6 +40,10 @@ def test_production_settings_require_environment_variables(missing_name):
             "POSTGRES_PASSWORD": "test-only-password",
             "POSTGRES_HOST": "127.0.0.1",
             "POSTGRES_PORT": "5432",
+            "VIEWER_PIN_HASH": "synthetic-hash-placeholder",
+            "VIEWER_PIN_VERSION": "1",
+            "VIEWER_RATE_LIMIT_SECRET": "synthetic-rate-limit-secret",
+            "TRUST_CLOUDFLARE_IP_HEADER": "false",
         }
     )
     environment.pop(missing_name)
@@ -64,6 +72,10 @@ def test_production_settings_accept_complete_environment():
             "POSTGRES_PASSWORD": "test-only-password",
             "POSTGRES_HOST": "127.0.0.1",
             "POSTGRES_PORT": "5432",
+            "VIEWER_PIN_HASH": "synthetic-hash-placeholder",
+            "VIEWER_PIN_VERSION": "1",
+            "VIEWER_RATE_LIMIT_SECRET": "synthetic-rate-limit-secret",
+            "TRUST_CLOUDFLARE_IP_HEADER": "false",
         }
     )
 

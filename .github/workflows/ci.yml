@@ -38,6 +38,10 @@ jobs:
       POSTGRES_PASSWORD: ci-only-password
       POSTGRES_HOST: 127.0.0.1
       POSTGRES_PORT: 5432
+      VIEWER_PIN_HASH: 'pbkdf2_sha256$1000000$ISWGm2iaWYDO60zg6cKsch$aa1cqy5nqDB6mUqSjp+IdmKSbF0ANciYXAprUkgNVbQ='
+      VIEWER_PIN_VERSION: 1
+      VIEWER_RATE_LIMIT_SECRET: ci-only-synthetic-rate-limit-secret
+      TRUST_CLOUDFLARE_IP_HEADER: "false"
 
     steps:
       - name: Check out repository
@@ -93,12 +97,47 @@ jobs:
           docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py migrate
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py collectstatic --noinput
-          docker compose -f compose.yaml -f compose.dev.yaml exec -T web uv run pytest
+          docker compose -f compose.yaml -f compose.dev.yaml exec -T \
+            -e DJANGO_SETTINGS_MODULE=config.settings.test web uv run pytest
           docker compose -f compose.yaml -f compose.dev.yaml ps
           curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 1 \
             http://127.0.0.1:8000/health/live/
           curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 1 \
             http://127.0.0.1:8000/health/ready/
+          docker compose -f compose.yaml -f compose.dev.yaml exec -T web python - <<'PY'
+          import http.client
+
+          def request(method, path):
+              connection = http.client.HTTPConnection("127.0.0.1", 8000)
+              connection.request(
+                  method,
+                  path,
+                  headers={"Host": "localhost", "X-Forwarded-Proto": "https"},
+              )
+              response = connection.getresponse()
+              result = response.status, response.getheader("Location")
+              response.read()
+              connection.close()
+              return result
+
+          def expect(method, path, status, location_prefix=None):
+              actual_status, actual_location = request(method, path)
+              assert actual_status == status, (
+                  f"{method} {path}: expected {status}, got {actual_status} "
+                  f"with Location {actual_location!r}"
+              )
+              if location_prefix:
+                  assert actual_location and actual_location.startswith(location_prefix), (
+                      f"{method} {path}: unexpected Location {actual_location!r}"
+                  )
+
+          expect("GET", "/", 302, "/sisene/")
+          expect("GET", "/sisene/", 200)
+          expect("GET", "/admin/", 302, "/sisene/")
+          expect("GET", "/robots.txt", 200)
+          logout_status, _logout_location = request("POST", "/logi-valja/")
+          assert logout_status >= 300, f"POST logout unexpectedly returned {logout_status}"
+          PY
           if [ -n "$(docker compose -f compose.yaml -f compose.dev.yaml port db 5432 2>/dev/null)" ]; then
             echo "PostgreSQL must not publish a host port"
             exit 1

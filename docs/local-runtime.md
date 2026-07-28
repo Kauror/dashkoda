@@ -10,6 +10,18 @@ Copy-Item .env.example .env
 
 Never commit `.env`. The checked-in example contains no real credentials.
 
+Generate a local viewer PIN hash using hidden input:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml run --rm web python manage.py generate_viewer_pin_hash
+```
+
+Copy only its hash output to `VIEWER_PIN_HASH`. Also replace
+`VIEWER_RATE_LIMIT_SECRET` with an independent long random value. Use a positive
+integer for `VIEWER_PIN_VERSION`; increasing it invalidates existing sessions.
+Keep `TRUST_CLOUDFLARE_IP_HEADER=false` because the local runtime is not behind a
+trusted Cloudflare proxy.
+
 ## Validate and start
 
 ```powershell
@@ -30,15 +42,30 @@ docker compose -f compose.yaml -f compose.dev.yaml exec web python manage.py col
 docker compose -f compose.yaml -f compose.dev.yaml exec web uv run pytest
 ```
 
-Check both public health endpoints:
+Check the public login, health, and crawler-control endpoints:
 
 ```powershell
+Invoke-WebRequest http://127.0.0.1:8000/sisene/ -UseBasicParsing
 Invoke-WebRequest http://127.0.0.1:8000/health/live/ -UseBasicParsing
 Invoke-WebRequest http://127.0.0.1:8000/health/ready/ -UseBasicParsing
+Invoke-WebRequest http://127.0.0.1:8000/robots.txt -UseBasicParsing
 ```
 
 Both return `200` while PostgreSQL is healthy. Liveness remains available if
 PostgreSQL becomes unavailable; readiness returns a minimal `503` response.
+
+The root route and `/admin/` redirect to `/sisene/` until the viewer PIN is
+accepted. Django admin then presents its own standard login. Logout is available
+only as a CSRF-protected `POST /logi-valja/`.
+
+## Rate-limit maintenance
+
+The default purge removes inactive viewer rate-limit buckets older than 30
+days, while preserving a currently locked bucket:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml exec web python manage.py purge_viewer_rate_limits
+```
 
 ## Stop without deleting data
 

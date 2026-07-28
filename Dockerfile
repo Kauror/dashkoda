@@ -20,7 +20,13 @@ RUN POSTGRES_DB=build \
     POSTGRES_PASSWORD=build-only-not-a-runtime-secret \
     POSTGRES_HOST=localhost \
     POSTGRES_PORT=5432 \
-    DJANGO_SETTINGS_MODULE=config.settings.test \
+    DJANGO_SETTINGS_MODULE=config.settings.production \
+    DJANGO_SECRET_KEY=build-only-not-a-runtime-secret-with-sufficient-length \
+    DJANGO_ALLOWED_HOSTS=localhost \
+    VIEWER_PIN_HASH=build-only-not-a-runtime-pin-hash \
+    VIEWER_PIN_VERSION=1 \
+    VIEWER_RATE_LIMIT_SECRET=build-only-not-a-runtime-rate-limit-secret \
+    TRUST_CLOUDFLARE_IP_HEADER=false \
     /opt/venv/bin/python manage.py collectstatic --noinput
 
 FROM builder AS development-builder

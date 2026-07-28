@@ -27,6 +27,11 @@ These rules apply to the whole repository.
 
 - Never commit secrets, `.env` files, real member data, or production exports.
 - Use only intentionally synthetic test data when later work requires fixtures.
+- Protect application routes by default; keep public route exceptions exact and minimal.
+- Keep `/admin/` behind viewer access as well as Django admin authentication.
+- Store only a Django hash for the viewer PIN and use a version to invalidate sessions.
+- Never persist or log raw client addresses for viewer rate limiting.
+- Trust `CF-Connecting-IP` only when the explicit proxy-trust setting is enabled.
 - Do not expose versions, dependencies, server details, or database state from health endpoints.
 - Do not change Unraid, Docker runtime, Cloudflare, DNS, or production services unless
   the current brief explicitly authorizes it.

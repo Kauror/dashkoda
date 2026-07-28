@@ -1,11 +1,15 @@
 from .base import *  # noqa: F403
 from .database import postgres_database
-from .env import comma_separated_env, required_env
+from .env import boolean_env, comma_separated_env, positive_int_env, required_env
 
 DEBUG = False
 SECRET_KEY = required_env("DJANGO_SECRET_KEY")
 ALLOWED_HOSTS = comma_separated_env("DJANGO_ALLOWED_HOSTS")
 DATABASES = {"default": postgres_database(persistent_connections=True)}
+VIEWER_PIN_HASH = required_env("VIEWER_PIN_HASH")
+VIEWER_PIN_VERSION = positive_int_env("VIEWER_PIN_VERSION")
+VIEWER_RATE_LIMIT_SECRET = required_env("VIEWER_RATE_LIMIT_SECRET")
+TRUST_CLOUDFLARE_IP_HEADER = boolean_env("TRUST_CLOUDFLARE_IP_HEADER")
 
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
 SECURE_SSL_REDIRECT = True
