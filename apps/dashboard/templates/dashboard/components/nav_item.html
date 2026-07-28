@@ -1,0 +1,26 @@
+{% comment %}
+Navigation item.
+
+Context:
+  item       – NavItem from apps.dashboard.navigation
+  active_nav – key of the currently rendered module
+
+Routed items render as links; planned items render as inert text marked
+`Lisamisel`, so navigation can never reach a 404. The active item is marked by
+an accent edge, a background and aria-current, not by colour alone.
+{% endcomment %}
+{% if item.is_available %}
+  {% if item.key == active_nav %}
+    <a href="{% url item.url_name %}"
+       aria-current="page"
+       class="dk-nav-item dk-nav-item-active">{{ item.label }}</a>
+  {% else %}
+    <a href="{% url item.url_name %}"
+       class="dk-nav-item dk-nav-item-link">{{ item.label }}</a>
+  {% endif %}
+{% else %}
+  <span class="dk-nav-item dk-nav-item-disabled" aria-disabled="true">
+    {{ item.label }}
+    {% include "dashboard/components/status_badge.html" with label="Lisamisel" variant="neutral" only %}
+  </span>
+{% endif %}

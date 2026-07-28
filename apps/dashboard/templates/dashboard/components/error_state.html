@@ -1,0 +1,15 @@
+{% comment %}
+Error state.
+
+Context:
+  title   – required, short description of what failed
+  message – required, what the viewer can do about it
+
+Used when a fragment or module cannot be shown. It never carries technical
+detail, stack traces or source paths.
+{% endcomment %}
+<div role="alert"
+     class="flex flex-col gap-1 rounded-md border border-danger/40 bg-danger-soft px-4 py-4 text-sm">
+  <p class="font-semibold text-danger">{{ title }}</p>
+  <p class="text-text-secondary">{{ message }}</p>
+</div>

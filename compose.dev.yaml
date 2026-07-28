@@ -2,5 +2,11 @@ services:
   web:
     build:
       target: development
+    environment:
+      # Defaults to the production settings module so the existing local and CI
+      # runtime is unchanged. It is overridable only in this development
+      # override, and only so that the browser smoke suite can drive the app
+      # over plain HTTP on loopback.
+      DJANGO_SETTINGS_MODULE: ${DJANGO_SETTINGS_MODULE:-config.settings.production}
     ports:
       - "127.0.0.1:${DASHKODA_PORT:-8000}:8000"

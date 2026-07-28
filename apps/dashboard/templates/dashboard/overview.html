@@ -1,0 +1,122 @@
+{% extends "dashboard/shell.html" %}
+
+{% comment %}
+Overview shell.
+
+Every section is deliberately empty. DashKoda has no connected data source yet,
+so rendering any number, trend, draft law, opinion, event or news item here
+would be fabricated. The structure below is the agreed information hierarchy,
+filled by later pull requests.
+{% endcomment %}
+
+{% block title %}Ülevaade – DashKoda{% endblock %}
+{% block breadcrumb %}Ülevaade{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+
+  {# ---------------- Page header ---------------- #}
+  <header class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Koja juhatuse töölaud</h1>
+      <p class="text-sm text-text-secondary">Ülevaade koja olulisematest näitajatest ja tegevustest</p>
+    </div>
+
+    <div class="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex flex-wrap items-center gap-2">
+        <button type="button" class="dk-button dk-button-secondary" disabled>Ajavahemik: määramata</button>
+        {% include "dashboard/components/status_badge.html" with label="Lisamisel" variant="neutral" only %}
+      </div>
+
+      <div class="flex flex-wrap items-center gap-3">
+        <div id="freshness-region" aria-live="polite" class="min-w-0">
+          {% include "dashboard/partials/freshness.html" %}
+        </div>
+        {% comment %}
+        Without JavaScript this submits a plain GET and reloads the overview;
+        with htmx it swaps only the fragment above.
+        {% endcomment %}
+        <form method="get" action="{% url 'home' %}">
+          <button type="submit"
+                  class="dk-button dk-button-secondary"
+                  hx-get="{% url 'dashboard-freshness' %}"
+                  hx-target="#freshness-region"
+                  hx-swap="innerHTML">
+            Kontrolli uuesti
+          </button>
+        </form>
+      </div>
+    </div>
+
+    {% include "dashboard/components/callout.html" with title="Töölaud on arendusjärgus." message="Andmeallikad ühendatakse järgmistes arendusetappides. Kuni selleni näitab töölaud ainult struktuuri, mitte näitajaid." variant="info" only %}
+  </header>
+
+  {# ---------------- 1. Põhinäitajad ---------------- #}
+  <section aria-labelledby="section-kpi" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" description="Koja seisu kokkuvõtvad näitajad." badge_label="Lisamisel" badge_variant="neutral" only %}
+    <div class="dk-section-body grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {% include "dashboard/components/kpi_card.html" with label="Liikmete arv" status_label="Lisamisel" status="neutral" only %}
+      {% include "dashboard/components/kpi_card.html" with label="Uued liikmed" status_label="Lisamisel" status="neutral" only %}
+      {% include "dashboard/components/kpi_card.html" with label="Lahkunud liikmed" status_label="Lisamisel" status="neutral" only %}
+      {% include "dashboard/components/kpi_card.html" with label="Esitatud arvamused" status_label="Lisamisel" status="neutral" only %}
+    </div>
+  </section>
+
+  {# ---------------- 2. Juhatuse tähelepanu ---------------- #}
+  <section aria-labelledby="section-attention" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Juhatuse tähelepanu" heading_id="section-attention" description="Teemad, mis vajavad juhatuse otsust või seisukohta." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Selle vaate andmed lisatakse järgmises arendusetapis." only %}
+    </div>
+  </section>
+
+  {# ---------------- 3. Pärast eelmist ülevaadet ---------------- #}
+  <section aria-labelledby="section-since" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Pärast eelmist ülevaadet" heading_id="section-since" description="Muudatused alates eelmisest juhatuse ülevaatest." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/empty_state.html" with message="Kontrollitud andmed puuduvad." detail="Võrdlus muutub võimalikuks, kui esimene kontrollitud andmeseis on salvestatud." only %}
+    </div>
+  </section>
+
+  {# ---------------- 4. Liikmeskond ---------------- #}
+  <section aria-labelledby="section-membership" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Liikmeskond" heading_id="section-membership" description="Liikmete arv, liikumine ja jaotused." badge_label="Lisamisel" badge_variant="neutral" only %}
+    {% include "dashboard/components/table_wrapper.html" with caption="Liikmeskonna näitajad perioodide kaupa" columns=membership_columns empty_message="Andmeallikas ei ole veel ühendatud." only %}
+    <div class="dk-section-body border-t border-border pt-3">
+      {% include "dashboard/components/freshness_row.html" with state_label="Ühendamata" state="neutral" only %}
+    </div>
+  </section>
+
+  {# ---------------- 5. Õigusloome ja arvamused ---------------- #}
+  <section aria-labelledby="section-legislation" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Õigusloome ja arvamused" heading_id="section-legislation" description="Jälgitavad eelnõud ja koja esitatud arvamused." only %}
+    <div class="dk-section-body grid grid-cols-1 gap-4 lg:grid-cols-2">
+      <div class="flex flex-col gap-2">
+        <h3 class="text-sm font-medium text-text-secondary">Jälgitavad eelnõud</h3>
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+      </div>
+      <div class="flex flex-col gap-2">
+        <h3 class="text-sm font-medium text-text-secondary">Esitatud arvamused</h3>
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+      </div>
+    </div>
+  </section>
+
+  {# ---------------- 6. Tulevased sündmused ---------------- #}
+  <section aria-labelledby="section-events" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Tulevased sündmused" heading_id="section-events" description="Koja üritused ja koolitused." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/empty_state.html" with message="Selle vaate andmed lisatakse järgmises arendusetapis." only %}
+    </div>
+  </section>
+
+  {# ---------------- 7. Viimased uudised ---------------- #}
+  <section aria-labelledby="section-news" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" description="Koja uudised ja teated." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/empty_state.html" with message="Selle vaate andmed lisatakse järgmises arendusetapis." only %}
+    </div>
+  </section>
+
+</div>
+{% endblock %}

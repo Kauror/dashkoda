@@ -1,0 +1,29 @@
+{% load static %}
+{% comment %}
+Sidebar contents, shared by the persistent desktop sidebar and the mobile
+drawer. Context: navigation, active_nav.
+{% endcomment %}
+<div class="dk-sidebar">
+  <div class="flex flex-col gap-2">
+    <a href="{% url 'home' %}" class="block rounded-md">
+      <img class="dk-brand-mark"
+           src="{% static 'brand/koda-logo-horizontal-negative.png' %}"
+           width="1654" height="709"
+           alt="Eesti Kaubandus-Tööstuskoda – DashKoda esileht">
+    </a>
+    <p class="dk-meta px-1">DashKoda · juhatuse töölaud</p>
+  </div>
+
+  <nav aria-label="Peamenüü" class="min-w-0 flex-1">
+    <ul class="dk-nav-list">
+      {% for item in navigation %}
+        <li>{% include "dashboard/components/nav_item.html" with item=item active_nav=active_nav only %}</li>
+      {% endfor %}
+    </ul>
+  </nav>
+
+  <form method="post" action="{% url 'viewer-logout' %}" class="border-t border-border pt-4">
+    {% csrf_token %}
+    <button type="submit" class="dk-button dk-button-secondary w-full">Logi välja</button>
+  </form>
+</div>

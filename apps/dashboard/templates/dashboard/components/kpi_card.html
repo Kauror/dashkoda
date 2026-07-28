@@ -1,0 +1,54 @@
+{% comment %}
+KPI card.
+
+Context (every field is optional except label; anything missing degrades to an
+explicit "no verified data" state rather than to a guess):
+
+  label             – indicator name
+  value             – the measured value, already formatted
+  unit              – unit shown after the value
+  change            – signed change against the comparison period
+  change_direction  – up | down | flat, used for the textual direction marker
+  comparison_period – what the change is measured against
+  status            – neutral | brand | success | warning | danger | info
+  status_label      – text for the status badge
+  source            – name of the verified source
+  as_of             – date the value describes
+  freshness         – neutral | success | warning | danger
+  freshness_label   – text for the freshness state
+  empty_message     – shown instead of a value when none is available
+
+PR-04 renders this component only in its empty state. Direction is expressed in
+text as well as colour, so colour is never the only signal.
+{% endcomment %}
+<article class="dk-card flex flex-col gap-3 px-4 py-4">
+  <div class="flex items-start justify-between gap-3">
+    <h3 class="text-sm font-medium text-text-secondary">{{ label }}</h3>
+    {% if status_label %}
+      {% include "dashboard/components/status_badge.html" with label=status_label variant=status only %}
+    {% endif %}
+  </div>
+
+  {% if value %}
+    <p class="flex items-baseline gap-1.5">
+      <span class="text-metric font-semibold tracking-tight text-text">{{ value }}</span>
+      {% if unit %}<span class="text-sm text-text-secondary">{{ unit }}</span>{% endif %}
+    </p>
+    {% if change %}
+      <p class="text-sm text-text-secondary">
+        <span class="font-medium text-text">
+          {% if change_direction == "up" %}↑{% elif change_direction == "down" %}↓{% else %}→{% endif %}
+          {{ change }}
+        </span>
+        {% if comparison_period %}<span class="dk-meta">{{ comparison_period }}</span>{% endif %}
+      </p>
+    {% endif %}
+  {% else %}
+    <p class="flex items-baseline gap-1.5" aria-hidden="true">
+      <span class="text-metric font-semibold tracking-tight text-text-muted">—</span>
+    </p>
+    <p class="text-sm text-text-secondary">{{ empty_message|default:"Kontrollitud andmed puuduvad." }}</p>
+  {% endif %}
+
+  {% include "dashboard/components/freshness_row.html" with source=source as_of=as_of state=freshness state_label=freshness_label only %}
+</article>

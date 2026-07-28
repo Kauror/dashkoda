@@ -11,6 +11,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "apps.core.apps.CoreConfig",
     "apps.access.apps.AccessConfig",
+    "apps.dashboard.apps.DashboardConfig",
 ]
 
 MIDDLEWARE = [
@@ -30,7 +31,7 @@ ROOT_URLCONF = "config.urls"
 TEMPLATES = [
     {
         "BACKEND": "django.template.backends.django.DjangoTemplates",
-        "DIRS": [],
+        "DIRS": [BASE_DIR / "templates"],
         "APP_DIRS": True,
         "OPTIONS": {
             "context_processors": [
@@ -51,6 +52,9 @@ USE_TZ = True
 
 STATIC_URL = "/static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
+# `static/build/` holds the compiled frontend bundle; it is produced by
+# `npm run build` and is never edited or committed by hand.
+STATICFILES_DIRS = [BASE_DIR / "static"]
 STORAGES = {
     "default": {
         "BACKEND": "django.core.files.storage.FileSystemStorage",

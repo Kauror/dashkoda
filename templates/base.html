@@ -1,0 +1,24 @@
+<!doctype html>
+{% load static %}
+<html lang="et">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="color-scheme" content="dark">
+  {% comment %}
+  Applied before the bundle runs, so htmx never injects an inline <style>
+  element and never evaluates strings. Keeps script-src/style-src at 'self'.
+  {% endcomment %}
+  <meta name="htmx-config"
+        content='{"includeIndicatorStyles": false, "allowEval": false, "allowScriptTags": false}'>
+  <title>{% block title %}DashKoda{% endblock %}</title>
+  <link rel="icon" href="{% static 'brand/favicon.svg' %}" type="image/svg+xml">
+  <link rel="stylesheet" href="{% static 'build/styles.css' %}">
+  <script type="module" src="{% static 'build/app.js' %}"></script>
+</head>
+<body class="bg-bg text-text antialiased">
+  <a class="dk-skip-link" href="#main">Liigu põhisisu juurde</a>
+  {% block body %}{% endblock %}
+</body>
+</html>

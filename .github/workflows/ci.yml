@@ -12,7 +12,7 @@ permissions:
 jobs:
   test-and-build:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:18.4-bookworm@sha256:1961f96e6029a02c3812d7cb329a3b03a3ac2bb067058dec17b0f5596aca9296
@@ -42,6 +42,9 @@ jobs:
       VIEWER_PIN_VERSION: 1
       VIEWER_RATE_LIMIT_SECRET: ci-only-synthetic-rate-limit-secret
       TRUST_CLOUDFLARE_IP_HEADER: "false"
+      # Synthetic PIN used only by the browser smoke suite. The real viewer PIN
+      # is never present in this repository or in any workflow.
+      DASHKODA_E2E_PIN: "4071"
 
     steps:
       - name: Check out repository
@@ -54,8 +57,24 @@ jobs:
           python-version: 3.14.6
           enable-cache: true
 
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
       - name: Install locked dependencies
         run: uv sync --locked
+
+      - name: Install locked frontend dependencies
+        run: npm ci
+
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
+        continue-on-error: true
+
+      - name: Build frontend bundle
+        run: npm run build
 
       - name: Check formatting
         run: uv run ruff format --check .
@@ -82,6 +101,8 @@ jobs:
         run: uv run python manage.py collectstatic --noinput
 
       - name: Validate Compose configuration
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.production
         run: |
           cp .env.example .env
           docker compose -f compose.yaml -f compose.dev.yaml config
@@ -92,7 +113,26 @@ jobs:
       - name: Build development runtime
         run: docker compose -f compose.yaml -f compose.dev.yaml build
 
+      - name: Verify the runtime image carries no Node toolchain
+        run: |
+          docker compose -f compose.yaml run --rm --no-deps --entrypoint sh web -c '
+            for binary in node npm npx; do
+              if command -v "$binary" >/dev/null 2>&1; then
+                echo "$binary must not exist in the runtime image"
+                exit 1
+              fi
+            done
+            if [ -d /app/node_modules ]; then
+              echo "node_modules must not exist in the runtime image"
+              exit 1
+            fi
+            test -f /app/staticfiles/build/styles.css
+            test -f /app/staticfiles/build/app.js
+          '
+
       - name: Run Compose integration smoke
+        env:
+          DJANGO_SETTINGS_MODULE: config.settings.production
         run: |
           docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py migrate
@@ -135,6 +175,7 @@ jobs:
           expect("GET", "/sisene/", 200)
           expect("GET", "/admin/", 302, "/sisene/")
           expect("GET", "/robots.txt", 200)
+          expect("GET", "/dashboard/varskus/", 302, "/sisene/")
           logout_status, _logout_location = request("POST", "/logi-valja/")
           assert logout_status >= 300, f"POST logout unexpectedly returned {logout_status}"
           PY
@@ -149,6 +190,36 @@ jobs:
           test -n "${volume_name}"
           docker compose -f compose.yaml -f compose.dev.yaml down
           docker volume inspect "${volume_name}"
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke suite against Compose
+        env:
+          # The browser drives the app over plain HTTP on loopback, so this run
+          # uses the development settings module. The production-settings smoke
+          # test above is unchanged and still covers that configuration.
+          DJANGO_SETTINGS_MODULE: config.settings.local
+          DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+          # Hash of DASHKODA_E2E_PIN. Synthetic, CI only.
+          VIEWER_PIN_HASH: 'pbkdf2_sha256$1000000$jYAv7kifpcaiJWnHfcU12G$JoqiC9PRhkZ7tqjTvFdSH5cVbTvCTZMWMhUkg63QYIs='
+        run: |
+          docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
+          docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py migrate
+          docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py collectstatic --noinput
+          npm run e2e
+
+      - name: Upload browser smoke artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright
+          path: |
+            screenshots/
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Clean up Compose runtime
         if: always()

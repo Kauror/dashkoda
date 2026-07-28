@@ -22,6 +22,20 @@ integer for `VIEWER_PIN_VERSION`; increasing it invalidates existing sessions.
 Keep `TRUST_CLOUDFLARE_IP_HEADER=false` because the local runtime is not behind a
 trusted Cloudflare proxy.
 
+## Build the frontend
+
+The image build compiles the frontend in its own pinned Node stage, so nothing
+extra is needed for Compose. For host-side checks such as `collectstatic`, build
+it first:
+
+```powershell
+npm ci
+npm run build
+```
+
+See [frontend.md](frontend.md) for the build, the asset strategy and the
+browser smoke tests.
+
 ## Validate and start
 
 ```powershell
@@ -29,6 +43,18 @@ docker compose -f compose.yaml -f compose.dev.yaml config
 docker compose -f compose.yaml -f compose.dev.yaml build
 docker compose -f compose.yaml -f compose.dev.yaml up -d
 ```
+
+The development override runs the production settings module by default. It is
+the only place where `DJANGO_SETTINGS_MODULE` can be overridden, and it exists so
+the browser smoke suite can drive the application over plain HTTP on loopback:
+
+```powershell
+$env:DJANGO_SETTINGS_MODULE = "config.settings.local"
+docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
+```
+
+Never point the production Compose file at anything but
+`config.settings.production`.
 
 The runtime contains only `web` and `db`. The web service joins `frontend` and
 the internal `backend` network, with its host port bound to `127.0.0.1`. The
@@ -54,9 +80,13 @@ Invoke-WebRequest http://127.0.0.1:8000/robots.txt -UseBasicParsing
 Both return `200` while PostgreSQL is healthy. Liveness remains available if
 PostgreSQL becomes unavailable; readiness returns a minimal `503` response.
 
-The root route and `/admin/` redirect to `/sisene/` until the viewer PIN is
-accepted. Django admin then presents its own standard login. Logout is available
-only as a CSRF-protected `POST /logi-valja/`.
+The root route, `/admin/` and `/dashboard/varskus/` redirect to `/sisene/` until
+the viewer PIN is accepted. Django admin then presents its own standard login.
+Logout is available only as a CSRF-protected `POST /logi-valja/`.
+
+After signing in, the root route renders the dashboard shell. Every section is
+an explicit empty state: no data source is connected yet, so there is nothing
+truthful to display.
 
 ## Rate-limit maintenance
 

@@ -1,0 +1,10 @@
+{% comment %}
+Status badge.
+
+Context:
+  label   – required, carries the meaning as text
+  variant – neutral (default) | brand | success | warning | danger | info
+
+Colour is never the only signal: the visible label always states the status.
+{% endcomment %}
+<span class="dk-badge dk-badge-{{ variant|default:'neutral' }}">{{ label }}</span>

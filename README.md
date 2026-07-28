@@ -4,16 +4,20 @@ DashKoda is a planned internal management dashboard for the Estonian Chamber of
 Commerce and Industry. It is intended for Chamber staff who need one consistent,
 auditable view of operational and membership information.
 
-The project is at the viewer-access stage. PR-01 established the Django core,
-PR-02 added the local runtime and PostgreSQL, and PR-03 protects application
-routes with a shared PIN session and database-backed rate limiting. The
-authenticated home page is intentionally only a placeholder; no product
-dashboard or business data exists yet.
+The project is at the dashboard-shell stage. PR-01 established the Django core,
+PR-02 added the local runtime and PostgreSQL, PR-03 protects application routes
+with a shared PIN session and database-backed rate limiting, and PR-04 adds the
+responsive dashboard shell and its design system.
+
+**There is no business data yet.** Every section of the dashboard renders an
+explicit empty state, because no data source is connected. Nothing on the page
+is a real or placeholder metric.
 
 ## Requirements
 
 - Docker with Compose v2 for the supported local runtime
 - Python 3.14 and [`uv`](https://docs.astral.sh/uv/) for host-side static checks
+- Node 22 and npm for the frontend build
 - all commands run from the repository root
 
 ## Start the local runtime
@@ -81,11 +85,17 @@ the development web container.
 
 ```powershell
 uv sync --locked
+npm ci
+npm run build
 uv run ruff format --check .
 uv run ruff check .
 uv run python manage.py makemigrations --check
 uv run python manage.py check
+uv run python manage.py collectstatic --noinput
 ```
+
+`npm run build` must precede `collectstatic`: the templates reference the
+compiled bundle in `static/build/`, which is generated and not committed.
 
 Run the PostgreSQL-backed suite inside the development container:
 
@@ -93,12 +103,27 @@ Run the PostgreSQL-backed suite inside the development container:
 docker compose -f compose.yaml -f compose.dev.yaml exec web uv run pytest
 ```
 
+Run the browser smoke suite against a running application:
+
+```powershell
+npx playwright install --with-deps chromium
+npm run e2e
+```
+
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) — module boundaries and runtime
+- [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
+- [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
+- [docs/security.md](docs/security.md) — viewer access boundary and browser policy
+- [docs/local-runtime.md](docs/local-runtime.md) — Compose runtime operations
+
 ## Current boundaries
 
 Unraid, Cloudflare, DNS, and `dash.orgusaar.ee` are not configured by this
-repository stage. PR-03 performs no deployment and does not alter any server or
-existing container. See [docs/security.md](docs/security.md) for the implemented
-access boundary and its operational settings.
+repository stage. No pull request so far performs any deployment or alters any
+server or existing container. See [docs/security.md](docs/security.md) for the
+implemented access boundary and its operational settings.
 
 Do not commit secrets, `.env` files, production data, or real member data. The
 repository may contain only intentionally synthetic test values.

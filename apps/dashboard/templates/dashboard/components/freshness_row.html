@@ -1,0 +1,28 @@
+{% comment %}
+Freshness / source row.
+
+Context:
+  source      – verified source name; falls back to an explicit "not connected"
+  as_of       – the date the values describe; falls back to an em dash
+  state       – neutral (default) | success | warning | danger
+  state_label – text for the state badge
+
+Every dashboard value is expected to carry this row, so provenance and as-of
+date stay visible next to the number instead of in a separate legend.
+{% endcomment %}
+<dl class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-2 dk-meta">
+  <div class="flex items-center gap-1.5">
+    <dt class="text-text-muted">Allikas:</dt>
+    <dd class="text-text-secondary">{{ source|default:"ühendamata" }}</dd>
+  </div>
+  <div class="flex items-center gap-1.5">
+    <dt class="text-text-muted">Seisuga:</dt>
+    <dd class="text-text-secondary">{{ as_of|default:"—" }}</dd>
+  </div>
+  {% if state_label %}
+    <div class="flex items-center gap-1.5">
+      <dt class="sr-only">Värskus:</dt>
+      <dd>{% include "dashboard/components/status_badge.html" with label=state_label variant=state only %}</dd>
+    </div>
+  {% endif %}
+</dl>

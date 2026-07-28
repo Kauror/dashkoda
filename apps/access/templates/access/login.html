@@ -1,27 +1,47 @@
-<!doctype html>
+{% extends "base.html" %}
 {% load static %}
-<html lang="et">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Sisene – DashKoda</title>
-  <link rel="stylesheet" href="{% static 'access/access.css' %}">
-</head>
-<body>
-  <main>
-    <h1>DashKoda</h1>
-    <p>Sisesta ligipääsuks PIN-kood.</p>
-    <form method="post" action="{% url 'viewer-login' %}">
-      {% csrf_token %}
-      <input type="hidden" name="next" value="{{ next }}">
-      {{ form.pin.label_tag }}
+
+{% comment %}
+Viewer gate. Access behaviour is unchanged from PR-03: same form, same POST
+target, same CSRF token, same safe `next` handling, same rate limiting. Only the
+presentation follows the design system now. The page states no security detail
+and never renders the PIN.
+{% endcomment %}
+
+{% block title %}Sisene – DashKoda{% endblock %}
+
+{% block body %}
+<main id="main" class="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-4 py-10">
+  <div class="flex flex-col gap-4">
+    <img class="dk-brand-mark"
+         src="{% static 'brand/koda-logo-horizontal-negative.png' %}"
+         width="1654" height="709"
+         alt="Eesti Kaubandus-Tööstuskoda">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-xl font-semibold tracking-tight text-text">Sisene DashKodasse</h1>
+      <p class="text-sm text-text-secondary">Koja sisene juhatuse ja juhtkonna töölaud.</p>
+    </div>
+  </div>
+
+  <form method="post" action="{% url 'viewer-login' %}" class="dk-card flex flex-col gap-4 px-4 py-5">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{{ next }}">
+
+    <div class="flex flex-col gap-1.5">
+      <label for="{{ form.pin.id_for_label }}" class="text-sm font-medium text-text">PIN-kood</label>
       {{ form.pin }}
-      <div aria-live="polite">
-        {% for error in form.pin.errors %}<p>{{ error }}</p>{% endfor %}
-        {% for error in form.non_field_errors %}<p>{{ error }}</p>{% endfor %}
-      </div>
-      <button type="submit">Sisene</button>
-    </form>
-  </main>
-</body>
-</html>
+    </div>
+
+    <div id="pin-errors" aria-live="polite" class="flex flex-col gap-1">
+      {% for error in form.pin.errors %}
+        <p class="text-sm text-danger">{{ error }}</p>
+      {% endfor %}
+      {% for error in form.non_field_errors %}
+        <p class="text-sm text-danger">{{ error }}</p>
+      {% endfor %}
+    </div>
+
+    <button type="submit" class="dk-button dk-button-primary w-full">Sisene</button>
+  </form>
+</main>
+{% endblock %}
