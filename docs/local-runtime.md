@@ -131,6 +131,26 @@ The volume survives `down` and is deleted by `down --volumes`, exactly like the
 database volume. Treat it as data: it holds the only copies of registered
 originals, and no backup automation exists yet.
 
+## Legal-work feed
+
+Import a canonical workbook locally without touching OneDrive:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py import_oigusloome --file /path/to/dashkoda_oigusloome.xlsx --dry-run
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py import_oigusloome --file /path/to/dashkoda_oigusloome.xlsx
+```
+
+The imported data appears at `http://127.0.0.1:8000/oigusloome/`.
+
+`sync_oigusloome` additionally needs the five Microsoft Graph variables and is
+not required for local UI work — the application starts and every page renders
+without any Graph credentials. See
+[legal-work-feed.md](legal-work-feed.md).
+
+Never copy a real workbook into the repository. The file lives outside the
+working tree, and the private artifact it produces is stored under
+`SOURCE_ARTIFACT_ROOT` like every other original.
+
 ## Deployment boundary
 
 A development/pilot deployment of the application exists at

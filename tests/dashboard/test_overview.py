@@ -52,17 +52,20 @@ def test_overview_contains_every_required_section(client, authenticate_viewer, t
     assert title in client.get("/").content.decode()
 
 
-def test_navigation_routes_only_the_overview(client, authenticate_viewer):
+def test_navigation_routes_only_the_implemented_modules(client, authenticate_viewer):
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
+    routed = [item for item in NAVIGATION if item.is_available]
+    planned = [item for item in NAVIGATION if not item.is_available]
 
     for item in NAVIGATION:
         assert item.label in content
     assert 'aria-current="page"' in content
-    # Planned modules are inert, marked, and never rendered as links.
-    assert content.count("Lisamisel") >= len(NAVIGATION) - 1
-    assert content.count('aria-disabled="true"') >= len(NAVIGATION) - 1
+    # Overview and Õigusloome are routed; every other module is still inert,
+    # marked, and never rendered as a link.
+    assert {item.key for item in routed} == {"overview", "legislation"}
+    assert content.count('aria-disabled="true"') >= len(planned)
 
 
 def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):

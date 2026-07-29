@@ -12,8 +12,8 @@ DashKoda runs as a **development/pilot deployment**:
 - Docker on Unraid, two application containers (`web` and `db`);
 - PostgreSQL data persists on the host, outside the container;
 - an existing Cloudflare Tunnel fronts it;
-- the dashboard shows only truthful empty states;
-- **no business data source is connected.**
+- the deployed build still predates the legal-work feed, so it shows only
+  truthful empty states and **no business data source is connected there**.
 
 ## What this repository owns
 
@@ -52,6 +52,31 @@ environment.** There is no separate staging. A change reaches the same place
 people are looking at. This is accepted for now because the dashboard holds no
 business data, but it stops being acceptable once real Chamber data is
 connected, and it should be resolved before that point.
+
+## What the legal-work feed changes here
+
+It is the first module carrying **real Chamber information**, which changes the
+risk picture even though it changes nothing operationally in this repository.
+
+Still true: no server, Cloudflare, DNS or tunnel change; no deployment; no
+schedule installed. The 07:00 job exists only as a script template.
+
+Newly required for a deployment that actually syncs:
+
+- five Microsoft Graph environment variables, held only in the deployment
+  environment;
+- an Entra application with the read-only `Files.Read.All` application
+  permission and tenant admin consent;
+- a host schedule on `Europe/Tallinn`, created by an administrator.
+
+**Live Graph acceptance has not been performed.** No credentials existed during
+development, so the collector is verified against mocked transports only. The
+exact post-deployment commands are in
+[legal-work-feed.md](legal-work-feed.md).
+
+The known risk below now matters more: the pilot no longer holds only empty
+states, so Cloudflare Access in front of the tunnel should be settled before
+this is treated as a production service.
 
 ## What PR-05 changed here
 

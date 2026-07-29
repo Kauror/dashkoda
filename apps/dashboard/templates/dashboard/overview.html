@@ -88,17 +88,62 @@ filled by later pull requests.
   </section>
 
   {# ---------------- 5. Õigusloome ja arvamused ---------------- #}
+  {% comment %}
+  The only section backed by verified data. When no snapshot has been imported
+  it keeps exactly the empty state it had before, so nothing here is ever a
+  placeholder for a number that does not exist.
+  {% endcomment %}
   <section aria-labelledby="section-legislation" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Õigusloome ja arvamused" heading_id="section-legislation" description="Jälgitavad eelnõud ja koja esitatud arvamused." only %}
-    <div class="dk-section-body grid grid-cols-1 gap-4 lg:grid-cols-2">
-      <div class="flex flex-col gap-2">
-        <h3 class="text-sm font-medium text-text-secondary">Jälgitavad eelnõud</h3>
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
-      </div>
-      <div class="flex flex-col gap-2">
-        <h3 class="text-sm font-medium text-text-secondary">Esitatud arvamused</h3>
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
-      </div>
+    {% if legal_work.has_data %}
+      {% include "dashboard/components/section_header.html" with title="Õigusloome ja arvamused" heading_id="section-legislation" description="Jälgitavad eelnõud ja koja esitatud arvamused." badge_label=legal_work.state_label badge_variant=legal_work.state_variant only %}
+    {% else %}
+      {% include "dashboard/components/section_header.html" with title="Õigusloome ja arvamused" heading_id="section-legislation" description="Jälgitavad eelnõud ja koja esitatud arvamused." only %}
+    {% endif %}
+    <div class="dk-section-body flex flex-col gap-4">
+      {% if legal_work.has_data %}
+        {% if legal_work.last_sync_failed %}
+          {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka impordi andmeid." variant="warning" only %}
+        {% endif %}
+
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium text-text-secondary">Uusimad sisse tulnud</h3>
+            <ul class="dk-card divide-y divide-border">
+              {% for item in legal_work_received %}
+                {% include "dashboard/components/list_row.html" with title=item.topic meta=item.received_date|date:"d.m.Y" only %}
+              {% endfor %}
+            </ul>
+          </div>
+          <div class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium text-text-secondary">Viimati välja läinud</h3>
+            <ul class="dk-card divide-y divide-border">
+              {% for item in legal_work_sent %}
+                {% include "dashboard/components/list_row.html" with title=item.topic meta=item.sent_date|date:"d.m.Y" only %}
+              {% endfor %}
+            </ul>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
+          <p class="text-sm text-text-secondary">
+            Hetkel töös <span class="font-semibold text-text">{{ legal_work.open_count }}</span> teemat.
+            Andmed seisuga
+            <time datetime="{{ legal_work.reporting_date|date:'c' }}">{{ legal_work.reporting_date|date:"d.m.Y" }}</time>.
+          </p>
+          <a href="{% url 'legal-work' %}" class="dk-button dk-button-secondary">Vaata õigusloomet</a>
+        </div>
+      {% else %}
+        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <div class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium text-text-secondary">Jälgitavad eelnõud</h3>
+            {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+          </div>
+          <div class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium text-text-secondary">Esitatud arvamused</h3>
+            {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+          </div>
+        </div>
+      {% endif %}
     </div>
   </section>
 

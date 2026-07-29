@@ -11,6 +11,12 @@ dashboard route**.
 | --- | --- | --- |
 | `sources` | source registration, private artifacts, the import-run registry, the source/import admin workflow, private artifact access | any domain data, any parsing, any scheduling |
 | `audit` | append-only records of significant actions | anything domain-specific; it has no dependency on `sources` |
+| `legal_work` | imported legal-work snapshots and rows, their selectors and page, the workbook importer, the OneDrive feed state | generic artifact registration, the generic import lifecycle, audit infrastructure, authentication, any other OneDrive file |
+
+`legal_work` is the first module to consume this foundation end to end. Its
+models, importer, Graph collector and scheduling are documented separately in
+[legal-work-feed.md](legal-work-feed.md); only its place in the shared flow is
+described here.
 
 `audit` deliberately has no foreign key into `sources`. `object_type`,
 `object_id` and `correlation_id` already tie an event to whatever it describes,
@@ -24,16 +30,23 @@ data source
   → immutable SourceArtifact or controlled reference
   → ImportRun dry-run / preview
   → validation
-  → domain draft records          (later pull request)
-  → administrator verification    (later pull request)
-  → verified data                 (later pull request)
+  → immutable domain snapshot
   → selectors / services
   → dashboard
 ```
 
 No automated adapter, importer or agent may ever write directly into the
-authoritative, viewer-visible layer. PR-05 implements only the first three
-boxes, and `ImportRun` currently records attempts without performing any.
+authoritative, viewer-visible layer.
+
+The legal-work feed is the first module to run the whole flow. Its authority
+comes from the workbook being a **prepared, deterministic export** that a person
+generates and reviews, not from an automated interpretation of a working file:
+DashKoda parses no legacy operational document and infers nothing. Publication
+is all-or-nothing, and a failed import never replaces the last good snapshot.
+
+A later membership importer will add the draft/verification steps between
+validation and publication, because that data is edited by people rather than
+regenerated wholesale.
 
 ## DataSource
 
@@ -209,11 +222,15 @@ trail.
 | `change_summary` | JSON | redacted |
 | `correlation_id` | UUID, nullable, indexed | |
 
-Recorded in PR-05: data-source creation, material update and deactivation,
-artifact registration, staff artifact download, import-run creation, and
-import-run terminal transitions. All of them go through
-`apps.audit.services.record_event`; there are no signal handlers, so every writer
-is findable by searching for that one function.
+Recorded so far: data-source creation, material update and deactivation,
+artifact registration, staff artifact download, import-run creation, import-run
+terminal transitions, and the legal-work events — snapshot imported, snapshot
+published, synchronisation unchanged and synchronisation failed. All of them go
+through `apps.audit.services.record_event`; there are no signal handlers, so
+every writer is findable by searching for that one function.
+
+A single correlation ID threads one synchronisation attempt through its
+artifact registration, its import run, its snapshot and all of its audit events.
 
 ### Append-only enforcement
 

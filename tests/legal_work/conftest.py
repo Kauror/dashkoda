@@ -1,0 +1,74 @@
+import datetime as dt
+
+import pytest
+from django.contrib.auth import get_user_model
+from django.core.files import File
+
+from apps.legal_work.bootstrap import ensure_legal_work_source
+from apps.legal_work.importer import import_artifact
+from apps.sources.services import register_artifact
+
+from .workbook_factory import write_workbook
+
+WORKBOOK_NAME = "dashkoda_oigusloome.xlsx"
+
+
+@pytest.fixture
+def legal_work_source(db):
+    return ensure_legal_work_source()
+
+
+@pytest.fixture
+def superuser(db):
+    return get_user_model().objects.create_superuser(
+        username="synthetic-legal-root",
+        password="synthetic-test-password",
+    )
+
+
+@pytest.fixture
+def make_workbook(tmp_path):
+    """Write a synthetic workbook and return its path."""
+    counter = {"index": 0}
+
+    def build(**kwargs):
+        counter["index"] += 1
+        path = tmp_path / f"synthetic-{counter['index']}.xlsx"
+        return write_workbook(path, **kwargs)
+
+    return build
+
+
+@pytest.fixture
+def register_workbook(legal_work_source):
+    """Register a workbook file as an immutable private artifact."""
+
+    def register(path, *, source=None):
+        with path.open("rb") as handle:
+            return register_artifact(
+                source=source or legal_work_source,
+                upload=File(handle, name=WORKBOOK_NAME),
+                original_name=WORKBOOK_NAME,
+                mime_type=("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            )
+
+    return register
+
+
+@pytest.fixture
+def imported_snapshot(make_workbook, register_workbook):
+    """A published current snapshot built from the default synthetic rows."""
+    artifact = register_workbook(make_workbook())
+    return import_artifact(artifact, dry_run=False).snapshot
+
+
+@pytest.fixture
+def frozen_today(monkeypatch):
+    """Pin `timezone.localdate` so future-date rules are deterministic."""
+
+    def pin(value: dt.date):
+        from apps.legal_work import selectors
+
+        monkeypatch.setattr(selectors.timezone, "localdate", lambda: value)
+
+    return pin

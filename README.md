@@ -4,16 +4,21 @@ DashKoda is a planned internal management dashboard for the Estonian Chamber of
 Commerce and Industry. It is intended for Chamber staff who need one consistent,
 auditable view of operational and membership information.
 
-The project is at the sources-and-audit stage. PR-01 established the Django
-core, PR-02 added the local runtime and PostgreSQL, PR-03 protects application
-routes with a shared PIN session and database-backed rate limiting, PR-04 added
-the responsive dashboard shell and its design system, and PR-05 adds the
-source, private artifact, import-registry and audit foundation.
+PR-01 established the Django core, PR-02 added the local runtime and
+PostgreSQL, PR-03 protects application routes with a shared PIN session and
+database-backed rate limiting, PR-04 added the responsive dashboard shell and
+its design system, and PR-05 added the source, private artifact,
+import-registry and audit foundation.
 
-**There is no business data yet.** Every section of the dashboard renders an
-explicit empty state, because no data source is connected. Nothing on the page
-is a real or placeholder metric. PR-05 adds the models that later imports will
-use, but no importer exists and nothing is scheduled.
+The legal-work feed is the first module carrying **real business data**: it
+imports a prepared Excel workbook from OneDrive and renders it at
+`/oigusloome/`. Every other section of the dashboard still renders an explicit
+empty state, because no other data source is connected — nothing on those pages
+is a placeholder metric.
+
+Data collection is a scheduled command, never part of a web request. Pages read
+PostgreSQL only. A failed synchronization never replaces the last good data; it
+is disclosed instead. See [docs/legal-work-feed.md](docs/legal-work-feed.md).
 
 A development/pilot deployment runs at `https://dash.orgusaar.ee`. That is
 ahead of the planned operations milestone, which is **not** complete: there is
@@ -80,6 +85,15 @@ database query and returns a detail-free `503` response when the database is
 unavailable. All routes except the exact public allowlist and required static
 files redirect unauthenticated viewers to `/sisene/`; `/admin/` is not exempt.
 
+Import a legal-work workbook locally, without any Microsoft credentials:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py import_oigusloome --file /path/to/dashkoda_oigusloome.xlsx
+```
+
+It then renders at `http://127.0.0.1:8000/oigusloome/`. Never copy a real
+workbook into this repository.
+
 See [docs/local-runtime.md](docs/local-runtime.md) for tests, shutdown, and
 intentional local-data removal.
 
@@ -121,6 +135,8 @@ npm run e2e
 
 - [docs/architecture.md](docs/architecture.md) — module boundaries and runtime
 - [docs/data-model.md](docs/data-model.md) — sources, artifacts, imports, audit
+- [docs/legal-work-feed.md](docs/legal-work-feed.md) — the OneDrive legal-work
+  feed, its workbook contract, sync command and 07:00 schedule
 - [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
 - [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
 - [docs/security.md](docs/security.md) — viewer access boundary and browser policy

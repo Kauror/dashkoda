@@ -48,6 +48,20 @@ These rules apply to the whole repository.
   delete one.
 - Route source, artifact and import state changes through `apps/sources/services.py`
   rather than through views, admin callbacks or signals.
+- Collect external data only in scheduled management commands. A page render
+  must read PostgreSQL and nothing else: never call an external API, download a
+  file, parse a workbook or wait on a remote system while serving a request.
+- Publish an imported dataset all-or-nothing, and never let a failed import
+  replace or remove the last good data. Disclose the failure instead.
+- Keep external credentials in the environment only. Ordinary application
+  startup must succeed without them; the commands that need them must fail with
+  an explicit message naming what is missing.
+- Never commit a real workbook, a Microsoft identifier, a sharing URL, a token
+  or a signed download URL, and never write file contents to logs, audit
+  summaries or import diagnostics.
+- Do not add a webhook, a public ingestion endpoint or any route that accepts a
+  remote file or URL. Collection is outbound and read-only.
+- Do not add an in-process scheduler. Scheduling belongs to the host.
 
 ## Product and visual direction
 
