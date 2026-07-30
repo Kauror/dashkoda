@@ -1,0 +1,56 @@
+#!/bin/bash
+#
+# DashKoda legal-work synchronisation over the public read-only OneDrive link,
+# intended for the Unraid host's own scheduler. This is the MVP collection
+# route: it needs no Microsoft Entra application and no Graph credentials, only
+# OIGUSLOOME_PUBLIC_URL in the deployment's environment file.
+#
+# Copy this file, replace the deployment directory, make it executable, and
+# schedule it. This repository installs nothing and enables nothing.
+#
+#   cp sync_oigusloome_public.sh.example \
+#     /boot/config/plugins/user.scripts/sync_oigusloome_public.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_oigusloome_public.sh
+#
+# Run it by hand once before scheduling it, and check the exit code:
+#
+#   /boot/config/plugins/user.scripts/sync_oigusloome_public.sh; echo "exit=$?"
+#
+# Intended schedule — 07:00 every day, Europe/Tallinn:
+#
+#   0 7 * * *
+#
+# Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn
+# before enabling it. Estonia observes daylight saving, so a host left on UTC
+# runs this job an hour early or late depending on the season:
+#
+#   timedatectl                      # look for "Time zone: Europe/Tallinn"
+#   date +'%Z %z %H:%M'              # expect EET +0200 in winter, EEST +0300 in summer
+#
+# The application already refuses overlapping runs through a PostgreSQL
+# advisory lock, which is the primary overlap protection and works even across
+# hosts, containers and shells. The flock below is defence in depth on the host,
+# for the case where the container itself is slow to start.
+#
+# Expected exit codes:
+#
+#   0  imported, unchanged, or a successful dry run
+#   1  failed — the previous snapshot stays published and the dashboard says the
+#      last check failed
+#   3  another synchronisation was still running
+#
+# The URL is never passed on the command line: the container reads it from its
+# own environment, so it stays out of shell history and process listings.
+
+set -euo pipefail
+
+# Replace with the directory holding compose.yaml on the Unraid host.
+DEPLOYMENT_DIRECTORY="<DASHKODA_DEPLOYMENT_DIRECTORY>"
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+exec flock --nonblock /tmp/dashkoda-sync-oigusloome.lock \
+  docker compose exec -T web \
+    python manage.py sync_oigusloome_public --json

@@ -112,7 +112,13 @@ def get_feed_state(source) -> LegalWorkFeedState:
     return state
 
 
-def _record_failure(state: LegalWorkFeedState, message: str, *, correlation_id) -> None:
+def record_failure(state: LegalWorkFeedState, message: str, *, correlation_id) -> None:
+    """Record a sanitized failure without touching the published snapshot.
+
+    Shared by both collection routes, because "the last check failed and the
+    dashboard keeps showing the previous data" has to mean the same thing
+    whichever way the workbook was fetched.
+    """
     state.last_result = SyncResult.FAILED
     state.last_error_summary = message[:500]
     state.save(update_fields=["last_result", "last_error_summary", "last_checked_at", "updated_at"])
@@ -163,7 +169,7 @@ def synchronize(
     try:
         remote = client.get_item_metadata()
     except GraphError as error:
-        _record_failure(state, str(error), correlation_id=correlation_id)
+        record_failure(state, str(error), correlation_id=correlation_id)
         logger.warning("legal_work.sync failed during metadata: %s", error)
         return SyncOutcome(result=SyncResult.FAILED, detail=str(error))
 
@@ -180,7 +186,7 @@ def synchronize(
         try:
             size = client.download_to(download_path)
         except GraphError as error:
-            _record_failure(state, str(error), correlation_id=correlation_id)
+            record_failure(state, str(error), correlation_id=correlation_id)
             logger.warning("legal_work.sync failed during download: %s", error)
             return SyncOutcome(result=SyncResult.FAILED, detail=str(error))
 
@@ -206,7 +212,7 @@ def synchronize(
             # traceback. The previous snapshot is already safe, because the
             # importer rolled its transaction back.
             message = f"{type(error).__name__}: {error}".replace("\n", " ")
-            _record_failure(state, message, correlation_id=correlation_id)
+            record_failure(state, message, correlation_id=correlation_id)
             logger.warning("legal_work.sync failed during import: %s", message)
             return SyncOutcome(result=SyncResult.FAILED, detail=message)
 
