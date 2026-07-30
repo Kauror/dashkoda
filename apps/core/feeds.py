@@ -35,6 +35,50 @@ class FeedLocked(RuntimeError):
     """Another run already holds this source's lock."""
 
 
+class FeedSummaryMixin:
+    """The shared freshness vocabulary of the per-feed summary dataclasses.
+
+    A concrete summary provides two things: a ``feed_state`` attribute holding
+    the feed's state row (or ``None``) and a ``has_data`` property saying
+    whether anything is currently published. Everything below derives from
+    those, so "stale", "failed" and the state badge mean exactly the same thing
+    on every page.
+    """
+
+    @property
+    def last_checked_at(self):
+        return self.feed_state.last_checked_at if self.feed_state else None
+
+    @property
+    def last_successful_sync_at(self):
+        return self.feed_state.last_successful_sync_at if self.feed_state else None
+
+    @property
+    def last_result(self) -> str:
+        return self.feed_state.last_result if self.feed_state else FeedResult.NEVER_RUN
+
+    @property
+    def last_sync_failed(self) -> bool:
+        return self.last_result == FeedResult.FAILED
+
+    @property
+    def is_stale_after_failure(self) -> bool:
+        """Showing older data because the newest check did not succeed."""
+        return self.last_sync_failed and self.has_data
+
+    @property
+    def state_label(self) -> str:
+        if not self.has_data:
+            return "Ühendamata"
+        return "Vananenud" if self.last_sync_failed else "Ühendatud"
+
+    @property
+    def state_variant(self) -> str:
+        if not self.has_data:
+            return "neutral"
+        return "warning" if self.last_sync_failed else "success"
+
+
 def advisory_lock_key(name: str) -> int:
     """A stable signed 64-bit key for `pg_try_advisory_lock`.
 
