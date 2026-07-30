@@ -13,6 +13,8 @@ margin.
 """
 
 from .internal import (
+    EMPLOYEE_SIZE_BANDS,
+    SIZE_BAND_ORDER,
     DatePrecision,
     ExtractionConfidence,
     InternalMembershipObservation,
@@ -43,6 +45,8 @@ __all__ = [
     "MembershipFeedState",
     "ObservationImmutable",
     # Internal board-report membership history.
+    "EMPLOYEE_SIZE_BANDS",
+    "SIZE_BAND_ORDER",
     "DatePrecision",
     "ExtractionConfidence",
     "InternalMembershipObservation",
