@@ -21,6 +21,9 @@ from .storage import extension_not_allowed_message
 
 CHUNK_SIZE = 64 * 1024
 
+SHA256_HEX_LENGTH = 64
+SHA256_HEX_ALPHABET = frozenset("0123456789abcdef")
+
 # Legal moves of the import state machine. Terminal states have no successors.
 ALLOWED_TRANSITIONS: dict[str, frozenset[str]] = {
     ImportStatus.PENDING: frozenset({ImportStatus.RUNNING, ImportStatus.FAILED}),
@@ -200,11 +203,43 @@ def register_artifact(
     return artifact
 
 
+def validate_content_identity(
+    *,
+    source: DataSource,
+    sha256: str,
+    size_bytes: int,
+) -> tuple[str, int]:
+    """Check a server-computed content identity for a metadata-only artifact.
+
+    The caller has already read the bytes and computed these values itself, so
+    they are trusted in the same sense an upload's are: they were produced here,
+    not supplied by a client. What is checked is that they are *coherent* — a
+    malformed digest or a zero size would make the import key meaningless.
+    """
+    checksum = sha256.strip().lower()
+    if len(checksum) != SHA256_HEX_LENGTH or not all(c in SHA256_HEX_ALPHABET for c in checksum):
+        raise ArtifactRejected("Kontrollsumma peab olema 64 väiketähelist kuueteistkümnendmärki.")
+    if size_bytes <= 0:
+        raise ArtifactRejected("Kontrollsummaga algfaili suurus peab olema suurem kui null.")
+
+    limit = settings.SOURCE_ARTIFACT_MAX_BYTES
+    if size_bytes > limit:
+        raise ArtifactRejected(
+            f"Fail on liiga suur: {size_bytes} baiti. Lubatud kuni {limit} baiti."
+        )
+    if SourceArtifact.objects.filter(source=source, sha256=checksum).exists():
+        raise ArtifactRejected("Selle allika all on sama sisuga fail juba registreeritud.")
+    return checksum, size_bytes
+
+
 def register_external_reference(
     *,
     source: DataSource,
     external_reference: str,
     original_name: str = "",
+    mime_type: str = "",
+    sha256: str = "",
+    size_bytes: int = 0,
     access_level: str | None = None,
     uploaded_by=None,
     actor=None,
@@ -212,12 +247,32 @@ def register_external_reference(
 ) -> SourceArtifact:
     """Register a controlled reference to material held elsewhere.
 
-    No checksum exists for these, so they cannot be imported yet; see
-    :func:`build_import_run`.
+    Two shapes exist, and the difference is what the artifact can be used for:
+
+    - **registration only** — no checksum. A pointer to material this
+      application does not hold and cannot verify. It is not importable; see
+      :func:`build_import_run`.
+    - **metadata-only content identity** — the caller downloaded the bytes,
+      computed the digest and size here, and is not keeping the file. The
+      artifact then records what the content *was*, which is enough to build an
+      import key and to recognise the same content on a later run.
+
+    The reference itself must stay a safe, non-secret label: a sharing URL, a
+    signed URL or anything carrying a credential must never be stored here, and
+    the model refuses values containing ``@`` or ``?``.
     """
+    checksum, size = ("", 0)
+    if sha256:
+        checksum, size = validate_content_identity(
+            source=source, sha256=sha256, size_bytes=size_bytes
+        )
+
     artifact = SourceArtifact(
         source=source,
         original_name=original_name[:255],
+        mime_type=mime_type[:128],
+        sha256=checksum,
+        size_bytes=size,
         external_reference=external_reference.strip(),
         access_level=access_level or SourceArtifact._meta.get_field("access_level").default,
         uploaded_by=uploaded_by,
@@ -225,15 +280,20 @@ def register_external_reference(
     artifact.full_clean()
     with transaction.atomic():
         artifact.save()
+        summary = {
+            "source": source.slug,
+            "external_reference": artifact.external_reference,
+        }
+        if checksum:
+            summary["sha256"] = checksum
+            summary["size_bytes"] = size
+            summary["original_name"] = artifact.original_name
         record_event(
             action=AuditAction.ARTIFACT_REGISTERED,
             obj=artifact,
             actor=actor or uploaded_by,
             correlation_id=correlation_id,
-            change_summary={
-                "source": source.slug,
-                "external_reference": artifact.external_reference,
-            },
+            change_summary=summary,
         )
     return artifact
 
@@ -286,13 +346,19 @@ def build_import_run(
 ) -> ImportRun:
     """Create a pending run for an artifact.
 
-    External-reference artifacts are refused: the import key is defined over the
-    raw file digest, and inventing one for material we do not hold would make
-    idempotency meaningless.
+    What makes an artifact importable is a trusted SHA-256 content identity, not
+    whether a file is still stored. The import key is defined over that digest,
+    and inventing one for content this application never verified would make
+    idempotency meaningless — so an external reference registered without a
+    checksum is still refused.
+
+    A file-backed artifact always has one. A metadata-only external artifact has
+    one when the collector computed it from the bytes it downloaded, which is
+    exactly the case where the digest is as trustworthy as an upload's.
     """
-    if artifact.is_external:
+    if not artifact.sha256:
         raise ValidationError(
-            "Välise viitega algfaili ei saa veel importida: kontrollsumma puudub."
+            "Ilma kontrollsummata algfaili ei saa importida: sisu identiteet puudub."
         )
 
     run = ImportRun(
