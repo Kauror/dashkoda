@@ -82,10 +82,12 @@ installed.**
 - Graph: no credentials existed during development, so that collector is
   verified against mocked transports only.
 - Public link: the download, URL handling, XLSX validation and temporary-file
-  cleanup **have** been verified against the live link. The end-to-end import has
-  not completed, because the workbook the generator currently publishes fails the
-  workbook contract — its `CONTROL` warning count disagrees with its `DATA` table
-  by one record. That is a generator-side fix.
+  cleanup **have** been verified against the live link, across more than one
+  published revision of the workbook. The end-to-end import has not completed. It
+  needs two things that are outside this repository: a PostgreSQL instance to
+  publish into, and a workbook published with its `tbl_oigusloome` Excel Table
+  intact — uploading through Excel Online strips it. See
+  [legal-work-feed.md](legal-work-feed.md).
 
 The exact post-deployment commands are in
 [legal-work-feed.md](legal-work-feed.md).

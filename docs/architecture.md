@@ -200,9 +200,10 @@ existed during development, so that collector is covered by mocked transports
 only.
 
 The public sharing-link collector has been verified against the live link for
-download, URL handling, XLSX validation and temporary-file cleanup. The
-end-to-end import has **not** completed live, because the workbook the generator
-currently publishes fails the workbook contract. See
+download, URL handling, XLSX validation and temporary-file cleanup, across more
+than one published revision of the workbook. The end-to-end import has **not**
+completed live: it needs a PostgreSQL instance and a workbook published with its
+`tbl_oigusloome` Excel Table intact. See
 [legal-work-feed.md](legal-work-feed.md).
 
 An application deployment exists at `dash.orgusaar.ee`, but the operations

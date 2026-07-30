@@ -445,9 +445,11 @@ topic name and never a URL.
 
 - **Live acceptance of the full public-link import has not been completed.** The
   download, URL handling, XLSX validation and temporary-file lifecycle *have*
-  been verified against the live link. The import step could not be completed
-  because the workbook the generator currently publishes fails the contract; see
-  below.
+  been verified against the live link, repeatedly and against more than one
+  published revision of the workbook. The remaining steps — publishing a
+  snapshot, reporting unchanged on a repeat run — need a PostgreSQL instance and
+  a workbook published with its Excel Table intact; see the publishing rule
+  above.
 - Live Graph acceptance has not been performed either: no credentials existed
   during development, so that collector is covered by mocked transports only.
 - The importer requires the `tbl_oigusloome` Excel Table. A workbook generated
@@ -457,23 +459,30 @@ topic name and never a URL.
   public route needs no `--force` at all.
 - No chart is rendered: a list communicates these values more honestly.
 
-### Outstanding generator defect
+### Publishing the workbook without breaking it
 
-The workbook currently published through the sharing link declares
-`warning_record_count = 213` on `CONTROL`, while its `DATA` table carries warning
-codes for 212 records. Exactly one record appears on the `WARNINGS` sheet but has
-an empty `warning_codes` cell in `DATA`, so the generator appears to count
-distinct record IDs from `WARNINGS` while `DATA` disagrees.
+The workbook must reach OneDrive **exactly as the generator wrote it**. Uploading
+it by opening it in Excel Online and saving silently strips the `tbl_oigusloome`
+Excel Table from `DATA`, and the importer then rejects the file.
 
-The importer rejects the file, which is the contract working as intended: a
-workbook whose own summary disagrees with its authoritative table is not
-trustworthy. **This is a generator-side fix, not a DashKoda one**, and the
-contract must not be relaxed to accommodate it. Either the missing `DATA` cell is
-populated or the CONTROL count is computed from `DATA`.
+The symptom is unmistakable: the file *grows* by a few kilobytes, `WARNINGS`
+keeps `tbl_oigusloome_warnings`, only one table part remains inside the package,
+and the error is `DATA lehel puudub Exceli tabel 'tbl_oigusloome'`. Every count
+can still be perfectly correct.
 
-Until then every route — `import_oigusloome`, `sync_oigusloome` and
-`sync_oigusloome_public` alike — refuses this particular file, and the previously
-published snapshot stays current.
+Upload it as a plain file replace — *Upload → Files* in the OneDrive web
+interface, or let the sync client push it — and never through the "Open in Excel
+Online" round trip. The same applies to any manual edit: opening the generated
+workbook in Excel to look at it, then saving, is enough to break it.
+
+If it does get stripped, the round-tripped copy also syncs back down and
+overwrites the good local file. Re-run the generator, or recover the earlier
+version from OneDrive version history.
+
+This is a publishing-workflow rule, not something the importer should tolerate.
+The Excel Table is what makes `DATA` an addressable, contractually-shaped table
+rather than an arbitrary grid, so the contract must not be relaxed to accept a
+workbook without it.
 
 ## Rollback to a previous snapshot
 
@@ -502,6 +511,7 @@ target.save(update_fields=["is_current"])
 | `Toetamata skeemi versioon` | the workbook declares a version outside `{1.0, 1.1}` |
 | `CONTROL ei ole DATA lehega kooskõlas` | the workbook's own summary disagrees with its rows |
 | `CONTROL lehe väljad on tühjad` | a required CONTROL key was written with an empty value |
+| `DATA lehel puudub Exceli tabel` after an upload | the workbook was round-tripped through Excel Online, which strips the table |
 | `Avaliku töövihiku seadistus on puudulik` | `OIGUSLOOME_PUBLIC_URL` is unset |
 | `Vastuseks tuli text/html asemel Exceli faili` | the link no longer permits downloading, or it now needs sign-in |
 | `Jagamislink ei ole kättesaadav (404)` | the sharing link was revoked or regenerated |
