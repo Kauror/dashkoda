@@ -25,6 +25,39 @@ def test_control_is_parsed_including_the_real_generator_metadata(make_workbook):
     assert parsed.control.refresh_status == "completed_with_warnings"
 
 
+def test_a_cloud_generator_may_leave_source_modified_at_empty(make_workbook):
+    """A generator reading the operational file from the cloud has no mtime.
+
+    The field is nullable in the parsed control record and on the snapshot, so a
+    key written with an empty value is a legitimate workbook — distinct from the
+    key being absent, which is still a contract break.
+    """
+    parsed = parse_workbook(make_workbook(control_overrides={"source_modified_at": None}))
+
+    assert parsed.control.source_modified_at is None
+    assert len(parsed.rows) == 3
+
+
+def test_an_absent_source_modified_at_key_is_still_rejected(make_workbook):
+    with pytest.raises(WorkbookContractError, match="puuduvad väljad"):
+        parse_workbook(make_workbook(control_omit=("source_modified_at",)))
+
+
+@pytest.mark.parametrize(
+    "key",
+    ["dataset_key", "schema_version", "refresh_status", "generator_version", "source_sha256"],
+)
+def test_a_mandatory_control_value_may_not_be_empty(make_workbook, key):
+    with pytest.raises(WorkbookContractError, match="tühjad"):
+        parse_workbook(make_workbook(control_overrides={key: None}))
+
+
+@pytest.mark.parametrize("key", ["generated_at", "reporting_date", "total_record_count"])
+def test_a_mandatory_control_value_may_not_be_blank_text(make_workbook, key):
+    with pytest.raises(WorkbookContractError, match="tühjad"):
+        parse_workbook(make_workbook(control_overrides={key: "   "}))
+
+
 @pytest.mark.parametrize("version", SUPPORTED_SCHEMA_VERSIONS)
 def test_every_supported_schema_version_is_accepted(make_workbook, version):
     parsed = parse_workbook(make_workbook(schema_version=version))

@@ -78,6 +78,14 @@ REQUIRED_CONTROL_KEYS = (
 
 VALID_SENT_STATUSES = frozenset({"pending", "sent", "not_sent", "invalid"})
 
+# CONTROL keys that must be *present* but whose value may legitimately be empty.
+# `source_modified_at` is the modification time of the lawyers' operational file.
+# A generator that reads the operational workbook from the cloud rather than from
+# a locally synchronised copy has no such time to report, which is why both the
+# parsed control record and the snapshot field are nullable. Every other required
+# key must carry a real value.
+OPTIONAL_VALUE_CONTROL_KEYS = frozenset({"source_modified_at"})
+
 # The generator separates codes with ";"; "," is tolerated defensively because
 # both have appeared in hand-checked exports.
 WARNING_CODE_SEPARATORS = (";", ",")
@@ -221,22 +229,40 @@ def _parse_timestamp(value, *, key: str) -> dt.datetime | None:
 def _read_control(sheet) -> dict:
     """Collect the key/value pairs from CONTROL.
 
-    Rows whose second cell is empty are the workbook's own banner and footnote
-    lines, and unknown keys are ignored rather than rejected, so the generator
-    can add metadata without breaking this importer.
+    A row with no key at all is the workbook's own banner or footnote line and is
+    skipped. A row that *has* a key keeps it even when the value cell is empty:
+    "the generator did not write this field" and "the generator wrote this field
+    and it is legitimately empty" are different facts, and only
+    :func:`_require_control` decides which keys may be empty. Unknown keys are
+    ignored rather than rejected, so the generator can add metadata without
+    breaking this importer.
     """
     values: dict = {}
     for key_cell, value_cell in sheet.iter_rows(min_row=1, max_col=2, values_only=True):
-        if key_cell is None or value_cell is None:
+        if key_cell is None:
             continue
-        values[str(key_cell).strip()] = value_cell
+        key = str(key_cell).strip()
+        if key:
+            values[key] = value_cell
     return values
+
+
+def _is_blank(value) -> bool:
+    return value is None or (isinstance(value, str) and not value.strip())
 
 
 def _require_control(values: dict) -> WorkbookControl:
     missing = [key for key in REQUIRED_CONTROL_KEYS if key not in values]
     if missing:
         raise WorkbookContractError(f"CONTROL lehel puuduvad väljad: {', '.join(sorted(missing))}.")
+
+    blank = [
+        key
+        for key in REQUIRED_CONTROL_KEYS
+        if key not in OPTIONAL_VALUE_CONTROL_KEYS and _is_blank(values[key])
+    ]
+    if blank:
+        raise WorkbookContractError(f"CONTROL lehe väljad on tühjad: {', '.join(sorted(blank))}.")
 
     dataset_key = _text(values["dataset_key"])
     if dataset_key != DATASET_KEY:
