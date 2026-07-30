@@ -7,21 +7,9 @@ offered. The feed state shows a sanitized diagnostic and never a secret.
 
 from django.contrib import admin
 
+from apps.core.admin import ReadOnlyAdmin
+
 from .models import LegalWorkFeedState, LegalWorkItem, LegalWorkSnapshot
-
-
-class ReadOnlyAdmin(admin.ModelAdmin):
-    def get_readonly_fields(self, request, obj=None):
-        return [field.name for field in self.model._meta.fields]
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 @admin.register(LegalWorkSnapshot)
