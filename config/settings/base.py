@@ -108,14 +108,25 @@ SOURCE_ARTIFACT_ALLOWED_EXTENSIONS = frozenset(
 
 # Legal-work feed.
 #
-# The Microsoft Graph values are intentionally optional and blank by default:
-# the web application must start, and CI must run, without any Graph
-# credentials. Only `sync_oigusloome` and `resolve_oigusloome_share` require
-# them, and they fail with an explicit message listing what is missing.
+# Two collection routes exist. The public read-only sharing link is the MVP
+# route; Microsoft Graph remains available but is not required.
 #
-# The sharing URL is never configuration. It is resolved once to a stable
-# drive/item pair through the one-time resolver command.
+# Both are intentionally optional and blank by default: the web application
+# must start, and CI must run, without any of them. Only the synchronisation
+# commands require configuration, and they fail with an explicit message naming
+# what is missing — never echoing the value.
 LEGAL_WORK_SOURCE_SLUG = "oigusloome-onedrive"
+
+# View-only OneDrive/SharePoint sharing URL for the canonical workbook. Treat
+# it as a bearer-style secret: anyone holding it can download the file. It
+# belongs only in the deployment environment, never in Git, the database, the
+# logs, the audit trail or the interface. Required only by
+# `sync_oigusloome_public`.
+OIGUSLOOME_PUBLIC_URL = os.environ.get("OIGUSLOOME_PUBLIC_URL", "")
+
+# Microsoft Graph, the optional alternative route. The sharing URL is never
+# Graph configuration: it is resolved once to a stable drive/item pair through
+# the one-time resolver command.
 MS_GRAPH_TENANT_ID = os.environ.get("MS_GRAPH_TENANT_ID", "")
 MS_GRAPH_CLIENT_ID = os.environ.get("MS_GRAPH_CLIENT_ID", "")
 MS_GRAPH_CLIENT_SECRET = os.environ.get("MS_GRAPH_CLIENT_SECRET", "")
