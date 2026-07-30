@@ -216,7 +216,11 @@ def validate_content_identity(
     not supplied by a client. What is checked is that they are *coherent* — a
     malformed digest or a zero size would make the import key meaningless.
     """
-    checksum = sha256.strip().lower()
+    # Exactly the canonical form, not a normalised one: a caller that produced
+    # this digest itself has no reason to hand over a different shape, and
+    # quietly accepting one would let two spellings of the same content identity
+    # exist.
+    checksum = sha256.strip()
     if len(checksum) != SHA256_HEX_LENGTH or not all(c in SHA256_HEX_ALPHABET for c in checksum):
         raise ArtifactRejected("Kontrollsumma peab olema 64 väiketähelist kuueteistkümnendmärki.")
     if size_bytes <= 0:
