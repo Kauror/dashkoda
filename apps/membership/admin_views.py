@@ -59,11 +59,7 @@ def _handle(request, *, correcting: InternalMembershipObservation | None = None)
     if request.method == "GET":
         initial = initial_from_observation(correcting) if correcting else {}
         form = InternalMembershipReportForm(source=source, initial=initial)
-        year = (
-            correcting.observation_date.year
-            if correcting
-            else get_manual_entry_defaults(_current_year()).get("reporting_year")
-        )
+        year = correcting.observation_date.year if correcting else _current_year()
         return _render_form(
             request,
             form,

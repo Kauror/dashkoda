@@ -32,6 +32,7 @@ from django.db.models import Max, Min, Prefetch, Q
 from .models import (
     SIZE_BAND_ORDER,
     InternalMembershipObservation,
+    IssueSeverity,
     MembershipDataIssue,
     MembershipMetricConflict,
     MembershipMonthlyNewMemberValue,
@@ -456,7 +457,7 @@ def get_internal_membership_quality_summary() -> InternalQualitySummary:
             | Q(quality_status=QualityStatus.CONFLICTED)
         ).count(),
         unresolved_error_count=MembershipDataIssue.objects.filter(
-            source__slug=slug, severity="error", resolved=False
+            source__slug=slug, severity=IssueSeverity.ERROR, resolved=False
         ).count(),
         provisional_month_count=monthly.filter(
             value_status=MonthlyValueStatus.PROVISIONAL_CURRENT_MONTH

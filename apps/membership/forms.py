@@ -19,14 +19,12 @@ straight to the confirmation step.
 
 from __future__ import annotations
 
-from datetime import date
 from decimal import Decimal
 
 from django import forms
 
 from .manual import ManualReport
 from .models import (
-    EMPLOYEE_SIZE_BANDS,
     InternalMembershipObservation,
     QualityStatus,
     RemovalReasonKey,
@@ -216,13 +214,6 @@ class InternalMembershipReportForm(forms.Form):
     @property
     def reason_fields(self):
         return [self[f"{REASON_PREFIX}{key}"] for key in KNOWN_REASON_KEYS]
-
-    @property
-    def employee_band_count(self) -> int:
-        return len(EMPLOYEE_SIZE_BANDS)
-
-    def clean_observation_date(self) -> date:
-        return self.cleaned_data["observation_date"]
 
     def _entered(self, prefix: str, keys) -> dict:
         """Collect only the fields that were actually filled in.

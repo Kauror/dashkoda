@@ -363,6 +363,10 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
         }
     )
 
+    footnotes: tuple[str, ...] = ()
+    if any(row["band"] == SizeBand.SUPPORTER for row in rows):
+        footnotes = ("Toetajaliige ei ole töötajate arvu klass ja on loetelus eraldi.",)
+
     return ChartPayload(
         payload_id="internal-membership-size-movement",
         title="Liitunud ja lahkunud suurusklassiti",
@@ -375,9 +379,7 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
             + (f" seisuga {observation_date:%d.%m.%Y}." if observation_date else ".")
         ),
         empty_message="Suurusklasside jaotust selle vaatluse kohta ei ole.",
-        footnotes=("Toetajaliige ei ole töötajate arvu klass ja on loetelus eraldi.",)
-        if any(row["band"] == SizeBand.SUPPORTER for row in rows)
-        else (),
+        footnotes=footnotes,
     )
 
 
