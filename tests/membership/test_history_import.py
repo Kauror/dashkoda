@@ -280,11 +280,22 @@ def test_audit_records_counts_and_no_source_content(imported_package):
 
 
 def test_json_output_carries_counts_only(imported_package):
+    """A live run reports what it wrote, not what the package contained."""
     payload = imported_package.as_json()
 
-    assert payload["counts"]["snapshots"] == 3
+    assert payload["counts"]["observations"] == 3
+    assert payload["counts"]["source_documents"] == 2
+    assert payload["rows_added"] == sum(payload["counts"].values())
     assert payload["package_sha256"] == imported_package.package_sha256
     assert ".docx" not in str(payload)
+
+
+def test_dry_run_json_reports_what_it_validated_and_zero_rows(package_path):
+    payload = import_history_package(package_path, dry_run=True).as_json()
+
+    assert payload["counts"]["snapshots"] == 3
+    assert payload["rows_added"] == 0
+    assert payload["dry_run"] is True
 
 
 # --------------------------------------------------------------------------

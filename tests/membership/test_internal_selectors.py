@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 
@@ -106,8 +107,8 @@ def test_metric_filter_drops_observations_with_nothing_to_draw(imported_package)
 def test_paid_share_is_derived_not_stored(imported_package):
     latest = get_internal_membership_latest()
 
-    # 3100 of 3300.
-    assert latest.paid_member_share_pct == pytest.approx(93.94, abs=0.01)
+    # 3100 of 3300, kept exact rather than turned into a float on the way out.
+    assert latest.paid_member_share_pct == Decimal("93.94")
 
 
 def test_fee_trend_reports_both_percentages(imported_package):

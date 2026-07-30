@@ -49,6 +49,34 @@ archives and macro-enabled office formats are refused.
 See [data-model.md](data-model.md) for the full model, and note that the audit
 trail's append-only guarantee has documented limits.
 
+## Staff data entry
+
+One workflow writes domain data from a browser: the internal membership report
+form at `/admin/membership/internal-report/new/`. It is guarded twice over — the
+viewer PIN middleware covers all of `/admin/`, and every view is wrapped in
+`admin.site.admin_view`, which requires an active Django staff account. A
+PIN-only viewer therefore reaches the admin login page and stops there, and has
+no account to get past it.
+
+Three properties keep it from becoming a general write surface:
+
+- the preview step is stateless and saves nothing, so an abandoned form leaves
+  no draft record and no session copy behind;
+- a submission is hashed as canonical JSON, so a double submit is recognised as
+  the same report rather than published twice;
+- published records are immutable. A correction creates a new record that
+  supersedes the old one, and there is no delete action.
+
+The imported quality warnings are the one thing an administrator may edit, and
+only their resolution fields — recording that a person looked at a warning must
+never be able to change what the source said.
+
+The membership package import is an **operator command**, not a route. It reads a
+path the operator supplies on the server; nothing in the application accepts an
+uploaded package, and the archive is never stored. The registered artifact is
+metadata-only, carrying the server-computed checksum under a fixed non-secret
+reference, which also keeps ZIP out of the upload allowlist above.
+
 ## External data collection
 
 The legal-work feed reads one OneDrive workbook. Two routes exist — a public

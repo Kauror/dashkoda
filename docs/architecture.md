@@ -166,6 +166,24 @@ Each runs under its own advisory lock and transaction, so one failing source
 never blocks another and a failed source keeps its previous good data. See
 [koda-public-feeds.md](koda-public-feeds.md).
 
+### Data that is not collected at all
+
+The Chamber's internal board-report membership history has no remote source to
+collect from. It arrives once as an approved package through an operator-run
+command, and every later report is typed by a staff user in the admin. There is
+no schedule, no ingestion endpoint and no route that accepts a file.
+
+The manual form is nevertheless not a shortcut around the boundary above. A
+submission becomes canonical JSON, is hashed, is carried by a metadata-only
+artifact and is recorded by an ordinary `ImportRun`, so typed data and imported
+data reach the database through the same publication path and obey the same
+quality rules. That is what will let an automated route replace the form later
+without rewriting any historical row.
+
+Two membership sources exist and are never merged. The public directory count
+and the internal board-report history count different things; see
+[internal-membership-history.md](internal-membership-history.md).
+
 ## Implemented so far
 
 - minimal Django project and `core` app

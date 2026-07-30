@@ -48,10 +48,13 @@ No individual member is listed anywhere, because neither dataset stores one.
     {% include "dashboard/components/section_header.html" with title="Avalik liikmekataloog" heading_id="section-public" description="Koda.ee avalikus liikmekataloogis avaldatud liikmeprofiilide arv." only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% if summary.has_data %}
-        <p class="flex items-baseline gap-2">
-          <span class="text-metric font-semibold tracking-tight text-text">{{ summary.total_members }}</span>
-          <span class="text-sm text-text-secondary">liiget</span>
-        </p>
+        <div class="flex flex-col gap-1">
+          <h3 class="text-sm font-medium text-text-secondary">Liikmeid kokku</h3>
+          <p class="flex items-baseline gap-2">
+            <span class="text-metric font-semibold tracking-tight text-text">{{ summary.total_members }}</span>
+            <span class="text-sm text-text-secondary">liiget</span>
+          </p>
+        </div>
       {% else %}
         {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
       {% endif %}

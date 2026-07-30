@@ -308,20 +308,31 @@ checksum is a wanted, non-secret fact. Nested dicts and lists are walked, and
 strings longer than 500 characters are truncated so a file body cannot be
 smuggled in.
 
-## Future canonical CSV boundary
+## The canonical CSV boundary
 
-The membership importer arrives in PR-07, not here. When it does:
+The internal membership history is the first dataset to arrive this way. It
+consumes a **package** — a ZIP carrying a manifest, the canonical CSVs and a
+SHA-256 for each — rather than loose files, because the manifest and its
+checksums are what make the data approved. It supports a dry run that writes
+nothing, and the same package digest plus importer schema version make a repeat
+run idempotent.
 
-- it consumes a **canonical CSV** whose columns are fixed by the implementation
-  plan;
-- it always runs dry-run/preview before writing;
-- the same checksum and schema version are idempotent;
-- a successful import creates **draft** records only;
-- `verified` status always requires a deliberate administrator action.
+DashKoda does not parse legacy DOC, DOCX, PPTX or PDF files. Turning those into a
+canonical CSV package is separate data-preparation work that happens outside this
+application, and the original documents never enter it.
 
-DashKoda does not parse legacy DOC, DOCX, PPTX, XLSX or PDF files. Turning those
-into a canonical CSV is separate data-preparation work that happens outside this
-application.
+Two membership datasets exist and they are deliberately not one:
+
+| | `koda-public-members` | `membership-internal-board-reports` |
+| --- | --- | --- |
+| Counts | member profiles published on Koda.ee | membership as the Chamber's board reports define it |
+| Model | `MembershipCountObservation` | `InternalMembershipObservation` and six related models |
+| Selectors | `apps/membership/selectors.py` | `apps/membership/internal_selectors.py` |
+| Written by | the scheduled public collector | the one-time package import and the staff form |
+
+No selector, template or query joins them. See
+[internal-membership-history.md](internal-membership-history.md) for the full
+model, the quality policy and the manual workflow.
 
 ## External semantic-agent boundary
 
