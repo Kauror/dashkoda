@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import date
+from decimal import Decimal
 
 import pytest
 from django.conf import settings
@@ -188,6 +189,29 @@ def test_collection_over_100_is_accepted_when_consistent(imported_package):
     assert observation.membership_fee_collection_pct_reported == 105
     assert observation.quality_status == QualityStatus.VERIFIED
     assert "collection_pct_mismatch" not in observation.warning_codes
+
+
+def test_a_reported_percentage_is_stored_exactly_as_reported(tmp_path):
+    """Real board reports state this figure to four decimal places.
+
+    `bulk_create` does not call `full_clean`, so a too-narrow column would not
+    error — PostgreSQL would round on insert and store a number nobody
+    reported, with nothing recording that it had happened. This asserts the
+    stored value is byte-for-byte what the source said.
+    """
+    snapshots = default_snapshots()
+    snapshots[1]["membership_fees_received_eur"] = "813868"
+    snapshots[1]["membership_fee_budget_eur"] = "868294"
+    snapshots[1]["membership_fee_collection_pct"] = "93.7318"
+
+    import_history_package(
+        build_package(tmp_path / "package.zip", snapshots=snapshots), dry_run=False
+    )
+    observation = InternalMembershipObservation.objects.get(observation_date=date(2025, 1, 15))
+
+    assert observation.membership_fee_collection_pct_reported == Decimal("93.7318")
+    # And it is consistent with the amounts, so nothing is withheld for it.
+    assert observation.quality_status == QualityStatus.VERIFIED
 
 
 def test_inconsistent_collection_percentage_is_flagged(tmp_path):

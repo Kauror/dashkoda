@@ -112,11 +112,14 @@ class InternalMembershipReportForm(forms.Form):
     paid_members = _count_field("Tasunud liikmeid")
     membership_fees_received_eur = _money_field("Laekunud liikmemaks (EUR)")
     membership_fee_budget_eur = _money_field("Liikmemaksu aastaeelarve (EUR)")
+    # Matches the model's four places. A correction prefills the figure the
+    # original reported, and some historical reports state four — a form that
+    # only accepted two would refuse to re-save a value it had just shown.
     membership_fee_collection_pct_reported = forms.DecimalField(
         required=False,
         min_value=Decimal("0"),
-        max_digits=7,
-        decimal_places=2,
+        max_digits=8,
+        decimal_places=4,
         label="Raporteeritud laekumise protsent",
     )
     new_members_ytd = _count_field("Uusi liikmeid aasta algusest")

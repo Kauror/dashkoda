@@ -322,9 +322,14 @@ class InternalMembershipObservation(models.Model):
         blank=True,
         verbose_name="Liikmemaksu eelarve (EUR)",
     )
+    # Four decimal places, not two. Five historical reports state this figure
+    # to three or four places, and `numeric(7,2)` would have rounded them on
+    # insert without erroring — silently changing a reported number, which is
+    # the one thing this dataset must never do. The extra places cost nothing
+    # and the field stores exactly what the board was told.
     membership_fee_collection_pct_reported = models.DecimalField(
-        max_digits=7,
-        decimal_places=2,
+        max_digits=8,
+        decimal_places=4,
         null=True,
         blank=True,
         verbose_name="Raporteeritud laekumise protsent",
