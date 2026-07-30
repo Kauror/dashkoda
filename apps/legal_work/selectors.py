@@ -13,6 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.db.models import F
 from django.utils import timezone
 
 from .models import LegalWorkFeedState, LegalWorkItem, LegalWorkSnapshot, SentStatus, SyncResult
@@ -43,10 +44,12 @@ def _items(snapshot: LegalWorkSnapshot | None):
 def get_open_items(snapshot: LegalWorkSnapshot | None = None, limit: int | None = MAX_OPEN_ITEMS):
     """Topics still being worked on, most recently received first."""
     snapshot = snapshot or get_current_snapshot()
-    # PostgreSQL sorts NULLs last in a descending order, so dated records lead
-    # and undated ones trail deterministically by topic.
+    # PostgreSQL puts NULLs first in a descending order, so `nulls_last` is
+    # explicit: dated records lead and undated ones trail by topic.
     queryset = (
-        _items(snapshot).filter(is_open=True).order_by("-received_date", "topic", "record_id")
+        _items(snapshot)
+        .filter(is_open=True)
+        .order_by(F("received_date").desc(nulls_last=True), "topic", "record_id")
     )
     return queryset[:limit] if limit else queryset
 
