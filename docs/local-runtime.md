@@ -142,14 +142,30 @@ docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py 
 
 The imported data appears at `http://127.0.0.1:8000/oigusloome/`.
 
-`sync_oigusloome` additionally needs the five Microsoft Graph variables and is
-not required for local UI work — the application starts and every page renders
-without any Graph credentials. See
+Synchronize from the public sharing link instead, which needs no Microsoft
+credentials at all. Put the URL in the untracked local `.env` as
+`OIGUSLOOME_PUBLIC_URL` — never on the command line, and never in a tracked
+file:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py sync_oigusloome_public --dry-run --json
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py sync_oigusloome_public --json
+```
+
+The dry run validates and publishes nothing. A second live run of unchanged
+bytes reports `unchanged` rather than duplicating anything. This route stores no
+workbook file: it downloads into a temporary directory that is removed in every
+outcome, and the artifact carries only the checksum, size and MIME type.
+
+`sync_oigusloome` is the optional Graph route and additionally needs the five
+Microsoft Graph variables. Neither command is required for local UI work — the
+application starts and every page renders with none of these variables set. See
 [legal-work-feed.md](legal-work-feed.md).
 
-Never copy a real workbook into the repository. The file lives outside the
-working tree, and the private artifact it produces is stored under
-`SOURCE_ARTIFACT_ROOT` like every other original.
+Never copy a real workbook into the repository, and never commit the sharing URL.
+The file lives outside the working tree; a private artifact produced by the
+manual import or the Graph route is stored under `SOURCE_ARTIFACT_ROOT` like
+every other original.
 
 ## Deployment boundary
 

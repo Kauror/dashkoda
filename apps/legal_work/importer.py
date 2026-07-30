@@ -11,6 +11,7 @@ partial snapshot is ever visible to the dashboard.
 from __future__ import annotations
 
 import uuid
+import zipfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -69,6 +70,23 @@ def _require_importable_artifact(artifact: SourceArtifact) -> Path:
     if Path(artifact.original_name or artifact.file.name).suffix.lower() != ALLOWED_EXTENSION:
         raise LegalWorkImportError("Õigusloome importija loeb ainult .xlsx faile.")
     return Path(artifact.file.path)
+
+
+def _require_supplied_workbook(workbook_path: Path | str) -> Path:
+    """Accept an explicit workbook the caller holds only temporarily.
+
+    This is what lets the public-link synchronisation import without keeping a
+    permanent copy: the artifact carries the content identity, and the bytes
+    exist only inside the caller's temporary directory for the duration of one
+    command. The path itself is never written to PostgreSQL, to the audit trail
+    or to import diagnostics.
+    """
+    path = Path(workbook_path)
+    if not path.is_file():
+        raise LegalWorkImportError("Antud töövihiku faili ei leitud.")
+    if path.suffix.lower() != ALLOWED_EXTENSION and not zipfile.is_zipfile(path):
+        raise LegalWorkImportError("Õigusloome importija loeb ainult .xlsx faile.")
+    return path
 
 
 def _build_snapshot(
@@ -130,16 +148,28 @@ def _item_for(snapshot: LegalWorkSnapshot, row) -> LegalWorkItem:
 def import_artifact(
     artifact: SourceArtifact,
     *,
+    workbook_path: Path | str | None = None,
     dry_run: bool = True,
     actor=None,
     correlation_id: uuid.UUID | None = None,
 ) -> ImportResult:
     """Import one registered artifact.
 
+    Without `workbook_path` the artifact's own stored private file is parsed,
+    which is the manual-import and Graph-sync behaviour. With `workbook_path` the
+    caller supplies the bytes it just downloaded into a temporary directory, and
+    the artifact may then be a metadata-only external reference carrying nothing
+    but the content identity. Both paths run this one parser: a workbook that
+    validates one way validates the other.
+
     A dry run validates everything and records the attempt, but writes no
     snapshot and never touches what the dashboard is showing.
     """
-    path = _require_importable_artifact(artifact)
+    path = (
+        _require_supplied_workbook(workbook_path)
+        if workbook_path is not None
+        else _require_importable_artifact(artifact)
+    )
 
     run = build_import_run(
         artifact=artifact,

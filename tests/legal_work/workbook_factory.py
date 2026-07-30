@@ -125,6 +125,7 @@ def control_values(
     dataset_key: str = "oigusloome",
     schema_version: str = "1.1",
     overrides: dict | None = None,
+    omit: tuple[str, ...] = (),
 ) -> list[tuple]:
     """CONTROL rows, including the banner lines the real generator writes."""
     is_open_index = DATA_COLUMNS.index("is_open")
@@ -149,6 +150,10 @@ def control_values(
         "generator_version": "1.1.1",
     }
     values.update(overrides or {})
+    # `omit` drops the key row entirely, which is a different workbook defect
+    # from writing the key with an empty value.
+    for key in omit:
+        values.pop(key, None)
 
     return [
         ("DASHKODA ÕIGUSLOOME ANDMEVOOG", None),
@@ -162,6 +167,7 @@ def write_workbook(
     *,
     rows: list[list] | None = None,
     control_overrides: dict | None = None,
+    control_omit: tuple[str, ...] = (),
     dataset_key: str = "oigusloome",
     schema_version: str = "1.1",
     sheets: tuple[str, ...] | None = None,
@@ -186,6 +192,7 @@ def write_workbook(
             dataset_key=dataset_key,
             schema_version=schema_version,
             overrides=control_overrides,
+            omit=control_omit,
         ):
             control.append([key, value])
 

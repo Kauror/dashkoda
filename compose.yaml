@@ -20,6 +20,11 @@ services:
       # Private originals. The path is inside the container and the named
       # volume below keeps it out of the image and off any served path.
       SOURCE_ARTIFACT_ROOT: /srv/dashkoda/source-artifacts
+      # View-only OneDrive sharing link for the legal-work workbook. Optional:
+      # blank is a valid configuration and the application starts without it.
+      # Only `sync_oigusloome_public` requires it. The real value belongs in the
+      # server's own environment file and is never committed.
+      OIGUSLOOME_PUBLIC_URL: ${OIGUSLOOME_PUBLIC_URL:-}
     volumes:
       - source_artifacts:/srv/dashkoda/source-artifacts
     depends_on:

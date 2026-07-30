@@ -16,6 +16,24 @@ imports a prepared Excel workbook from OneDrive and renders it at
 empty state, because no other data source is connected — nothing on those pages
 is a placeholder metric.
 
+The workbook stays in OneDrive. The MVP collection route reads it through a
+view-only public sharing link:
+
+```text
+public read-only OneDrive link
+  → scheduled outbound HTTPS download
+  → temporary XLSX
+  → metadata-only artifact
+  → existing importer
+  → PostgreSQL snapshot
+```
+
+It needs one environment variable, `OIGUSLOOME_PUBLIC_URL`, and **no Microsoft
+Entra application or Graph credential**. No permanent copy of the workbook is
+kept: the file exists only inside a temporary directory for the duration of one
+command, and the artifact records its checksum and size. A Microsoft Graph route
+also exists and still works, but it is not required.
+
 Data collection is a scheduled command, never part of a web request. Pages read
 PostgreSQL only. A failed synchronization never replaces the last good data; it
 is disclosed instead. See [docs/legal-work-feed.md](docs/legal-work-feed.md).
@@ -94,6 +112,17 @@ docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py 
 It then renders at `http://127.0.0.1:8000/oigusloome/`. Never copy a real
 workbook into this repository.
 
+Synchronize it from the configured public sharing link instead, without any
+Microsoft credentials:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py sync_oigusloome_public --dry-run --json
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py sync_oigusloome_public --json
+```
+
+Put the sharing URL in the untracked local `.env` only. Never commit it, and
+never pass it on the command line — the command accepts no `--url`.
+
 See [docs/local-runtime.md](docs/local-runtime.md) for tests, shutdown, and
 intentional local-data removal.
 
@@ -136,7 +165,7 @@ npm run e2e
 - [docs/architecture.md](docs/architecture.md) — module boundaries and runtime
 - [docs/data-model.md](docs/data-model.md) — sources, artifacts, imports, audit
 - [docs/legal-work-feed.md](docs/legal-work-feed.md) — the OneDrive legal-work
-  feed, its workbook contract, sync command and 07:00 schedule
+  feed, its workbook contract, both sync routes and the 07:00 schedule
 - [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
 - [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
 - [docs/security.md](docs/security.md) — viewer access boundary and browser policy
