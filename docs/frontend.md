@@ -10,7 +10,7 @@ no CDN, no external stylesheet and no external font request at runtime.
 | `tailwindcss` / `@tailwindcss/cli` | 4.3.3 | design tokens and utilities |
 | `htmx.org` | 2.0.10 | server-rendered partial updates |
 | `@alpinejs/csp` | 3.15.12 | small local UI state, CSP build |
-| `echarts` | 6.1.0 | charts, bundled but not yet rendered |
+| `echarts` | 6.1.0 | charts |
 | `esbuild` | 0.28.1 | JavaScript bundler |
 | `@playwright/test` | 1.62.0 | browser smoke tests |
 
@@ -54,8 +54,14 @@ npm or `node_modules`; CI asserts this explicitly.
 
 ## JavaScript boundaries
 
-`app.js` is the only bundle any page loads. It contains htmx and the Alpine CSP
+`app.js` is the bundle every page loads. It contains htmx and the Alpine CSP
 build and nothing else.
+
+`charts.js` is a second bundle, loaded only by pages that actually draw a chart
+through the `extra_head` block in `templates/base.html`. It is over a megabyte,
+so putting it in `app.js` would make every page pay for it. Anything added
+through that block must still be a local `{% static %}` module: no CDN, and no
+inline script.
 
 Alpine runs as the **CSP build**: a directive value may only name a property or
 a method of a registered `Alpine.data()` component, never an inline expression.
@@ -86,14 +92,25 @@ The one htmx pattern in the shell is the freshness fragment:
   `204` and an `HX-Redirect` header, so the browser navigates to `/sisene/`
   instead of the login page being swapped into the fragment.
 
-`charts.js` is a separate bundle that no template loads. It exists so the first
-real data module can mount a chart without changing the build or the CSP. It
-reads its data from a non-executable `<script type="application/json">` block,
-initialises responsively with a `ResizeObserver`, disables animation under
+`charts.js` reads its data from a non-executable `<script type="application/json">`
+block, initialises responsively with a `ResizeObserver`, disables animation under
 `prefers-reduced-motion`, keeps a text summary and a table as the accessible
 alternative, and falls back to the chart empty state whenever the payload has no
-data points. Its own contract is documented at the top of the file. PR-04 renders
-no chart, because there is no verified data to draw.
+data points. Its own contract is documented at the top of the file.
+
+It mounts every `[data-chart]` figure on load rather than waiting to be called,
+because the alternative is an inline `mountCharts()` call that the Content
+Security Policy forbids and should keep forbidding. A page opts in by including
+the module at all.
+
+The shared figure markup lives in
+`dashboard/components/chart_figure.html`, which renders the summary and the data
+table server-side. Those are not a fallback that appears when something breaks:
+they stay in the document, so a reader whose browser never runs the module gets
+the same numbers as a table. Only the canvas is hidden when there is nothing to
+draw. The first module to use it is the internal membership history; see
+[internal-membership-history.md](internal-membership-history.md) for what each
+chart means and why none of them substitutes zero for a missing value.
 
 ## Logo provenance and limitations
 

@@ -82,7 +82,24 @@ These rules apply to the whole repository.
   create a model field capable of holding it.
 - "Uusi liikmeid sel aastal" is not a DashKoda metric and Teataja is out of
   scope. Neither may appear in a model, field, selector, template, JSON output,
-  test or document.
+  test or document. The Chamber's internal board-report new-member figures are a
+  different thing and are allowed, provided they are labelled as internal
+  reported data.
+- The public Koda.ee member-directory count and the internal board-report
+  membership history are two sources that count different things. Never merge
+  their definitions, never extend one series with the other, never join them
+  because two dates are adjacent, and never present two unlabelled member totals
+  side by side.
+- Never discard reported evidence to make a chart tidy. A conflicted, disputed
+  or internally impossible value is stored with the provenance that explains it;
+  what changes is whether a selector draws it. Withhold the affected **metric**,
+  not the whole observation.
+- A missing, withheld or conflicted value is never zero and never interpolated.
+  An explicitly reported zero is a real value and must stay distinguishable from
+  a blank.
+- A published domain record is immutable. A correction creates a new record that
+  supersedes the old one; it never rewrites history in place, and there is no
+  delete action.
 - Do not add a webhook, a public ingestion endpoint or any route that accepts a
   remote file or URL. Collection is outbound and read-only.
 - Do not add an in-process scheduler. Scheduling belongs to the host.

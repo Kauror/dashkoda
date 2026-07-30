@@ -117,6 +117,37 @@ The known risk below now matters more: the pilot no longer holds only empty
 states, so Cloudflare Access in front of the tunnel should be settled before
 this is treated as a production service.
 
+## What the internal membership history changes here
+
+**No schedule and no new configuration.** This dataset has no remote source, so
+there is nothing to poll, no credential to add, no volume to mount and no cron
+entry to create. Future board reports are typed by a staff user in the admin.
+
+It does add one **one-time operator task**, not yet performed. The approved
+package is copied to a temporary path on the server, imported, and the copy can
+then be removed — the registered artifact carries the content identity and the
+application never needs the file again.
+
+```bash
+docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-import-package.zip --dry-run --json
+```
+
+```bash
+docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-import-package.zip --json
+```
+
+```bash
+docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-import-package.zip --json
+```
+
+The dry run validates and publishes nothing. The second call imports. The third
+must report `unchanged`; if it does not, stop and investigate rather than
+re-running.
+
+The package is not committed to this repository and must not be. It is
+transferred to the server by an administrator and deleted afterwards. See
+[internal-membership-history.md](internal-membership-history.md).
+
 ## What PR-05 changed here
 
 Nothing operationally. PR-05 adds the source, artifact, import-registry and

@@ -127,6 +127,7 @@ context contract in a leading `{% comment %}` block.
 | `table_wrapper` | scroll container, column spec, empty fallback |
 | `skeleton` | genuine loading only, never missing data |
 | `callout` | one short note with a thin accent edge |
+| `chart_figure` | one chart, plus the text summary and data table that always accompany it |
 
 `kpi_card` already accepts the full future API — `label`, `value`, `unit`,
 `change`, `change_direction`, `comparison_period`, `status`, `status_label`,
@@ -138,11 +139,22 @@ Components are covered by `tests/dashboard/test_components.py` using clearly
 synthetic values. The dashboard page itself renders none of them, which
 `tests/dashboard/test_overview.py` asserts by scanning the page for digits.
 
+`chart_figure` takes a payload built on the server and renders three things
+together: the canvas, a text summary, and the same values as a table. The summary
+and the table are not a fallback — they stay in the document for every reader,
+and only the canvas is hidden when there is nothing to draw. The payload travels
+in a non-executable `application/json` block, so a chart never needs an inline
+script or a relaxed Content Security Policy.
+
 ## Design rules
 
 - Empty is a state, not a gap: say why there is nothing, in Estonian.
 - Never show a number, trend, date or owner that is not backed by a verified
   source.
+- A missing value is drawn as nothing. Never a zero, and never a line
+  interpolated across the gap — both would state something no source said.
+- A chart with no data is not rendered at all; an empty axis is not an empty
+  state.
 - Colour is never the only signal. Status badges carry text, KPI changes carry
   an arrow glyph, the active navigation item carries `aria-current`.
 - Restraint over decoration: borders and spacing carry the hierarchy.

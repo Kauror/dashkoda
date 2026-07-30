@@ -182,6 +182,29 @@ The results appear at `http://127.0.0.1:8000/liikmeskond/`, `/uudised/` and
 `2` means at least one source failed while another published. See
 [koda-public-feeds.md](koda-public-feeds.md).
 
+## Internal membership history
+
+A one-time import of the approved package. Nothing is collected remotely and
+there is no schedule; this is run once per environment by hand.
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-import-package.zip --dry-run --json
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-import-package.zip --json
+```
+
+The dry run writes nothing. Running the identical package again reports
+`unchanged` and writes nothing, so a repeat is safe.
+
+The package is **never committed**. Keep it outside the working tree and remove
+the local copy when you are done; the registered artifact keeps the checksum, not
+the file. To start over locally, reset the database as described above — a
+published observation cannot be edited or deleted, which is the point.
+
+Future reports are entered through the staff form at
+`http://127.0.0.1:8000/admin/membership/internal-report/new/`, which needs a
+Django superuser as well as the viewer PIN. See
+[internal-membership-history.md](internal-membership-history.md).
+
 ## Deployment boundary
 
 A development/pilot deployment of the application exists at
