@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+# DashKoda public Koda.ee feed collection: member count, news and events.
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
+#
+#   cp sync_koda_public.sh.example /boot/config/plugins/user.scripts/sync_koda_public.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_koda_public.sh
+#
+# Run it by hand once before scheduling it, and check the exit code:
+#
+#   DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#     /boot/config/plugins/user.scripts/sync_koda_public.sh; echo "exit=$?"
+#
+# Intended schedule — 07:05 every day, Europe/Tallinn:
+#
+#   5 7 * * *
+#
+# Five minutes after the legal-work job, so the two never contend and each keeps
+# its own log. They take different advisory locks and could safely overlap; the
+# offset is for readable logs rather than for correctness.
+#
+# Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn.
+# Estonia observes daylight saving, so a host left on UTC runs this an hour
+# early or late depending on the season:
+#
+#   timedatectl                      # look for "Time zone: Europe/Tallinn"
+#   date +'%Z %z %H:%M'              # expect EET +0200 in winter, EEST +0300 in summer
+#
+# Each of the three sources runs independently under its own PostgreSQL advisory
+# lock, so one failing source does not stop the other two. The flock below is
+# host-side defence in depth against two copies of this script overlapping.
+#
+# Expected exit codes:
+#
+#   0  every source imported or was unchanged
+#   1  every source failed
+#   2  degraded — at least one source failed while another succeeded; the
+#      sources that succeeded have published, and the failed one kept its
+#      previous good data
+#   3  no source could take its lock, so another run is still in progress
+
+set -euo pipefail
+
+# Set this in the User Scripts environment, or edit the fallback below.
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+
+if [ ! -d "${DEPLOYMENT_DIRECTORY}" ]; then
+  echo "Deployment directory not found: ${DEPLOYMENT_DIRECTORY}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+exec flock --nonblock /tmp/dashkoda-sync-koda-public.lock \
+  docker compose exec -T web \
+    python manage.py sync_koda_public --source all --json

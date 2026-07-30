@@ -79,11 +79,39 @@ filled by later pull requests.
   </section>
 
   {# ---------------- 4. Liikmeskond ---------------- #}
+  {% comment %}
+  One metric only: the size of the public member directory. There is no "uusi
+  liikmeid sel aastal" figure and no empty card reserved for one, because that
+  is not an accepted DashKoda metric.
+  {% endcomment %}
   <section aria-labelledby="section-membership" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Liikmeskond" heading_id="section-membership" description="Liikmete arv, liikumine ja jaotused." badge_label="Lisamisel" badge_variant="neutral" only %}
-    {% include "dashboard/components/table_wrapper.html" with caption="Liikmeskonna näitajad perioodide kaupa" columns=membership_columns empty_message="Andmeallikas ei ole veel ühendatud." only %}
-    <div class="dk-section-body border-t border-border pt-3">
-      {% include "dashboard/components/freshness_row.html" with state_label="Ühendamata" state="neutral" only %}
+    {% if membership.has_data %}
+      {% include "dashboard/components/section_header.html" with title="Liikmeskond" heading_id="section-membership" description="Koja avalikus liikmekataloogis avaldatud liikmeprofiilid." badge_label=membership.state_label badge_variant=membership.state_variant only %}
+    {% else %}
+      {% include "dashboard/components/section_header.html" with title="Liikmeskond" heading_id="section-membership" description="Koja avalikus liikmekataloogis avaldatud liikmeprofiilid." only %}
+    {% endif %}
+    <div class="dk-section-body flex flex-col gap-3">
+      {% if membership.has_data %}
+        {% if membership.last_sync_failed %}
+          {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka kontrolli andmeid." variant="warning" only %}
+        {% endif %}
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div class="flex flex-col gap-1">
+            <h3 class="text-sm font-medium text-text-secondary">Liikmeid kokku</h3>
+            <p class="flex items-baseline gap-2">
+              <span class="text-metric font-semibold tracking-tight text-text">{{ membership.total_members }}</span>
+              <span class="text-sm text-text-secondary">liiget</span>
+            </p>
+            <p class="dk-meta">
+              Loendatud
+              <time datetime="{{ membership.observed_at|date:'c' }}">{{ membership.observed_at|date:"d.m.Y H:i" }}</time>
+            </p>
+          </div>
+          <a href="{% url 'membership' %}" class="dk-button dk-button-secondary">Vaata liikmeskonda</a>
+        </div>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
+      {% endif %}
     </div>
   </section>
 
@@ -149,17 +177,77 @@ filled by later pull requests.
 
   {# ---------------- 6. Tulevased sündmused ---------------- #}
   <section aria-labelledby="section-events" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Tulevased sündmused" heading_id="section-events" description="Koja üritused ja koolitused." only %}
-    <div class="dk-section-body">
-      {% include "dashboard/components/empty_state.html" with message="Selle vaate andmed lisatakse järgmises arendusetapis." only %}
+    {% if events.has_data %}
+      {% include "dashboard/components/section_header.html" with title="Tulevased sündmused" heading_id="section-events" description="Koja üritused ja koolitused." badge_label=events.state_label badge_variant=events.state_variant only %}
+    {% else %}
+      {% include "dashboard/components/section_header.html" with title="Tulevased sündmused" heading_id="section-events" description="Koja üritused ja koolitused." only %}
+    {% endif %}
+    <div class="dk-section-body flex flex-col gap-3">
+      {% if events.has_data and upcoming_events %}
+        {% if events.last_sync_failed %}
+          {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka kontrolli andmeid." variant="warning" only %}
+        {% endif %}
+        <ul class="dk-card divide-y divide-border">
+          {% for item in upcoming_events %}
+            <li class="flex flex-col gap-0.5 px-4 py-2.5">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                {% if item.starts_at %}
+                  <time class="dk-meta whitespace-nowrap" datetime="{{ item.starts_at|date:'c' }}">{{ item.starts_at|date:"d.m.Y H:i" }}</time>
+                {% else %}
+                  <time class="dk-meta whitespace-nowrap" datetime="{{ item.starts_on|date:'Y-m-d' }}">{{ item.starts_on|date:"d.m.Y" }}</time>
+                {% endif %}
+                {% if item.category %}
+                  {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
+                {% endif %}
+              </div>
+              <a class="dk-link text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
+                {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+        <div class="flex justify-end border-t border-border pt-3">
+          <a href="{% url 'events' %}" class="dk-button dk-button-secondary">Vaata sündmusi</a>
+        </div>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelseisvad sündmused ilmuvad siia pärast esimest edukat kontrolli." only %}
+      {% endif %}
     </div>
   </section>
 
   {# ---------------- 7. Viimased uudised ---------------- #}
   <section aria-labelledby="section-news" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" description="Koja uudised ja teated." only %}
-    <div class="dk-section-body">
-      {% include "dashboard/components/empty_state.html" with message="Selle vaate andmed lisatakse järgmises arendusetapis." only %}
+    {% if news.has_data %}
+      {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" description="Koja uudised ja teated." badge_label=news.state_label badge_variant=news.state_variant only %}
+    {% else %}
+      {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" description="Koja uudised ja teated." only %}
+    {% endif %}
+    <div class="dk-section-body flex flex-col gap-3">
+      {% if news.has_data and latest_news %}
+        {% if news.last_sync_failed %}
+          {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka kontrolli andmeid." variant="warning" only %}
+        {% endif %}
+        <ul class="dk-card divide-y divide-border">
+          {% for item in latest_news %}
+            <li class="flex flex-col gap-0.5 px-4 py-2.5">
+              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+                <time class="dk-meta whitespace-nowrap" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"d.m.Y" }}</time>
+                {% if item.category %}
+                  {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
+                {% endif %}
+              </div>
+              <a class="dk-link text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
+                {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
+              </a>
+            </li>
+          {% endfor %}
+        </ul>
+        <div class="flex justify-end border-t border-border pt-3">
+          <a href="{% url 'news' %}" class="dk-button dk-button-secondary">Vaata uudiseid</a>
+        </div>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Uudised ilmuvad siia pärast esimest edukat kontrolli." only %}
+      {% endif %}
     </div>
   </section>
 
