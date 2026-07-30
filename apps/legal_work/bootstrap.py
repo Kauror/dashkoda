@@ -1,15 +1,9 @@
-"""Idempotent registration of the one legal-work data source.
-
-Deliberately a service rather than a data migration: a migration would bake
-operational configuration into schema history, and re-running it after a
-restore would be neither observable nor auditable. Calling this is safe any
-number of times.
-"""
+"""Idempotent registration of the one legal-work data source."""
 
 from django.conf import settings
 
-from apps.sources.models import DataSource, SourceType, UpdateFrequency
-from apps.sources.services import create_data_source
+from apps.sources.models import SourceType, UpdateFrequency
+from apps.sources.services import ensure_data_source
 
 SOURCE_NAME = "Õigusloome töölaud"
 SOURCE_DESCRIPTION = (
@@ -21,17 +15,12 @@ SOURCE_DESCRIPTION = (
 STALE_AFTER_DAYS = 2
 
 
-def ensure_legal_work_source(*, actor=None, correlation_id=None) -> DataSource:
+def ensure_legal_work_source(*, actor=None, correlation_id=None):
     """Return the legal-work `DataSource`, creating it once if needed."""
-    slug = settings.LEGAL_WORK_SOURCE_SLUG
-    existing = DataSource.objects.filter(slug=slug).first()
-    if existing is not None:
-        return existing
-
-    return create_data_source(
+    return ensure_data_source(
+        slug=settings.LEGAL_WORK_SOURCE_SLUG,
         actor=actor,
         correlation_id=correlation_id,
-        slug=slug,
         name=SOURCE_NAME,
         source_type=SourceType.SPREADSHEET,
         # The Chamber's definitive authority order is still an open decision

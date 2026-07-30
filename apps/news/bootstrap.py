@@ -2,8 +2,8 @@
 
 from django.conf import settings
 
-from apps.sources.models import DataSource, SourceType, UpdateFrequency
-from apps.sources.services import create_data_source
+from apps.sources.models import SourceType, UpdateFrequency
+from apps.sources.services import ensure_data_source
 
 SOURCE_NAME = "Koda.ee uudiste RSS"
 SOURCE_DESCRIPTION = (
@@ -14,15 +14,11 @@ SOURCE_DESCRIPTION = (
 STALE_AFTER_DAYS = 3
 
 
-def ensure_news_source(*, actor=None, correlation_id=None) -> DataSource:
-    slug = settings.KODA_NEWS_SOURCE_SLUG
-    existing = DataSource.objects.filter(slug=slug).first()
-    if existing is not None:
-        return existing
-    return create_data_source(
+def ensure_news_source(*, actor=None, correlation_id=None):
+    return ensure_data_source(
+        slug=settings.KODA_NEWS_SOURCE_SLUG,
         actor=actor,
         correlation_id=correlation_id,
-        slug=slug,
         name=SOURCE_NAME,
         source_type=SourceType.WEBSITE,
         expected_update_frequency=UpdateFrequency.DAILY,
