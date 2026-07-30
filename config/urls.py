@@ -7,6 +7,9 @@ from apps.core.views import liveness, readiness
 urlpatterns = [
     path("", include("apps.dashboard.urls")),
     path("", include("apps.legal_work.urls")),
+    path("", include("apps.membership.urls")),
+    path("", include("apps.news.urls")),
+    path("", include("apps.events.urls")),
     path("sisene/", login_view, name="viewer-login"),
     path("logi-valja/", logout_view, name="viewer-logout"),
     path("robots.txt", robots, name="robots"),

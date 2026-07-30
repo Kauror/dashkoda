@@ -92,6 +92,27 @@ installed.**
 The exact post-deployment commands are in
 [legal-work-feed.md](legal-work-feed.md).
 
+## What the public Koda.ee feeds change here
+
+Three further sources — the public member directory, the news RSS feed and the
+events calendar — need **no credential at all**. They are anonymous, read-only
+public endpoints, so a deployment that syncs them requires only a host schedule:
+
+```text
+5 7 * * *
+```
+
+at 07:05 `Europe/Tallinn`, five minutes after the legal-work job, created by an
+administrator from
+[`ops/unraid/sync_koda_public.sh.example`](../ops/unraid/sync_koda_public.sh.example).
+
+No new environment variable, no new volume and no new container. Nothing is
+retained on disk: the collectors keep no raw response and their artifacts are
+metadata only.
+
+**This schedule is not installed either.** See
+[koda-public-feeds.md](koda-public-feeds.md).
+
 The known risk below now matters more: the pilot no longer holds only empty
 states, so Cloudflare Access in front of the tunnel should be settled before
 this is treated as a production service.

@@ -1,0 +1,62 @@
+{% extends "dashboard/shell.html" %}
+
+{% comment %}
+Liikmeskond page.
+
+Shows one number and what it means. There is deliberately no "uusi liikmeid sel
+aastal" figure — it is not an accepted DashKoda metric, so no such field, value
+or empty card exists — and no individual member is ever listed, because the app
+stores no member rows at all.
+{% endcomment %}
+
+{% block title %}Liikmeskond – DashKoda{% endblock %}
+{% block breadcrumb %}Liikmeskond{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+
+  <header class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Liikmeskond</h1>
+      <p class="text-sm text-text-secondary">Koja avaliku liikmekataloogi maht</p>
+    </div>
+    <div class="rounded-lg border border-border bg-surface px-4 py-3">
+      {% include "dashboard/components/feed_state.html" with summary=summary observed_label="Loendatud" only %}
+    </div>
+  </header>
+
+  <section aria-labelledby="section-total" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Liikmeid kokku" heading_id="section-total" description="Koda.ee avalikus liikmekataloogis avaldatud liikmeprofiilide arv." only %}
+    <div class="dk-section-body">
+      {% if summary.has_data %}
+        <p class="flex items-baseline gap-2">
+          <span class="text-metric font-semibold tracking-tight text-text">{{ summary.total_members }}</span>
+          <span class="text-sm text-text-secondary">liiget</span>
+        </p>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
+      {% endif %}
+    </div>
+  </section>
+
+  <section aria-labelledby="section-definition" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Mida see arv tähendab" heading_id="section-definition" only %}
+    <div class="dk-section-body flex flex-col gap-3 text-sm text-text-secondary">
+      <p>
+        See on Koda.ee avalikus liikmekataloogis avaldatud liikmeprofiilide arv
+        kontrollimise hetkel. Arv pärineb koja avalikult veebilehelt.
+      </p>
+      <p>
+        <strong class="font-medium text-text">See ei ole</strong> raamatupidamislik,
+        arveldatav ega CRM-i lepingutel põhinev liikmearv. Ükski praegune avalik
+        allikas sellist määratlust ei anna, seega DashKoda seda ka ei väida.
+      </p>
+      <p>
+        Üksikuid liikmeid, nende nimesid, registrikoode ega profiiliviiteid ei
+        salvestata — loendamine toimub mälus ja alles jääb ainult koondarv.
+      </p>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

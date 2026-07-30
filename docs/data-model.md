@@ -121,10 +121,16 @@ hexadecimal characters, the size must be positive and within
 same rules an upload passes. Without a checksum the artifact stays a
 registration-only reference exactly as before.
 
-The legal-work public-link route is the one producer of the second shape. Its
-reference is the fixed label `onedrive-public:oigusloome`, which names the
-provenance without exposing the URL. Because no file is stored, the admin offers
-no download for these artifacts and the download route returns `404`.
+Four producers of the second shape exist, each with its own fixed non-secret
+label: `onedrive-public:oigusloome` for the legal-work workbook, and
+`koda-public:company-list`, `koda-public:news-feed` and `koda-public:events` for
+the three public Koda.ee feeds. Because no file is stored, the admin offers no
+download for these artifacts and the download route returns `404`.
+
+For the public feeds the checksum covers **normalised canonical JSON**, not the
+response body: a CMS re-render changes markup without changing meaning, and
+hashing the raw bytes would republish identical data every morning. See
+[koda-public-feeds.md](koda-public-feeds.md).
 
 ### Immutability
 
@@ -258,10 +264,16 @@ trail.
 
 Recorded so far: data-source creation, material update and deactivation,
 artifact registration, staff artifact download, import-run creation, import-run
-terminal transitions, and the legal-work events — snapshot imported, snapshot
-published, synchronisation unchanged and synchronisation failed. All of them go
-through `apps.audit.services.record_event`; there are no signal handlers, so
-every writer is findable by searching for that one function.
+terminal transitions, the legal-work events — snapshot imported, snapshot
+published, synchronisation unchanged and synchronisation failed — and an
+imported / unchanged / failed triple for each of the three public Koda.ee feeds.
+All of them go through `apps.audit.services.record_event`; there are no signal
+handlers, so every writer is findable by searching for that one function.
+
+Public-feed summaries carry the source slug, checksum, aggregate counts, the
+observed timestamp and the record id. They never carry member names,
+registration codes, member URLs, raw JSON, RSS bodies, article HTML, event-page
+HTML or a traceback.
 
 A single correlation ID threads one synchronisation attempt through its
 artifact registration, its import run, its snapshot and all of its audit events.

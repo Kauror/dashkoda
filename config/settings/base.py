@@ -16,6 +16,9 @@ INSTALLED_APPS = [
     "apps.sources.apps.SourcesConfig",
     "apps.audit.apps.AuditConfig",
     "apps.legal_work.apps.LegalWorkConfig",
+    "apps.membership.apps.MembershipConfig",
+    "apps.news.apps.NewsConfig",
+    "apps.events.apps.EventsConfig",
 ]
 
 MIDDLEWARE = [
@@ -135,3 +138,52 @@ OIGUSLOOME_ITEM_ID = os.environ.get("OIGUSLOOME_ITEM_ID", "")
 MS_GRAPH_TIMEOUT_SECONDS = 30
 MS_GRAPH_MAX_ATTEMPTS = 4
 LEGAL_WORK_MAX_DOWNLOAD_BYTES = SOURCE_ARTIFACT_MAX_BYTES
+
+# Public Koda.ee feeds.
+#
+# Three anonymous, read-only public endpoints. No credential exists for any of
+# them, so nothing here is a secret and the URLs are ordinary configuration —
+# they are stable public canonical addresses, not signed or transient ones.
+#
+# Collection happens only in `sync_koda_public`. A page render never touches
+# these.
+KODA_ALLOWED_HOSTS = frozenset({"www.koda.ee", "koda.ee"})
+
+KODA_MEMBERS_SOURCE_SLUG = "koda-public-members"
+KODA_NEWS_SOURCE_SLUG = "koda-public-news"
+KODA_EVENTS_SOURCE_SLUG = "koda-public-events"
+
+KODA_MEMBERS_URL = "https://www.koda.ee/api/v1/company-list"
+KODA_NEWS_URL = "https://www.koda.ee/et/news/feed.xml"
+KODA_EVENTS_URL = "https://www.koda.ee/et/sundmused"
+
+# Response caps. The member list is by far the largest of the three; the others
+# are small documents and a much lower ceiling is appropriate.
+KODA_MEMBERS_MAX_BYTES = 8 * 1024 * 1024
+KODA_NEWS_MAX_BYTES = 4 * 1024 * 1024
+KODA_EVENTS_MAX_BYTES = 4 * 1024 * 1024
+
+# Membership change guard. A published directory does not lose or gain a large
+# fraction of its members overnight, so a movement beyond *both* thresholds is
+# treated as a source or parsing fault rather than as news, and the previous
+# observation is kept. Both must be exceeded: the absolute floor stops a tiny
+# directory tripping the proportional rule, and the proportional rule stops a
+# large directory tripping the absolute one.
+KODA_MEMBERS_MAX_CHANGE_RATIO = 0.15
+KODA_MEMBERS_MAX_CHANGE_ABSOLUTE = 200
+
+# How many items each feed publishes into a snapshot.
+KODA_NEWS_MAX_ITEMS = 30
+KODA_EVENTS_MAX_ITEMS = 30
+KODA_EVENTS_TARGET_ITEMS = 20
+KODA_EVENTS_MAX_PAGES = 5
+# Detail pages are fetched one per candidate event, so this bounds the whole run.
+KODA_EVENTS_MAX_DETAIL_FETCHES = 40
+
+# Plain-text summary ceiling. Long enough to be useful in a list, short enough
+# that no article is reproduced.
+KODA_SUMMARY_MAX_LENGTH = 400
+
+# A publication timestamp beyond this much clock skew is not a real publication
+# date, so the item is refused rather than allowed to pin itself to the top.
+KODA_NEWS_MAX_FUTURE_DAYS = 2

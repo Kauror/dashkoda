@@ -2,8 +2,8 @@ import { expect, test } from "@playwright/test";
 
 import { signIn, watchConsole } from "./helpers.js";
 
-const PLANNED = ["Liikmeskond", "Arvamused", "Sündmused", "Uudised", "Finantsid"];
-const ROUTED = ["Ülevaade", "Õigusloome"];
+const PLANNED = ["Arvamused", "Finantsid"];
+const ROUTED = ["Ülevaade", "Liikmeskond", "Õigusloome", "Sündmused", "Uudised"];
 
 const isDesktop = (page) => page.viewportSize().width >= 1024;
 

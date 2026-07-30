@@ -40,6 +40,42 @@ class AuditAction(models.TextChoices):
         "legal_work.sync_failed",
         "Õigusloome sünkroonimine ebaõnnestus",
     )
+    MEMBERSHIP_OBSERVATION_IMPORTED = (
+        "membership.observation_imported",
+        "Liikmete arv imporditud",
+    )
+    MEMBERSHIP_SYNC_UNCHANGED = (
+        "membership.sync_unchanged",
+        "Liikmete arv: muutusteta",
+    )
+    MEMBERSHIP_SYNC_FAILED = (
+        "membership.sync_failed",
+        "Liikmete arvu sünkroonimine ebaõnnestus",
+    )
+    NEWS_SNAPSHOT_IMPORTED = (
+        "news.snapshot_imported",
+        "Uudiste hetkeseis imporditud",
+    )
+    NEWS_SYNC_UNCHANGED = (
+        "news.sync_unchanged",
+        "Uudised: muutusteta",
+    )
+    NEWS_SYNC_FAILED = (
+        "news.sync_failed",
+        "Uudiste sünkroonimine ebaõnnestus",
+    )
+    EVENTS_SNAPSHOT_IMPORTED = (
+        "events.snapshot_imported",
+        "Sündmuste hetkeseis imporditud",
+    )
+    EVENTS_SYNC_UNCHANGED = (
+        "events.sync_unchanged",
+        "Sündmused: muutusteta",
+    )
+    EVENTS_SYNC_FAILED = (
+        "events.sync_failed",
+        "Sündmuste sünkroonimine ebaõnnestus",
+    )
 
 
 class AuditEventQuerySet(models.QuerySet):

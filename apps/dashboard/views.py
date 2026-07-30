@@ -1,17 +1,19 @@
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
+from apps.events.selectors import get_event_summary, get_upcoming_events
 from apps.legal_work.selectors import (
     get_latest_sent_items,
     get_legal_work_summary,
     get_newest_received_items,
 )
+from apps.membership.selectors import get_membership_summary
+from apps.news.selectors import get_latest_news, get_news_summary
 
 from .freshness import current_freshness
 from .navigation import NAVIGATION
 
-# How many legal-work rows the overview previews before sending the reader to
-# the dedicated page.
+# How many rows each section previews before sending the reader to its own page.
 OVERVIEW_PREVIEW_LIMIT = 5
 
 
@@ -23,25 +25,21 @@ def _shell_context(active_nav: str) -> dict:
     }
 
 
-# Column labels only. They describe the shape the membership table will have;
-# PR-04 renders the table with no rows.
-MEMBERSHIP_COLUMNS: tuple[str, ...] = (
-    "Periood",
-    "Liikmeid",
-    "Lisandunud",
-    "Lahkunud",
-    "Netomuutus",
-)
-
-
 @require_GET
 def overview(request):
-    # The legal-work block is the only section backed by real data. Every other
-    # section stays an explicit empty state until its own source is connected.
+    # Four sections are backed by real data: legal work, membership, news and
+    # events. The rest stay explicit empty states until their own source is
+    # connected. Every summary reads PostgreSQL only.
     legal_work = get_legal_work_summary()
     snapshot = legal_work.snapshot
+    news = get_news_summary()
+    events = get_event_summary()
     context = _shell_context("overview") | {
-        "membership_columns": MEMBERSHIP_COLUMNS,
+        "membership": get_membership_summary(),
+        "news": news,
+        "latest_news": get_latest_news(news.snapshot, limit=OVERVIEW_PREVIEW_LIMIT),
+        "events": events,
+        "upcoming_events": get_upcoming_events(events.snapshot, limit=OVERVIEW_PREVIEW_LIMIT),
         "legal_work": legal_work,
         "legal_work_received": (
             get_newest_received_items(snapshot, limit=OVERVIEW_PREVIEW_LIMIT) if snapshot else ()

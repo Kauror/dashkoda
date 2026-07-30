@@ -101,7 +101,19 @@ The future monolith will separate shared infrastructure from business modules:
   selectors, the Õigusloome page, the workbook importer and the OneDrive feed
   state. It owns no generic artifact or import-run lifecycle, no audit
   infrastructure, no authentication and no other OneDrive file.
-- membership will own member-domain data and membership views.
+- `membership` owns the total-member observations, their selectors, the
+  Liikmeskond page, the member-directory collector and its feed state. It owns
+  no member record: the aggregate is all it stores.
+- `news` owns the imported news snapshots and items, their selectors, the
+  Uudised page, the RSS collector and its feed state.
+- `events` owns the imported event snapshots and items, their selectors, the
+  Sündmused page, the calendar collector and its feed state.
+
+Each public feed is its own business app rather than one generic "web scraper"
+domain, because what makes a member count valid has nothing to do with what
+makes an event valid. Only the low-level transport is shared, in
+`apps/core/public_http.py`; every schema check, normalisation rule and
+publication decision stays in its own app.
 - dashboard modules will read prepared application data and present focused views.
 
 Exact future app names and models are introduced only by their implementing pull
@@ -142,6 +154,18 @@ Both then use the same parser, the same import registry, the same all-or-nothing
 snapshot publication and the same feed state. An artifact is importable when it
 has a trusted SHA-256 content identity, not when it still has a file on disk.
 
+### Public Koda.ee feeds
+
+Three further sources — the public member directory, the news RSS feed and the
+events calendar — follow the same shape and keep no raw response at all. Each
+normalises its source into deterministic canonical JSON, hashes **that** rather
+than the response bytes, and publishes through a metadata-only artifact. Hashing
+the raw response would republish identical data every time the CMS re-rendered.
+
+Each runs under its own advisory lock and transaction, so one failing source
+never blocks another and a failed source keeps its previous good data. See
+[koda-public-feeds.md](koda-public-feeds.md).
+
 ## Implemented so far
 
 - minimal Django project and `core` app
@@ -181,8 +205,10 @@ has a trusted SHA-256 content identity, not when it still has a file on disk.
 - `import_oigusloome`, `sync_oigusloome`, `sync_oigusloome_public` and
   `resolve_oigusloome_share` commands
 - the Õigusloome page and the overview's legal-work summary
-- Unraid script templates for a 07:00 `Europe/Tallinn` schedule, one per
-  collection route
+- `membership`, `news` and `events` apps reading three public Koda.ee sources,
+  with the `sync_koda_public` command and the Liikmeskond, Uudised and Sündmused
+  pages
+- Unraid script templates for 07:00 and 07:05 `Europe/Tallinn` schedules
 
 ## Not implemented yet
 
@@ -190,8 +216,8 @@ There is no Unraid override, Cloudflare or DNS configuration, backup or restore
 automation, rollback tooling, staging environment, membership domain model,
 chart or demo data in this repository.
 
-Every dashboard section except Õigusloome is still an explicit empty state,
-because no other data source is connected.
+Arvamused and Finantsid are still explicit empty states, because no source is
+connected for them.
 
 The 07:00 schedule is **documented as a template and is not installed**.
 

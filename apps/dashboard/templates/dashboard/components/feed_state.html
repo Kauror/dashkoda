@@ -1,0 +1,56 @@
+{% comment %}
+Truthful freshness block for a public Koda.ee feed.
+
+Context:
+  summary   – any of MembershipSummary / NewsSummary / EventSummary
+  observed_label – optional wording for the "data as of" line
+
+Four distinct states, exactly as the legal-work feed distinguishes them:
+
+  never checked        – no source connected yet
+  imported             – data as of the observation time
+  unchanged            – checked, nothing new since the last import
+  failed with old data – showing the last good data, and saying so
+
+No exception text, no URL and no response body ever appears here.
+{% endcomment %}
+<div class="flex flex-col gap-2">
+  <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+    {% include "dashboard/components/status_badge.html" with label=summary.state_label variant=summary.state_variant only %}
+    {% if summary.has_data %}
+      <p class="text-sm text-text-secondary">
+        {{ observed_label|default:"Andmed seisuga" }}
+        <time datetime="{{ summary.observed_at|date:'c' }}">{{ summary.observed_at|date:"d.m.Y H:i" }}</time>
+      </p>
+    {% else %}
+      <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
+    {% endif %}
+  </div>
+
+  {% if summary.has_data %}
+    <dl class="flex flex-col gap-1 dk-meta sm:flex-row sm:flex-wrap sm:gap-x-4">
+      <div class="flex items-center gap-1.5">
+        <dt class="text-text-muted">Viimane edukas sünkroonimine:</dt>
+        <dd class="text-text-secondary">
+          {% if summary.last_successful_sync_at %}
+            <time datetime="{{ summary.last_successful_sync_at|date:'c' }}">{{ summary.last_successful_sync_at|date:"d.m.Y H:i" }}</time>
+          {% else %}—{% endif %}
+        </dd>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <dt class="text-text-muted">Viimati kontrollitud:</dt>
+        <dd class="text-text-secondary">
+          {% if summary.last_checked_at %}
+            <time datetime="{{ summary.last_checked_at|date:'c' }}">{{ summary.last_checked_at|date:"d.m.Y H:i" }}</time>
+          {% else %}—{% endif %}
+        </dd>
+      </div>
+    </dl>
+  {% endif %}
+
+  {% if summary.is_stale_after_failure %}
+    {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka kontrolli andmeid. Uuemat seisu ei ole õnnestunud laadida." variant="warning" only %}
+  {% elif summary.last_result == "unchanged" and summary.has_data %}
+    <p class="dk-meta">Andmed ei ole pärast eelmist kontrolli muutunud.</p>
+  {% endif %}
+</div>

@@ -62,9 +62,16 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
     for item in NAVIGATION:
         assert item.label in content
     assert 'aria-current="page"' in content
-    # Overview and Õigusloome are routed; every other module is still inert,
-    # marked, and never rendered as a link.
-    assert {item.key for item in routed} == {"overview", "legislation"}
+    # The modules backed by a connected source are routed; every other one is
+    # still inert, marked, and never rendered as a link.
+    assert {item.key for item in routed} == {
+        "overview",
+        "membership",
+        "legislation",
+        "events",
+        "news",
+    }
+    assert {item.key for item in planned} == {"opinions", "finance"}
     assert content.count('aria-disabled="true"') >= len(planned)
 
 
