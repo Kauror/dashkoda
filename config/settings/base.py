@@ -150,6 +150,22 @@ LEGAL_WORK_MAX_DOWNLOAD_BYTES = SOURCE_ARTIFACT_MAX_BYTES
 KODA_ALLOWED_HOSTS = frozenset({"www.koda.ee", "koda.ee"})
 
 KODA_MEMBERS_SOURCE_SLUG = "koda-public-members"
+
+# The Chamber's own board-report membership history. A separate source from the
+# public directory above, deliberately: the two count different things and are
+# never merged into one series. Nothing is collected remotely for it — the
+# history arrives once as an approved package and every later report is entered
+# by a staff user through the admin form.
+MEMBERSHIP_INTERNAL_SOURCE_SLUG = "membership-internal-board-reports"
+
+# Ceilings for the one-time historical package. The real package is well under
+# half a megabyte; these bound a hostile or corrupt archive long before it is
+# parsed, and are checked against the declared *and* the extracted size.
+MEMBERSHIP_HISTORY_MAX_PACKAGE_BYTES = 25 * 1024 * 1024
+MEMBERSHIP_HISTORY_MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
+MEMBERSHIP_HISTORY_MAX_MEMBER_BYTES = 25 * 1024 * 1024
+MEMBERSHIP_HISTORY_MAX_MEMBERS = 64
+
 KODA_NEWS_SOURCE_SLUG = "koda-public-news"
 KODA_EVENTS_SOURCE_SLUG = "koda-public-events"
 
