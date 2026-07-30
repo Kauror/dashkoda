@@ -51,28 +51,65 @@ trail's append-only guarantee has documented limits.
 
 ## External data collection
 
-The legal-work feed reads one OneDrive workbook through Microsoft Graph. It
-widens the boundary as little as possible:
+The legal-work feed reads one OneDrive workbook. Two routes exist — a public
+read-only sharing link and Microsoft Graph — and both widen the boundary as
+little as possible:
 
-- collection is **read-only**. The application holds the `Files.Read.All`
-  application permission and never requests write access to OneDrive.
-- collection happens only in a scheduled command. There is **no webhook, no
-  public ingestion endpoint and no route that accepts a remote file or URL**.
-  Nothing external can push data into DashKoda.
-- the target is one drive item fixed in configuration. There is no file
-  browsing, no folder crawling and no arbitrary path.
-- Graph credentials live only in the deployment environment. They are never
-  committed, never stored in the database, never logged and never rendered.
-- downloads follow Graph's redirect to a pre-authenticated URL, and the bearer
-  token is deliberately not forwarded to that host. That signed URL is never
-  logged or stored.
-- downloads are size-capped while streaming, accept only XLSX, and are written
-  to a temporary directory that is removed afterwards.
-- the workbook is stored and checksummed as an ordinary private artifact, under
-  exactly the rules above. Its contents never reach logs, audit summaries or
-  import diagnostics.
+- collection is **read-only** and **outbound only**. It happens solely in a
+  scheduled command. There is **no webhook, no public ingestion endpoint, no
+  upload endpoint and no route that accepts a remote file or a URL**. Nothing
+  external can push data into DashKoda, and no viewer or administrator can make
+  it fetch a URL of their choosing.
+- the target is one workbook fixed in configuration. There is no file browsing,
+  no folder crawling and no arbitrary path.
+- credentials and the sharing URL live only in the deployment environment. They
+  are never committed, never stored in the database, never logged and never
+  rendered.
+- downloads are size-capped while streaming, structurally validated, and written
+  to a temporary directory that is removed in every outcome.
+- workbook contents never reach logs, audit summaries or import diagnostics.
 - `LegalWorkFeedState` records only non-secret content metadata — etag, size and
   modification time — plus a sanitized, truncated error summary.
+
+### The public sharing link
+
+`OIGUSLOOME_PUBLIC_URL` is trusted operator configuration, not user input.
+Even so, it is treated as a **bearer-style secret**, because the link is
+anonymously readable: whoever holds it can download the workbook.
+
+- it never enters Git, PostgreSQL, a log record, an audit summary, the JSON
+  command output, the dashboard or the Django admin;
+- the command offers no `--url` option, so it cannot reach shell history or a
+  process listing either;
+- the stored external reference is the fixed label `onedrive-public:oigusloome`,
+  and the model independently refuses any reference containing `@` or `?`;
+- only HTTPS is accepted, for the configured URL and for every redirect hop;
+- loopback names and IP literals are refused rather than resolved;
+- redirects are followed by hand, at most five, so each hop is checked before it
+  is requested — and no `Location` value is ever logged or placed in an error;
+- both a connect and a read timeout are explicit; retries are bounded and honour
+  `Retry-After`;
+- no authentication header is sent and no cookie jar survives a run;
+- HTML, plain text and JSON responses are refused, and `Content-Type` is treated
+  as a signal rather than as proof: the bytes must additionally pass the ZIP
+  signature, `zipfile.is_zipfile` and the required XLSX package members, so an
+  HTML viewer page labelled `application/octet-stream` is still rejected;
+- every exception message is sanitized by construction — statuses, sizes, types
+  and hostnames only.
+
+Because this route keeps no permanent copy, its artifact is metadata-only: the
+server-computed checksum, size and MIME type, and no stored file. The staff
+download route returns `404` for such an artifact, and the admin offers no
+download link.
+
+### Microsoft Graph
+
+Optional, and not required for the MVP route. The application holds the
+`Files.Read.All` application permission and never requests write access.
+Downloads follow Graph's redirect to a pre-authenticated URL, and the bearer
+token is deliberately not forwarded to that host; that signed URL is never
+logged or stored. This route retains the workbook as an ordinary private
+artifact under the storage rules above.
 
 `dash.orgusaar.ee` now serves real internal Chamber information rather than
 empty states. Cloudflare Access in front of the tunnel remains the recommended
@@ -86,6 +123,9 @@ data. **This pull request does not change Cloudflare, DNS or the tunnel.**
 - `VIEWER_RATE_LIMIT_SECRET`: independent secret for HMAC client pseudonyms
 - `TRUST_CLOUDFLARE_IP_HEADER`: `false` unless the application is known to be
   reached only through the trusted Cloudflare proxy path
+- `OIGUSLOOME_PUBLIC_URL`: the view-only workbook sharing link. Optional and
+  blank by default; required only by `sync_oigusloome_public`. Treat it like a
+  credential and keep it only in the server environment.
 
 The real PIN and its plaintext value must never be written to source, tests,
 workflow files, documentation, shell history, or logs. The browser smoke suite

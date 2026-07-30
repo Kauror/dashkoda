@@ -1,9 +1,10 @@
 # Source, import and audit data model
 
-PR-05 adds the shared foundation every later data module builds on: where
-information came from, which original file backs it, which import attempt
-produced it, and who did what. It adds **no business data, no importer and no
-dashboard route**.
+The shared foundation every data module builds on: where information came from,
+which original content backs it, which import attempt produced it, and who did
+what. The `sources` and `audit` apps hold **no business data and no dashboard
+route** of their own; `legal_work` is the first module to consume them end to
+end.
 
 ## Module boundaries
 
@@ -100,7 +101,30 @@ Constraints:
   source, because provenance differs even when bytes do not.
 
 External references must not embed credentials or signed parameters; the model
-refuses anything containing `@` or `?`.
+refuses anything containing `@` or `?`. A sharing URL is therefore structurally
+incapable of becoming an external reference.
+
+### Two shapes of external reference
+
+The XOR rule is unchanged, but an external-reference artifact may or may not
+carry a content identity, and that is what decides whether it can be imported:
+
+| Shape | Has `sha256` | Meaning | Importable |
+| --- | --- | --- | --- |
+| registration only | no | a pointer to material this application does not hold and cannot verify | no |
+| metadata-only content identity | yes | a collector downloaded the bytes, computed the digest and size here, and is not keeping the file | yes |
+
+`register_external_reference` accepts an optional `sha256`, `size_bytes` and
+`mime_type`. When a checksum is supplied it must be exactly 64 lowercase
+hexadecimal characters, the size must be positive and within
+`SOURCE_ARTIFACT_MAX_BYTES`, and `(source, sha256)` must still be unique — the
+same rules an upload passes. Without a checksum the artifact stays a
+registration-only reference exactly as before.
+
+The legal-work public-link route is the one producer of the second shape. Its
+reference is the fixed label `onedrive-public:oigusloome`, which names the
+provenance without exposing the URL. Because no file is stored, the admin offers
+no download for these artifacts and the download route returns `404`.
 
 ### Immutability
 
@@ -143,7 +167,13 @@ and checked against the allowlist.
 - SHA-256 and byte count are computed by streaming the upload in 64 KiB chunks;
 - a duplicate for the same source is refused before anything is written.
 
-**DashKoda never parses these files.** They are stored and checksummed only.
+**The `sources` app never parses these files.** It stores and checksums them; a
+domain module's own importer is what reads one.
+
+A collected workbook need not be stored at all. The legal-work public-link route
+writes it to a temporary directory, hands that path to the importer and deletes
+the directory, so nothing is written under `SOURCE_ARTIFACT_ROOT` for that route
+and the artifact carries only the content identity.
 
 ### Access
 
@@ -190,8 +220,12 @@ Uniqueness is conditional:
 never blocks a later real import, a failed run may be retried, and only one
 successful real import can exist per key.
 
-An external-reference artifact has no checksum, so it cannot be imported yet;
-`build_import_run` refuses it rather than inventing a key.
+What makes an artifact importable is a trusted SHA-256, not whether a file is
+still stored: `build_import_run` refuses an artifact with **no checksum** rather
+than inventing a key. A file-backed artifact always has one. A metadata-only
+external artifact has one when the collector computed it from the bytes it
+actually received, which is exactly the case where the digest is as trustworthy
+as an upload's.
 
 ### State transitions
 

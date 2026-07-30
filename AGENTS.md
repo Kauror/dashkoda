@@ -59,6 +59,19 @@ These rules apply to the whole repository.
 - Never commit a real workbook, a Microsoft identifier, a sharing URL, a token
   or a signed download URL, and never write file contents to logs, audit
   summaries or import diagnostics.
+- Treat an anonymously readable sharing URL as a bearer-style secret: it may
+  live only in the deployment environment, and it must never reach Git,
+  PostgreSQL, a log, an audit summary, command output, the interface or the
+  admin. A command that needs one reads it from the environment and accepts no
+  URL argument, so it cannot enter shell history or a process listing.
+- A collector need not retain what it downloaded. When it does not, register a
+  metadata-only artifact carrying the server-computed checksum, size and MIME
+  type plus a fixed non-secret provenance label, and delete the temporary file
+  on every exit path. An artifact is importable when it has a trusted checksum,
+  not when it still has a file.
+- Do not weaken the canonical workbook contract to accommodate a defective
+  source file. A workbook whose own summary disagrees with its authoritative
+  table is rejected, and the fix belongs to whatever generated it.
 - Do not add a webhook, a public ingestion endpoint or any route that accepts a
   remote file or URL. Collection is outbound and read-only.
 - Do not add an in-process scheduler. Scheduling belongs to the host.

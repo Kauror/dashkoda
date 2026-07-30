@@ -117,10 +117,32 @@ Microsoft Graph, download or parse a workbook, or wait on OneDrive. A slow or
 broken external system can therefore delay tomorrow's data, but it can never
 make the dashboard slow, broken or untruthful.
 
+Collection is outbound and read-only in both directions of that boundary: there
+is no webhook, no ingestion endpoint, no upload route and no route that accepts a
+remote file or a URL. A URL is operator configuration read from the environment,
+never user input.
+
 Publication is all-or-nothing, and a failed collection never replaces or removes
 the last good data. See [legal-work-feed.md](legal-work-feed.md).
 
-## Implemented through PR-05
+### Two collection routes, one publication path
+
+The legal-work workbook can arrive two ways, and only the transport differs:
+
+- **public read-only sharing link** (`sync_oigusloome_public`) — the MVP route.
+  One outbound HTTPS download of a view-only OneDrive link into a temporary
+  directory. No Entra application and no Graph credential. The workbook is never
+  retained: the artifact is **metadata-only**, carrying the server-computed
+  checksum, size, MIME type and a fixed non-secret provenance label instead of a
+  stored file.
+- **Microsoft Graph** (`sync_oigusloome`) — available and still tested, but not
+  required. It retains the workbook as an ordinary private artifact.
+
+Both then use the same parser, the same import registry, the same all-or-nothing
+snapshot publication and the same feed state. An artifact is importable when it
+has a trusted SHA-256 content identity, not when it still has a file on disk.
+
+## Implemented so far
 
 - minimal Django project and `core` app
 - split base, local, production, and test settings
@@ -153,9 +175,14 @@ the last good data. See [legal-work-feed.md](legal-work-feed.md).
 - deterministic `legal_work_xlsx` importer with an all-or-nothing snapshot
   publication and a documented workbook contract
 - read-only Microsoft Graph collector for exactly one OneDrive workbook
-- `import_oigusloome`, `sync_oigusloome` and `resolve_oigusloome_share` commands
+- public read-only sharing-link collector with HTTPS-only redirects, a streamed
+  size cap and structural XLSX validation
+- metadata-only source artifacts, so a collected workbook need not be retained
+- `import_oigusloome`, `sync_oigusloome`, `sync_oigusloome_public` and
+  `resolve_oigusloome_share` commands
 - the Õigusloome page and the overview's legal-work summary
-- an Unraid script template for a 07:00 `Europe/Tallinn` schedule
+- Unraid script templates for a 07:00 `Europe/Tallinn` schedule, one per
+  collection route
 
 ## Not implemented yet
 
@@ -166,9 +193,17 @@ chart or demo data in this repository.
 Every dashboard section except Õigusloome is still an explicit empty state,
 because no other data source is connected.
 
-The 07:00 schedule is **documented as a template and is not installed**. Live
-Microsoft Graph acceptance has **not** been performed: no credentials existed
-during development, so the collector is covered by mocked transports only.
+The 07:00 schedule is **documented as a template and is not installed**.
+
+Live Microsoft Graph acceptance has **not** been performed: no credentials
+existed during development, so that collector is covered by mocked transports
+only.
+
+The public sharing-link collector has been verified against the live link for
+download, URL handling, XLSX validation and temporary-file cleanup. The
+end-to-end import has **not** completed live, because the workbook the generator
+currently publishes fails the workbook contract. See
+[legal-work-feed.md](legal-work-feed.md).
 
 An application deployment exists at `dash.orgusaar.ee`, but the operations
 milestone it belongs to is not complete. See

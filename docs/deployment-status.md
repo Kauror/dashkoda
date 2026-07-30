@@ -61,17 +61,33 @@ risk picture even though it changes nothing operationally in this repository.
 Still true: no server, Cloudflare, DNS or tunnel change; no deployment; no
 schedule installed. The 07:00 job exists only as a script template.
 
-Newly required for a deployment that actually syncs:
+Newly required for a deployment that actually syncs, via the **MVP public-link
+route**:
 
-- five Microsoft Graph environment variables, held only in the deployment
-  environment;
-- an Entra application with the read-only `Files.Read.All` application
-  permission and tenant admin consent;
+- one environment variable, `OIGUSLOOME_PUBLIC_URL`, held only in the server's
+  own environment file and treated as a credential;
 - a host schedule on `Europe/Tallinn`, created by an administrator.
 
-**Live Graph acceptance has not been performed.** No credentials existed during
-development, so the collector is verified against mocked transports only. The
-exact post-deployment commands are in
+That is the whole list. **No Entra application, Graph credential, rclone, Power
+Automate, webhook or upload endpoint is required**, and no new volume is needed
+because this route keeps no permanent copy of the workbook.
+
+The Microsoft Graph route remains available and still needs its five variables,
+an Entra application with the read-only `Files.Read.All` application permission
+and tenant admin consent — but it is optional.
+
+**Neither route has completed live acceptance, and neither schedule is
+installed.**
+
+- Graph: no credentials existed during development, so that collector is
+  verified against mocked transports only.
+- Public link: the download, URL handling, XLSX validation and temporary-file
+  cleanup **have** been verified against the live link. The end-to-end import has
+  not completed, because the workbook the generator currently publishes fails the
+  workbook contract — its `CONTROL` warning count disagrees with its `DATA` table
+  by one record. That is a generator-side fix.
+
+The exact post-deployment commands are in
 [legal-work-feed.md](legal-work-feed.md).
 
 The known risk below now matters more: the pilot no longer holds only empty
