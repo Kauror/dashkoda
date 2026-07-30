@@ -67,6 +67,34 @@ class _TextExtractor(HTMLParser):
     """Collect visible text, dropping scripts, styles and every tag."""
 
     _SKIP = frozenset({"script", "style", "noscript", "template", "iframe"})
+    # Elements that imply a break in the prose. Without this, `</p><p>` would
+    # run two sentences together into one word.
+    _BLOCK = frozenset(
+        {
+            "p",
+            "div",
+            "br",
+            "li",
+            "ul",
+            "ol",
+            "tr",
+            "td",
+            "th",
+            "section",
+            "article",
+            "header",
+            "footer",
+            "h1",
+            "h2",
+            "h3",
+            "h4",
+            "h5",
+            "h6",
+            "blockquote",
+            "figure",
+            "figcaption",
+        }
+    )
 
     def __init__(self):
         super().__init__(convert_charrefs=True)
@@ -76,10 +104,14 @@ class _TextExtractor(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag in self._SKIP:
             self._suppress += 1
+        elif tag in self._BLOCK:
+            self._parts.append(" ")
 
     def handle_endtag(self, tag):
         if tag in self._SKIP and self._suppress:
             self._suppress -= 1
+        elif tag in self._BLOCK:
+            self._parts.append(" ")
 
     def handle_data(self, data):
         if not self._suppress:
@@ -212,7 +244,7 @@ def parse_feed(content: bytes) -> tuple[NewsEntry, ...]:
                 canonical_url=link[:500],
                 published_at=published_at,
                 category=category[:120],
-                summary=to_plain_text(item.findtext("description") or ""),
+                summary=to_plain_text(_element_text(item.find("description"))),
                 source_order=order,
             )
         )
@@ -221,6 +253,19 @@ def parse_feed(content: bytes) -> tuple[NewsEntry, ...]:
     # in the same second never reorder between runs.
     entries.sort(key=lambda entry: (-entry.published_at.timestamp(), entry.guid))
     return tuple(entries[: settings.KODA_NEWS_MAX_ITEMS])
+
+
+def _element_text(element) -> str:
+    """All text inside an element, including any that XML parsed into children.
+
+    A description is normally escaped or CDATA, so it arrives as plain text. If a
+    feed ever emits real child elements instead, `findtext` would silently return
+    only the text before the first child and the summary would come out empty —
+    so every descendant's text is gathered here.
+    """
+    if element is None:
+        return ""
+    return "".join(element.itertext())
 
 
 def _parse_published(value: str, order: int) -> dt.datetime:
