@@ -3,8 +3,10 @@ Freshness fragment.
 
 Swapped into the shell's #freshness-region by HTMX and rendered server-side on
 every full page load, so the information is identical with and without
-JavaScript. It states only facts about the application: that no data source is
-connected yet, and when that was last checked. It is not a data as-of date.
+JavaScript. It states only facts about the application: how many wired data
+sources currently publish data, whether any of them is stale after a failed
+check, and when this was checked. It is not a data as-of date — each module
+states its own.
 {% endcomment %}
 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
   {% include "dashboard/components/status_badge.html" with label=freshness.state_label variant=freshness.state_variant only %}
