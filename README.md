@@ -12,9 +12,16 @@ import-registry and audit foundation.
 
 The legal-work feed is the first module carrying **real business data**: it
 imports a prepared Excel workbook from OneDrive and renders it at
-`/oigusloome/`. Every other section of the dashboard still renders an explicit
-empty state, because no other data source is connected — nothing on those pages
-is a placeholder metric.
+`/oigusloome/`.
+
+Three public Koda.ee sources follow: the size of the public member directory,
+the news RSS feed and the events calendar, at `/liikmeskond/`, `/uudised/` and
+`/sundmused/`. All three are anonymous, read-only and collected once each
+morning; no raw response is retained. See
+[docs/koda-public-feeds.md](docs/koda-public-feeds.md).
+
+The remaining sections still render an explicit empty state, because no other
+data source is connected — nothing on those pages is a placeholder metric.
 
 The workbook stays in OneDrive. The MVP collection route reads it through a
 view-only public sharing link:
@@ -166,6 +173,8 @@ npm run e2e
 - [docs/data-model.md](docs/data-model.md) — sources, artifacts, imports, audit
 - [docs/legal-work-feed.md](docs/legal-work-feed.md) — the OneDrive legal-work
   feed, its workbook contract, both sync routes and the 07:00 schedule
+- [docs/koda-public-feeds.md](docs/koda-public-feeds.md) — the public member,
+  news and event feeds, what the member count means, and the 07:05 schedule
 - [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
 - [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
 - [docs/security.md](docs/security.md) — viewer access boundary and browser policy

@@ -167,6 +167,21 @@ The file lives outside the working tree; a private artifact produced by the
 manual import or the Graph route is stored under `SOURCE_ARTIFACT_ROOT` like
 every other original.
 
+## Public Koda.ee feeds
+
+Collect the public member count, news feed and events calendar. No credential is
+needed — all three endpoints are anonymous and read-only:
+
+```powershell
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py sync_koda_public --source all --dry-run --json
+docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py sync_koda_public --source all --json
+```
+
+The results appear at `http://127.0.0.1:8000/liikmeskond/`, `/uudised/` and
+`/sundmused/`, and on the overview. Each source runs independently, so exit code
+`2` means at least one source failed while another published. See
+[koda-public-feeds.md](koda-public-feeds.md).
+
 ## Deployment boundary
 
 A development/pilot deployment of the application exists at

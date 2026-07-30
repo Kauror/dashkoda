@@ -102,6 +102,32 @@ server-computed checksum, size and MIME type, and no stored file. The staff
 download route returns `404` for such an artifact, and the admin offers no
 download link.
 
+### The public Koda.ee feeds
+
+Three anonymous, read-only endpoints on the Chamber's own website. There is no
+credential, so nothing here is a secret — but the collection boundary stays
+just as narrow:
+
+- HTTPS only, on an allowlist of `www.koda.ee` and `koda.ee`, for the configured
+  endpoint **and every redirect hop**, each checked before it is requested;
+- loopback names and IP literals refused rather than resolved;
+- explicit connect and read timeouts, bounded retries honouring `Retry-After`,
+  and a streamed response cap;
+- content types checked, no cookies, no authentication header;
+- **no route, form or setting through which a viewer or an administrator can
+  introduce a URL.** The three endpoints are fixed in configuration;
+- no response body reaches any log, and every error message is sanitized.
+
+**The member endpoint returns row-level data that is never stored.** Each row
+carries a registration code and a member profile URL; both are read in memory to
+count and deduplicate, then discarded. No member name, registration code or
+profile URL exists in PostgreSQL, in an audit summary, in a log line, in command
+output or in the interface — there is no model field capable of holding one.
+
+Article and event summaries are stored as sanitized plain text with scripts,
+styles and all markup removed and a length cap. No article or event-page HTML is
+retained.
+
 ### Microsoft Graph
 
 Optional, and not required for the MVP route. The application holds the

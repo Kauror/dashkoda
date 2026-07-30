@@ -72,6 +72,17 @@ These rules apply to the whole repository.
 - Do not weaken the canonical workbook contract to accommodate a defective
   source file. A workbook whose own summary disagrees with its authoritative
   table is rejected, and the fix belongs to whatever generated it.
+- Collect from a public website only through a fixed, configured endpoint on an
+  explicit host allowlist. Never add a route, form or setting that lets anyone
+  supply a URL to fetch.
+- Detect change by hashing the normalised fields the dashboard consumes, never
+  the raw response. Markup churn must not republish identical data.
+- When a public source exposes row-level personal or registry data that the
+  product does not need, count or aggregate it in memory and discard it. Do not
+  create a model field capable of holding it.
+- "Uusi liikmeid sel aastal" is not a DashKoda metric and Teataja is out of
+  scope. Neither may appear in a model, field, selector, template, JSON output,
+  test or document.
 - Do not add a webhook, a public ingestion endpoint or any route that accepts a
   remote file or URL. Collection is outbound and read-only.
 - Do not add an in-process scheduler. Scheduling belongs to the host.
