@@ -167,6 +167,36 @@ class InternalMembershipReportForm(forms.Form):
     # template iterates named groups instead of guessing at field names.
     # ------------------------------------------------------------------
 
+    #: Section A, in the order the form presents it.
+    IDENTITY_FIELDS = (
+        "observation_date",
+        "reported_year",
+        "document_title",
+        "source_note",
+        "supersedes",
+        "confirm_date_change",
+    )
+
+    #: Section B.
+    FACT_FIELDS = (
+        "total_members",
+        "paid_members",
+        "membership_fees_received_eur",
+        "membership_fee_budget_eur",
+        "membership_fee_collection_pct_reported",
+        "new_members_ytd",
+        "suspended_members",
+        "removed_members_ytd",
+    )
+
+    @property
+    def identity_fields(self):
+        return [self[name] for name in self.IDENTITY_FIELDS]
+
+    @property
+    def fact_fields(self):
+        return [self[name] for name in self.FACT_FIELDS]
+
     @property
     def month_fields(self):
         return [(label, self[f"{MONTH_PREFIX}{month}"]) for month, label in MONTHS]

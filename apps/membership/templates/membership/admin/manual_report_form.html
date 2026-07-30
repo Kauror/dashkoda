@@ -1,0 +1,189 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+Sections A–F of one board report.
+
+The whole thing is a single form. "Kontrolli" re-renders it with the preview
+filled in and saves nothing; "Kinnita ja salvesta" submits the identical fields
+a second time and is the only action that writes. There is no draft record and
+no server-side copy of a half-finished report, so closing this tab leaves
+nothing behind.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Avaleht</a>
+    &rsaquo; <a href="{% url 'admin:membership_internalmembershipobservation_changelist' %}">Sisemised liikmeskonna vaatlused</a>
+    &rsaquo; {{ title }}
+  </div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+{% if correcting %}
+  <p class="help">
+    Parandus loob uue kirje ja märgib
+    <strong>{{ correcting.observation_date|date:"d.m.Y" }}</strong> vaatluse asendatuks.
+    Vana kirje väärtusi ei muudeta.
+  </p>
+{% endif %}
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <fieldset class="module aligned">
+    <h2>A. Aruande andmed</h2>
+    {% for field in form.identity_fields %}
+      <div class="form-row">
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset class="module aligned">
+    <h2>B. Aruande põhinäitajad</h2>
+    <p class="help">Kõik väljad võivad jääda tühjaks. Tühi väli ei tähenda nulli.</p>
+    {% for field in form.fact_fields %}
+      <div class="form-row">
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset class="module aligned">
+    <h2>C. Uued liikmed kuude lõikes</h2>
+    <p class="help">
+      Tulevasi kuid ei saa täita. Tühi kuu tähendab, et väärtust ei ole raporteeritud;
+      selgesõneline <code>0</code> on päris väärtus ja säilib eraldi.
+    </p>
+    <div class="form-row">
+      {{ form.monthly_year.errors }}
+      {{ form.monthly_year.label_tag }} {{ form.monthly_year }}
+    </div>
+    {% if defaults.existing_monthly %}
+      <p class="help">Selle aasta olemasolevad kehtivad väärtused:</p>
+      <ul>
+        {% for value in defaults.existing_monthly %}
+          <li>
+            {{ value.calendar_month }}. kuu:
+            {% if value.new_members is None %}vastuoluline, väärtus puudub{% else %}{{ value.new_members }}{% endif %}
+            {% if value.is_provisional %}(esialgne){% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+      <p class="help">Muudetud kuu loob uue kirje ja märgib senise asendatuks.</p>
+    {% endif %}
+    {% for label, field in form.month_fields %}
+      <div class="form-row">
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset class="module aligned">
+    <h2>D. Liitunud ja lahkunud suurusklassiti</h2>
+    <p class="help">Kogu jaotuse võib jätta täitmata.</p>
+    <div class="form-row">
+      {{ form.size_table_complete.label_tag }} {{ form.size_table_complete }}
+      <p class="help">Märgi ainult siis, kui tabel on täielik — siis kontrollitakse summasid.</p>
+    </div>
+    <table>
+      <thead>
+        <tr><th scope="col">Suurusklass</th><th scope="col">Liitunud</th><th scope="col">Lahkunud</th></tr>
+      </thead>
+      <tbody>
+        {% for label, joined, removed, is_supporter in form.size_band_rows %}
+          <tr>
+            <th scope="row">{{ label }}{% if is_supporter %} <span class="help">(ei ole töötajate arvu klass)</span>{% endif %}</th>
+            <td>{{ joined.errors }}{{ joined }}</td>
+            <td>{{ removed.errors }}{{ removed }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </fieldset>
+
+  <fieldset class="module aligned">
+    <h2>E. Lahkumise põhjused</h2>
+    <p class="help">Kogu jaotuse võib jätta täitmata. Muu põhjus säilib kirjutatud kujul.</p>
+    {% for field in form.reason_fields %}
+      <div class="form-row">
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+      </div>
+    {% endfor %}
+    <div class="form-row">
+      {{ form.other_reason_label.errors }}
+      {{ form.other_reason_label.label_tag }} {{ form.other_reason_label }}
+    </div>
+    <div class="form-row">
+      {{ form.other_reason_count.errors }}
+      {{ form.other_reason_count.label_tag }} {{ form.other_reason_count }}
+    </div>
+    <div class="form-row">
+      {{ form.reasons_complete.label_tag }} {{ form.reasons_complete }}
+    </div>
+  </fieldset>
+
+  {% if preview %}
+    <fieldset class="module aligned">
+      <h2>F. Kontroll</h2>
+
+      {% if preview.errors %}
+        <ul class="errorlist">
+          {% for error in preview.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+        <p class="help">Salvestamine ei ole võimalik, kuni ülaltoodud vead on parandatud.</p>
+      {% endif %}
+
+      {% if preview.warnings %}
+        <h3>Hoiatused</h3>
+        <ul>
+          {% for warning in preview.warnings %}<li>{{ warning }}</li>{% endfor %}
+        </ul>
+        <p class="help">Hoiatus ei takista salvestamist. Kinnitamine tähendab, et need on läbi vaadatud.</p>
+      {% endif %}
+
+      <table>
+        <caption>Arvutatud väärtused</caption>
+        <tbody>
+          <tr><th scope="row">Arvutatud laekumise protsent</th><td>{{ preview.computed_collection_pct|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Raporteeritud laekumise protsent</th><td>{{ preview.reported_collection_pct|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Vahe</th><td>{{ preview.collection_difference|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Kuude summa vaatluse kuuni</th><td>{{ preview.monthly_sum_to_observation_month|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Vahe uute liikmete arvuga</th><td>{{ preview.monthly_vs_new_members_ytd|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Liitunute summa suurusklassidest</th><td>{{ preview.joined_total|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Lahkunute summa suurusklassidest</th><td>{{ preview.removed_total|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Põhjuste summa</th><td>{{ preview.reason_total|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Tasunud liikmete osakaal</th><td>{{ preview.paid_member_share_pct|default_if_none:"–" }}</td></tr>
+          <tr><th scope="row">Kvaliteedi olek</th><td>{{ preview.quality_status }}</td></tr>
+        </tbody>
+      </table>
+
+      {% if preview.superseded_observation %}
+        <p>
+          Salvestamisel märgitakse asendatuks vaatlus
+          <strong>{{ preview.superseded_observation.observation_date|date:"d.m.Y" }}</strong>.
+        </p>
+      {% else %}
+        <p class="help">Ühtegi olemasolevat vaatlust ei asendata.</p>
+      {% endif %}
+    </fieldset>
+  {% endif %}
+
+  <div class="submit-row">
+    <button type="submit" name="action" value="{{ action_preview }}" class="button">Kontrolli</button>
+    {% if preview and preview.can_publish %}
+      <button type="submit" name="action" value="{{ action_confirm }}" class="default">Kinnita ja salvesta</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

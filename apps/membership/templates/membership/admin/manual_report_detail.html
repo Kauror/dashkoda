@@ -1,0 +1,97 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+Where publication lands. Read-only by construction: nothing on this page posts
+anywhere, and the record it shows is immutable. The only forward action is
+creating a correction, which writes a new record rather than touching this one.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Avaleht</a>
+    &rsaquo; <a href="{% url 'admin:membership_internalmembershipobservation_changelist' %}">Sisemised liikmeskonna vaatlused</a>
+    &rsaquo; {{ title }}
+  </div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="module">
+  <table>
+    <caption>Salvestatud aruanne</caption>
+    <tbody>
+      <tr><th scope="row">Vaatluse kuupäev</th><td>{{ observation.observation_date|date:"d.m.Y" }}</td></tr>
+      <tr><th scope="row">Kuupäeva täpsus</th><td>{{ observation.get_observation_date_precision_display }}</td></tr>
+      <tr><th scope="row">Aruandeaasta</th><td>{{ observation.reported_year|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Tõendi liik</th><td>{{ observation.get_source_kind_display }}</td></tr>
+      <tr><th scope="row">Kvaliteedi olek</th><td>{{ observation.get_quality_status_display }}</td></tr>
+      <tr><th scope="row">Eelistatud selle kuupäeva kohta</th><td>{{ observation.is_preferred_for_date|yesno:"jah,ei" }}</td></tr>
+      <tr><th scope="row">Liikmeid kokku</th><td>{{ observation.total_members|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Tasunud liikmeid</th><td>{{ observation.paid_members|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Tasunute osakaal</th><td>{{ point.paid_member_share_pct|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Laekunud liikmemaks</th><td>{{ observation.membership_fees_received_eur|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Liikmemaksu eelarve</th><td>{{ observation.membership_fee_budget_eur|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Raporteeritud laekumise protsent</th><td>{{ observation.membership_fee_collection_pct_reported|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Arvutatud laekumise protsent</th><td>{{ point.computed_collection_pct|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Uusi liikmeid aasta algusest</th><td>{{ observation.new_members_ytd|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Peatatud liikmeid</th><td>{{ observation.suspended_members|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Väljaarvatuid aasta algusest</th><td>{{ observation.removed_members_ytd|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Sisestaja</th><td>{{ observation.created_by|default_if_none:"–" }}</td></tr>
+      <tr><th scope="row">Avaldatud</th><td>{{ observation.published_at|date:"d.m.Y H:i"|default:"–" }}</td></tr>
+      {% if observation.supersedes_id %}
+        <tr><th scope="row">Asendab vaatlust</th><td>{{ observation.supersedes.observation_date|date:"d.m.Y" }}</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+{% if observation.source_note %}
+  <div class="module">
+    <h2>Märkus</h2>
+    <p>{{ observation.source_note }}</p>
+  </div>
+{% endif %}
+
+{% if observation.size_movements.all %}
+  <div class="module">
+    <table>
+      <caption>Liitunud ja lahkunud suurusklassiti</caption>
+      <thead><tr><th scope="col">Suurusklass</th><th scope="col">Suund</th><th scope="col">Liikmeid</th></tr></thead>
+      <tbody>
+        {% for movement in observation.size_movements.all %}
+          <tr>
+            <th scope="row">{{ movement.get_size_band_key_display }}</th>
+            <td>{{ movement.get_direction_display }}</td>
+            <td>{{ movement.member_count|default_if_none:"–" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+{% if observation.removal_reasons.all %}
+  <div class="module">
+    <table>
+      <caption>Lahkumise põhjused</caption>
+      <thead><tr><th scope="col">Põhjus</th><th scope="col">Liikmeid</th></tr></thead>
+      <tbody>
+        {% for reason in observation.removal_reasons.all %}
+          <tr>
+            <th scope="row">{{ reason.reason_label_raw|default:reason.get_reason_key_display }}</th>
+            <td>{{ reason.member_count|default_if_none:"–" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% endif %}
+
+<div class="submit-row">
+  <a href="{{ admin_change_url }}" class="button">Ava halduses</a>
+  {% if observation.quality_status != "superseded" %}
+    <a href="{% url 'membership-admin-report-correct' observation.pk %}" class="button">Loo parandatud versioon</a>
+  {% endif %}
+</div>
+{% endblock %}
