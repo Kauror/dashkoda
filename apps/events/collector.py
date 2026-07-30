@@ -53,7 +53,11 @@ ACCEPTED_CONTENT_TYPES = frozenset({"text/html", "application/xhtml+xml"})
 TALLINN = zoneinfo.ZoneInfo("Europe/Tallinn")
 
 TEASER_CLASS = "event--teaser"
-CATEGORY_CLASS = "event--teaser--event-category"
+# The event's own link lives in the card's title element. Every teaser card also
+# contains a link to its *category* listing, which shares the `/et/sundmused/`
+# prefix, so "the first link in the card" would collect category pages instead
+# of events. The title element is what actually identifies the event.
+TITLE_CLASS = "event--teaser--title"
 FALLBACK_DATE_CLASS = "event--default--date"
 FALLBACK_LOCATION_CLASS = "event--default--location"
 
@@ -103,8 +107,9 @@ class _TeaserCardParser(HTMLParser):
         super().__init__(convert_charrefs=True)
         self.depth = 0
         self._card_depth: int | None = None
-        self._category_depth: int | None = None
-        self._link_depth: int | None = None
+        self._title_depth: int | None = None
+        self._in_title_link = False
+        self._in_category_link = False
         self.cards: list[dict] = []
         self._current: dict | None = None
 
@@ -117,16 +122,20 @@ class _TeaserCardParser(HTMLParser):
             self._current = {"url": "", "title": "", "category": ""}
 
         if self._current is not None:
-            if CATEGORY_CLASS in classes:
-                self._category_depth = self.depth
+            if TITLE_CLASS in classes and self._title_depth is None:
+                self._title_depth = self.depth
             if tag == "a":
                 href = attributes.get("href") or ""
                 if href.startswith("/et/sundmused/"):
-                    if self._category_depth is not None:
-                        self._current.setdefault("category_href", href)
-                    elif not self._current["url"]:
-                        self._current["url"] = href
-                        self._link_depth = self.depth
+                    if self._title_depth is not None:
+                        # Inside the title element: this is the event itself.
+                        if not self._current["url"]:
+                            self._current["url"] = href
+                        self._in_title_link = True
+                    elif not self._current["category"]:
+                        # The card's other `/et/sundmused/` link is its category
+                        # listing. Its text is the category name.
+                        self._in_category_link = True
 
         if tag not in _VOID_TAGS:
             self.depth += 1
@@ -134,14 +143,18 @@ class _TeaserCardParser(HTMLParser):
     def handle_endtag(self, tag):
         if tag not in _VOID_TAGS:
             self.depth -= 1
-        if self._link_depth is not None and self.depth <= self._link_depth:
-            self._link_depth = None
-        if self._category_depth is not None and self.depth <= self._category_depth:
-            self._category_depth = None
+        if tag == "a":
+            self._in_title_link = False
+            self._in_category_link = False
+        if self._title_depth is not None and self.depth <= self._title_depth:
+            self._title_depth = None
         if self._card_depth is not None and self.depth <= self._card_depth:
             if self._current and self._current["url"]:
                 self.cards.append(self._current)
             self._card_depth = None
+            self._title_depth = None
+            self._in_title_link = False
+            self._in_category_link = False
             self._current = None
 
     def handle_data(self, data):
@@ -150,10 +163,10 @@ class _TeaserCardParser(HTMLParser):
         text = data.strip()
         if not text:
             return
-        if self._category_depth is not None:
-            self._current["category"] = (self._current["category"] + " " + text).strip()
-        elif self._link_depth is not None and not self._current["title"]:
+        if self._in_title_link and not self._current["title"]:
             self._current["title"] = text
+        elif self._in_category_link and not self._current["category"]:
+            self._current["category"] = text
 
 
 def collect_events(*, url: str | None = None, session=None, **_ignored) -> EventCollection:

@@ -19,13 +19,29 @@ TODAY = dt.date.today()
 
 
 def teaser(slug: str, title: str, category: str = "Koolitused") -> str:
+    """A teaser card shaped like the real one.
+
+    The category link comes **before** the title link and carries no
+    distinguishing class, exactly as the live site publishes it. Taking "the
+    first `/et/sundmused/` link in the card" therefore yields the category
+    listing rather than the event — which is precisely the defect this fixture
+    exists to catch.
+    """
     return f"""
     <div class="event--teaser node node--type-event">
-      <div class="event--teaser--date">{TOMORROW:%d.%m.%Y}</div>
-      <div class="event--teaser--event-category">
-        <a href="/et/sundmused/{category.lower()}">{category}</a>
+      <div class="event--teaser--group-left">
+        <div class="event--teaser--date">{TOMORROW:%d.%m.%Y}</div>
       </div>
-      <h2 class="event--teaser--title"><a href="/et/sundmused/{slug}">{title}</a></h2>
+      <div class="event--teaser--group-right">
+        <a href="/et/sundmused/{category.lower()}" hreflang="et">{category}</a>
+        <h2 class="event--teaser--title dont-break-out">
+          <a href="/et/sundmused/{slug}" hreflang="et">{title}</a>
+        </h2>
+        <div class="event--teaser--group-footer">
+          <a href="/et/sundmused/{slug}"
+             class="event--teaser--group-footer--read-more">Loe edasi</a>
+        </div>
+      </div>
     </div>
     """
 
@@ -204,6 +220,31 @@ def test_the_class_based_date_is_the_documented_fallback(patch_fetch):
 
 
 # -- the two live traps -------------------------------------------------
+
+
+def test_the_event_link_is_taken_from_the_title_not_the_category(patch_fetch):
+    """Every card links to its category before it links to the event.
+
+    Regression: taking the first link in the card collected category listings,
+    which then failed the Event check, and the whole calendar came back empty.
+    """
+    site = patch_fetch(
+        FakeSite(
+            {
+                "/et/sundmused": listing("real-event"),
+                "/et/sundmused/real-event": detail(name="Päris sündmus"),
+                "/et/sundmused/koolitused": category_page(),
+            }
+        )
+    )
+
+    collection = collect_events()
+
+    assert [e.canonical_url for e in collection.entries] == [
+        "https://www.koda.ee/et/sundmused/real-event"
+    ]
+    assert collection.entries[0].category == "Koolitused"
+    assert "/et/sundmused/koolitused" not in site.requested
 
 
 def test_category_pages_sharing_the_url_prefix_are_not_events(patch_fetch):
