@@ -13,9 +13,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from django.conf import settings
+from django.db.models import F
 from django.utils import timezone
 
-from .models import LegalWorkFeedState, LegalWorkItem, LegalWorkSnapshot, SentStatus, SyncResult
+from apps.core.feeds import FeedSummaryMixin
+
+from .models import LegalWorkFeedState, LegalWorkItem, LegalWorkSnapshot, SentStatus
 
 DEFAULT_RECENT_LIMIT = 15
 # The open list is bounded so a workbook that grows cannot produce an
@@ -43,10 +46,12 @@ def _items(snapshot: LegalWorkSnapshot | None):
 def get_open_items(snapshot: LegalWorkSnapshot | None = None, limit: int | None = MAX_OPEN_ITEMS):
     """Topics still being worked on, most recently received first."""
     snapshot = snapshot or get_current_snapshot()
-    # PostgreSQL sorts NULLs last in a descending order, so dated records lead
-    # and undated ones trail deterministically by topic.
+    # PostgreSQL puts NULLs first in a descending order, so `nulls_last` is
+    # explicit: dated records lead and undated ones trail by topic.
     queryset = (
-        _items(snapshot).filter(is_open=True).order_by("-received_date", "topic", "record_id")
+        _items(snapshot)
+        .filter(is_open=True)
+        .order_by(F("received_date").desc(nulls_last=True), "topic", "record_id")
     )
     return queryset[:limit] if limit else queryset
 
@@ -88,7 +93,7 @@ def get_newest_received_items(
 
 
 @dataclass(frozen=True)
-class LegalWorkSummary:
+class LegalWorkSummary(FeedSummaryMixin):
     """Everything the dashboard needs to describe the data's state honestly."""
 
     snapshot: LegalWorkSnapshot | None
@@ -113,43 +118,6 @@ class LegalWorkSummary:
     @property
     def generated_at(self):
         return self.snapshot.workbook_generated_at if self.snapshot else None
-
-    @property
-    def last_checked_at(self):
-        return self.feed_state.last_checked_at if self.feed_state else None
-
-    @property
-    def last_successful_sync_at(self):
-        return self.feed_state.last_successful_sync_at if self.feed_state else None
-
-    @property
-    def last_result(self) -> str:
-        return self.feed_state.last_result if self.feed_state else SyncResult.NEVER_RUN
-
-    @property
-    def last_sync_failed(self) -> bool:
-        return self.last_result == SyncResult.FAILED
-
-    @property
-    def is_stale_after_failure(self) -> bool:
-        """Showing older data because the newest check did not succeed."""
-        return self.last_sync_failed and self.has_data
-
-    @property
-    def state_label(self) -> str:
-        if not self.has_data:
-            return "Ühendamata"
-        if self.last_sync_failed:
-            return "Vananenud"
-        return "Ühendatud"
-
-    @property
-    def state_variant(self) -> str:
-        if not self.has_data:
-            return "neutral"
-        if self.last_sync_failed:
-            return "warning"
-        return "success"
 
 
 def get_legal_work_summary() -> LegalWorkSummary:

@@ -61,6 +61,20 @@ def create_data_source(*, actor=None, correlation_id=None, **fields) -> DataSour
     return source
 
 
+def ensure_data_source(*, slug: str, actor=None, correlation_id=None, **fields) -> DataSource:
+    """Return the source registered under ``slug``, creating it once if needed.
+
+    The idempotent registration every bootstrap module uses. Deliberately a
+    service rather than a data migration: a migration would bake operational
+    configuration into schema history, and re-running it after a restore would
+    be neither observable nor auditable.
+    """
+    existing = DataSource.objects.filter(slug=slug).first()
+    if existing is not None:
+        return existing
+    return create_data_source(actor=actor, correlation_id=correlation_id, slug=slug, **fields)
+
+
 def update_data_source(source: DataSource, *, actor=None, correlation_id=None, **fields):
     """Apply a material update and record what changed.
 

@@ -1,14 +1,9 @@
-"""Idempotent registration of the public member-directory data source.
-
-A service rather than a data migration, for the same reason the legal-work
-source is: a migration would bake operational configuration into schema history
-and re-running it after a restore would be neither observable nor auditable.
-"""
+"""Idempotent registration of the public member-directory data source."""
 
 from django.conf import settings
 
-from apps.sources.models import DataSource, SourceType, UpdateFrequency
-from apps.sources.services import create_data_source
+from apps.sources.models import SourceType, UpdateFrequency
+from apps.sources.services import ensure_data_source
 
 SOURCE_NAME = "Koda.ee avalik liikmeloend"
 SOURCE_DESCRIPTION = (
@@ -22,15 +17,11 @@ SOURCE_DESCRIPTION = (
 STALE_AFTER_DAYS = 2
 
 
-def ensure_membership_source(*, actor=None, correlation_id=None) -> DataSource:
-    slug = settings.KODA_MEMBERS_SOURCE_SLUG
-    existing = DataSource.objects.filter(slug=slug).first()
-    if existing is not None:
-        return existing
-    return create_data_source(
+def ensure_membership_source(*, actor=None, correlation_id=None):
+    return ensure_data_source(
+        slug=settings.KODA_MEMBERS_SOURCE_SLUG,
         actor=actor,
         correlation_id=correlation_id,
-        slug=slug,
         name=SOURCE_NAME,
         source_type=SourceType.REGISTRY,
         expected_update_frequency=UpdateFrequency.DAILY,

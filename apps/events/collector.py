@@ -40,7 +40,7 @@ from urllib.parse import urljoin, urlparse
 from django.conf import settings
 
 from apps.core.canonical import canonical_checksum
-from apps.core.public_http import PublicFetchError, fetch
+from apps.core.public_http import PublicFetchError, fetch, is_allowed_public_url
 from apps.news.collector import to_plain_text
 
 logger = logging.getLogger("dashkoda.events.collector")
@@ -436,8 +436,4 @@ def _stable_key(url: str) -> str:
 
 
 def _is_koda_url(value: str) -> bool:
-    try:
-        parts = urlparse(value)
-    except ValueError:
-        return False
-    return parts.scheme == "https" and (parts.hostname or "").lower() in settings.KODA_ALLOWED_HOSTS
+    return is_allowed_public_url(value, allowed_hosts=settings.KODA_ALLOWED_HOSTS)

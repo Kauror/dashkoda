@@ -7,21 +7,9 @@ remote-refresh action because collection belongs to the scheduled command.
 
 from django.contrib import admin
 
+from apps.core.admin import ReadOnlyAdmin
+
 from .models import MembershipCountObservation, MembershipFeedState
-
-
-class ReadOnlyAdmin(admin.ModelAdmin):
-    def get_readonly_fields(self, request, obj=None):
-        return [field.name for field in self.model._meta.fields]
-
-    def has_add_permission(self, request):
-        return False
-
-    def has_change_permission(self, request, obj=None):
-        return False
-
-    def has_delete_permission(self, request, obj=None):
-        return False
 
 
 @admin.register(MembershipCountObservation)
