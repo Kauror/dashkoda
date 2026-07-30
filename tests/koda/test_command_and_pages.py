@@ -7,6 +7,7 @@ synthetic collectors.
 from __future__ import annotations
 
 import json
+import re
 from io import StringIO
 
 import pytest
@@ -306,30 +307,44 @@ def test_the_overview_shows_all_three_sources(viewer):
 
 def test_a_failed_check_shows_previous_data_with_a_warning(viewer):
     synchronize_membership(collector=collector_returning(membership_collection(3395)))
-    synchronize_membership(collector=collector_raising(MembershipCollectionError("404.")))
+    synchronize_membership(
+        collector=collector_raising(MembershipCollectionError("Sünteetiline sisemine veateade."))
+    )
 
-    body = viewer.get(reverse("membership")).content.decode()
+    response = viewer.get(reverse("membership"))
+    body = response.content.decode()
 
     assert "3395" in body, "the previous good number must still be shown"
     assert "Viimane kontroll ebaõnnestus" in body
-    assert "404" not in body, "no exception detail may reach a viewer"
+    assert "Sünteetiline sisemine veateade" not in body, "no exception detail may reach a viewer"
+
+
+def visible_text(response) -> str:
+    """The page's prose, with markup and attribute values removed.
+
+    Attribute values are stripped because a CSRF token is random and will
+    eventually contain any short letter sequence — matching raw HTML would make
+    a wording assertion flaky rather than meaningful.
+    """
+    html = response.content.decode()
+    without_attributes = re.sub(r"<[^>]*>", " ", html)
+    return " ".join(without_attributes.split()).lower()
 
 
 @pytest.mark.parametrize("route", ["home", "membership", "news", "events"])
 def test_no_year_to_date_wording_appears_anywhere(viewer, route):
     synchronize_membership(collector=collector_returning(membership_collection(3395)))
 
-    body = viewer.get(reverse(route)).content.decode().lower()
+    text = visible_text(viewer.get(reverse(route)))
 
-    for forbidden in ("uusi liikmeid", "sel aastal", "ytd", "year to date", "lisandunud"):
-        assert forbidden not in body
+    for phrase in ("uusi liikmeid", "sel aastal", "lisandunud", "year to date"):
+        assert phrase not in text
+    assert not re.search(r"\bytd\b", text)
 
 
 @pytest.mark.parametrize("route", ["home", "membership", "news", "events"])
 def test_teataja_appears_nowhere(viewer, route):
-    body = viewer.get(reverse(route)).content.decode().lower()
-
-    assert "teataja" not in body
+    assert "teataja" not in visible_text(viewer.get(reverse(route)))
 
 
 def test_the_navigation_marks_the_new_routes_available():
