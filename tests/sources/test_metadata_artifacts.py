@@ -8,7 +8,9 @@ it must not weaken any existing registration rule.
 import hashlib
 
 import pytest
+from django.contrib import admin
 from django.core.exceptions import ValidationError
+from django.urls import reverse
 
 from apps.audit.models import AuditAction, AuditEvent
 from apps.sources.models import SourceArtifact
@@ -18,6 +20,8 @@ from apps.sources.services import (
     register_artifact,
     register_external_reference,
 )
+
+from .conftest import sign_in
 
 pytestmark = pytest.mark.django_db
 
@@ -206,3 +210,41 @@ def test_the_content_identity_is_immutable_once_registered(data_source):
 
     with pytest.raises(ImmutableFieldError):
         artifact.save()
+
+
+# -- admin --------------------------------------------------------------
+
+
+def test_the_admin_shows_the_identity_but_offers_no_download(rf, superuser, data_source):
+    artifact = register_metadata_only(data_source)
+    model_admin = admin.site._registry[SourceArtifact]
+    request = rf.get("/admin/")
+    request.user = superuser
+
+    fields = model_admin.get_fields(request, artifact)
+
+    for expected in (
+        "source",
+        "original_name",
+        "sha256",
+        "size_bytes",
+        "mime_type",
+        "uploaded_at",
+        "external_reference",
+    ):
+        assert expected in fields
+    # No file is stored, so no download may be offered.
+    assert model_admin.download_link(artifact) == "—"
+    assert model_admin.get_readonly_fields(request, artifact) == fields
+
+
+def test_the_admin_download_route_refuses_a_metadata_only_artifact(
+    data_source, client, authenticate_viewer, downloader_user
+):
+    artifact = register_metadata_only(data_source)
+    sign_in(client, downloader_user, authenticate_viewer)
+
+    response = client.get(reverse("admin:sources_sourceartifact_download", args=[artifact.pk]))
+
+    assert response.status_code == 404
+    assert not AuditEvent.objects.filter(action=AuditAction.ARTIFACT_DOWNLOADED).exists()
