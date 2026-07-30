@@ -83,6 +83,22 @@ class FetchResult:
             return self.content.decode(fallback_encoding, errors="replace")
 
 
+def is_allowed_public_url(value: str, *, allowed_hosts: frozenset[str]) -> bool:
+    """Whether ``value`` is an HTTPS URL on one of the allowed hosts.
+
+    The predicate collectors use to validate links found *inside* fetched
+    content; :func:`require_allowed_url` below is its raising counterpart for
+    URLs about to be requested.
+    """
+    if not value:
+        return False
+    try:
+        parts = urlparse(value)
+    except ValueError:
+        return False
+    return parts.scheme == "https" and (parts.hostname or "").lower() in allowed_hosts
+
+
 def require_allowed_url(url: str, *, allowed_hosts: frozenset[str]) -> str:
     """Validate one URL against the caller's allowlist and return its hostname.
 

@@ -20,13 +20,12 @@ from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
 from html import unescape
 from html.parser import HTMLParser
-from urllib.parse import urlparse
 from xml.etree import ElementTree
 
 from django.conf import settings
 
 from apps.core.canonical import canonical_checksum
-from apps.core.public_http import PublicFetchError, fetch
+from apps.core.public_http import PublicFetchError, fetch, is_allowed_public_url
 
 logger = logging.getLogger("dashkoda.news.collector")
 
@@ -283,13 +282,7 @@ def _parse_published(value: str, order: int) -> dt.datetime:
 
 
 def _is_koda_url(value: str) -> bool:
-    if not value:
-        return False
-    try:
-        parts = urlparse(value)
-    except ValueError:
-        return False
-    return parts.scheme == "https" and (parts.hostname or "").lower() in settings.KODA_ALLOWED_HOSTS
+    return is_allowed_public_url(value, allowed_hosts=settings.KODA_ALLOWED_HOSTS)
 
 
 def _now() -> dt.datetime:
