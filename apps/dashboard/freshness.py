@@ -9,31 +9,33 @@ was computed. It reads PostgreSQL only.
 What it deliberately does not do: invent an as-of date for the business data
 (each module states its own), or count a source as connected merely because it
 is registered. Connected means "has current published data", exactly as the
-per-module summaries define it.
+per-module summaries define it — which is why it asks the summaries rather than
+reading the feed-state rows and deciding again.
+
+Since the overview stopped carrying a per-card freshness badge, this row is
+where a failed check is disclosed on that page. It has to speak for every wired
+module, however that module's data was published.
 """
 
 from dataclasses import dataclass
 from datetime import datetime
 
-from django.conf import settings
 from django.utils import timezone
 
-from apps.core.feeds import FeedResult
-from apps.events.models import EventFeedState
-from apps.legal_work.models import LegalWorkFeedState
-from apps.membership.models import MembershipFeedState
-from apps.news.models import NewsFeedState
+from apps.events.selectors import get_event_summary
+from apps.legal_work.selectors import get_legal_work_summary
+from apps.membership.selectors import get_membership_summary
+from apps.news.selectors import get_news_summary
 
 NO_SOURCE_MESSAGE = "Andmeallikas ei ole veel ühendatud."
 
-# The wired data modules: feed-state model, the setting naming its source slug,
-# and the field pointing at its currently published data. A module joins the
-# shell count by being added here, not by being guessed at.
-_FEEDS = (
-    (LegalWorkFeedState, "LEGAL_WORK_SOURCE_SLUG", "current_snapshot_id"),
-    (MembershipFeedState, "KODA_MEMBERS_SOURCE_SLUG", "current_observation_id"),
-    (NewsFeedState, "KODA_NEWS_SOURCE_SLUG", "current_snapshot_id"),
-    (EventFeedState, "KODA_EVENTS_SOURCE_SLUG", "current_snapshot_id"),
+# The wired data modules, each read through its own summary selector. A module
+# joins the shell count by being added here, not by being guessed at.
+_SUMMARIES = (
+    get_legal_work_summary,
+    get_membership_summary,
+    get_news_summary,
+    get_event_summary,
 )
 
 
@@ -71,28 +73,24 @@ class FreshnessState:
 
 
 def current_freshness() -> FreshnessState:
-    """Count the connected and stale sources from the recorded feed states.
+    """Count the connected and stale sources from each module's own summary.
 
-    One indexed single-row query per wired module. "Stale" mirrors the
-    per-module summaries: data is published but the newest check failed, so the
-    dashboard is honestly showing older data.
+    Connected and stale are not restated here: `has_data` and
+    `is_stale_after_failure` come from the summary the module's pages already
+    render, so the shell row and the module cannot disagree about whether a
+    source is publishing or showing older data after a failed check.
+
+    Reading the summary rather than the feed-state row also covers data that was
+    published without a feed check — a workbook imported by hand through the
+    admin is current data, and a later failed collection makes it stale in
+    exactly the way a synchronised source would be.
+
+    Two indexed single-row queries per wired module.
     """
-    connected = 0
-    stale = 0
-    for model, slug_setting, current_field in _FEEDS:
-        state = (
-            model.objects.filter(source__slug=getattr(settings, slug_setting))
-            .values(current_field, "last_result")
-            .first()
-        )
-        if state is None or state[current_field] is None:
-            continue
-        connected += 1
-        if state["last_result"] == FeedResult.FAILED:
-            stale += 1
+    summaries = [read_summary() for read_summary in _SUMMARIES]
     return FreshnessState(
         checked_at=timezone.localtime(),
-        connected_sources=connected,
-        total_sources=len(_FEEDS),
-        stale_sources=stale,
+        connected_sources=sum(1 for summary in summaries if summary.has_data),
+        total_sources=len(_SUMMARIES),
+        stale_sources=sum(1 for summary in summaries if summary.is_stale_after_failure),
     )
