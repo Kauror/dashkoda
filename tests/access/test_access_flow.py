@@ -128,4 +128,4 @@ def test_authenticated_home_renders_the_dashboard_shell(client, authenticate_vie
 
     assert response.status_code == 200
     assert b"DashKoda" in response.content
-    assert "Koja juhatuse töölaud".encode() in response.content
+    assert "Koja töölaud".encode() in response.content

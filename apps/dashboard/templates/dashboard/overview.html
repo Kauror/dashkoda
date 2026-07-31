@@ -108,7 +108,14 @@ None of them reached this file.
     <section aria-labelledby="section-legislation" class="dk-section flex flex-col" x-data="tabPair">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
         <h2 id="section-legislation" class="text-base font-semibold text-text">Õigusloome</h2>
-        <a href="{% url 'legal-work' %}" class="dk-link text-sm">Vaata õigusloomet</a>
+        {% comment %}
+        The link appears only once the module has something to show. Sending a
+        reader to a page that is entirely empty states nothing false, but it
+        wastes the one click the card exists to earn.
+        {% endcomment %}
+        {% if legal_work.has_data %}
+          <a href="{% url 'legal-work' %}" class="dk-link text-sm">Vaata õigusloomet</a>
+        {% endif %}
       </div>
 
       {% if legal_work.has_data %}
@@ -201,7 +208,9 @@ None of them reached this file.
     <section aria-labelledby="section-membership" class="dk-section flex flex-col">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
         <h2 id="section-membership" class="text-base font-semibold text-text">Liikmeskond</h2>
-        <a href="{% url 'membership' %}" class="dk-link text-sm">Vaata liikmeskonda</a>
+        {% if page.membership.has_any_data %}
+          <a href="{% url 'membership' %}" class="dk-link text-sm">Vaata liikmeskonda</a>
+        {% endif %}
       </div>
       <div class="dk-section-body flex flex-1 flex-col gap-4">
         {% if page.membership.has_any_data %}
@@ -229,7 +238,9 @@ None of them reached this file.
     <section aria-labelledby="section-events" class="dk-section flex flex-col">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
         <h2 id="section-events" class="text-base font-semibold text-text">Tulevased sündmused</h2>
-        <a href="{% url 'events' %}" class="dk-link text-sm">Vaata sündmusi</a>
+        {% if page.upcoming_events %}
+          <a href="{% url 'events' %}" class="dk-link text-sm">Vaata sündmusi</a>
+        {% endif %}
       </div>
       {% if page.upcoming_events %}
         <ul class="flex-1 divide-y divide-border">
@@ -269,7 +280,9 @@ None of them reached this file.
     <section aria-labelledby="section-news" class="dk-section flex flex-col">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
         <h2 id="section-news" class="text-base font-semibold text-text">Viimased uudised</h2>
-        <a href="{% url 'news' %}" class="dk-link text-sm">Vaata uudiseid</a>
+        {% if page.latest_news %}
+          <a href="{% url 'news' %}" class="dk-link text-sm">Vaata uudiseid</a>
+        {% endif %}
       </div>
       {% if page.latest_news %}
         <ul class="flex-1 divide-y divide-border">

@@ -112,6 +112,20 @@ def text_of(response) -> str:
     return " ".join(strip_tags(body(response)).split())
 
 
+def section(response, heading_id: str) -> str:
+    """One `<section>` of the page, by the id its heading carries.
+
+    Several assertions are about where something appears rather than whether it
+    appears at all — "pärast" is ordinary Estonian and turns up in half the
+    empty states, so a whole-page search would prove nothing.
+    """
+    return body(response).split(f'aria-labelledby="{heading_id}"')[1].split("</section>")[0]
+
+
+def kpi_strip(response) -> str:
+    return section(response, "section-kpi")
+
+
 # -- legal work ---------------------------------------------------------
 
 
@@ -141,8 +155,7 @@ def test_only_the_approaching_deadline_is_flagged(viewer, legal_work_snapshot):
     an expired deadline and one four hundred days out do not both arrive with
     it.
     """
-    page = body(viewer.get(reverse("home")))
-    attention = page.split('aria-labelledby="section-attention"')[1].split("</section>")[0]
+    attention = section(viewer.get(reverse("home")), "section-attention")
 
     assert attention.count("<li") == 1
     assert "Sünteetiline kiireloomuline teema" in attention
@@ -155,22 +168,29 @@ def test_the_member_total_carries_its_own_baseline_date(viewer):
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
     synchronize_membership(collector=collector_returning(membership_collection(3396)))
 
-    page = body(viewer.get(reverse("home")))
+    strip = kpi_strip(viewer.get(reverse("home")))
 
-    assert "3396" in page
+    assert "3396" in strip
     # The delta's baseline is the previous reading, not the activity window, so
-    # it is stated beside the figure with its own date.
-    assert "-4" in page or "−4" in page
-    assert "pärast" in page
+    # it is stated beside the figure with its own date rather than being mixed
+    # into a row of counts that all mean the same period.
+    assert "-4" in strip
+    assert "↓" in strip
+    assert "pärast" in strip
 
 
 def test_a_first_ever_reading_shows_no_change_it_cannot_know(viewer):
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
 
-    page = text_of(viewer.get(reverse("home")))
+    strip = kpi_strip(viewer.get(reverse("home")))
 
-    assert "3400" in page
-    assert "pärast" not in page, "there is no earlier reading to compare against"
+    assert "3400" in strip
+    # A first observation has nothing behind it, so the difference is unknown
+    # rather than zero. No direction marker may appear at all.
+    assert "↑" not in strip
+    assert "↓" not in strip
+    assert "→" not in strip
+    assert "pärast" not in strip
 
 
 def test_the_two_membership_sources_are_never_merged(viewer, imported_internal_history):

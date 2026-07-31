@@ -166,11 +166,22 @@ def test_content_security_policy_is_unchanged(viewer_client, imported_package):
 def test_overview_does_not_show_two_competing_totals(
     viewer_client, public_observation, imported_package
 ):
+    """Both sources appear, each named and dated, and neither is the other.
+
+    The overview's member total stays the public directory count. The internal
+    report contributes the paid figure and the fee percentage — never a second
+    member total that a reader could set against the first.
+    """
     body = viewer_client.get(reverse("home")).content.decode()
 
     assert "3555" in body
-    assert "Sisemine liikmeskonna aruanne seisuga" in body
-    assert "eraldi allikas, mitte sama näitaja" in body
+    assert "Koda.ee liikmekataloog" in body
+    assert "Sisemine liikmeskonna aruanne" in body
+    # Each figure states how current it is, because one is recounted daily and
+    # the other is reported once a month.
+    assert "iga päev" in body
+    assert "kord kuus" in body
+    assert "Neid ei liideta ega esitata ühe näitajana." in body
     # The internal member total itself is deliberately absent from the overview.
     assert "3300" not in body
 

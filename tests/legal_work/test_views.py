@@ -148,8 +148,9 @@ def test_overview_keeps_its_empty_state_without_a_snapshot(client, authenticate_
 
     content = client.get("/").content.decode()
 
-    assert "Jälgitavad eelnõud" in content
-    assert "Esitatud arvamused" in content
+    assert "Andmeallikas ei ole veel ühendatud." in content
+    assert "Eelnõud ja arvamused ilmuvad siia pärast esimest edukat sünkroonimist." in content
+    # The card does not offer a way through to a page that has nothing on it.
     assert "Vaata õigusloomet" not in content
 
 
@@ -161,7 +162,7 @@ def test_overview_shows_real_legal_work_data_once_imported(
     content = client.get("/").content.decode()
 
     assert "Sünteetiline avatud teema" in content
-    assert "Hetkel töös" in content
+    assert "Õigusloome teemasid töös" in content
     assert "Vaata õigusloomet" in content
     assert imported_snapshot.reporting_date.strftime("%d.%m.%Y") in content
 
@@ -169,6 +170,8 @@ def test_overview_shows_real_legal_work_data_once_imported(
 def test_overview_discloses_a_failed_sync_alongside_old_data(
     client, authenticate_viewer, imported_snapshot, legal_work_source
 ):
+    """The failure is disclosed where the board will see it, and the last good
+    data stays on the page rather than being withdrawn."""
     state = get_feed_state(legal_work_source)
     state.last_result = SyncResult.FAILED
     state.save()
@@ -176,8 +179,9 @@ def test_overview_discloses_a_failed_sync_alongside_old_data(
 
     content = client.get("/").content.decode()
 
-    assert "Viimane kontroll ebaõnnestus." in content
-    assert "Kuvatakse viimase eduka impordi andmeid." in content
+    assert "Juhatuse tähelepanu" in content
+    assert "viimane kontroll ebaõnnestus, kuvatakse varasemat seisu" in content
+    assert "Sünteetiline avatud teema" in content
 
 
 def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
@@ -195,5 +199,5 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
     reporting_date = imported_snapshot.reporting_date
 
     assert reporting_date != dt.date.today()
-    assert "Andmed seisuga" in content
+    assert "Seisuga" in content
     assert reporting_date.strftime("%d.%m.%Y") in content
