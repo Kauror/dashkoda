@@ -29,6 +29,14 @@ system has no established accessible new-tab pattern.
     </div>
   </header>
 
+  <section aria-labelledby="section-figures" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Uudisvoo hetkeseisu kokkuvõte." only %}
+    <div class="dk-kpi-strip sm:grid-cols-2 xl:grid-cols-2">
+      {% include "dashboard/components/kpi_card.html" with label="Avaldatud viimase kuu jooksul" value=recent_count source="Koda.ee uudisvoog" cadence="iga päev" as_of=summary.observed_at|date:"d.m.Y H:i" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Uudiseid voos" value=total_count source="Koda.ee uudisvoog" cadence="iga päev" as_of=summary.observed_at|date:"d.m.Y H:i" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+    </div>
+  </section>
+
   <section aria-labelledby="section-news" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" description="Kirjed avanevad koda.ee lehel." only %}
     {% if items %}
@@ -57,6 +65,20 @@ system has no established accessible new-tab pattern.
         {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Uudised ilmuvad siia pärast esimest edukat kontrolli." only %}
       </div>
     {% endif %}
+  </section>
+
+  {% comment %}
+  Press coverage and the newsletter are named rather than drawn as empty lists:
+  an empty list here would read as "the Chamber was not mentioned", which no
+  source has said, because no source exists.
+  {% endcomment %}
+  <section aria-labelledby="section-planned" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Muud kanalid" heading_id="section-planned" description="Siia planeeritud vaated, millel ei ole veel andmeallikat." badge_label="Lisamisel" badge_variant="neutral" only %}
+    <div class="dk-section-body grid grid-cols-1 gap-3 sm:grid-cols-2">
+      {% for connection in planned_sections %}
+        {% include "dashboard/components/planned_module.html" with connection=connection only %}
+      {% endfor %}
+    </div>
   </section>
 
 </div>

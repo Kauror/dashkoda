@@ -16,6 +16,13 @@ from datetime import date
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
+from apps.dashboard.connections import (
+    CADENCE_DAILY,
+    CADENCE_MONTHLY,
+    Connection,
+    ConnectionState,
+    from_summary,
+)
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
@@ -95,6 +102,20 @@ def membership_overview(request):
             "navigation": NAVIGATION,
             "active_nav": "membership",
             "freshness": current_freshness(),
+            # Both sources named together, with how often each updates. This is
+            # the page where the two are most easily confused, so the difference
+            # is stated once at the top rather than inferred from two sections.
+            "sources": (
+                from_summary(
+                    summary, label="Avalik liikmekataloog (Koda.ee)", cadence=CADENCE_DAILY
+                ),
+                Connection(
+                    label="Sisemine liikmeskonna aruanne",
+                    state=(ConnectionState.CONNECTED if latest else ConnectionState.NOT_CONNECTED),
+                    cadence=CADENCE_MONTHLY,
+                    promise="Ajalugu imporditakse ühekordselt, uued aruanded sisestatakse käsitsi.",
+                ),
+            ),
             # The public directory count, unchanged.
             "summary": summary,
             # The internal board-report history, clearly separate.

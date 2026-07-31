@@ -43,6 +43,32 @@ No individual member is listed anywhere, because neither dataset stores one.
     </div>
   </header>
 
+  {# ---------------- 0. Andmeallikad ---------------- #}
+  {% comment %}
+  The two sources named side by side, each with its update cadence and its
+  current state. This page shows both all the way down, so the distinction is
+  established once here rather than being re-explained beside every figure.
+  {% endcomment %}
+  <section aria-labelledby="section-sources" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Andmeallikad" heading_id="section-sources" description="Kaks eri allikat, mis loendavad eri asju." only %}
+    <ul class="divide-y divide-border">
+      {% for source in sources %}
+        <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 sm:px-5">
+          <div class="min-w-0">
+            <p class="text-sm font-medium text-text">{{ source.label }}</p>
+            {% if source.promise and not source.is_connected %}
+              <p class="dk-meta">{{ source.promise }}</p>
+            {% endif %}
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="dk-meta">Uuendatakse {{ source.cadence }}</span>
+            {% include "dashboard/components/status_badge.html" with label=source.state_label variant=source.state_variant only %}
+          </div>
+        </li>
+      {% endfor %}
+    </ul>
+  </section>
+
   {# ---------------- 1. Public member directory ---------------- #}
   <section aria-labelledby="section-public" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Avalik liikmekataloog" heading_id="section-public" description="Koda.ee avalikus liikmekataloogis avaldatud liikmeprofiilide arv." only %}
