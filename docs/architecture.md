@@ -118,8 +118,16 @@ publication decision stays in its own app.
 
 Exact future app names and models are introduced only by their implementing pull
 requests. No pull request creates placeholder business apps or models. The
-overview and Õigusloome are routed; the five still-planned modules appear in the
-navigation as inert entries marked `Lisamisel` and have no routes.
+overview, Liikmeskond, Õigusloome, Sündmused and Uudised are routed; every
+still-planned module appears in the navigation as an inert entry marked
+`Lisamisel` and has no route. That includes the nested entries — Fookusteemad
+under Õigusloome, and Projektid with its two views — which exist so the sidebar
+states the intended scope without a placeholder app behind any of them.
+
+The overview assembles its view-model in `apps/dashboard/overview.py`, which
+reads each module through that module's own `selectors.py` and decides what the
+board sees. The view renders; the template lays out. Neither holds a business
+rule.
 
 ## Data collection boundary
 
@@ -205,7 +213,7 @@ and the internal board-report history count different things; see
 - `dashboard` app, overview route, responsive shell and reusable components
 - restyled viewer login page
 - one neutral HTMX fragment and its `HX-Redirect` session handling
-- locally bundled ECharts bootstrap that no page renders yet
+- locally bundled ECharts bootstrap, rendered by the Liikmeskond page
 - Playwright browser smoke suite across four viewports in CI
 - `sources` app: `DataSource`, private `SourceArtifact`, `ImportRun` registry
 - private artifact storage outside every served path, with a staff-only,
@@ -226,6 +234,11 @@ and the internal board-report history count different things; see
 - `membership`, `news` and `events` apps reading three public Koda.ee sources,
   with the `sync_koda_public` command and the Liikmeskond, Uudised and Sündmused
   pages
+- board-briefing overview: a four-indicator strip, approaching opinion
+  deadlines, one fixed activity window, module cards for all four connected
+  feeds, and named `Ühendamata` slots for everything that has no source
+- server-rendered SVG sparklines and proportion meters, so the overview draws
+  trends without loading the chart bundle
 - Unraid script templates for 07:00 and 07:05 `Europe/Tallinn` schedules
 
 ## Not implemented yet
@@ -234,8 +247,14 @@ There is no Unraid override, Cloudflare or DNS configuration, backup or restore
 automation, rollback tooling, staging environment, membership domain model,
 chart or demo data in this repository.
 
-Arvamused and Finantsid are still explicit empty states, because no source is
-connected for them.
+Arvamused, Finantsid, Fookusteemad and Projektid are inert navigation entries,
+because no source is connected for any of them.
+
+Nothing collects the communication-channel figures the overview reserves a band
+for — website visits, newsletter recipients, Facebook, LinkedIn and YouTube — nor
+press coverage, the newsletter, or event history once an event has passed. Each
+is rendered as an explicitly unconnected slot, and no model anywhere is capable
+of holding one of those numbers.
 
 The 07:00 schedule is **documented as a template and is not installed**.
 

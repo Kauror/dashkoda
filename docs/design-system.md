@@ -101,7 +101,7 @@ drawer. There are no glows and no decorative gradients.
 | 320–767 px | top bar with hamburger; navigation in an overlay drawer; single column |
 | 768–1023 px | same drawer navigation; two-column card grids |
 | ≥ 1024 px | persistent 17rem sidebar; drawer removed from layout |
-| ≥ 1280 px | four-column KPI grid |
+| ≥ 1280 px | four-column KPI strip; module cards in two columns |
 | ≥ 1536 px | content column capped at `--container-content` (96rem) |
 
 The sidebar is a fixed 17rem so it stays stable while content reflows. The main
@@ -116,28 +116,69 @@ context contract in a leading `{% comment %}` block.
 
 | Component | Purpose |
 | --- | --- |
-| `nav_item` | routed link, active state, or inert `Lisamisel` entry |
+| `nav_item` | routed link, active state, or inert `Lisamisel` entry, with optional nested children |
 | `section_header` | section title, description and optional badge |
 | `kpi_card` | one indicator, with a full provenance footer |
-| `freshness_row` | source, as-of date and freshness badge |
+| `freshness_row` | source, update cadence, as-of date and freshness badge |
 | `status_badge` | status expressed as text inside a coloured chip |
 | `empty_state` | truthful "there is nothing here yet" |
+| `planned_module` | truthful "nothing collects this at all" |
 | `error_state` | announced failure, no technical detail |
 | `list_row` | compact row, link only when a destination exists |
 | `table_wrapper` | scroll container, column spec, empty fallback |
 | `skeleton` | genuine loading only, never missing data |
 | `callout` | one short note with a thin accent edge |
-| `chart_figure` | one chart, plus the text summary and data table that always accompany it |
+| `chart_figure` | one ECharts chart, plus the text summary and data table that always accompany it |
+| `sparkline_figure` | one server-drawn miniature trend, with the same alternatives |
 
-`kpi_card` already accepts the full future API — `label`, `value`, `unit`,
-`change`, `change_direction`, `comparison_period`, `status`, `status_label`,
-`source`, `as_of`, `freshness`, `freshness_label` — so the first real data module
-does not have to change the component. In PR-04 it is rendered only in its empty
+`kpi_card` accepts `label`, `value`, `unit`, `change`, `change_direction`,
+`comparison_period`, `secondary`, `meter_pct`, `status`, `status_label`,
+`source`, `cadence`, `as_of`, `freshness`, `freshness_label`, `empty_message` and
+`flush`. Its presence test is `is not None` rather than truthiness, so a reported
+zero renders as the measurement it is instead of falling through to the empty
 state.
 
+### Empty is not the same as unconnected
+
+Two components look similar and mean different things, and keeping them apart is
+what makes the numbers on the page trustworthy:
+
+- `empty_state` — this module has a source, and it currently has nothing to show;
+- `planned_module` — nothing collects this figure at all. It shows the intended
+  slot, an `Ühendamata` or `Lisamisel` badge and one line naming what the source
+  would be. It never shows a placeholder number and never a date by which the
+  source will exist.
+
+`apps/dashboard/connections.py` holds the vocabulary — `Ühendatud`,
+`Vananenud`, `Ühendamata`, `Lisamisel` — and derives a wired feed's state from
+that module's own summary rather than restating the rule.
+
+### Provenance travels with the figure
+
+`freshness_row` carries the source **and its update cadence**. A figure recounted
+every day and one reported once a month are different kinds of claim, and the
+overview shows both at once, so the cadence is part of the provenance rather
+than decoration.
+
+### Proportions and trends are SVG geometry
+
+The Content Security Policy is `style-src 'self'` and
+`tests/dashboard/test_overview.py` asserts that no `style="` reaches the page, so
+a bar length or a line position may never be an inline width. Both are drawn as
+SVG **attributes** — `<rect width="78">`, `<polyline points="…">` — with colour
+supplied by Tailwind `fill-*` and `stroke-*` classes. Coordinates are computed
+server-side in `apps/dashboard/sparkline.py`.
+
+`sparkline_figure` exists so the overview does not have to load the ECharts
+bundle to draw a card-sized line. It keeps `chart_figure`'s contract: the text
+summary and the data table stay in the document for every reader and are not a
+fallback. A series with fewer than two points is not a trend and is not drawn.
+
 Components are covered by `tests/dashboard/test_components.py` using clearly
-synthetic values. The dashboard page itself renders none of them, which
-`tests/dashboard/test_overview.py` asserts by scanning the page for digits.
+synthetic values. `tests/dashboard/test_overview.py` asserts that with nothing
+connected the page renders no business digits at all, and
+`tests/dashboard/test_overview_data.py` asserts that once sources are connected
+each figure is the one its source published.
 
 `chart_figure` takes a payload built on the server and renders three things
 together: the canvas, a text summary, and the same values as a table. The summary
@@ -156,7 +197,15 @@ script or a relaxed Content Security Policy.
 - A chart with no data is not rendered at all; an empty axis is not an empty
   state.
 - Colour is never the only signal. Status badges carry text, KPI changes carry
-  an arrow glyph, the active navigation item carries `aria-current`.
+  an arrow glyph, deadline urgency carries the number of days remaining, and the
+  active navigation item carries `aria-current`.
+- A comparison states its own baseline. The overview's activity strip uses one
+  fixed window so every count in it describes the same period; the member delta,
+  whose baseline is the previous reading rather than a period, is shown with its
+  own date beside the figure instead of being mixed into that strip.
+- A Tailwind class is never assembled at render time. Utilities are generated by
+  scanning these templates, so a class name built from a variable simply would
+  not exist in the stylesheet.
 - Restraint over decoration: borders and spacing carry the hierarchy.
 - Compact but not cramped: 11px metadata, 14px body, 44px minimum control height.
 

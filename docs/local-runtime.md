@@ -84,9 +84,12 @@ The root route, `/admin/` and `/dashboard/varskus/` redirect to `/sisene/` until
 the viewer PIN is accepted. Django admin then presents its own standard login.
 Logout is available only as a CSRF-protected `POST /logi-valja/`.
 
-After signing in, the root route renders the dashboard shell. Every section is
-an explicit empty state: no data source is connected yet, so there is nothing
-truthful to display.
+After signing in, the root route renders the board overview. On a fresh database
+every figure on it is an explicit empty state, because nothing has been
+collected yet and there is nothing truthful to display. Run `sync_koda_public`
+and one of the legal-work synchronisation commands to populate it; the parts
+with no source at all — the communication-channel figures, press coverage, the
+newsletter — stay marked `Ühendamata` whatever you run.
 
 ## Rate-limit maintenance
 
