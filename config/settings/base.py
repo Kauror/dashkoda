@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "apps.membership.apps.MembershipConfig",
     "apps.news.apps.NewsConfig",
     "apps.events.apps.EventsConfig",
+    "apps.visibility.apps.VisibilityConfig",
 ]
 
 MIDDLEWARE = [
@@ -203,3 +204,18 @@ KODA_SUMMARY_MAX_LENGTH = 400
 # A publication timestamp beyond this much clock skew is not a real publication
 # date, so the item is refused rather than allowed to pin itself to the top.
 KODA_NEWS_MAX_FUTURE_DAYS = 2
+
+# Google Analytics 4.
+#
+# **Not connected.** No request is made, no Google SDK is installed and no
+# credential exists. These two settings are declared now so the shape of the
+# future configuration is reviewable and so ordinary startup provably does not
+# depend on them: both default to empty, the application starts and every page
+# renders without either, and the test suite sets neither.
+#
+# `GA4_CREDENTIALS_FILE` will point at a read-only service-account key mounted
+# into the deployment. That file is a credential: it belongs in the server
+# environment only and must never reach Git, PostgreSQL, a log line, an audit
+# summary or the interface. See `apps/visibility/ga4.py`.
+GA4_PROPERTY_ID = os.environ.get("GA4_PROPERTY_ID", "")
+GA4_CREDENTIALS_FILE = os.environ.get("GA4_CREDENTIALS_FILE", "")

@@ -103,6 +103,21 @@ class AuditAction(models.TextChoices):
         "events.sync_failed",
         "Sündmuste sünkroonimine ebaõnnestus",
     )
+    # Manually observed audience sizes. A batch event describes one submission;
+    # the per-observation events describe what that submission did to each
+    # metric, which is what makes a correction auditable on its own.
+    VISIBILITY_MANUAL_BATCH_PUBLISHED = (
+        "visibility.manual_batch_published",
+        "Nähtavuse näitajad käsitsi sisestatud",
+    )
+    VISIBILITY_OBSERVATION_PUBLISHED = (
+        "visibility.observation_published",
+        "Nähtavuse vaatlus avaldatud",
+    )
+    VISIBILITY_OBSERVATION_SUPERSEDED = (
+        "visibility.observation_superseded",
+        "Nähtavuse vaatlus asendatud",
+    )
 
 
 class AuditEventQuerySet(models.QuerySet):
