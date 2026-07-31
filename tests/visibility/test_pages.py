@@ -70,16 +70,16 @@ def test_no_channel_shows_a_zero_when_it_has_no_data(viewer_client):
 
 
 def test_a_published_value_replaces_the_empty_slot(submit, viewer_client, today):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     page = body(viewer_client.get(reverse("home")))
 
-    assert "12230" in page
+    assert "4200" in page
     assert today.strftime("%d.%m.%Y") in page
 
 
 def test_a_published_value_is_labelled_as_manually_collected(submit, viewer_client):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     page = body(viewer_client.get(reverse("home")))
 
@@ -99,11 +99,11 @@ def channel_band(response) -> str:
 
 
 def test_no_card_claims_an_automatic_feed(submit, viewer_client):
-    submit(facebook_followers=12230, linkedin_followers=3999)
+    submit(facebook_followers=4200, linkedin_followers=2500)
 
     band = channel_band(viewer_client.get(reverse("home"))).lower()
 
-    assert "12230" in band, "the band is expected to contain the published figure"
+    assert "4200" in band, "the band is expected to contain the published figure"
     assert "sünkroon" not in band
     assert "api-ga ühendatud" not in band
     assert "automaatselt uuendatud" not in band
@@ -113,20 +113,20 @@ def test_no_card_claims_an_automatic_feed(submit, viewer_client):
 def test_a_stale_reading_is_marked_on_the_band(submit, viewer_client, days_ago):
     from apps.visibility.registry import SOCIAL_STALE_AFTER_DAYS
 
-    submit(observation_date=days_ago(SOCIAL_STALE_AFTER_DAYS + 1), facebook_followers=12230)
+    submit(observation_date=days_ago(SOCIAL_STALE_AFTER_DAYS + 1), facebook_followers=4200)
 
     page = body(viewer_client.get(reverse("home")))
 
     assert "Vajab uuendamist" in page
-    assert "12230" in page, "a stale figure is still the last thing anybody counted"
+    assert "4200" in page, "a stale figure is still the last thing anybody counted"
 
 
 def test_each_social_card_links_to_the_correct_public_page(submit, viewer_client):
     submit(
-        facebook_followers=12230,
-        linkedin_followers=3999,
-        instagram_followers=1046,
-        youtube_subscribers=109,
+        facebook_followers=4200,
+        linkedin_followers=2500,
+        instagram_followers=700,
+        youtube_subscribers=60,
     )
 
     page = body(viewer_client.get(reverse("home")))
@@ -140,7 +140,7 @@ def test_each_social_card_links_to_the_correct_public_page(submit, viewer_client
 
 
 def test_an_outbound_link_says_it_leaves_dashkoda(submit, viewer_client):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     page = body(viewer_client.get(reverse("home")))
 
@@ -175,7 +175,7 @@ def test_the_website_slot_stays_planned_and_links_nowhere(viewer_client):
 
 
 def test_the_website_slot_shows_no_value_even_when_other_channels_do(submit, viewer_client):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     page = body(viewer_client.get(reverse("home")))
     band = page[page.index("Kodulehe külastused") : page.index("Uudiskirja saajad")]
@@ -242,15 +242,15 @@ def test_the_navigation_offers_nahtavus(viewer_client):
 
 def test_the_page_shows_the_latest_value_for_each_channel(submit, viewer_client, today):
     submit(
-        facebook_followers=12230,
-        linkedin_followers=3999,
-        instagram_followers=1046,
-        youtube_subscribers=109,
+        facebook_followers=4200,
+        linkedin_followers=2500,
+        instagram_followers=700,
+        youtube_subscribers=60,
     )
 
     page = body(viewer_client.get(PAGE_URL))
 
-    for value in ("12230", "3999", "1046", "109"):
+    for value in ("4200", "2500", "700", "60"):
         assert value in page
     assert today.strftime("%d.%m.%Y") in page
 
@@ -270,19 +270,19 @@ def test_the_page_states_each_social_definition(viewer_client):
 
 
 def test_the_page_lists_every_observation_including_superseded_ones(submit, viewer_client, today):
-    submit(facebook_followers=12230)
-    submit(facebook_followers=12320)
+    submit(facebook_followers=4200)
+    submit(facebook_followers=4250)
 
     page = body(viewer_client.get(PAGE_URL))
 
     assert "Vaatluste ajalugu" in page
-    assert "12230" in page
-    assert "12320" in page
+    assert "4200" in page
+    assert "4250" in page
     assert "Asendatud" in page
 
 
 def test_a_trend_needs_at_least_two_observations(submit, viewer_client, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=12000)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
 
     page = body(viewer_client.get(PAGE_URL))
 
@@ -293,8 +293,8 @@ def test_a_trend_needs_at_least_two_observations(submit, viewer_client, days_ago
 def test_two_observations_draw_a_sparkline_with_an_accessible_table(
     submit, viewer_client, today, days_ago
 ):
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
 
     page = body(viewer_client.get(PAGE_URL))
 
@@ -306,8 +306,8 @@ def test_two_observations_draw_a_sparkline_with_an_accessible_table(
 
 def test_the_page_loads_no_chart_bundle(submit, viewer_client, today, days_ago):
     """Four small follower histories do not justify a megabyte of ECharts."""
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
 
     page = body(viewer_client.get(PAGE_URL))
 
@@ -315,7 +315,7 @@ def test_the_page_loads_no_chart_bundle(submit, viewer_client, today, days_ago):
 
 
 def test_the_page_carries_no_inline_style_and_no_external_asset(submit, viewer_client):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     page = body(viewer_client.get(PAGE_URL))
 
@@ -334,7 +334,7 @@ def test_the_page_carries_no_inline_style_and_no_external_asset(submit, viewer_c
 
 
 def test_an_ordinary_viewer_sees_no_editing_control(submit, viewer_client):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     page = body(viewer_client.get(PAGE_URL))
 
@@ -343,7 +343,7 @@ def test_an_ordinary_viewer_sees_no_editing_control(submit, viewer_client):
 
 
 def test_a_staff_user_sees_the_add_action(submit, staff_client):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     page = body(staff_client.get(PAGE_URL))
 
@@ -353,7 +353,7 @@ def test_a_staff_user_sees_the_add_action(submit, staff_client):
 
 def test_the_page_does_not_name_who_entered_a_figure(submit, viewer_client, staff_user):
     """Who typed it is a staff detail and belongs in the admin history."""
-    submit(facebook_followers=12230, actor=staff_user)
+    submit(facebook_followers=4200, actor=staff_user)
 
     page = body(viewer_client.get(PAGE_URL))
 

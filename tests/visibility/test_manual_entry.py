@@ -84,12 +84,12 @@ def test_the_form_shows_the_fixed_public_profile_links(staff_client):
 
 
 def test_the_form_shows_the_latest_stored_value_beside_each_input(submit, staff_client, today):
-    submit(facebook_followers=12000)
+    submit(facebook_followers=4100)
 
     body = staff_client.get(NEW_URL).content.decode()
 
     assert "Viimane salvestatud väärtus:" in body
-    assert "12000" in body
+    assert "4100" in body
     assert today.strftime("%d.%m.%Y") in body
     # The stored reading names how it was collected, so the person entering the
     # next one can see it was typed rather than fetched.
@@ -126,7 +126,7 @@ def test_no_google_analytics_field_appears_in_the_form(staff_client):
 
 
 def test_preview_saves_nothing(staff_client):
-    response = staff_client.post(NEW_URL, preview(form_data(facebook_followers=12000)))
+    response = staff_client.post(NEW_URL, preview(form_data(facebook_followers=4100)))
 
     assert response.status_code == 200
     assert VisibilityEntryBatch.objects.count() == 0
@@ -137,7 +137,7 @@ def test_preview_saves_nothing(staff_client):
 
 def test_a_stray_submit_previews_rather_than_publishing(staff_client):
     """No `action` at all must never publish."""
-    response = staff_client.post(NEW_URL, form_data(facebook_followers=12000))
+    response = staff_client.post(NEW_URL, form_data(facebook_followers=4100))
 
     assert response.status_code == 200
     assert VisibilityObservation.objects.count() == 0
@@ -159,18 +159,18 @@ def test_preview_shows_the_derived_unique_newsletter_audience(staff_client):
 
 
 def test_preview_shows_the_change_against_the_previous_observation(submit, staff_client, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=12000)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
 
-    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=12230))).content.decode()
+    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=4400))).content.decode()
 
-    assert "230" in body
+    assert "300" in body
     assert days_ago(30).strftime("%d.%m.%Y") in body
 
 
 def test_preview_warns_about_a_same_date_correction(submit, staff_client):
-    submit(facebook_followers=12000)
+    submit(facebook_followers=4100)
 
-    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=12230))).content.decode()
+    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=4200))).content.decode()
 
     assert "asendatakse" in body
 
@@ -186,10 +186,10 @@ def test_confirmation_publishes_every_supplied_metric(staff_client, today):
                 newsletter_member_recipients=1200,
                 newsletter_nonmember_recipients=800,
                 newsletter_overlap_recipients=150,
-                facebook_followers=12230,
-                linkedin_followers=3999,
-                instagram_followers=1046,
-                youtube_subscribers=109,
+                facebook_followers=4200,
+                linkedin_followers=2500,
+                instagram_followers=700,
+                youtube_subscribers=60,
             )
         ),
     )
@@ -203,15 +203,15 @@ def test_confirmation_publishes_every_supplied_metric(staff_client, today):
 
 
 def test_publication_redirects_rather_than_re_rendering(staff_client):
-    response = staff_client.post(NEW_URL, confirm(form_data(facebook_followers=12230)))
+    response = staff_client.post(NEW_URL, confirm(form_data(facebook_followers=4200)))
 
     assert response.status_code == 302
     assert response["Location"].startswith("/admin/data-entry/visibility/")
 
 
 def test_a_double_submit_returns_the_same_batch(staff_client):
-    first = staff_client.post(NEW_URL, confirm(form_data(facebook_followers=12230)))
-    second = staff_client.post(NEW_URL, confirm(form_data(facebook_followers=12230)))
+    first = staff_client.post(NEW_URL, confirm(form_data(facebook_followers=4200)))
+    second = staff_client.post(NEW_URL, confirm(form_data(facebook_followers=4200)))
 
     assert VisibilityEntryBatch.objects.count() == 1
     assert VisibilityObservation.objects.count() == 1
@@ -220,7 +220,7 @@ def test_a_double_submit_returns_the_same_batch(staff_client):
 
 def test_a_partial_submission_is_accepted(staff_client):
     """Nobody has every figure to hand on every day."""
-    staff_client.post(NEW_URL, confirm(form_data(instagram_followers=1046)))
+    staff_client.post(NEW_URL, confirm(form_data(instagram_followers=700)))
 
     assert VisibilityObservation.objects.count() == 1
     assert VisibilityObservation.objects.get().metric == VisibilityMetric.INSTAGRAM_FOLLOWERS
@@ -238,8 +238,8 @@ def test_each_contributing_source_gets_its_own_artifact_and_import_run(staff_cli
             form_data(
                 newsletter_member_recipients=1200,
                 newsletter_nonmember_recipients=800,
-                facebook_followers=12230,
-                linkedin_followers=3999,
+                facebook_followers=4200,
+                linkedin_followers=2500,
             )
         ),
     )
@@ -250,7 +250,7 @@ def test_each_contributing_source_gets_its_own_artifact_and_import_run(staff_cli
 
 
 def test_no_profile_url_is_stored_as_an_artifact_reference(staff_client):
-    staff_client.post(NEW_URL, confirm(form_data(facebook_followers=12230)))
+    staff_client.post(NEW_URL, confirm(form_data(facebook_followers=4200)))
 
     reference = SourceArtifact.objects.get().external_reference
     assert reference.startswith("manual:facebook-followers:")
@@ -259,9 +259,7 @@ def test_no_profile_url_is_stored_as_an_artifact_reference(staff_client):
 
 
 def test_one_correlation_id_threads_a_whole_submission(staff_client):
-    staff_client.post(
-        NEW_URL, confirm(form_data(facebook_followers=12230, linkedin_followers=3999))
-    )
+    staff_client.post(NEW_URL, confirm(form_data(facebook_followers=4200, linkedin_followers=2500)))
 
     batch = VisibilityEntryBatch.objects.get()
     assert {run.correlation_id for run in ImportRun.objects.all()} == {batch.correlation_id}
@@ -281,7 +279,7 @@ def test_at_least_one_metric_is_required(staff_client):
 def test_a_future_observation_date_is_refused(staff_client, today):
     response = staff_client.post(
         NEW_URL,
-        confirm(form_data(observation_date=today + timedelta(days=1), facebook_followers=12230)),
+        confirm(form_data(observation_date=today + timedelta(days=1), facebook_followers=4200)),
     )
 
     assert response.status_code == 200
@@ -304,22 +302,22 @@ def test_invalid_text_is_not_silently_coerced(staff_client):
 
 
 def test_a_thousands_separator_written_with_a_space_is_accepted(staff_client):
-    staff_client.post(NEW_URL, confirm(form_data(facebook_followers="12 230")))
+    staff_client.post(NEW_URL, confirm(form_data(facebook_followers="4 200")))
 
-    assert VisibilityObservation.objects.get().value == 12230
+    assert VisibilityObservation.objects.get().value == 4200
 
 
 def test_a_comma_separator_stays_invalid(staff_client):
     """A comma could be a decimal mark somewhere, and guessing would be worse
     than refusing."""
-    response = staff_client.post(NEW_URL, confirm(form_data(facebook_followers="12,230")))
+    response = staff_client.post(NEW_URL, confirm(form_data(facebook_followers="4,200")))
 
     assert response.status_code == 200
     assert VisibilityEntryBatch.objects.count() == 0
 
 
 def test_a_blank_field_is_not_stored_as_zero(staff_client):
-    staff_client.post(NEW_URL, confirm(form_data(facebook_followers=12230, instagram_followers="")))
+    staff_client.post(NEW_URL, confirm(form_data(facebook_followers=4200, instagram_followers="")))
 
     assert VisibilityObservation.objects.count() == 1
     assert not VisibilityObservation.objects.filter(
@@ -343,7 +341,7 @@ def test_one_invalid_metric_rolls_back_the_whole_batch(staff_client):
                 newsletter_member_recipients=100,
                 newsletter_nonmember_recipients=900,
                 newsletter_overlap_recipients=500,
-                facebook_followers=12230,
+                facebook_followers=4200,
             )
         ),
     )
@@ -356,7 +354,7 @@ def test_one_invalid_metric_rolls_back_the_whole_batch(staff_client):
 
 def test_a_note_is_bounded_and_stored_on_the_batch(staff_client):
     staff_client.post(
-        NEW_URL, confirm(form_data(facebook_followers=12230, note="Loetud lehe statistikast."))
+        NEW_URL, confirm(form_data(facebook_followers=4200, note="Loetud lehe statistikast."))
     )
 
     assert VisibilityEntryBatch.objects.get().note == "Loetud lehe statistikast."
@@ -364,7 +362,7 @@ def test_a_note_is_bounded_and_stored_on_the_batch(staff_client):
 
 def test_an_over_long_note_is_refused(staff_client):
     response = staff_client.post(
-        NEW_URL, confirm(form_data(facebook_followers=12230, note="x" * 501))
+        NEW_URL, confirm(form_data(facebook_followers=4200, note="x" * 501))
     )
 
     assert response.status_code == 200
@@ -375,10 +373,10 @@ def test_an_over_long_note_is_refused(staff_client):
 
 
 def test_a_large_movement_warns_without_blocking(submit, staff_client, days_ago):
-    """Both thresholds are exceeded: 12 000 → 3 000 is −75% and −9 000."""
-    submit(observation_date=days_ago(30), facebook_followers=12000)
+    """Both thresholds are exceeded: 4 100 → 1 000 is −76 % and −3 100."""
+    submit(observation_date=days_ago(30), facebook_followers=4100)
 
-    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=3000))).content.decode()
+    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=1000))).content.decode()
 
     assert "ebatavaliselt suur" in body
     assert "sisestuskontroll" in body
@@ -387,27 +385,27 @@ def test_a_large_movement_warns_without_blocking(submit, staff_client, days_ago)
 
 
 def test_an_ordinary_movement_does_not_warn(submit, staff_client, days_ago):
-    """+230 on 12 000 is under the proportional threshold."""
-    submit(observation_date=days_ago(30), facebook_followers=12000)
+    """+300 clears the absolute floor but is only +7 % — one threshold, not both."""
+    submit(observation_date=days_ago(30), facebook_followers=4100)
 
-    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=12230))).content.decode()
+    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=4400))).content.decode()
 
     assert "ebatavaliselt suur" not in body
 
 
 def test_a_large_proportional_move_on_a_small_channel_does_not_warn(submit, staff_client, days_ago):
-    """109 → 150 is +38% but only +41, so the absolute floor stops it."""
-    submit(observation_date=days_ago(30), youtube_subscribers=109)
+    """60 → 90 is +50 % but only +30, so the absolute floor stops it."""
+    submit(observation_date=days_ago(30), youtube_subscribers=60)
 
-    body = staff_client.post(NEW_URL, preview(form_data(youtube_subscribers=150))).content.decode()
+    body = staff_client.post(NEW_URL, preview(form_data(youtube_subscribers=90))).content.decode()
 
     assert "ebatavaliselt suur" not in body
 
 
 def test_a_decrease_is_pointed_out_on_its_own(submit, staff_client, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=12230)
+    submit(observation_date=days_ago(30), facebook_followers=4200)
 
-    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=12200))).content.decode()
+    body = staff_client.post(NEW_URL, preview(form_data(facebook_followers=4180))).content.decode()
 
     assert "väiksem kui seisuga" in body
 
@@ -416,40 +414,40 @@ def test_a_decrease_is_pointed_out_on_its_own(submit, staff_client, days_ago):
 
 
 def test_the_correction_form_prefills_from_the_batch(submit, staff_client):
-    batch = submit(facebook_followers=12230, instagram_followers=1046)
+    batch = submit(facebook_followers=4200, instagram_followers=700)
 
     body = staff_client.get(f"/admin/data-entry/visibility/{batch.pk}/correct/").content.decode()
 
-    assert 'value="12230"' in body
-    assert 'value="1046"' in body
+    assert 'value="4200"' in body
+    assert 'value="700"' in body
     assert "Paranda kanalite näitajaid" in body
 
 
 def test_a_correction_publishes_a_revision_and_retires_the_original(submit, staff_client, today):
-    batch = submit(facebook_followers=12230)
+    batch = submit(facebook_followers=4200)
 
     staff_client.post(
         f"/admin/data-entry/visibility/{batch.pk}/correct/",
-        confirm(form_data(facebook_followers=12320)),
+        confirm(form_data(facebook_followers=4250)),
     )
 
     rows = VisibilityObservation.objects.filter(
         metric=VisibilityMetric.FACEBOOK_FOLLOWERS, observation_date=today
     ).order_by("id")
     original, correction = rows
-    assert original.value == 12230
+    assert original.value == 4200
     assert original.is_current_for_date is False
-    assert correction.value == 12320
+    assert correction.value == 4250
     assert correction.is_current_for_date is True
     assert correction.supersedes_id == original.pk
 
 
 def test_an_unchanged_resubmission_of_the_same_date_changes_nothing(submit, staff_client):
-    batch = submit(facebook_followers=12230)
+    batch = submit(facebook_followers=4200)
 
     staff_client.post(
         f"/admin/data-entry/visibility/{batch.pk}/correct/",
-        confirm(form_data(facebook_followers=12230)),
+        confirm(form_data(facebook_followers=4200)),
     )
 
     assert VisibilityEntryBatch.objects.count() == 1
@@ -457,16 +455,16 @@ def test_an_unchanged_resubmission_of_the_same_date_changes_nothing(submit, staf
 
 
 def test_a_later_date_preserves_the_earlier_reading(submit, staff_client, today, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=12000)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
 
-    staff_client.post(NEW_URL, confirm(form_data(facebook_followers=12230)))
+    staff_client.post(NEW_URL, confirm(form_data(facebook_followers=4200)))
 
     rows = VisibilityObservation.objects.filter(
         metric=VisibilityMetric.FACEBOOK_FOLLOWERS
     ).order_by("observation_date")
     assert [(row.observation_date, row.value, row.is_current_for_date) for row in rows] == [
-        (days_ago(30), 12000, True),
-        (today, 12230, True),
+        (days_ago(30), 4100, True),
+        (today, 4200, True),
     ]
 
 
@@ -474,11 +472,11 @@ def test_a_later_date_preserves_the_earlier_reading(submit, staff_client, today,
 
 
 def test_the_detail_page_shows_exactly_what_was_published(submit, staff_client):
-    batch = submit(facebook_followers=12230, note="Sünteetiline märkus.")
+    batch = submit(facebook_followers=4200, note="Sünteetiline märkus.")
 
     body = staff_client.get(f"/admin/data-entry/visibility/{batch.pk}/").content.decode()
 
-    assert "12230" in body
+    assert "4200" in body
     assert "Sünteetiline märkus." in body
     assert batch.content_hash in body
 
@@ -486,7 +484,7 @@ def test_the_detail_page_shows_exactly_what_was_published(submit, staff_client):
 def test_the_detail_page_offers_no_way_to_edit_the_record(submit, staff_client):
     """The admin chrome has its own logout form, so the check is specific:
     nothing on this page posts to a data-entry route."""
-    batch = submit(facebook_followers=12230)
+    batch = submit(facebook_followers=4200)
 
     body = staff_client.get(f"/admin/data-entry/visibility/{batch.pk}/").content.decode()
 
@@ -495,7 +493,7 @@ def test_the_detail_page_offers_no_way_to_edit_the_record(submit, staff_client):
 
 
 def test_the_detail_page_rejects_a_post(submit, staff_client):
-    batch = submit(facebook_followers=12230)
+    batch = submit(facebook_followers=4200)
 
     response = staff_client.post(f"/admin/data-entry/visibility/{batch.pk}/", {})
 
@@ -503,8 +501,8 @@ def test_the_detail_page_rejects_a_post(submit, staff_client):
 
 
 def test_the_history_lists_submissions_newest_first(submit, staff_client, today, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
 
     body = staff_client.get("/admin/data-entry/visibility/").content.decode()
 

@@ -29,41 +29,41 @@ FACEBOOK = VisibilityMetric.FACEBOOK_FOLLOWERS
 
 
 def test_the_latest_observation_is_the_newest_dated_one(submit, today, days_ago):
-    submit(observation_date=days_ago(60), facebook_followers=11000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(60), facebook_followers=3900)
+    submit(observation_date=today, facebook_followers=4200)
 
     latest = get_latest_visibility_observation(FACEBOOK)
-    assert latest.value == 12230
+    assert latest.value == 4200
     assert latest.observation_date == today
 
 
 def test_the_previous_observation_is_the_one_before_the_latest(submit, today, days_ago):
-    submit(observation_date=days_ago(60), facebook_followers=11000)
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(60), facebook_followers=3900)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
 
     previous = get_previous_visibility_observation(FACEBOOK)
-    assert previous.value == 12000
+    assert previous.value == 4100
     assert previous.observation_date == days_ago(30)
 
 
 def test_a_superseded_row_is_never_the_latest(submit, today):
-    submit(observation_date=today, facebook_followers=12230)
-    submit(observation_date=today, facebook_followers=12320)
+    submit(observation_date=today, facebook_followers=4200)
+    submit(observation_date=today, facebook_followers=4250)
 
-    assert get_latest_visibility_observation(FACEBOOK).value == 12320
+    assert get_latest_visibility_observation(FACEBOOK).value == 4250
 
 
 def test_a_superseded_row_is_excluded_from_the_series(submit, today, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
-    submit(observation_date=today, facebook_followers=12320)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
+    submit(observation_date=today, facebook_followers=4250)
 
-    assert get_visibility_series(FACEBOOK) == ((days_ago(30), 12000), (today, 12320))
+    assert get_visibility_series(FACEBOOK) == ((days_ago(30), 4100), (today, 4250))
 
 
 def test_an_absent_metric_returns_none_rather_than_zero(submit):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     assert get_latest_visibility_observation(VisibilityMetric.INSTAGRAM_FOLLOWERS) is None
     summary = get_visibility_summary()
@@ -84,47 +84,47 @@ def test_a_stored_zero_is_returned_as_zero(submit):
 
 
 def test_history_is_returned_oldest_first(submit, today, days_ago):
-    submit(observation_date=days_ago(60), facebook_followers=11000)
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(60), facebook_followers=3900)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
 
     values = [row.value for row in get_visibility_history(FACEBOOK)]
-    assert values == [11000, 12000, 12230]
+    assert values == [3900, 4100, 4200]
 
 
 def test_a_limited_history_keeps_the_most_recent_points(submit, today, days_ago):
-    submit(observation_date=days_ago(60), facebook_followers=11000)
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(60), facebook_followers=3900)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
 
     values = [row.value for row in get_visibility_history(FACEBOOK, limit=2)]
-    assert values == [12000, 12230]
+    assert values == [4100, 4200]
 
 
 def test_history_can_be_bounded_by_date(submit, today, days_ago):
-    submit(observation_date=days_ago(60), facebook_followers=11000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(60), facebook_followers=3900)
+    submit(observation_date=today, facebook_followers=4200)
 
     values = [row.value for row in get_visibility_history(FACEBOOK, date_from=days_ago(30))]
-    assert values == [12230]
+    assert values == [4200]
 
 
 # -- change -------------------------------------------------------------
 
 
 def test_change_is_measured_against_the_actual_previous_observation(submit, today, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
 
     reading = get_visibility_summary().reading(FACEBOOK)
-    assert reading.change == 230
+    assert reading.change == 100
     assert reading.change_direction == "up"
     assert reading.previous_date == days_ago(30)
     assert days_ago(30).strftime("%d.%m.%Y") in reading.comparison_period
 
 
 def test_a_first_observation_has_no_change_at_all(submit):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     reading = get_visibility_summary().reading(FACEBOOK)
     assert reading.change is None
@@ -146,7 +146,7 @@ def test_a_percentage_change_is_not_computed_from_a_zero_baseline(submit, today,
 
 
 def test_a_recent_social_reading_is_not_stale(submit, days_ago):
-    submit(observation_date=days_ago(SOCIAL_STALE_AFTER_DAYS - 1), facebook_followers=12230)
+    submit(observation_date=days_ago(SOCIAL_STALE_AFTER_DAYS - 1), facebook_followers=4200)
 
     reading = get_visibility_summary().reading(FACEBOOK)
     assert reading.is_stale is False
@@ -155,14 +155,14 @@ def test_a_recent_social_reading_is_not_stale(submit, days_ago):
 
 
 def test_an_old_social_reading_is_marked_stale_but_still_shown(submit, days_ago):
-    submit(observation_date=days_ago(SOCIAL_STALE_AFTER_DAYS + 1), facebook_followers=12230)
+    submit(observation_date=days_ago(SOCIAL_STALE_AFTER_DAYS + 1), facebook_followers=4200)
 
     reading = get_visibility_summary().reading(FACEBOOK)
     assert reading.is_stale is True
     assert reading.state is ReadingState.STALE
     assert reading.state_label == "Vajab uuendamist"
     # Stale labels a figure; it never hides one.
-    assert reading.value == 12230
+    assert reading.value == 4200
 
 
 def test_the_newsletter_threshold_is_longer_than_the_social_one(submit, days_ago):
@@ -188,7 +188,7 @@ def test_a_newsletter_reading_past_its_own_threshold_is_stale(submit, days_ago):
 
 
 def test_a_metric_with_no_reading_is_never_stale(submit):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     reading = get_visibility_summary().reading(VisibilityMetric.INSTAGRAM_FOLLOWERS)
     assert reading.is_stale is False
@@ -208,7 +208,7 @@ def test_the_thresholds_come_from_the_registry():
 
 
 def test_a_reading_carries_its_source_date_and_collection_method(submit, today):
-    submit(facebook_followers=12230)
+    submit(facebook_followers=4200)
 
     reading = get_visibility_summary().reading(FACEBOOK)
     assert reading.source_label == "Facebooki jälgijad"
@@ -218,7 +218,7 @@ def test_a_reading_carries_its_source_date_and_collection_method(submit, today):
 
 
 def test_a_reading_carries_its_fixed_public_profile_link(submit):
-    submit(linkedin_followers=3999)
+    submit(linkedin_followers=2500)
 
     reading = get_visibility_summary().reading(VisibilityMetric.LINKEDIN_FOLLOWERS)
     assert reading.profile_url == "https://www.linkedin.com/company/ecci/"
@@ -228,9 +228,9 @@ def test_a_reading_carries_its_fixed_public_profile_link(submit):
 
 
 def test_entry_history_is_newest_first_and_counts_corrections(submit, today, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=12000)
-    submit(observation_date=today, facebook_followers=12230)
-    submit(observation_date=today, facebook_followers=12320)
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
+    submit(observation_date=today, facebook_followers=4250)
 
     rows = get_visibility_entry_history()
     assert [row.observation_date for row in rows] == [today, today, days_ago(30)]
