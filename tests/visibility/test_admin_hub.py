@@ -105,10 +105,18 @@ def test_the_admin_index_still_shows_djangos_own_app_list(staff_client):
 
 
 def test_the_hub_does_not_duplicate_the_model_app_list(staff_client):
-    body = staff_client.get(HUB_URL).content.decode()
+    """The hub's own content lists workflows, not models.
 
-    assert "Auditisündmused" not in body
-    assert "Algfailid" not in body
+    Scoped to the hub's content region: Django's admin chrome renders its
+    standard navigation sidebar on every admin page, including this one, and
+    that sidebar is not something the hub introduced or should suppress.
+    """
+    body = staff_client.get(HUB_URL).content.decode()
+    own_content = body[body.index("<h1>Andmete sisestamine</h1>") :]
+
+    assert 'class="app-' not in own_content, "the hub must not restate the app list"
+    assert "Auditisündmused" not in own_content
+    assert "Algfailid" not in own_content
 
 
 # -- no second authentication system ------------------------------------

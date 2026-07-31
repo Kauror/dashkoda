@@ -49,6 +49,10 @@ def lock_current(metric: str, observation_date: date) -> VisibilityObservation |
     `supersedes` is immutable and must be set on the first save. Taking the lock
     here is what stops two staff users confirming the same date from both
     believing they are the correction.
+
+    Deliberately without `select_related`: `FOR UPDATE` locks every table in the
+    join, so pulling the source in would lock `DataSource` rows that this has no
+    reason to hold — and that every concurrent submission also wants.
     """
     return (
         VisibilityObservation.objects.select_for_update()
@@ -57,7 +61,6 @@ def lock_current(metric: str, observation_date: date) -> VisibilityObservation |
             observation_date=observation_date,
             is_current_for_date=True,
         )
-        .select_related("source")
         .first()
     )
 

@@ -54,7 +54,14 @@ accessible new-tab pattern.
 
   {% if slot.is_planned %}
     {% if slot.promise %}<p class="dk-meta">{{ slot.promise }}</p>{% endif %}
-  {% else %}
+  {% elif slot.has_value %}
+    {% comment %}
+    Provenance and the outward link belong to a *figure*. A card with nothing
+    entered has neither: an as-of row reading "Seisuga: —" states nothing, and
+    an "Avalik leht" link beside an empty value invites the reader to treat the
+    link as the missing data. The Nähtavus page lists every channel's public
+    page in its own section, where it is a definition rather than a substitute.
+    {% endcomment %}
     {% if slot.secondary %}
       <p class="text-sm text-text-secondary">{{ slot.secondary }}</p>
     {% endif %}
@@ -65,6 +72,10 @@ accessible new-tab pattern.
         </a>
       </p>
     {% endif %}
+    {% include "dashboard/components/freshness_row.html" with source=slot.source_label cadence=slot.method_label as_of=slot.as_of|date:"d.m.Y" only %}
+  {% elif slot.secondary %}
+    {# The newsletter slot's two list counts, when the overlap is unknown. #}
+    <p class="text-sm text-text-secondary">{{ slot.secondary }}</p>
     {% include "dashboard/components/freshness_row.html" with source=slot.source_label cadence=slot.method_label as_of=slot.as_of|date:"d.m.Y" only %}
   {% endif %}
 </article>

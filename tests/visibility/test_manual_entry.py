@@ -88,9 +88,12 @@ def test_the_form_shows_the_latest_stored_value_beside_each_input(submit, staff_
 
     body = staff_client.get(NEW_URL).content.decode()
 
-    assert "Viimane salvestatud väärtust" not in body
+    assert "Viimane salvestatud väärtus:" in body
     assert "12000" in body
     assert today.strftime("%d.%m.%Y") in body
+    # The stored reading names how it was collected, so the person entering the
+    # next one can see it was typed rather than fetched.
+    assert "käsitsi sisestatud" in body
 
 
 def test_a_metric_with_no_history_says_so_rather_than_showing_a_dash(staff_client):
@@ -106,11 +109,17 @@ def test_the_observation_date_defaults_to_today(staff_client, today):
 
 
 def test_no_google_analytics_field_appears_in_the_form(staff_client):
+    """There is no GA input. The page *mentions* Google Analytics on purpose.
+
+    The form's own help text says DashKoda queries neither a platform nor
+    Google Analytics, which is exactly the disclosure this workflow owes a
+    reader — so the assertion is about **fields**, not about the words.
+    """
     body = staff_client.get(NEW_URL).content.decode()
 
-    assert "metric_sessions" not in body
-    assert "metric_page_views" not in body
-    assert "Google Analytics" not in body
+    for absent in ("metric_sessions", "metric_page_views", "metric_active_users"):
+        assert f'name="{absent}"' not in body
+    assert "ei päri ühtegi platvormi ega Google Analyticsit" in body
 
 
 # -- preview ------------------------------------------------------------

@@ -86,14 +86,28 @@ def test_a_published_value_is_labelled_as_manually_collected(submit, viewer_clie
     assert "Käsitsi sisestatud" in page
 
 
+def channel_band(response) -> str:
+    """Just the Kanalite statistika section.
+
+    Scoped deliberately: the legal-work card on the same page legitimately talks
+    about synchronisation, because that feed genuinely is synchronised. What must
+    never borrow those words is a figure somebody typed.
+    """
+    page = body(response)
+    start = page.index('aria-labelledby="section-channels"')
+    return page[start : page.index('id="freshness-region"')]
+
+
 def test_no_card_claims_an_automatic_feed(submit, viewer_client):
     submit(facebook_followers=12230, linkedin_followers=3999)
 
-    page = body(viewer_client.get(reverse("home"))).lower()
+    band = channel_band(viewer_client.get(reverse("home"))).lower()
 
-    assert "sünkroon" not in page
-    assert "api-ga ühendatud" not in page
-    assert "automaatselt uuendatud" not in page
+    assert "12230" in band, "the band is expected to contain the published figure"
+    assert "sünkroon" not in band
+    assert "api-ga ühendatud" not in band
+    assert "automaatselt uuendatud" not in band
+    assert "käsitsi sisestatud" in band
 
 
 def test_a_stale_reading_is_marked_on_the_band(submit, viewer_client, days_ago):

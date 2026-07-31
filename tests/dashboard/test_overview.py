@@ -178,9 +178,15 @@ def test_overview_loads_only_local_bundled_assets(client, authenticate_viewer):
 
     assert '<link rel="stylesheet" href="/static/build/styles.css">' in content
     assert '<script type="module" src="/static/build/app.js"></script>' in content
-    assert "https://" not in content
     assert "<script>" not in content
     assert 'style="' not in content
+    # Every asset the page *loads* is local. Checked as asset URLs rather than
+    # as a blanket "no https anywhere", because the channel band legitimately
+    # links out to the Chamber's public social pages once a figure is entered —
+    # a link a reader may follow is not an asset the page pulls in.
+    assets = re.findall(r'<(?:script|link|img)\b[^>]*\b(?:src|href)="([^"]+)"', content)
+    assert assets, "the page is expected to load its own bundle"
+    assert all(url.startswith("/static/") for url in assets), assets
 
 
 def test_overview_wires_the_htmx_freshness_pattern(client, authenticate_viewer):

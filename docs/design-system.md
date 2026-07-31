@@ -250,6 +250,8 @@ Target is practical WCAG 2.2 AA:
   `sr-only` label;
 - `prefers-reduced-motion: reduce` disables animation and transitions;
 - no page-level horizontal scrolling from 320 px upward, including at 200% zoom.
+  The browser suite measures this at 320, 375, 768, 1024, 1440 and 1920 px, and
+  again at half viewport to emulate 200% zoom.
 
 A full focus trap inside the drawer is not implemented. Focus is moved into and
 out of the drawer and Escape closes it; trapping is deferred to a later pull

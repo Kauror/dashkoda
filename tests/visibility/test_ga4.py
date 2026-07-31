@@ -112,9 +112,18 @@ def test_no_collector_is_implemented():
 
 
 def test_no_google_sdk_is_installed_or_imported():
-    """No dependency was added, and nothing tries to import one."""
+    """No dependency was added, and nothing tries to import one.
+
+    `find_spec` imports parent packages on the way, so a missing top-level
+    `google` raises rather than returning `None`. Both outcomes mean the same
+    thing here: the SDK is not installed.
+    """
     for module in ("google.analytics", "google.oauth2", "googleapiclient"):
-        assert importlib.util.find_spec(module) is None, f"{module} must not be a dependency"
+        try:
+            spec = importlib.util.find_spec(module)
+        except ModuleNotFoundError:
+            spec = None
+        assert spec is None, f"{module} must not be a dependency"
 
 
 def test_the_module_makes_no_network_call(monkeypatch):
