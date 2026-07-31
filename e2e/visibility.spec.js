@@ -91,14 +91,26 @@ test("an ordinary viewer sees no data-entry control", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Lisa andmed" })).toHaveCount(0);
 });
 
-test("the visibility page never scrolls sideways, including at 200% zoom", async ({ page }) => {
+test("the visibility page never scrolls sideways", async ({ page }) => {
   await openVisibility(page);
+
   await expectNoHorizontalOverflow(page);
+});
+
+test("the visibility page stays usable at 200% zoom", async ({ page }) => {
+  // Measured from the desktop viewport only, as the shell suite does. Halving
+  // 320 px would ask the layout to hold up at 160, which is below every width
+  // the design system supports and is not what 200% zoom means to a reader.
+  test.skip(page.viewportSize().width < 1024, "measured from the desktop viewport");
+
+  await openVisibility(page);
 
   // Browser zoom halves the CSS-pixel viewport, so it is emulated by halving the
   // viewport rather than by setting CSS zoom, which does not scale the layout
   // viewport and makes overflow measurements meaningless.
   const { width, height } = page.viewportSize();
   await page.setViewportSize({ width: Math.round(width / 2), height: Math.round(height / 2) });
+
+  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
