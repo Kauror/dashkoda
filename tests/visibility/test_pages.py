@@ -152,18 +152,28 @@ def test_no_search_index_linkedin_figure_is_hard_coded():
 
     3 992 was what a public search index showed while this was being designed.
     It must not appear in any model, migration, fixture, selector or template.
+
+    Walks the tree rather than shelling out to `git grep`: this suite also runs
+    inside the production image, which has no git — and should not gain one just
+    so a test can run.
     """
     import pathlib
-    import subprocess
 
     root = pathlib.Path(__file__).resolve().parents[2]
-    result = subprocess.run(
-        ["git", "grep", "-n", "-e", "3992", "-e", "3 992", "--", "apps", "config", "templates"],
-        cwd=root,
-        capture_output=True,
-        text=True,
-    )
-    assert result.stdout.strip() == "", result.stdout
+    searchable = {".py", ".html", ".css", ".js", ".json", ".txt"}
+    offenders = [
+        str(path.relative_to(root))
+        for directory in ("apps", "config", "templates")
+        for path in (root / directory).rglob("*")
+        if path.is_file()
+        and path.suffix in searchable
+        and any(
+            needle in path.read_text(encoding="utf-8", errors="ignore")
+            for needle in ("3992", "3 992")
+        )
+    ]
+
+    assert offenders == [], offenders
 
 
 def test_the_website_slot_stays_planned_and_links_nowhere(viewer_client):
