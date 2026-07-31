@@ -57,6 +57,10 @@ ENV PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
+# No home directory and no login shell: the runtime user runs one process and
+# has nothing to keep. Gunicorn is therefore started with `--no-control-socket`,
+# because its control socket defaults to `~/.gunicorn/` and would otherwise fail
+# to create — see the CMD lines below.
 RUN groupadd --gid 10001 dashkoda \
     && useradd --uid 10001 --gid dashkoda --no-create-home --shell /usr/sbin/nologin dashkoda
 
@@ -83,7 +87,13 @@ RUN mkdir -p /app/.pytest_cache \
 USER dashkoda
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind=0.0.0.0:8000", "--workers=2", "--access-logfile=-", "--error-logfile=-", "config.wsgi:application"]
+# `--no-control-socket`: Gunicorn 25.1 added a Unix socket for runtime
+# management by `gunicornc`. Nothing here uses it, and enabling it would mean
+# giving the runtime user a writable home directory purely to host a management
+# interface for a process that is managed by Compose. Disabled rather than
+# accommodated: the smaller surface is the point, and it also removes the
+# startup error the missing home directory otherwise produced.
+CMD ["gunicorn", "--bind=0.0.0.0:8000", "--workers=2", "--no-control-socket", "--access-logfile=-", "--error-logfile=-", "config.wsgi:application"]
 
 FROM runtime-base AS runtime
 
@@ -98,4 +108,5 @@ COPY --from=builder --chown=dashkoda:dashkoda /app/staticfiles /app/staticfiles
 USER dashkoda
 EXPOSE 8000
 
-CMD ["gunicorn", "--bind=0.0.0.0:8000", "--workers=2", "--access-logfile=-", "--error-logfile=-", "config.wsgi:application"]
+# See the development stage above for why the control socket is disabled.
+CMD ["gunicorn", "--bind=0.0.0.0:8000", "--workers=2", "--no-control-socket", "--access-logfile=-", "--error-logfile=-", "config.wsgi:application"]
