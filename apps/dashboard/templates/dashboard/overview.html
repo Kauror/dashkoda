@@ -109,6 +109,19 @@ filled by later pull requests.
           </div>
           <a href="{% url 'membership' %}" class="dk-button dk-button-secondary">Vaata liikmeskonda</a>
         </div>
+        {% comment %}
+        Secondary context from the Chamber's own board reports. Deliberately a
+        date and a share rather than a second member total: the two sources
+        count different things, and two unlabelled totals side by side would
+        invite exactly the comparison this project keeps refusing to make.
+        {% endcomment %}
+        {% if internal_membership %}
+          <p class="dk-meta border-t border-border pt-3">
+            Sisemine liikmeskonna aruanne seisuga
+            <time datetime="{{ internal_membership.observation_date|date:'Y-m-d' }}">{{ internal_membership.observation_date|date:"d.m.Y" }}</time>{% if internal_membership.paid_member_share_pct %}; tasunud liikmete osakaal {{ internal_membership.paid_member_share_pct }}%{% endif %}.
+            See on eraldi allikas, mitte sama näitaja mis avalik kataloog.
+          </p>
+        {% endif %}
       {% else %}
         {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
       {% endif %}

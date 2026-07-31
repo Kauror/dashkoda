@@ -7,6 +7,7 @@ from apps.legal_work.selectors import (
     get_legal_work_summary,
     get_newest_received_items,
 )
+from apps.membership.internal_selectors import get_internal_membership_latest
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_latest_news, get_news_summary
 
@@ -36,6 +37,10 @@ def overview(request):
     events = get_event_summary()
     context = _shell_context("overview") | {
         "membership": get_membership_summary(),
+        # Secondary context only. The overview's member total stays the public
+        # directory count; the internal report contributes a date and a share,
+        # both labelled, so the page never shows two competing totals.
+        "internal_membership": get_internal_membership_latest(),
         "news": news,
         "latest_news": get_latest_news(news.snapshot, limit=OVERVIEW_PREVIEW_LIMIT),
         "events": events,

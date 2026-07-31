@@ -149,17 +149,44 @@ def test_membership_has_no_year_to_date_field():
 
 
 def test_membership_stores_no_member_rows():
-    """The app must have no model capable of holding a member."""
+    """No model in the app may be capable of holding an individual member.
+
+    The explicit allowlist is the point: adding a model to this app should be a
+    deliberate act that comes past this assertion. The internal board-report
+    models were added that way, and the field check below now runs over *every*
+    model rather than only the public one, so a member-level column anywhere in
+    the app fails here.
+    """
     from django.apps import apps as django_apps
 
-    model_names = {
-        model.__name__ for model in django_apps.get_app_config("membership").get_models()
+    models = list(django_apps.get_app_config("membership").get_models())
+    model_names = {model.__name__ for model in models}
+
+    assert model_names == {
+        # The public Koda.ee member directory.
+        "MembershipCountObservation",
+        "MembershipFeedState",
+        # The Chamber's internal board-report history. Aggregates only.
+        "InternalMembershipObservation",
+        "MembershipHistoricalSourceDocument",
+        "MembershipMonthlyNewMemberValue",
+        "MembershipSizeMovement",
+        "MembershipRemovalReason",
+        "MembershipDataIssue",
+        "MembershipMetricConflict",
     }
 
-    assert model_names == {"MembershipCountObservation", "MembershipFeedState"}
-    fields = {f.name for f in MembershipCountObservation._meta.get_fields()}
-    for forbidden in ("crn", "reg_code", "registration_code", "name", "company", "member_url"):
-        assert forbidden not in fields
+    for model in models:
+        fields = {f.name for f in model._meta.get_fields()}
+        for forbidden in (
+            "crn",
+            "reg_code",
+            "registration_code",
+            "name",
+            "company",
+            "member_url",
+        ):
+            assert forbidden not in fields, f"{model.__name__} gained a {forbidden} field"
 
 
 def test_membership_audit_carries_only_safe_facts():

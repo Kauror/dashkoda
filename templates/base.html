@@ -16,6 +16,13 @@
   <link rel="icon" href="{% static 'brand/favicon.svg' %}" type="image/svg+xml">
   <link rel="stylesheet" href="{% static 'build/styles.css' %}">
   <script type="module" src="{% static 'build/app.js' %}"></script>
+  {% comment %}
+  For a page that needs a bundle beyond `app.js`. Only the chart bundle uses it
+  today, and only on the pages that actually draw one: ECharts is large and does
+  not belong in the payload of every page. Anything added here must still be a
+  local `{% static %}` module — no CDN, and no inline script.
+  {% endcomment %}
+  {% block extra_head %}{% endblock %}
 </head>
 <body class="bg-bg text-text antialiased">
   <a class="dk-skip-link" href="#main">Liigu põhisisu juurde</a>

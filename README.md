@@ -175,6 +175,9 @@ npm run e2e
   feed, its workbook contract, both sync routes and the 07:00 schedule
 - [docs/koda-public-feeds.md](docs/koda-public-feeds.md) — the public member,
   news and event feeds, what the member count means, and the 07:05 schedule
+- [docs/internal-membership-history.md](docs/internal-membership-history.md) —
+  the Chamber's own board-report membership history, why it is a separate source
+  from the public member count, the one-time import and the staff entry form
 - [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
 - [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
 - [docs/security.md](docs/security.md) — viewer access boundary and browser policy

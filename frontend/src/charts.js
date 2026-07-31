@@ -142,3 +142,18 @@ export function mountCharts(root = document) {
  * asserts that it initialises under the strict CSP without console errors.
  */
 window.DashKodaCharts = { chartTheme, readPayload, mountChart, mountCharts };
+
+/*
+ * Mount on load. A page opts in by including this module, and the alternative
+ * would be an inline script calling `mountCharts()`, which the Content Security
+ * Policy forbids and should keep forbidding.
+ *
+ * The text summary and the data table are rendered server-side and are already
+ * in the document, so a page where this never runs is still complete — it just
+ * shows the numbers as a table instead of as a picture.
+ */
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => mountCharts());
+} else {
+  mountCharts();
+}

@@ -52,6 +52,33 @@ class AuditAction(models.TextChoices):
         "membership.sync_failed",
         "Liikmete arvu sünkroonimine ebaõnnestus",
     )
+    # The Chamber's internal board-report history. A separate dataset from the
+    # public directory count above, so it gets its own actions rather than
+    # reusing them and making the trail ambiguous.
+    MEMBERSHIP_HISTORY_IMPORTED = (
+        "membership.history_imported",
+        "Liikmeskonna ajalugu imporditud",
+    )
+    MEMBERSHIP_HISTORY_UNCHANGED = (
+        "membership.history_unchanged",
+        "Liikmeskonna ajalugu: muutusteta",
+    )
+    MEMBERSHIP_HISTORY_FAILED = (
+        "membership.history_failed",
+        "Liikmeskonna ajaloo import ebaõnnestus",
+    )
+    MEMBERSHIP_MANUAL_OBSERVATION_CREATED = (
+        "membership.manual_observation_created",
+        "Liikmeskonna aruanne käsitsi lisatud",
+    )
+    MEMBERSHIP_MANUAL_OBSERVATION_SUPERSEDED = (
+        "membership.manual_observation_superseded",
+        "Liikmeskonna vaatlus asendatud",
+    )
+    MEMBERSHIP_ISSUE_RESOLVED = (
+        "membership.issue_resolved",
+        "Liikmeskonna andmeprobleem lahendatud",
+    )
     NEWS_SNAPSHOT_IMPORTED = (
         "news.snapshot_imported",
         "Uudiste hetkeseis imporditud",

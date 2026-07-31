@@ -1,0 +1,27 @@
+{% comment %}
+One figure from the latest internal board report.
+
+A withheld metric says so rather than showing a dash that could be mistaken for
+"nobody", and it is never rendered as `0`. The distinction between "not
+reported" and "reported but disputed" is the whole point of this partial.
+
+Context:
+  label    – what the figure is
+  value    – the number, or None
+  suffix   – optional unit shown after the value
+  withheld – the set of field names this observation may not show
+  field    – this figure's field name, matched against `withheld`
+{% endcomment %}
+<div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3">
+  <dt class="text-micro font-semibold tracking-wide text-text-muted uppercase">{{ label }}</dt>
+  {% if field and field in withheld %}
+    <dd class="text-sm text-text-secondary">Vastuolu tõttu ei kuvata</dd>
+  {% elif value is None %}
+    <dd class="text-sm text-text-secondary">Ei ole raporteeritud</dd>
+  {% else %}
+    <dd class="flex items-baseline gap-1">
+      <span class="text-lg font-semibold tracking-tight text-text">{{ value }}</span>
+      {% if suffix %}<span class="text-sm text-text-secondary">{{ suffix }}</span>{% endif %}
+    </dd>
+  {% endif %}
+</div>
