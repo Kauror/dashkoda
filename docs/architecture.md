@@ -21,9 +21,10 @@ yet. Web typography uses
 
 See [design-system.md](design-system.md) for the visual language,
 [frontend.md](frontend.md) for the build, asset strategy and logo provenance,
-[data-model.md](data-model.md) for the source, import and audit foundation, and
+[data-model.md](data-model.md) for the source, import and audit foundation,
 [legal-work-feed.md](legal-work-feed.md) for the first module carrying real
-business data.
+business data, and [visibility-manual-entry.md](visibility-manual-entry.md) for
+the manually entered audience figures and the Google Analytics seam.
 
 ## Runtime topology
 
@@ -108,6 +109,11 @@ The future monolith will separate shared infrastructure from business modules:
   Uudised page, the RSS collector and its feed state.
 - `events` owns the imported event snapshots and items, their selectors, the
   Sündmused page, the calendar collector and its feed state.
+- `visibility` owns the manually observed audience sizes — the two newsletter
+  lists and their overlap, and the four social follower counts — their metric
+  registry, selectors, staff entry workflow, the Nähtavus page, the overview's
+  channel band and the Google Analytics backend seam. It owns no collector, no
+  platform credential and no individual subscriber or follower.
 
 Each public feed is its own business app rather than one generic "web scraper"
 domain, because what makes a member count valid has nothing to do with what
@@ -118,7 +124,8 @@ publication decision stays in its own app.
 
 Exact future app names and models are introduced only by their implementing pull
 requests. No pull request creates placeholder business apps or models. The
-overview, Liikmeskond, Õigusloome, Sündmused and Uudised are routed; every
+overview, Liikmeskond, Õigusloome, Sündmused, Uudised and Nähtavus are routed;
+every
 still-planned module appears in the navigation as an inert entry marked
 `Lisamisel` and has no route. That includes the nested entries — Fookusteemad
 under Õigusloome, and Projektid with its two views — which exist so the sidebar
@@ -188,6 +195,21 @@ data reach the database through the same publication path and obey the same
 quality rules. That is what will let an automated route replace the form later
 without rewriting any historical row.
 
+The communication-channel figures are the second dataset of this shape, and the
+first where an automated route plausibly exists but is deliberately not built.
+The newsletter list sizes and the four social follower counts are read by a
+staff user from each platform's own statistics screen and typed in. There is no
+Smaily, Meta, LinkedIn, Instagram or YouTube client in this repository, no
+credential that would let one exist and no field capable of holding a token; a
+page render never touches a social platform, and the fixed profile URLs are
+display links only. See [visibility-manual-entry.md](visibility-manual-entry.md).
+
+Two staff workflows now write domain data from a browser, so `/admin/data-entry/`
+indexes them. It is not a second admin: it lives inside `/admin/`, every view is
+wrapped in `admin.site.admin_view`, and it adds no authentication, permission
+model or session of its own. `apps/core/data_entry.py` holds the index as URL
+names rather than imports, so `core` depends on no domain module.
+
 Two membership sources exist and are never merged. The public directory count
 and the internal board-report history count different things; see
 [internal-membership-history.md](internal-membership-history.md).
@@ -239,6 +261,10 @@ and the internal board-report history count different things; see
   feeds, and named `Ühendamata` slots for everything that has no source
 - server-rendered SVG sparklines and proportion meters, so the overview draws
   trends without loading the chart bundle
+- `visibility` app: manually observed newsletter and social audience sizes, a
+  fixed metric registry, the staff entry and correction workflow, the Nähtavus
+  page and the six-slot channel band
+- `/admin/data-entry/`, one staff-only index of every manual-entry workflow
 - Unraid script templates for 07:00 and 07:05 `Europe/Tallinn` schedules
 
 ## Not implemented yet
@@ -250,11 +276,15 @@ chart or demo data in this repository.
 Arvamused, Finantsid, Fookusteemad and Projektid are inert navigation entries,
 because no source is connected for any of them.
 
-Nothing collects the communication-channel figures the overview reserves a band
-for — website visits, newsletter recipients, Facebook, LinkedIn and YouTube — nor
-press coverage, the newsletter, or event history once an event has passed. Each
-is rendered as an explicitly unconnected slot, and no model anywhere is capable
-of holding one of those numbers.
+Nothing **collects** the communication-channel figures. Six of the seven can now
+be stored — a staff user types them in and `apps/visibility` publishes them
+through the ordinary artifact and import path — but no Smaily, Meta, LinkedIn,
+Instagram or YouTube integration exists, and none is planned in this stage.
+Website visits have no store at all: Google Analytics is not connected, the
+backend shape exists without a collector, and that slot stays `Lisamisel`.
+
+Press coverage, the newsletter itself and event history once an event has passed
+remain entirely unconnected, and no model is capable of holding those.
 
 The 07:00 schedule is **documented as a template and is not installed**.
 

@@ -148,6 +148,34 @@ The package is not committed to this repository and must not be. It is
 transferred to the server by an administrator and deleted afterwards. See
 [internal-membership-history.md](internal-membership-history.md).
 
+## What the manual visibility metrics change here
+
+**No schedule, no credential and no new configuration.** The newsletter and
+social audience figures have no remote source, so there is nothing to poll, no
+key to add, no volume to mount and no cron entry to create.
+
+One migration:
+
+```bash
+docker compose exec web python manage.py migrate visibility
+```
+
+It creates three tables and touches no existing one. The five manual data sources
+register themselves on first use, so nothing has to be seeded.
+
+Two settings are declared and **optional**: `GA4_PROPERTY_ID` and
+`GA4_CREDENTIALS_FILE`. Both may stay unset indefinitely — Google Analytics is
+not connected, no request is made and no Google SDK is installed. When that
+integration is built it will additionally need a read-only service account, a
+mounted secret file, a decided reporting period, a host schedule and live
+acceptance; none of that exists.
+
+The first real figures are typed by an authorised staff user after deployment at
+`/admin/data-entry/visibility/new/`. **No production figure is committed to this
+repository**, and none was entered during development.
+
+**No server, Cloudflare, DNS, tunnel or schedule change.**
+
 ## What PR-05 changed here
 
 Nothing operationally. PR-05 adds the source, artifact, import-registry and

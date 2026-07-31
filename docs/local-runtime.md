@@ -87,9 +87,10 @@ Logout is available only as a CSRF-protected `POST /logi-valja/`.
 After signing in, the root route renders the board overview. On a fresh database
 every figure on it is an explicit empty state, because nothing has been
 collected yet and there is nothing truthful to display. Run `sync_koda_public`
-and one of the legal-work synchronisation commands to populate it; the parts
-with no source at all — the communication-channel figures, press coverage, the
-newsletter — stay marked `Ühendamata` whatever you run.
+and one of the legal-work synchronisation commands to populate it. The
+communication-channel figures are typed in rather than collected — see below —
+and the parts with no source at all, press coverage and the newsletter itself,
+stay marked `Ühendamata` whatever you run.
 
 ## Rate-limit maintenance
 
@@ -207,6 +208,27 @@ Future reports are entered through the staff form at
 `http://127.0.0.1:8000/admin/membership/internal-report/new/`, which needs a
 Django superuser as well as the viewer PIN. See
 [internal-membership-history.md](internal-membership-history.md).
+
+## Communication-channel figures
+
+Nothing is collected. The newsletter and social audience sizes are typed in by a
+staff user, so there is no command to run and no credential to configure:
+
+```text
+http://127.0.0.1:8000/admin/data-entry/
+http://127.0.0.1:8000/admin/data-entry/visibility/new/
+```
+
+Both need a Django superuser as well as the viewer PIN. The results appear at
+`http://127.0.0.1:8000/nahtavus/` and in the overview's channel band.
+
+Use obviously synthetic values locally. **Never enter real Chamber follower
+counts into a development database**, and never commit one.
+
+Google Analytics is not connected. `GA4_PROPERTY_ID` and `GA4_CREDENTIALS_FILE`
+may stay unset: the application starts, every page renders and the whole test
+suite passes with neither. See
+[visibility-manual-entry.md](visibility-manual-entry.md).
 
 ## Deployment boundary
 

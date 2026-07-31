@@ -79,7 +79,9 @@ revealed again.
 The overview draws its miniature trends and its proportion bars as server-rendered
 SVG rather than through `charts.js`. It is the page every viewer loads first, and
 a card-sized line of a dozen points does not justify a megabyte of charting
-library. See [design-system.md](design-system.md).
+library. The Nähtavus page follows the same rule for the four social follower
+histories: server-drawn `<polyline>` plus the values as a table, and no chart
+bundle. See [design-system.md](design-system.md).
 
 htmx is configured through a `htmx-config` meta tag in `templates/base.html`:
 
