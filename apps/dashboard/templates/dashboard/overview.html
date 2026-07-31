@@ -251,7 +251,16 @@ None of them reached this file.
               {% else %}
                 <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.starts_on|date:'Y-m-d' }}">{{ item.starts_on|date:"d.m.Y" }}</time>
               {% endif %}
-              <a class="dk-link min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
+              {% comment %}
+              `relative` is load-bearing, not decoration. The visually-hidden
+              destination note below is `position: absolute`, and an absolutely
+              positioned box is only clipped by an ancestor's `overflow: hidden`
+              when that ancestor is its containing block. Without a positioned
+              anchor the note escapes `truncate`, sits at the *untruncated*
+              title width, and drags the whole page's scroll area sideways —
+              which is invisible until a real title is long enough to truncate.
+              {% endcomment %}
+              <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
                 {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
               </a>
               {% if item.category %}
@@ -289,7 +298,16 @@ None of them reached this file.
           {% for item in page.latest_news %}
             <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
               <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"d.m.Y" }}</time>
-              <a class="dk-link min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
+              {% comment %}
+              `relative` is load-bearing, not decoration. The visually-hidden
+              destination note below is `position: absolute`, and an absolutely
+              positioned box is only clipped by an ancestor's `overflow: hidden`
+              when that ancestor is its containing block. Without a positioned
+              anchor the note escapes `truncate`, sits at the *untruncated*
+              title width, and drags the whole page's scroll area sideways —
+              which is invisible until a real title is long enough to truncate.
+              {% endcomment %}
+              <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
                 {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
               </a>
               {% if item.category %}
