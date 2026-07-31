@@ -222,8 +222,11 @@
     @apply bg-surface;
   }
 
+  /* The six-slot communication-channel band. Three columns from `lg` upward
+     divides six evenly into two rows, and only at `2xl` is there room to put all
+     six on one line without the labels wrapping mid-word. */
   .dk-kpi-strip-wide {
-    @apply sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5;
+    @apply sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6;
   }
 
   /* Tab control inside a card header. The active state is an underline plus

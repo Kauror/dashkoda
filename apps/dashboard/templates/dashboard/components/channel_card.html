@@ -1,0 +1,70 @@
+{% comment %}
+One communication channel, in the overview's channel band.
+
+Context:
+  slot  – a ChannelSlot from `apps.visibility.page`
+  flush – drop the card's own border, for use inside a divided strip
+
+Three states, and keeping them apart is what makes the band trustworthy:
+
+  - **planned** — nothing collects this figure at all. It shows a dash, says the
+    source is not connected, and links nowhere. Google Analytics is the only one;
+  - **no data** — a source exists and a staff user has not entered a reading yet.
+    It shows "Andmed puuduvad", never a zero;
+  - **observed** — a figure somebody read off a platform and typed in. It always
+    carries its observation date and `Käsitsi sisestatud`, and never says
+    synchronised, connected or automatically updated, because none of those is
+    true of anything on this page.
+
+The presence test is `has_value` (`is not None` on the server), not truthiness,
+so an entered zero renders as the measurement it is.
+
+The profile link is fixed application configuration, not a stored value. It
+carries `rel="noopener noreferrer"` and a visually-hidden note that it leads off
+DashKoda, and opens in the same tab because the design system has no approved
+accessible new-tab pattern.
+{% endcomment %}
+<article class="flex flex-col gap-2 px-4 py-4{% if not flush %} dk-card{% endif %}">
+  <div class="flex items-start justify-between gap-3">
+    <h3 class="text-sm font-medium text-text-secondary">
+      {% if slot.detail_url and not slot.is_planned %}
+        <a class="dk-link" href="{{ slot.detail_url }}">{{ slot.label }}</a>
+      {% else %}
+        {{ slot.label }}
+      {% endif %}
+    </h3>
+    {% if slot.state_label %}
+      {% include "dashboard/components/status_badge.html" with label=slot.state_label variant=slot.state_variant only %}
+    {% endif %}
+  </div>
+
+  {% if slot.has_value %}
+    <p class="flex items-baseline gap-1.5">
+      <span class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ slot.value }}</span>
+      {% if slot.unit %}<span class="text-sm text-text-secondary">{{ slot.unit }}</span>{% endif %}
+    </p>
+  {% else %}
+    <p class="flex items-baseline gap-1.5" aria-hidden="true">
+      <span class="text-metric font-semibold tracking-tight text-text-muted">—</span>
+    </p>
+    <p class="text-sm text-text-secondary">
+      {% if slot.is_planned %}Andmeallikas ei ole veel ühendatud.{% else %}{{ slot.empty_message }}{% endif %}
+    </p>
+  {% endif %}
+
+  {% if slot.is_planned %}
+    {% if slot.promise %}<p class="dk-meta">{{ slot.promise }}</p>{% endif %}
+  {% else %}
+    {% if slot.secondary %}
+      <p class="text-sm text-text-secondary">{{ slot.secondary }}</p>
+    {% endif %}
+    {% if slot.has_profile_link %}
+      <p class="text-sm">
+        <a class="dk-link" href="{{ slot.profile_url }}" rel="noopener noreferrer">
+          Avalik leht<span class="sr-only"> ({{ slot.external_link_note }})</span>
+        </a>
+      </p>
+    {% endif %}
+    {% include "dashboard/components/freshness_row.html" with source=slot.source_label cadence=slot.method_label as_of=slot.as_of|date:"d.m.Y" only %}
+  {% endif %}
+</article>

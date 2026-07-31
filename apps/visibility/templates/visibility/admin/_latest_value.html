@@ -1,0 +1,19 @@
+{% comment %}
+The value currently stored for one metric, shown beside its input.
+
+Context:
+  reading – a MetricReading from `apps.visibility.selectors`
+
+The presence test is `has_data`, not truthiness: a stored `0` is a real reading
+and must not fall through to "not entered". A metric nobody has entered says so
+plainly and never shows a dash that could be read as zero.
+{% endcomment %}
+<p class="help">
+  {% if reading and reading.has_data %}
+    Viimane salvestatud väärtus: <strong>{{ reading.value }}</strong>
+    seisuga {{ reading.as_of|date:"d.m.Y" }} ({{ reading.method_label|lower }}){% if reading.is_stale %},
+    vajab uuendamist{% endif %}.
+  {% else %}
+    Salvestatud väärtust ei ole.
+  {% endif %}
+</p>

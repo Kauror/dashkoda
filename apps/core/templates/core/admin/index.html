@@ -1,0 +1,26 @@
+{% extends "admin/index.html" %}
+
+{% comment %}
+The admin index, with one panel added above Django's own app list.
+
+`{{ block.super }}` renders that list unchanged, so this adds a signpost rather
+than a second copy of the model index. The panel is the only navigation change:
+there is no separate admin site, no separate login and no separate permission
+model behind it.
+{% endcomment %}
+
+{% block content %}
+  <div class="module" id="data-entry-signpost">
+    <h2>Andmete sisestamine</h2>
+    <div class="form-row">
+      <p>
+        Käsitsi sisestatavad andmed — liikmeskonna aruanne ja kanalite statistika —
+        on koos ühel lehel.
+      </p>
+      <p>
+        <a class="button" href="{% url 'data-entry-hub' %}">Ava andmete sisestamine</a>
+      </p>
+    </div>
+  </div>
+  {{ block.super }}
+{% endblock %}

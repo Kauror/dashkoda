@@ -1,0 +1,297 @@
+{% extends "dashboard/shell.html" %}
+
+{% comment %}
+Nähtavus — how many people the Chamber currently reaches.
+
+Everything here comes from `apps.visibility.page.build_visibility_page`, which
+reads PostgreSQL through the app's own selectors. The template lays out and holds
+no rule.
+
+Four things are deliberate and should stay that way:
+
+  - **every figure on this page was typed by a person.** Each one carries
+    "Käsitsi sisestatud" and the date it describes. Nothing says synchronised,
+    API-connected or automatically updated, because none of it is;
+  - the unique newsletter audience appears **only** when the overlap between the
+    two lists is known. Without it the two counts are shown separately and the
+    page says the overlap has not been entered — adding them would double-count
+    everybody on both lists;
+  - a channel nobody has entered says "Andmed puuduvad". Never a zero;
+  - trends are server-drawn sparklines and each one keeps its values as a table.
+    The table is not a fallback: it stays in the document for every reader.
+{% endcomment %}
+
+{% block title %}Nähtavus – DashKoda{% endblock %}
+{% block breadcrumb %}Nähtavus{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-5">
+
+  {# ---------------- Page header ---------------- #}
+  <header class="flex flex-wrap items-end justify-between gap-3">
+    <div class="flex min-w-0 flex-col gap-1">
+      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Mõju ja nähtavus</h1>
+      <p class="text-sm text-text-secondary">
+        Koja uudiskirja ja sotsiaalmeedia auditooriumi suurus ning selle areng
+      </p>
+    </div>
+    {% comment %}
+    Offered only to active staff. An ordinary viewer holds the shared PIN and no
+    Django account, so an editing control would advertise a door they cannot open.
+    {% endcomment %}
+    {% if can_add_data %}
+      <a class="dk-button dk-button-primary" href="{% url 'visibility-admin-entry-new' %}">Lisa andmed</a>
+    {% endif %}
+  </header>
+
+  {# ---------------- 1. Praegune seis ---------------- #}
+  <section aria-labelledby="section-current" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Praegune seis" heading_id="section-current" description="Viimased sisestatud väärtused iga kanali kohta." only %}
+    <div class="dk-kpi-strip dk-kpi-strip-wide">
+      {% for slot in page.channels %}
+        {% include "dashboard/components/channel_card.html" with slot=slot flush=True only %}
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ---------------- 2. Uudiskiri ---------------- #}
+  <section aria-labelledby="section-newsletter" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Uudiskirja auditoorium" heading_id="section-newsletter" description="Kaks nimekirja, nende kattuvus ja unikaalsete saajate arv." only %}
+    <div class="dk-section-body flex flex-col gap-4">
+      {% if page.newsletter.has_any_data %}
+        <div class="w-full overflow-x-auto">
+          <table class="w-full min-w-max border-collapse text-sm">
+            <caption class="sr-only">Uudiskirja nimekirjade suurus</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Näitaja</th>
+                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Väärtus</th>
+                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Seisuga</th>
+                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kogumisviis</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for reading in page.newsletter.readings %}
+                <tr>
+                  <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ reading.label }}</th>
+                  <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">
+                    {% if reading.has_data %}{{ reading.value }}{% else %}Andmed puuduvad{% endif %}
+                  </td>
+                  <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">
+                    {% if reading.as_of %}{{ reading.as_of|date:"d.m.Y" }}{% else %}—{% endif %}
+                  </td>
+                  <td class="border-b border-border px-3 py-1.5 text-text-secondary">
+                    {% if reading.has_data %}{{ reading.method_label }}{% else %}—{% endif %}
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if page.newsletter.unique_recipients is not None %}
+          <p class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span class="text-sm text-text-secondary">Unikaalsed uudiskirja saajad</span>
+            <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.newsletter.unique_recipients }}</span>
+            <span class="text-sm text-text-secondary">saajat</span>
+          </p>
+          <p class="dk-meta">
+            Arvutatud: liikmete nimekiri + mitteliikmete nimekiri − mõlemas nimekirjas olevad saajad.
+            Seisuga {{ page.newsletter.as_of|date:"d.m.Y" }}.
+            {% if not page.newsletter.readings_share_a_date %}
+              Väärtused pärinevad eri kuupäevadelt; kuvatakse vanim neist.
+            {% endif %}
+          </p>
+        {% else %}
+          {% include "dashboard/components/callout.html" with variant="info" title=page.newsletter.missing_overlap_message message="Kahte nimekirja ei liideta unikaalseks auditooriumiks ilma kattuvuseta, sest osa saajaid on mõlemas nimekirjas." only %}
+        {% endif %}
+
+        <p class="dk-meta">
+          Aktiivsete saajate arv nimekirjas. See ei ole saadetud ega kohale toimetatud
+          kirjade arv ega avamiste või klikkide arv.
+        </p>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Andmed puuduvad." detail="Uudiskirja nimekirjade suurus ilmub siia pärast esimest sisestust." only %}
+      {% endif %}
+    </div>
+  </section>
+
+  {# ---------------- 3. Sotsiaalmeedia ---------------- #}
+  <section aria-labelledby="section-social" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Sotsiaalmeedia" heading_id="section-social" description="Jälgijate ja tellijate arv kanali enda statistika järgi." only %}
+    <div class="dk-section-body grid grid-cols-1 gap-4 sm:grid-cols-2">
+      {% for trend in page.trends %}
+        <figure class="flex min-w-0 flex-col gap-1.5">
+          <figcaption class="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
+            <span class="text-sm text-text-secondary">{{ trend.label }}</span>
+            <span class="dk-meta">{{ trend.reading.source_label }}</span>
+          </figcaption>
+
+          {% if trend.reading.has_data %}
+            <p class="flex items-baseline gap-1.5">
+              <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ trend.reading.value }}</span>
+              <span class="text-sm text-text-secondary">{{ trend.reading.unit }}</span>
+            </p>
+            <p class="dk-meta">
+              Seisuga {{ trend.reading.as_of|date:"d.m.Y" }} · {{ trend.reading.method_label }}
+              {% if trend.reading.is_stale %} · Vajab uuendamist{% endif %}
+            </p>
+            {% if trend.reading.change is not None %}
+              <p class="text-sm text-text-secondary">
+                <span class="font-medium tabular-nums text-text">
+                  {% if trend.reading.change_direction == "up" %}↑{% elif trend.reading.change_direction == "down" %}↓{% else %}→{% endif %}
+                  {{ trend.reading.change_label }}
+                </span>
+                <span class="dk-meta">{{ trend.reading.comparison_period }}</span>
+              </p>
+            {% endif %}
+          {% else %}
+            <p class="text-sm text-text-secondary">Andmed puuduvad.</p>
+          {% endif %}
+
+          {% comment %}
+          The sparkline is server-drawn SVG: geometry travels in the `points`
+          attribute, never in a `style`, which is what keeps `style-src 'self'`
+          intact. Four small follower histories do not justify loading ECharts.
+          {% endcomment %}
+          {% if trend.sparkline %}
+            <svg viewBox="0 0 100 32"
+                 preserveAspectRatio="none"
+                 class="h-10 w-full"
+                 role="img"
+                 aria-label="{{ trend.label }}: {{ trend.sparkline.point_count }} vaatlust, väikseim {{ trend.sparkline.minimum|stringformat:'g' }}, suurim {{ trend.sparkline.maximum|stringformat:'g' }}. Täpsed väärtused on allpool tabelis.">
+              <polyline points="{{ trend.sparkline.points }}"
+                        fill="none"
+                        stroke-width="1.5"
+                        vector-effect="non-scaling-stroke"
+                        class="stroke-brand"/>
+            </svg>
+          {% elif trend.reading.has_data %}
+            <p class="dk-meta">Trendi kuvamiseks on vaja vähemalt kahte vaatlust.</p>
+          {% endif %}
+
+          {% if trend.has_series %}
+            <details class="text-sm">
+              <summary class="cursor-pointer dk-meta">Andmed tabelina</summary>
+              <div class="mt-2 w-full overflow-x-auto">
+                <table class="w-full min-w-max border-collapse text-sm">
+                  <caption class="sr-only">{{ trend.label }} — kõik sisestatud vaatlused</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Seisuga</th>
+                      <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">{{ trend.label }}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for when, amount in trend.series %}
+                      <tr>
+                        <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ when|date:"d.m.Y" }}</th>
+                        <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">{{ amount }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          {% endif %}
+
+          {% if trend.spec.profile_url %}
+            <p class="text-sm">
+              <a class="dk-link" href="{{ trend.spec.profile_url }}" rel="noopener noreferrer">
+                Avalik leht<span class="sr-only"> (avaneb välisel lehel)</span>
+              </a>
+            </p>
+          {% endif %}
+        </figure>
+      {% endfor %}
+    </div>
+  </section>
+
+  {# ---------------- 4. Vaatluste ajalugu ---------------- #}
+  {% comment %}
+  Every observation ever published, including the ones a correction superseded.
+  Those are marked rather than hidden: what the Chamber was told in June is part
+  of the record.
+
+  This is a viewer page, so it names no user. Who entered a figure is a staff
+  detail and lives in the admin history instead.
+  {% endcomment %}
+  <section aria-labelledby="section-history" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Vaatluste ajalugu" heading_id="section-history" description="Kõik sisestatud väärtused, uuemad ees. Parandatud kirjed on märgitud." only %}
+    {% if page.history %}
+      <div class="dk-section-body w-full overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <caption class="sr-only">Kõik nähtavuse vaatlused</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kuupäev</th>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Näitaja</th>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Väärtus</th>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kogumisviis</th>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Olek</th>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Allikas</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for observation in page.history %}
+              <tr>
+                <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium whitespace-nowrap text-text">{{ observation.observation_date|date:"d.m.Y" }}</th>
+                <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ observation.get_metric_display }}</td>
+                <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">{{ observation.value }}</td>
+                <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ observation.get_collection_method_display }}</td>
+                <td class="border-b border-border px-3 py-1.5 text-text-secondary">
+                  {% if not observation.is_current_for_date %}
+                    Asendatud
+                  {% elif observation.supersedes_id %}
+                    Parandatud väärtus
+                  {% else %}
+                    Kehtiv
+                  {% endif %}
+                </td>
+                <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ observation.source.name }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    {% else %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Vaatlusi ei ole veel sisestatud." detail="Iga sisestatud väärtus ilmub siia koos oma kuupäeva ja allikaga." only %}
+      </div>
+    {% endif %}
+  </section>
+
+  {# ---------------- 5. Allikate määratlused ---------------- #}
+  <section aria-labelledby="section-definitions" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Allikate määratlused" heading_id="section-definitions" description="Mida iga näitaja täpselt loendab ja kust see pärineb." only %}
+    <dl class="divide-y divide-border">
+      {% for reading in page.summary.readings %}
+        <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
+          <dt class="text-sm font-medium text-text">{{ reading.label }}</dt>
+          <dd class="text-sm text-text-secondary">
+            {{ reading.spec.definition }}
+            <span class="dk-meta">
+              Allikas: {{ reading.source_label }}. Väärtus sisestatakse käsitsi.
+              Vananenuks märgitakse pärast {{ reading.spec.stale_after_days }} päeva.
+            </span>
+          </dd>
+        </div>
+      {% endfor %}
+    </dl>
+  </section>
+
+  {# ---------------- 6. Google Analytics ---------------- #}
+  <section aria-labelledby="section-ga4" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kodulehe külastused" heading_id="section-ga4" description="Veebistatistika seis." badge_label="Lisamisel" badge_variant="neutral" only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/empty_state.html" with message=page.ga4.message detail=page.ga4.detail only %}
+      <p class="dk-meta mt-2">
+        DashKoda ei tee Google Analyticsi päringuid ega hoia ühtegi Google’i mandaati.
+        Ühendamine on eraldi töö, mis nõuab kirjutusõiguseta teenusekontot ja
+        ajastatud kogumist.
+      </p>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

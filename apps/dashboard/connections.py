@@ -97,18 +97,16 @@ def planned(label: str, *, promise: str = "", cadence: str = "") -> Connection:
     return Connection(label=label, state=ConnectionState.PLANNED, cadence=cadence, promise=promise)
 
 
-# The communication channels the design reserves a band for. None of them is
-# collected: there is no analytics, mailing-list or social integration in this
-# repository, and there is no field anywhere capable of holding one of these
-# numbers. They are listed so the band shows the intended shape and says, for
-# each slot, that nothing feeds it.
-CHANNEL_STATISTICS: tuple[Connection, ...] = (
-    planned("Kodulehe külastused", promise="Veebistatistika allikas."),
-    planned("Uudiskirja saajad", promise="Uudiskirja saatja allikas."),
-    planned("Facebooki jälgijad", promise="Sotsiaalmeedia allikas."),
-    planned("LinkedIni jälgijad", promise="Sotsiaalmeedia allikas."),
-    # Typographic apostrophe, not the ASCII one: Django escapes `'` to `&#x27;`,
-    # and the digits inside that entity would survive a plain tag-strip and read
-    # as a number on a page that is asserting it shows none.
-    planned("YouTube’i tellijad", promise="Sotsiaalmeedia allikas."),
-)
+# The communication-channel band used to live here as five permanently planned
+# slots, because nothing could hold those figures. Six of the seven now have a
+# home: `apps.visibility` stores manually observed newsletter and social
+# audiences, and `apps.visibility.page.build_channel_band` builds the band from
+# what has actually been entered.
+#
+# The vocabulary above is deliberately **not** reused for those cards. It
+# describes a *connected feed*, and its `Ühendatud` label would tell a board
+# member an integration exists where a person typed a number off a screen.
+# `apps.visibility.selectors.ReadingState` carries the honest wording instead.
+#
+# Website visits remain genuinely planned: Google Analytics is not connected,
+# nothing requests it, and that slot still says so.

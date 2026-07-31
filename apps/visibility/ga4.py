@@ -111,11 +111,23 @@ class Ga4ConnectionStatus:
 
     @property
     def detail(self) -> str:
+        """Viewer-facing, and deliberately free of digits.
+
+        This string reaches the overview's channel band, and
+        `tests/dashboard/test_overview.py` asserts that with nothing connected the
+        page contains no digit at all — so that a stray figure can never hide
+        among the labels. "GA4" would contribute a `4` and defeat the check
+        without meaning anything to a board member, so the property is named in
+        full.
+        """
         if self.is_connected:
             return ""
         if self.configuration.is_configured:
             return "Seadistus on olemas, kuid ühtegi vaatlust ei ole veel kogutud."
-        return "Ühendamiseks on vaja GA4 property ID-d ja kirjutusõiguseta teenusekontot."
+        return (
+            "Ühendamiseks on vaja Google Analyticsi property ID-d ja "
+            "kirjutusõiguseta teenusekontot."
+        )
 
 
 @dataclass(frozen=True)

@@ -317,15 +317,24 @@ None of them reached this file.
 
   {# ---------------- 5. Kanalite statistika ---------------- #}
   {% comment %}
-  Reserved by the design and backed by nothing. There is no analytics, mailing
-  list or social integration in this repository and no field anywhere capable of
-  holding one of these figures, so every slot says so.
+  Six channels, built by `apps.visibility.page.build_channel_band`.
+
+  The newsletter and the four social figures are **entered by hand** from each
+  platform's own statistics; every populated card says so and carries the date
+  somebody read it. Nothing on this band is synchronised or API-connected, and no
+  card may ever word it as though it were.
+
+  Website visits are still genuinely unconnected: Google Analytics is not wired
+  up, nothing requests it, and that slot shows no number and links nowhere.
+
+  A channel nobody has entered shows "Andmed puuduvad", never a zero — a zero
+  here would claim the Chamber has no followers.
   {% endcomment %}
   <section aria-labelledby="section-channels" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kanalite statistika" heading_id="section-channels" description="Koja suhtluskanalite näitajad." badge_label="Lisamisel" badge_variant="neutral" only %}
+    {% include "dashboard/components/section_header.html" with title="Kanalite statistika" heading_id="section-channels" description="Koja suhtluskanalite auditooriumi suurus. Väärtused on käsitsi sisestatud." only %}
     <div class="dk-kpi-strip dk-kpi-strip-wide">
-      {% for connection in page.channels %}
-        {% include "dashboard/components/planned_module.html" with connection=connection compact=True only %}
+      {% for slot in page.channels %}
+        {% include "dashboard/components/channel_card.html" with slot=slot flush=True only %}
       {% endfor %}
     </div>
   </section>
