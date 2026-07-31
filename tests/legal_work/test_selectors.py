@@ -7,11 +7,14 @@ import pytest
 from apps.legal_work.importer import import_artifact
 from apps.legal_work.models import SyncResult
 from apps.legal_work.selectors import (
+    count_received_since,
+    count_sent_since,
     get_current_snapshot,
     get_latest_sent_items,
     get_legal_work_summary,
     get_newest_received_items,
     get_open_items,
+    get_upcoming_deadlines,
 )
 from apps.legal_work.sync import get_feed_state
 
@@ -127,6 +130,127 @@ def test_without_a_snapshot_everything_is_empty(db):
     assert list(get_open_items()) == []
     assert list(get_latest_sent_items()) == []
     assert list(get_newest_received_items()) == []
+
+
+# -- activity window ----------------------------------------------------
+
+
+def test_activity_counts_respect_both_ends_of_the_window(make_workbook, register_workbook):
+    """The upper bound matters as much as the lower one.
+
+    The workbook is known to carry the occasional future received date, and
+    counting one would make the window report more arrivals than arrived.
+    """
+    today = dt.date.today()
+    rows = [
+        synthetic_row(
+            record_id="SYN-IN",
+            topic="Aknas",
+            received_date=today - dt.timedelta(days=5),
+            sent_date=today - dt.timedelta(days=4),
+            sent_status="sent",
+            is_open=False,
+            source_row=2,
+        ),
+        synthetic_row(
+            record_id="SYN-OLD",
+            topic="Aknast väljas",
+            received_date=today - dt.timedelta(days=200),
+            source_row=3,
+        ),
+        synthetic_row(
+            record_id="SYN-FUTURE",
+            topic="Tulevikus",
+            received_date=today + dt.timedelta(days=5),
+            warning_codes="received_date_in_future",
+            source_row=4,
+        ),
+    ]
+    snapshot = import_artifact(register_workbook(make_workbook(rows=rows)), dry_run=False).snapshot
+    window_start = today - dt.timedelta(days=30)
+
+    assert count_received_since(snapshot, window_start) == 1
+    assert count_sent_since(snapshot, window_start) == 1
+
+
+def test_upcoming_deadlines_cover_only_open_topics_still_inside_the_horizon(
+    make_workbook, register_workbook
+):
+    today = dt.date.today()
+    rows = [
+        synthetic_row(
+            record_id="SYN-SOON",
+            topic="Kolme päeva pärast",
+            deadline_date=today + dt.timedelta(days=3),
+            is_open=True,
+            source_row=2,
+        ),
+        synthetic_row(
+            record_id="SYN-PAST",
+            topic="Eile möödas",
+            deadline_date=today - dt.timedelta(days=1),
+            is_open=True,
+            source_row=3,
+        ),
+        synthetic_row(
+            record_id="SYN-FAR",
+            topic="Kaugel tulevikus",
+            deadline_date=today + dt.timedelta(days=400),
+            is_open=True,
+            source_row=4,
+        ),
+        synthetic_row(
+            record_id="SYN-CLOSED",
+            topic="Juba lõpetatud",
+            deadline_date=today + dt.timedelta(days=2),
+            is_open=False,
+            sent_status="not_sent",
+            source_row=5,
+        ),
+    ]
+    snapshot = import_artifact(register_workbook(make_workbook(rows=rows)), dry_run=False).snapshot
+
+    deadlines = get_upcoming_deadlines(snapshot)
+
+    assert [deadline.item.topic for deadline in deadlines] == ["Kolme päeva pärast"]
+    assert deadlines[0].days_remaining == 3
+    assert deadlines[0].is_urgent is True
+    assert deadlines[0].variant == "danger"
+    assert deadlines[0].remaining_label == "3 päeva"
+
+
+def test_a_deadline_further_out_is_marked_less_urgent(make_workbook, register_workbook):
+    today = dt.date.today()
+    rows = [
+        synthetic_row(
+            record_id="SYN-WEEK",
+            topic="Nädala pärast",
+            deadline_date=today + dt.timedelta(days=8),
+            is_open=True,
+            source_row=2,
+        ),
+        synthetic_row(
+            record_id="SYN-LATER",
+            topic="Kahe nädala pärast",
+            deadline_date=today + dt.timedelta(days=15),
+            is_open=True,
+            source_row=3,
+        ),
+    ]
+    snapshot = import_artifact(register_workbook(make_workbook(rows=rows)), dry_run=False).snapshot
+
+    by_topic = {deadline.item.topic: deadline for deadline in get_upcoming_deadlines(snapshot)}
+
+    assert by_topic["Nädala pärast"].variant == "warning"
+    assert by_topic["Kahe nädala pärast"].variant == "info"
+    assert by_topic["Nädala pärast"].is_urgent is False
+
+
+def test_without_a_snapshot_there_are_no_deadlines_and_no_counts(db):
+    today = dt.date.today()
+
+    assert get_upcoming_deadlines() == ()
+    assert count_received_since(None, today - dt.timedelta(days=30)) == 0
 
 
 # -- summary ------------------------------------------------------------
