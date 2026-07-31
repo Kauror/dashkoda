@@ -43,11 +43,11 @@ test("without JavaScript the refresh control is an ordinary form submission", as
   await page.goto("/sisene/");
   await page.getByLabel("PIN-kood").fill(TEST_PIN);
   await page.getByRole("button", { name: "Sisene" }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja juhatuse töölaud");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja töölaud");
 
   await page.getByRole("button", { name: "Kontrolli uuesti" }).click();
 
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja juhatuse töölaud");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja töölaud");
   await expect(page.locator("#freshness-region")).toContainText(
     "Andmeallikas ei ole veel ühendatud.",
   );

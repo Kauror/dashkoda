@@ -5,11 +5,12 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 const SECTIONS = [
   "Põhinäitajad",
   "Juhatuse tähelepanu",
-  "Pärast eelmist ülevaadet",
+  "Muutus viimase kuu jooksul",
+  "Õigusloome",
   "Liikmeskond",
-  "Õigusloome ja arvamused",
   "Tulevased sündmused",
   "Viimased uudised",
+  "Kanalite statistika",
 ];
 
 test("the shell renders every section with a truthful empty state", async ({ page }) => {
