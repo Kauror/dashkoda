@@ -137,6 +137,16 @@
     @apply flex flex-col gap-0.5;
   }
 
+  /* Children of a navigation entry. The rule and the indent carry the
+     relationship visually; the nested <ul> carries it structurally. */
+  .dk-nav-sublist {
+    @apply mb-0.5 ml-3 flex flex-col gap-px border-l border-border pl-3;
+  }
+
+  .dk-nav-sublist .dk-nav-item {
+    @apply px-2.5 py-1.5 text-[0.8125rem];
+  }
+
   .dk-nav-item {
     @apply flex items-center justify-between gap-3 rounded-md px-3 py-2.5 text-sm
       font-medium no-underline transition-colors;
@@ -184,8 +194,48 @@
     @apply tracking-[0.4em];
   }
 
+  /* Ordinary in-content link. Referenced by the news, events and overview
+     templates; without it those links fall back to the browser default, which
+     is unreadable on the dark surface. */
+  .dk-link {
+    @apply font-medium text-brand underline-offset-2 hover:text-brand-hover hover:underline;
+  }
+
   .dk-card {
     @apply rounded-lg border border-border bg-surface shadow-card;
+  }
+
+  /* The headline indicator strip. One row on a wide screen, splitting to two
+     and then one as it narrows.
+     The rules are the grid's own 1px gaps showing the container colour through,
+     rather than borders on the cells. Tailwind's `divide-*` walks the child
+     order and cannot know where a row begins, so at two columns it would draw a
+     vertical rule down the left edge of the third cell — the start of a row. A
+     gap has no such problem at any column count. The strip is always the last
+     element in its section, so it rounds its own bottom corners. */
+  .dk-kpi-strip {
+    @apply grid grid-cols-1 gap-px overflow-hidden rounded-b-lg bg-border
+      sm:grid-cols-2 xl:grid-cols-4;
+  }
+
+  .dk-kpi-strip > * {
+    @apply bg-surface;
+  }
+
+  .dk-kpi-strip-wide {
+    @apply sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5;
+  }
+
+  /* Tab control inside a card header. The active state is an underline plus
+     aria-selected, never colour on its own. */
+  .dk-tab {
+    @apply rounded-t-sm px-2.5 pt-1.5 pb-2 text-sm font-medium text-text-secondary
+      transition-colors hover:text-text;
+  }
+
+  .dk-tab-active {
+    @apply font-semibold text-text;
+    box-shadow: inset 0 -2px 0 0 var(--color-brand);
   }
 
   .dk-section {

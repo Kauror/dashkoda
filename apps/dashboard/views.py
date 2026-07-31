@@ -1,21 +1,14 @@
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
-from apps.events.selectors import get_event_summary, get_upcoming_events
-from apps.legal_work.selectors import (
-    get_latest_sent_items,
-    get_legal_work_summary,
-    get_newest_received_items,
-)
-from apps.membership.internal_selectors import get_internal_membership_latest
+from apps.events.selectors import get_event_summary
+from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.selectors import get_membership_summary
-from apps.news.selectors import get_latest_news, get_news_summary
+from apps.news.selectors import get_news_summary
 
 from .freshness import current_freshness
 from .navigation import NAVIGATION
-
-# How many rows each section previews before sending the reader to its own page.
-OVERVIEW_PREVIEW_LIMIT = 5
+from .overview import build_overview
 
 
 def _shell_context(active_nav: str) -> dict:
@@ -28,29 +21,27 @@ def _shell_context(active_nav: str) -> dict:
 
 @require_GET
 def overview(request):
-    # Four sections are backed by real data: legal work, membership, news and
-    # events. The rest stay explicit empty states until their own source is
-    # connected. Every summary reads PostgreSQL only.
+    """The board's landing page.
+
+    Reads each module's summary, hands them to `build_overview` and renders. All
+    four wired feeds plus the internal board report contribute where they have
+    data; every other part of the page says plainly that it has no source yet.
+    Nothing here reaches outside PostgreSQL.
+    """
     legal_work = get_legal_work_summary()
-    snapshot = legal_work.snapshot
+    membership = get_membership_summary()
     news = get_news_summary()
     events = get_event_summary()
     context = _shell_context("overview") | {
-        "membership": get_membership_summary(),
-        # Secondary context only. The overview's member total stays the public
-        # directory count; the internal report contributes a date and a share,
-        # both labelled, so the page never shows two competing totals.
-        "internal_membership": get_internal_membership_latest(),
-        "news": news,
-        "latest_news": get_latest_news(news.snapshot, limit=OVERVIEW_PREVIEW_LIMIT),
-        "events": events,
-        "upcoming_events": get_upcoming_events(events.snapshot, limit=OVERVIEW_PREVIEW_LIMIT),
         "legal_work": legal_work,
-        "legal_work_received": (
-            get_newest_received_items(snapshot, limit=OVERVIEW_PREVIEW_LIMIT) if snapshot else ()
-        ),
-        "legal_work_sent": (
-            get_latest_sent_items(snapshot, limit=OVERVIEW_PREVIEW_LIMIT) if snapshot else ()
+        "membership": membership,
+        "news": news,
+        "events": events,
+        "page": build_overview(
+            legal_work=legal_work,
+            membership=membership,
+            news=news,
+            events=events,
         ),
     }
     return render(request, "dashboard/overview.html", context)

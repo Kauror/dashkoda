@@ -3,17 +3,22 @@ Freshness / source row.
 
 Context:
   source      – verified source name; falls back to an explicit "not connected"
+  cadence     – optional, how often that source updates ("iga päev")
   as_of       – the date the values describe; falls back to an em dash
   state       – neutral (default) | success | warning | danger
   state_label – text for the state badge
 
 Every dashboard value is expected to carry this row, so provenance and as-of
 date stay visible next to the number instead of in a separate legend.
+
+The cadence is part of the provenance, not decoration. A figure recounted every
+day and one reported once a month are different kinds of claim, and a reader
+comparing two numbers has to be able to see which is which.
 {% endcomment %}
 <dl class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-2 dk-meta">
   <div class="flex items-center gap-1.5">
     <dt class="text-text-muted">Allikas:</dt>
-    <dd class="text-text-secondary">{{ source|default:"ühendamata" }}</dd>
+    <dd class="text-text-secondary">{{ source|default:"ühendamata" }}{% if cadence %} · {{ cadence }}{% endif %}</dd>
   </div>
   <div class="flex items-center gap-1.5">
     <dt class="text-text-muted">Seisuga:</dt>

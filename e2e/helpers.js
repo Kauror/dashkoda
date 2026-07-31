@@ -22,7 +22,7 @@ export async function signIn(page) {
   await page.goto("/sisene/");
   await page.getByLabel("PIN-kood").fill(TEST_PIN);
   await page.getByRole("button", { name: "Sisene" }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja juhatuse töölaud");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja töölaud");
 }
 
 export const LOGOUT_FORM = 'form[action="/logi-valja/"]';

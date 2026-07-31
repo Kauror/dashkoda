@@ -56,4 +56,43 @@ Alpine.data("mobileNav", () => ({
   },
 }));
 
+/*
+ * Two mutually exclusive panels inside one card.
+ *
+ * The CSP build allows a directive to name a property or a method and nothing
+ * else. Everything a directive reads is therefore a plain reactive property,
+ * updated by the two methods the tabs call. Getters would be terser, but a
+ * directive silently resolving to `undefined` would hide both panels rather
+ * than fail loudly, and these tabs only render once there is data to show — so
+ * the browser suite, which runs against an empty database, would not catch it.
+ *
+ * Progressive enhancement: the tablist itself carries `x-cloak`, so before this
+ * runs there are no tabs and both panels are simply visible, each under its own
+ * heading. Nothing is hidden that cannot be revealed again.
+ */
+const TAB_BASE = "dk-tab";
+const TAB_ACTIVE = "dk-tab dk-tab-active";
+
+Alpine.data("tabPair", () => ({
+  firstSelected: true,
+  secondSelected: false,
+  firstTabClass: TAB_ACTIVE,
+  secondTabClass: TAB_BASE,
+
+  select(first) {
+    this.firstSelected = first;
+    this.secondSelected = !first;
+    this.firstTabClass = first ? TAB_ACTIVE : TAB_BASE;
+    this.secondTabClass = first ? TAB_BASE : TAB_ACTIVE;
+  },
+
+  showFirst() {
+    this.select(true);
+  },
+
+  showSecond() {
+    this.select(false);
+  },
+}));
+
 Alpine.start();

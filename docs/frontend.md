@@ -65,8 +65,21 @@ inline script.
 
 Alpine runs as the **CSP build**: a directive value may only name a property or
 a method of a registered `Alpine.data()` component, never an inline expression.
-It holds interface state only — currently just the mobile drawer — and never
-business data. There is no inline `<script>` anywhere.
+Anything a directive needs is therefore exposed as a getter — `tabPair` returns
+its own class strings that way rather than composing them in the markup. Alpine
+holds interface state only — the mobile drawer and the overview's paired tabs —
+and never business data. There is no inline `<script>` anywhere.
+
+Both components degrade rather than disappear. The drawer toggle and the tablist
+carry `x-cloak`, so before Alpine boots there is no dead control: the drawer's
+`<noscript>` navigation stands in for one, and for the other both tab panels are
+simply visible, each under its own heading. Nothing is hidden that cannot be
+revealed again.
+
+The overview draws its miniature trends and its proportion bars as server-rendered
+SVG rather than through `charts.js`. It is the page every viewer loads first, and
+a card-sized line of a dozen points does not justify a megabyte of charting
+library. See [design-system.md](design-system.md).
 
 htmx is configured through a `htmx-config` meta tag in `templates/base.html`:
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import datetime
 
 from django.conf import settings
 
@@ -26,6 +27,19 @@ def get_latest_news(snapshot: NewsSnapshot | None = None, limit: int = DEFAULT_L
     if snapshot is None:
         return NewsItem.objects.none()
     return NewsItem.objects.filter(snapshot=snapshot).order_by("-published_at", "guid")[:limit]
+
+
+def count_published_since(snapshot: NewsSnapshot | None, since: datetime) -> int:
+    """Items in the current snapshot published at or after `since`.
+
+    Bounded by what the feed publishes: it carries a limited number of recent
+    items, so this counts what the Chamber's own feed still lists, not every
+    article it has ever published.
+    """
+    snapshot = snapshot or get_current_news_snapshot()
+    if snapshot is None:
+        return 0
+    return NewsItem.objects.filter(snapshot=snapshot, published_at__gte=since).count()
 
 
 @dataclass(frozen=True)

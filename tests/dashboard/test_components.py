@@ -7,7 +7,10 @@ asserts that.
 
 from django.template.loader import render_to_string
 
+from apps.dashboard.connections import Connection, ConnectionState, planned
 from apps.dashboard.navigation import NavItem
+from apps.dashboard.overview import SourcedFigure
+from apps.dashboard.sparkline import build_sparkline
 
 
 def render(name: str, context: dict) -> str:
@@ -56,9 +59,12 @@ def test_kpi_card_supports_the_full_future_api():
             "status": "success",
             "status_label": "Kontrollitud",
             "source": "Sünteetiline testallikas",
+            "cadence": "iga päev",
             "as_of": "31.12.2025",
             "freshness": "success",
             "freshness_label": "Värske",
+            "secondary": "111 € / 222 €",
+            "meter_pct": 42.5,
         },
     )
 
@@ -68,8 +74,28 @@ def test_kpi_card_supports_the_full_future_api():
     assert "vs eelmine kvartal" in html
     assert "Kontrollitud" in html
     assert "Sünteetiline testallikas" in html
+    assert "iga päev" in html
     assert "31.12.2025" in html
     assert "Värske" in html
+    assert "111 € / 222 €" in html
+    # The proportion is geometry, never a width inside a style attribute: the
+    # Content Security Policy is style-src 'self'.
+    assert 'width="42.50"' in html
+    assert 'style="' not in html
+
+
+def test_kpi_card_shows_a_reported_zero_rather_than_the_empty_state():
+    """Zero is a measurement. Only an absent value is an empty state."""
+    html = render("kpi_card", {"label": "Näidisnäitaja", "value": 0})
+
+    assert "Kontrollitud andmed puuduvad." not in html
+    assert ">0<" in html.replace(" ", "").replace("\n", "")
+
+
+def test_kpi_card_omits_the_meter_when_there_is_no_proportion():
+    html = render("kpi_card", {"label": "Näidisnäitaja", "value": "5"})
+
+    assert "<svg" not in html
 
 
 def test_kpi_card_without_a_value_states_that_data_is_missing():
@@ -195,3 +221,82 @@ def test_nav_item_marks_the_active_module():
 
     assert 'aria-current="page"' in html
     assert "dk-nav-item-active" in html
+
+
+def test_nav_item_nests_children_and_keeps_unrouted_ones_inert():
+    html = render(
+        "nav_item",
+        {
+            "item": NavItem(
+                key="projects",
+                label="Projektid",
+                children=(NavItem(key="projects-active", label="Käimasolevad"),),
+            ),
+            "active_nav": "overview",
+        },
+    )
+
+    assert "dk-nav-sublist" in html
+    assert "Käimasolevad" in html
+    assert "<a " not in html, "an unrouted child must never become a link"
+    assert html.count('aria-disabled="true"') == 2
+
+
+def test_planned_module_names_the_source_as_unconnected():
+    html = render(
+        "planned_module",
+        {"connection": planned("Näidiskanal", promise="Sünteetiline allikakirjeldus.")},
+    )
+
+    assert "Näidiskanal" in html
+    assert "Lisamisel" in html
+    assert "Andmeallikas ei ole veel ühendatud." in html
+    assert "Sünteetiline allikakirjeldus." in html
+
+
+def test_sparkline_figure_draws_a_line_and_keeps_the_table_beside_it():
+    from datetime import date
+
+    series = ((date(2025, 1, 1), 10), (date(2025, 2, 1), 12), (date(2025, 3, 1), 11))
+    html = render(
+        "sparkline_figure",
+        {
+            "figure": SourcedFigure(
+                label="Näidisnäitaja",
+                connection=Connection(
+                    "Sünteetiline testallikas", ConnectionState.CONNECTED, "iga päev"
+                ),
+                value=11,
+                unit="ühikut",
+                sparkline=build_sparkline(series),
+                series=series,
+            )
+        },
+    )
+
+    assert "<polyline" in html
+    assert 'style="' not in html
+    # The table is not a fallback; it stays in the document beside the drawing.
+    assert "<table" in html
+    assert "01.02.2025" in html
+    assert "Sünteetiline testallikas · iga päev" in html
+
+
+def test_sparkline_figure_draws_nothing_when_one_point_cannot_show_a_trend():
+    from datetime import date
+
+    html = render(
+        "sparkline_figure",
+        {
+            "figure": SourcedFigure(
+                label="Näidisnäitaja",
+                connection=Connection("Sünteetiline testallikas", ConnectionState.CONNECTED),
+                value=10,
+                sparkline=build_sparkline(((date(2025, 1, 1), 10),)),
+                series=((date(2025, 1, 1), 10),),
+            )
+        },
+    )
+
+    assert "<polyline" not in html
+    assert "vähemalt kahte vaatlust" in html

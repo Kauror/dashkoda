@@ -24,6 +24,14 @@ when the source actually stated one, never an invented midnight.
     </div>
   </header>
 
+  <section aria-labelledby="section-figures" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Kalendri hetkeseisu kokkuvõte." only %}
+    <div class="dk-kpi-strip sm:grid-cols-2 xl:grid-cols-2">
+      {% include "dashboard/components/kpi_card.html" with label="Sündmusi lähikuul" value=near_term_count source="Koda.ee kalender" cadence="iga päev" as_of=summary.observed_at|date:"d.m.Y H:i" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Eelseisvaid sündmusi kokku" value=total_count source="Koda.ee kalender" cadence="iga päev" as_of=summary.observed_at|date:"d.m.Y H:i" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+    </div>
+  </section>
+
   <section aria-labelledby="section-events" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Eelseisvad sündmused" heading_id="section-events" description="Kirjed avanevad koda.ee lehel." only %}
     {% if items %}
@@ -62,6 +70,13 @@ when the source actually stated one, never an invented midnight.
         {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelseisvad sündmused ilmuvad siia pärast esimest edukat kontrolli." only %}
       </div>
     {% endif %}
+  </section>
+
+  <section aria-labelledby="section-past" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Toimunud sündmused" heading_id="section-past" description="Sündmuste ajalugu ja osalemine." badge_label="Lisamisel" badge_variant="neutral" only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/planned_module.html" with connection=past_events only %}
+    </div>
   </section>
 
 </div>

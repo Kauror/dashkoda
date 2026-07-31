@@ -1,268 +1,354 @@
 {% extends "dashboard/shell.html" %}
 
 {% comment %}
-Overview shell.
+Ülevaade — the board's landing page.
 
-Every section is deliberately empty. DashKoda has no connected data source yet,
-so rendering any number, trend, draft law, opinion, event or news item here
-would be fabricated. The structure below is the agreed information hierarchy,
-filled by later pull requests.
+Layout follows direction 1a of the Overview Refresh design: a headline strip,
+what needs attention, one activity window, a two-by-two grid of module cards,
+and the communication channels that have no source yet.
+
+Everything it renders comes from `apps.dashboard.overview.build_overview`, which
+reads PostgreSQL through each module's own selectors. The template chooses
+layout and nothing else.
+
+Three things are deliberate and should stay that way:
+
+  - a figure with no connected source renders its empty state, never a zero;
+  - the member total and the paid-member figure are drawn as two sources with
+    their own names and their own update cadence. They count different things
+    and are never added, compared or continued into one another;
+  - the activity strip uses one fixed window, so all of its counts describe the
+    same period. The member delta, whose baseline is the previous reading rather
+    than a period, is shown beside the member figure with its own date.
+
+The mockup this follows carries synthetic numbers and says so on its own banner.
+None of them reached this file.
 {% endcomment %}
 
 {% block title %}Ülevaade – DashKoda{% endblock %}
 {% block breadcrumb %}Ülevaade{% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div class="flex flex-col gap-5">
 
   {# ---------------- Page header ---------------- #}
-  <header class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Koja juhatuse töölaud</h1>
-      <p class="text-sm text-text-secondary">Ülevaade koja olulisematest näitajatest ja tegevustest</p>
-    </div>
-
-    <div class="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-      <div class="flex flex-wrap items-center gap-2">
-        <button type="button" class="dk-button dk-button-secondary" disabled>Ajavahemik: määramata</button>
-        {% include "dashboard/components/status_badge.html" with label="Lisamisel" variant="neutral" only %}
-      </div>
-
-      <div class="flex flex-wrap items-center gap-3">
-        <div id="freshness-region" aria-live="polite" class="min-w-0">
-          {% include "dashboard/partials/freshness.html" %}
-        </div>
-        {% comment %}
-        Without JavaScript this submits a plain GET and reloads the overview;
-        with htmx it swaps only the fragment above.
-        {% endcomment %}
-        <form method="get" action="{% url 'home' %}">
-          <button type="submit"
-                  class="dk-button dk-button-secondary"
-                  hx-get="{% url 'dashboard-freshness' %}"
-                  hx-target="#freshness-region"
-                  hx-swap="innerHTML">
-            Kontrolli uuesti
-          </button>
-        </form>
-      </div>
-    </div>
-
-    {% include "dashboard/components/callout.html" with title="Töölaud on arendusjärgus." message="Andmeallikad ühendatakse järgmistes arendusetappides. Kuni selleni näitab töölaud ainult struktuuri, mitte näitajaid." variant="info" only %}
+  <header class="flex flex-col gap-1">
+    <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Koja töölaud</h1>
+    <p class="text-sm text-text-secondary">Ülevaade koja olulisematest näitajatest ja tegevustest</p>
   </header>
 
   {# ---------------- 1. Põhinäitajad ---------------- #}
+  {% comment %}
+  One strip, four indicators, each carrying its own source and cadence in the
+  footer row. The dividers belong to the strip, so the cards render flush.
+  {% endcomment %}
   <section aria-labelledby="section-kpi" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" description="Koja seisu kokkuvõtvad näitajad." badge_label="Lisamisel" badge_variant="neutral" only %}
-    <div class="dk-section-body grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      {% include "dashboard/components/kpi_card.html" with label="Liikmete arv" status_label="Lisamisel" status="neutral" only %}
-      {% include "dashboard/components/kpi_card.html" with label="Uued liikmed" status_label="Lisamisel" status="neutral" only %}
-      {% include "dashboard/components/kpi_card.html" with label="Lahkunud liikmed" status_label="Lisamisel" status="neutral" only %}
-      {% include "dashboard/components/kpi_card.html" with label="Esitatud arvamused" status_label="Lisamisel" status="neutral" only %}
+    {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" description="Koja seisu kokkuvõtvad näitajad." only %}
+    <div class="dk-kpi-strip">
+      {% for kpi in page.kpis %}
+        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary meter_pct=kpi.meter_pct source=kpi.source cadence=kpi.cadence as_of=kpi.as_of freshness=kpi.freshness freshness_label=kpi.freshness_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% endfor %}
     </div>
   </section>
 
   {# ---------------- 2. Juhatuse tähelepanu ---------------- #}
+  {% comment %}
+  Approaching opinion deadlines first, because they expire; then any source that
+  is showing older data after a failed check. When neither exists the section
+  says so rather than disappearing, so its absence is never ambiguous.
+  {% endcomment %}
   <section aria-labelledby="section-attention" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Juhatuse tähelepanu" heading_id="section-attention" description="Teemad, mis vajavad juhatuse otsust või seisukohta." only %}
-    <div class="dk-section-body">
-      {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Selle vaate andmed lisatakse järgmises arendusetapis." only %}
-    </div>
-  </section>
-
-  {# ---------------- 3. Pärast eelmist ülevaadet ---------------- #}
-  <section aria-labelledby="section-since" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Pärast eelmist ülevaadet" heading_id="section-since" description="Muudatused alates eelmisest juhatuse ülevaatest." only %}
-    <div class="dk-section-body">
-      {% include "dashboard/components/empty_state.html" with message="Kontrollitud andmed puuduvad." detail="Võrdlus muutub võimalikuks, kui esimene kontrollitud andmeseis on salvestatud." only %}
-    </div>
-  </section>
-
-  {# ---------------- 4. Liikmeskond ---------------- #}
-  {% comment %}
-  One metric only: the size of the public member directory. There is no "uusi
-  liikmeid sel aastal" figure and no empty card reserved for one, because that
-  is not an accepted DashKoda metric.
-  {% endcomment %}
-  <section aria-labelledby="section-membership" class="dk-section">
-    {% if membership.has_data %}
-      {% include "dashboard/components/section_header.html" with title="Liikmeskond" heading_id="section-membership" description="Koja avalikus liikmekataloogis avaldatud liikmeprofiilid." badge_label=membership.state_label badge_variant=membership.state_variant only %}
+    {% include "dashboard/components/section_header.html" with title="Juhatuse tähelepanu" heading_id="section-attention" description="Lähenevad tähtajad ja andmeallikate probleemid." only %}
+    {% if page.has_attention %}
+      <ul class="divide-y divide-border">
+        {% for item in page.attention %}
+          {% comment %}
+          The colour classes are spelled out rather than built from
+          `item.variant`. Tailwind generates utilities by scanning this source,
+          so a class name assembled at render time would simply not exist in the
+          stylesheet. The urgency is in the text either way.
+          {% endcomment %}
+          <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
+            <span class="flex-none text-micro font-semibold tracking-wide uppercase {% if item.variant == 'danger' %}text-danger{% elif item.variant == 'warning' %}text-warning{% else %}text-info{% endif %}">{{ item.kind }} · {{ item.marker }}</span>
+            <span class="min-w-0 flex-1 text-sm text-text">{{ item.message }}</span>
+          </li>
+        {% endfor %}
+      </ul>
     {% else %}
-      {% include "dashboard/components/section_header.html" with title="Liikmeskond" heading_id="section-membership" description="Koja avalikus liikmekataloogis avaldatud liikmeprofiilid." only %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Tähelepanu vajavaid tähtaegu ei ole." detail="Siia ilmuvad lähenevad arvamuse tähtajad ja allikad, mis kuvavad vananenud andmeid." only %}
+      </div>
     {% endif %}
-    <div class="dk-section-body flex flex-col gap-3">
-      {% if membership.has_data %}
-        {% if membership.last_sync_failed %}
-          {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka kontrolli andmeid." variant="warning" only %}
-        {% endif %}
-        <div class="flex flex-wrap items-end justify-between gap-3">
-          <div class="flex flex-col gap-1">
-            <h3 class="text-sm font-medium text-text-secondary">Liikmeid kokku</h3>
-            <p class="flex items-baseline gap-2">
-              <span class="text-metric font-semibold tracking-tight text-text">{{ membership.total_members }}</span>
-              <span class="text-sm text-text-secondary">liiget</span>
-            </p>
-            <p class="dk-meta">
-              Loendatud
-              <time datetime="{{ membership.observed_at|date:'c' }}">{{ membership.observed_at|date:"d.m.Y H:i" }}</time>
-            </p>
-          </div>
-          <a href="{% url 'membership' %}" class="dk-button dk-button-secondary">Vaata liikmeskonda</a>
-        </div>
+  </section>
+
+  {# ---------------- 3. Muutus viimase kuu jooksul ---------------- #}
+  <section aria-labelledby="section-activity" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Muutus viimase kuu jooksul" heading_id="section-activity" description="Ühendatud allikate tegevus ühes ja samas ajaaknas." only %}
+    <div class="dk-section-body">
+      {% if page.activity %}
+        <ul class="flex flex-wrap items-center gap-2">
+          {% for chip in page.activity %}
+            <li class="rounded-md border border-border bg-elevated px-2.5 py-1 text-sm">
+              <span class="font-semibold tabular-nums text-text">{{ chip.value }}</span>
+              <span class="text-text-secondary">{{ chip.label }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+        <p class="dk-meta mt-2">Ajaaken: viimased {{ page.activity_window_days }} päeva.</p>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Kontrollitud andmed puuduvad." detail="Võrdlus muutub võimalikuks, kui vähemalt üks andmeallikas on ühendatud." only %}
+      {% endif %}
+    </div>
+  </section>
+
+  {# ---------------- 4. Module cards ---------------- #}
+  <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
+
+    {# -------- Õigusloome -------- #}
+    <section aria-labelledby="section-legislation" class="dk-section flex flex-col" x-data="tabPair">
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
+        <h2 id="section-legislation" class="text-base font-semibold text-text">Õigusloome</h2>
         {% comment %}
-        Secondary context from the Chamber's own board reports. Deliberately a
-        date and a share rather than a second member total: the two sources
-        count different things, and two unlabelled totals side by side would
-        invite exactly the comparison this project keeps refusing to make.
+        The link appears only once the module has something to show. Sending a
+        reader to a page that is entirely empty states nothing false, but it
+        wastes the one click the card exists to earn.
         {% endcomment %}
-        {% if internal_membership %}
-          <p class="dk-meta border-t border-border pt-3">
-            Sisemine liikmeskonna aruanne seisuga
-            <time datetime="{{ internal_membership.observation_date|date:'Y-m-d' }}">{{ internal_membership.observation_date|date:"d.m.Y" }}</time>{% if internal_membership.paid_member_share_pct %}; tasunud liikmete osakaal {{ internal_membership.paid_member_share_pct }}%{% endif %}.
-            See on eraldi allikas, mitte sama näitaja mis avalik kataloog.
-          </p>
+        {% if legal_work.has_data %}
+          <a href="{% url 'legal-work' %}" class="dk-link text-sm">Vaata õigusloomet</a>
         {% endif %}
-      {% else %}
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
-      {% endif %}
-    </div>
-  </section>
+      </div>
 
-  {# ---------------- 5. Õigusloome ja arvamused ---------------- #}
-  {% comment %}
-  The only section backed by verified data. When no snapshot has been imported
-  it keeps exactly the empty state it had before, so nothing here is ever a
-  placeholder for a number that does not exist.
-  {% endcomment %}
-  <section aria-labelledby="section-legislation" class="dk-section">
-    {% if legal_work.has_data %}
-      {% include "dashboard/components/section_header.html" with title="Õigusloome ja arvamused" heading_id="section-legislation" description="Jälgitavad eelnõud ja koja esitatud arvamused." badge_label=legal_work.state_label badge_variant=legal_work.state_variant only %}
-    {% else %}
-      {% include "dashboard/components/section_header.html" with title="Õigusloome ja arvamused" heading_id="section-legislation" description="Jälgitavad eelnõud ja koja esitatud arvamused." only %}
-    {% endif %}
-    <div class="dk-section-body flex flex-col gap-4">
       {% if legal_work.has_data %}
-        {% if legal_work.last_sync_failed %}
-          {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka impordi andmeid." variant="warning" only %}
-        {% endif %}
-
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div class="flex flex-col gap-2">
-            <h3 class="text-sm font-medium text-text-secondary">Uusimad sisse tulnud</h3>
-            <ul class="dk-card divide-y divide-border">
-              {% for item in legal_work_received %}
-                {% include "dashboard/components/list_row.html" with title=item.topic meta=item.received_date|date:"d.m.Y" only %}
-              {% endfor %}
-            </ul>
+        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-2 sm:px-5">
+          {% comment %}
+          The tablist stays hidden until Alpine has booted, so it is never a dead
+          control. Without JavaScript both panels below simply remain visible,
+          each under its own heading.
+          {% endcomment %}
+          <div x-cloak role="tablist" aria-label="Õigusloome nimekirjad" class="flex gap-1">
+            <button type="button"
+                    id="tab-received"
+                    role="tab"
+                    aria-controls="panel-received"
+                    x-on:click="showFirst"
+                    :aria-selected="firstSelected"
+                    :class="firstTabClass"
+                    class="dk-tab">Sisse tulnud</button>
+            <button type="button"
+                    id="tab-sent"
+                    role="tab"
+                    aria-controls="panel-sent"
+                    x-on:click="showSecond"
+                    :aria-selected="secondSelected"
+                    :class="secondTabClass"
+                    class="dk-tab">Välja läinud</button>
           </div>
-          <div class="flex flex-col gap-2">
-            <h3 class="text-sm font-medium text-text-secondary">Viimati välja läinud</h3>
-            <ul class="dk-card divide-y divide-border">
-              {% for item in legal_work_sent %}
-                {% include "dashboard/components/list_row.html" with title=item.topic meta=item.sent_date|date:"d.m.Y" only %}
-              {% endfor %}
-            </ul>
-          </div>
+          <dl class="flex flex-wrap gap-x-4 gap-y-1 dk-meta tabular-nums">
+            <div class="flex items-center gap-1.5">
+              <dt>Töös</dt>
+              <dd class="font-semibold text-text">{{ page.legal_work_open_count }}</dd>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <dt>Sisse</dt>
+              <dd class="font-semibold text-text">{{ page.legal_work_received_recent }}</dd>
+            </div>
+            <div class="flex items-center gap-1.5">
+              <dt>Välja</dt>
+              <dd class="font-semibold text-text">{{ page.legal_work_sent_recent }}</dd>
+            </div>
+          </dl>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-3">
-          <p class="text-sm text-text-secondary">
-            Hetkel töös <span class="font-semibold text-text">{{ legal_work.open_count }}</span> teemat.
-            Andmed seisuga
-            <time datetime="{{ legal_work.reporting_date|date:'c' }}">{{ legal_work.reporting_date|date:"d.m.Y" }}</time>.
+        <div id="panel-received" role="tabpanel" aria-labelledby="tab-received" x-show="firstSelected" class="flex-1">
+          <h3 class="sr-only">Uusimad sisse tulnud</h3>
+          <ul class="divide-y divide-border">
+            {% for item in page.legal_work_received %}
+              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
+                <span class="min-w-0 truncate text-sm text-text">{{ item.topic }}</span>
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">sisse {{ item.received_date|date:"d.m.Y" }}</span>
+              </li>
+            {% empty %}
+              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Selles hetkeseisus ei ole kuupäevaga sisse tulnud kirjeid.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="secondSelected" class="flex-1">
+          <h3 class="sr-only">Viimati välja läinud</h3>
+          <ul class="divide-y divide-border">
+            {% for item in page.legal_work_sent %}
+              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
+                <span class="min-w-0 truncate text-sm text-text">{{ item.topic }}</span>
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">välja {{ item.sent_date|date:"d.m.Y" }}</span>
+              </li>
+            {% empty %}
+              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Välja läinud arvamusi ei ole selles hetkeseisus.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div class="border-t border-border px-4 py-2 sm:px-5">
+          {% include "dashboard/components/freshness_row.html" with source=page.legal_work.label as_of=legal_work.reporting_date|date:"d.m.Y" state=page.legal_work.state_variant state_label=page.legal_work.state_label only %}
+        </div>
+      {% else %}
+        <div class="dk-section-body">
+          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelnõud ja arvamused ilmuvad siia pärast esimest edukat sünkroonimist." only %}
+        </div>
+      {% endif %}
+    </section>
+
+    {# -------- Liikmeskond -------- #}
+    {% comment %}
+    Two sources drawn together and kept apart. The directory is recounted every
+    day and the board report arrives once a month; each figure states which it
+    is. The paid share is computed inside the board report alone — dividing the
+    internal paid count by the public directory total would be a ratio between
+    two different definitions and is never shown.
+    {% endcomment %}
+    <section aria-labelledby="section-membership" class="dk-section flex flex-col">
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
+        <h2 id="section-membership" class="text-base font-semibold text-text">Liikmeskond</h2>
+        {% if page.membership.has_any_data %}
+          <a href="{% url 'membership' %}" class="dk-link text-sm">Vaata liikmeskonda</a>
+        {% endif %}
+      </div>
+      <div class="dk-section-body flex flex-1 flex-col gap-4">
+        {% if page.membership.has_any_data %}
+          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+            {% include "dashboard/components/sparkline_figure.html" with figure=page.membership.public only %}
+            {% include "dashboard/components/sparkline_figure.html" with figure=page.membership.internal only %}
+          </div>
+          {% if page.membership.paid_share_pct is not None %}
+            <p class="text-sm text-text-secondary">
+              Tasunute osakaal sisemises aruandes
+              <span class="font-semibold tabular-nums text-text">{{ page.membership.paid_share_pct }} %</span>.
+              Osakaal on arvutatud aruande enda liikmearvust, mitte avalikust kataloogist.
+            </p>
+          {% endif %}
+          <p class="dk-meta">
+            Kaks eri allikat, mis loendavad eri asju. Neid ei liideta ega esitata ühe näitajana.
           </p>
-          <a href="{% url 'legal-work' %}" class="dk-button dk-button-secondary">Vaata õigusloomet</a>
-        </div>
-      {% else %}
-        <div class="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          <div class="flex flex-col gap-2">
-            <h3 class="text-sm font-medium text-text-secondary">Jälgitavad eelnõud</h3>
-            {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
-          </div>
-          <div class="flex flex-col gap-2">
-            <h3 class="text-sm font-medium text-text-secondary">Esitatud arvamused</h3>
-            {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
-          </div>
-        </div>
-      {% endif %}
-    </div>
-  </section>
-
-  {# ---------------- 6. Tulevased sündmused ---------------- #}
-  <section aria-labelledby="section-events" class="dk-section">
-    {% if events.has_data %}
-      {% include "dashboard/components/section_header.html" with title="Tulevased sündmused" heading_id="section-events" description="Koja üritused ja koolitused." badge_label=events.state_label badge_variant=events.state_variant only %}
-    {% else %}
-      {% include "dashboard/components/section_header.html" with title="Tulevased sündmused" heading_id="section-events" description="Koja üritused ja koolitused." only %}
-    {% endif %}
-    <div class="dk-section-body flex flex-col gap-3">
-      {% if events.has_data and upcoming_events %}
-        {% if events.last_sync_failed %}
-          {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka kontrolli andmeid." variant="warning" only %}
+        {% else %}
+          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
         {% endif %}
-        <ul class="dk-card divide-y divide-border">
-          {% for item in upcoming_events %}
-            <li class="flex flex-col gap-0.5 px-4 py-2.5">
-              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                {% if item.starts_at %}
-                  <time class="dk-meta whitespace-nowrap" datetime="{{ item.starts_at|date:'c' }}">{{ item.starts_at|date:"d.m.Y H:i" }}</time>
-                {% else %}
-                  <time class="dk-meta whitespace-nowrap" datetime="{{ item.starts_on|date:'Y-m-d' }}">{{ item.starts_on|date:"d.m.Y" }}</time>
-                {% endif %}
-                {% if item.category %}
-                  {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
-                {% endif %}
-              </div>
-              <a class="dk-link text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
+      </div>
+    </section>
+
+    {# -------- Tulevased sündmused -------- #}
+    <section aria-labelledby="section-events" class="dk-section flex flex-col">
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
+        <h2 id="section-events" class="text-base font-semibold text-text">Tulevased sündmused</h2>
+        {% if page.upcoming_events %}
+          <a href="{% url 'events' %}" class="dk-link text-sm">Vaata sündmusi</a>
+        {% endif %}
+      </div>
+      {% if page.upcoming_events %}
+        <ul class="flex-1 divide-y divide-border">
+          {% for item in page.upcoming_events %}
+            <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
+              {% if item.starts_at %}
+                <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.starts_at|date:'c' }}">{{ item.starts_at|date:"d.m.Y H:i" }}</time>
+              {% else %}
+                <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.starts_on|date:'Y-m-d' }}">{{ item.starts_on|date:"d.m.Y" }}</time>
+              {% endif %}
+              <a class="dk-link min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
                 {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
               </a>
+              {% if item.category %}
+                {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
+              {% endif %}
             </li>
           {% endfor %}
         </ul>
-        <div class="flex justify-end border-t border-border pt-3">
-          <a href="{% url 'events' %}" class="dk-button dk-button-secondary">Vaata sündmusi</a>
+        <div class="border-t border-border px-4 py-2 sm:px-5">
+          {% include "dashboard/components/freshness_row.html" with source=page.events.label cadence=page.events.cadence as_of=events.observed_at|date:"d.m.Y H:i" state=page.events.state_variant state_label=page.events.state_label only %}
         </div>
       {% else %}
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelseisvad sündmused ilmuvad siia pärast esimest edukat kontrolli." only %}
+        <div class="dk-section-body">
+          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelseisvad sündmused ilmuvad siia pärast esimest edukat kontrolli." only %}
+        </div>
       {% endif %}
-    </div>
-  </section>
+    </section>
 
-  {# ---------------- 7. Viimased uudised ---------------- #}
-  <section aria-labelledby="section-news" class="dk-section">
-    {% if news.has_data %}
-      {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" description="Koja uudised ja teated." badge_label=news.state_label badge_variant=news.state_variant only %}
-    {% else %}
-      {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" description="Koja uudised ja teated." only %}
-    {% endif %}
-    <div class="dk-section-body flex flex-col gap-3">
-      {% if news.has_data and latest_news %}
-        {% if news.last_sync_failed %}
-          {% include "dashboard/components/callout.html" with title="Viimane kontroll ebaõnnestus." message="Kuvatakse viimase eduka kontrolli andmeid." variant="warning" only %}
+    {# -------- Viimased uudised -------- #}
+    {% comment %}
+    The design shows three tabs here. Only the Chamber's own news feed exists;
+    press coverage and the newsletter have no source at all, so they are named
+    as unconnected instead of being drawn as empty tabs a reader could mistake
+    for "nothing published".
+    {% endcomment %}
+    <section aria-labelledby="section-news" class="dk-section flex flex-col">
+      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
+        <h2 id="section-news" class="text-base font-semibold text-text">Viimased uudised</h2>
+        {% if page.latest_news %}
+          <a href="{% url 'news' %}" class="dk-link text-sm">Vaata uudiseid</a>
         {% endif %}
-        <ul class="dk-card divide-y divide-border">
-          {% for item in latest_news %}
-            <li class="flex flex-col gap-0.5 px-4 py-2.5">
-              <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <time class="dk-meta whitespace-nowrap" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"d.m.Y" }}</time>
-                {% if item.category %}
-                  {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
-                {% endif %}
-              </div>
-              <a class="dk-link text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
+      </div>
+      {% if page.latest_news %}
+        <ul class="flex-1 divide-y divide-border">
+          {% for item in page.latest_news %}
+            <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
+              <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"d.m.Y" }}</time>
+              <a class="dk-link min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
                 {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
               </a>
+              {% if item.category %}
+                {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
+              {% endif %}
             </li>
           {% endfor %}
         </ul>
-        <div class="flex justify-end border-t border-border pt-3">
-          <a href="{% url 'news' %}" class="dk-button dk-button-secondary">Vaata uudiseid</a>
+        <div class="border-t border-border px-4 py-2 sm:px-5">
+          {% include "dashboard/components/freshness_row.html" with source=page.news.label cadence=page.news.cadence as_of=news.observed_at|date:"d.m.Y H:i" state=page.news.state_variant state_label=page.news.state_label only %}
         </div>
       {% else %}
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Uudised ilmuvad siia pärast esimest edukat kontrolli." only %}
+        <div class="dk-section-body">
+          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Uudised ilmuvad siia pärast esimest edukat kontrolli." only %}
+        </div>
       {% endif %}
+      <div class="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2 sm:px-5">
+        <span class="dk-meta">Veel siia planeeritud:</span>
+        <span class="dk-badge dk-badge-neutral">Meediakajastused · ühendamata</span>
+        <span class="dk-badge dk-badge-neutral">Uudiskiri · ühendamata</span>
+      </div>
+    </section>
+
+  </div>
+
+  {# ---------------- 5. Kanalite statistika ---------------- #}
+  {% comment %}
+  Reserved by the design and backed by nothing. There is no analytics, mailing
+  list or social integration in this repository and no field anywhere capable of
+  holding one of these figures, so every slot says so.
+  {% endcomment %}
+  <section aria-labelledby="section-channels" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kanalite statistika" heading_id="section-channels" description="Koja suhtluskanalite näitajad." badge_label="Lisamisel" badge_variant="neutral" only %}
+    <div class="dk-kpi-strip dk-kpi-strip-wide">
+      {% for connection in page.channels %}
+        {% include "dashboard/components/planned_module.html" with connection=connection compact=True only %}
+      {% endfor %}
     </div>
   </section>
+
+  {# ---------------- 6. Connection state ---------------- #}
+  <div class="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+    <div id="freshness-region" aria-live="polite" class="min-w-0">
+      {% include "dashboard/partials/freshness.html" %}
+    </div>
+    {% comment %}
+    Without JavaScript this submits a plain GET and reloads the overview; with
+    htmx it swaps only the fragment above.
+    {% endcomment %}
+    <form method="get" action="{% url 'home' %}">
+      <button type="submit"
+              class="dk-button dk-button-secondary"
+              hx-get="{% url 'dashboard-freshness' %}"
+              hx-target="#freshness-region"
+              hx-swap="innerHTML">
+        Kontrolli uuesti
+      </button>
+    </form>
+  </div>
 
 </div>
 {% endblock %}

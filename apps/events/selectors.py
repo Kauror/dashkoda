@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 from django.conf import settings
 from django.db.models import Q
@@ -13,6 +14,10 @@ from apps.core.feeds import FeedSummaryMixin
 from .models import EventFeedState, EventItem, EventSnapshot
 
 DEFAULT_LIMIT = 20
+
+# The near-term window the overview counts. Matches the legal-work activity
+# window so the two KPI cells describe the same length of time.
+NEAR_TERM_DAYS = 30
 
 
 def get_current_event_snapshot() -> EventSnapshot | None:
@@ -38,6 +43,26 @@ def get_upcoming_events(snapshot: EventSnapshot | None = None, limit: int = DEFA
         EventItem.objects.filter(snapshot=snapshot)
         .filter(_not_finished(today))
         .order_by("starts_on", "title", "stable_key")[:limit]
+    )
+
+
+def count_upcoming_within(
+    snapshot: EventSnapshot | None = None, *, days: int = NEAR_TERM_DAYS
+) -> int:
+    """How many unfinished events start inside the next `days` days.
+
+    Counted by start date, not by overlap: a long-running event that began
+    earlier is already under way and is not something starting in the window.
+    """
+    snapshot = snapshot or get_current_event_snapshot()
+    if snapshot is None:
+        return 0
+    today = timezone.localdate()
+    return (
+        EventItem.objects.filter(snapshot=snapshot)
+        .filter(_not_finished(today))
+        .filter(starts_on__lte=today + timedelta(days=days))
+        .count()
     )
 
 

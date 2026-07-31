@@ -1,20 +1,22 @@
+import html as html_module
 import re
 
 import pytest
 from django.utils.html import strip_tags
 
-from apps.dashboard.navigation import NAVIGATION
+from apps.dashboard.navigation import NAVIGATION, iter_items
 
 pytestmark = pytest.mark.django_db
 
 SECTION_TITLES = [
     "Põhinäitajad",
     "Juhatuse tähelepanu",
-    "Pärast eelmist ülevaadet",
+    "Muutus viimase kuu jooksul",
+    "Õigusloome",
     "Liikmeskond",
-    "Õigusloome ja arvamused",
     "Tulevased sündmused",
     "Viimased uudised",
+    "Kanalite statistika",
 ]
 
 FRESHNESS_REGION = re.compile(
@@ -39,7 +41,7 @@ def test_overview_renders_the_shell(client, authenticate_viewer):
     assert response.status_code == 200
     assert response.headers["Cache-Control"] == "private, no-store"
     assert content.count("<h1") == 1
-    assert "Koja juhatuse töölaud" in content
+    assert "Koja töölaud" in content
     assert "Ülevaade koja olulisematest näitajatest ja tegevustest" in content
     assert 'href="#main"' in content
     assert 'id="main"' in content
@@ -56,14 +58,16 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
-    routed = [item for item in NAVIGATION if item.is_available]
-    planned = [item for item in NAVIGATION if not item.is_available]
+    entries = list(iter_items())
+    routed = [item for item in entries if item.is_available]
+    planned = [item for item in entries if not item.is_available]
 
-    for item in NAVIGATION:
+    for item in entries:
         assert item.label in content
     assert 'aria-current="page"' in content
     # The modules backed by a connected source are routed; every other one is
-    # still inert, marked, and never rendered as a link.
+    # still inert, marked, and never rendered as a link. Nested entries follow
+    # the same rule, so a planned child cannot become a route by accident.
     assert {item.key for item in routed} == {
         "overview",
         "membership",
@@ -71,8 +75,28 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
         "events",
         "news",
     }
-    assert {item.key for item in planned} == {"opinions", "finance"}
+    assert {item.key for item in planned} == {
+        "opinions",
+        "finance",
+        "focus-topics",
+        "projects",
+        "projects-active",
+        "projects-finished",
+    }
     assert content.count('aria-disabled="true"') >= len(planned)
+
+
+def test_navigation_nests_planned_children_under_their_parent(client, authenticate_viewer):
+    authenticate_viewer(client)
+
+    content = client.get("/").content.decode()
+    parents = [item for item in NAVIGATION if item.children]
+
+    assert {item.key for item in parents} == {"legislation", "projects"}
+    assert "dk-nav-sublist" in content
+    for parent in parents:
+        for child in parent.children:
+            assert child.label in content
 
 
 def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
@@ -82,13 +106,35 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     # The freshness region carries the connection-check time, which is a fact
     # about the application rather than business data. Everything else on the
     # page must be free of numbers until a verified source exists.
+    #
+    # Entities are decoded before the scan. `strip_tags` leaves `&#x27;` intact,
+    # and the digits inside a numeric entity would otherwise read as a passing
+    # page while a label such as "YouTube'i" was quietly contributing "27".
     without_freshness = FRESHNESS_REGION.sub("", content)
-    visible_text = strip_tags(without_freshness)
+    visible_text = html_module.unescape(strip_tags(without_freshness))
 
     assert FRESHNESS_REGION.search(content) is not None
     assert re.search(r"\d", visible_text) is None, visible_text
     assert "Andmeallikas ei ole veel ühendatud." in content
     assert "Kontrollitud andmed puuduvad." in content
+
+
+def test_overview_names_every_unconnected_channel(client, authenticate_viewer):
+    """The channel band shows its intended shape and that nothing feeds it."""
+    authenticate_viewer(client)
+
+    content = client.get("/").content.decode()
+
+    for label in (
+        "Kodulehe külastused",
+        "Uudiskirja saajad",
+        "Facebooki jälgijad",
+        "LinkedIni jälgijad",
+        "YouTube’i tellijad",
+    ):
+        assert label in content
+    assert "Meediakajastused" in content
+    assert "Uudiskiri" in content
 
 
 def test_overview_keeps_logout_as_a_csrf_protected_post(client, authenticate_viewer):

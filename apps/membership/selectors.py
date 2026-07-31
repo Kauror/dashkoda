@@ -7,12 +7,18 @@ Reads the current observation only, and never contacts Koda.ee. There is no
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
 
 from django.conf import settings
+from django.utils import timezone
 
 from apps.core.feeds import FeedSummaryMixin
 
 from .models import MembershipCountObservation, MembershipFeedState
+
+# How much history the overview's small trend draws. Long enough to show a
+# direction, short enough that the sparkline stays legible at card width.
+DEFAULT_HISTORY_DAYS = 365
 
 
 def get_current_membership_observation() -> MembershipCountObservation | None:
@@ -23,6 +29,83 @@ def get_current_membership_observation() -> MembershipCountObservation | None:
         .select_related("source")
         .first()
     )
+
+
+def get_public_membership_history(*, days: int = DEFAULT_HISTORY_DAYS):
+    """Recorded totals over the window, oldest first.
+
+    Every row is a real reading. `synchronize_membership` writes an observation
+    only when the counted total differs from the one already published, so this
+    is a log of changes rather than one point per daily check — consecutive
+    points are never the same number, and a flat stretch is genuinely a stretch
+    where nothing moved.
+    """
+    since = timezone.now() - timedelta(days=days)
+    return tuple(
+        MembershipCountObservation.objects.filter(
+            source__slug=settings.KODA_MEMBERS_SOURCE_SLUG, observed_at__gte=since
+        )
+        .order_by("observed_at", "id")
+        .values_list("observed_at", "total_members")
+    )
+
+
+@dataclass(frozen=True)
+class MembershipChange:
+    """The current public count beside the reading it replaced.
+
+    `previous` is `None` on a first-ever observation, and the difference is then
+    unknown rather than zero: nobody has said the number did not move, only that
+    nothing was recorded before it.
+    """
+
+    current: MembershipCountObservation | None
+    previous: MembershipCountObservation | None
+
+    @property
+    def has_change(self) -> bool:
+        return self.current is not None and self.previous is not None
+
+    @property
+    def difference(self) -> int | None:
+        if not self.has_change:
+            return None
+        return self.current.total_members - self.previous.total_members
+
+    @property
+    def direction(self) -> str:
+        difference = self.difference
+        if difference is None or difference == 0:
+            return "flat"
+        return "up" if difference > 0 else "down"
+
+    @property
+    def label(self) -> str | None:
+        """The signed difference as text, so colour is never the only signal."""
+        difference = self.difference
+        if difference is None:
+            return None
+        return f"+{difference}" if difference > 0 else str(difference)
+
+    @property
+    def since(self):
+        return self.previous.observed_at if self.previous else None
+
+
+def get_membership_change() -> MembershipChange:
+    """The published count and the one immediately before it."""
+    current = get_current_membership_observation()
+    previous = None
+    if current is not None:
+        previous = (
+            MembershipCountObservation.objects.filter(
+                source__slug=settings.KODA_MEMBERS_SOURCE_SLUG,
+                observed_at__lt=current.observed_at,
+            )
+            .order_by("-observed_at", "-id")
+            .first()
+        )
+    return MembershipChange(current=current, previous=previous)
 
 
 @dataclass(frozen=True)

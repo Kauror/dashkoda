@@ -8,6 +8,11 @@ Context:
 Routed items render as links; planned items render as inert text marked
 `Lisamisel`, so navigation can never reach a 404. The active item is marked by
 an accent edge, a background and aria-current, not by colour alone.
+
+Children follow exactly the same rule and are nested in their own list, so the
+relationship between a parent and its views is carried by the document
+structure rather than by indentation alone. A child is never a link unless it
+has a route of its own.
 {% endcomment %}
 {% if item.is_available %}
   {% if item.key == active_nav %}
@@ -23,4 +28,11 @@ an accent edge, a background and aria-current, not by colour alone.
     {{ item.label }}
     {% include "dashboard/components/status_badge.html" with label="Lisamisel" variant="neutral" only %}
   </span>
+{% endif %}
+{% if item.children %}
+  <ul class="dk-nav-sublist">
+    {% for child in item.children %}
+      <li>{% include "dashboard/components/nav_item.html" with item=child active_nav=active_nav only %}</li>
+    {% endfor %}
+  </ul>
 {% endif %}

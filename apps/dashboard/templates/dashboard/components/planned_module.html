@@ -1,0 +1,26 @@
+{% comment %}
+A part of the dashboard whose source does not exist yet.
+
+Context:
+  connection – a Connection from `apps.dashboard.connections`
+  compact    – render as a strip cell rather than as a bordered block
+
+This is the empty state for a *source*, not for a query that returned nothing.
+The distinction matters: `empty_state` says "this module has no data yet",
+whereas this says "nothing collects this figure at all". Reading the difference
+is the whole reason the board can trust the numbers that are here.
+
+It never shows a placeholder number, a dash that could be mistaken for zero, or
+a date by which the source will exist.
+{% endcomment %}
+<div class="flex flex-col gap-2 {% if compact %}px-4 py-4{% else %}rounded-md border border-dashed border-border px-4 py-4{% endif %}">
+  <div class="flex items-start justify-between gap-3">
+    <h3 class="text-sm font-medium text-text-secondary">{{ connection.label }}</h3>
+    {% include "dashboard/components/status_badge.html" with label=connection.state_label variant=connection.state_variant only %}
+  </div>
+  <p class="flex items-baseline gap-1.5" aria-hidden="true">
+    <span class="text-metric font-semibold tracking-tight text-text-muted">—</span>
+  </p>
+  <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
+  {% if connection.promise %}<p class="dk-meta">{{ connection.promise }}</p>{% endif %}
+</div>
