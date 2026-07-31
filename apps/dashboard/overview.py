@@ -26,7 +26,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.urls import reverse
 from django.utils import timezone
@@ -67,6 +67,11 @@ PREVIEW_LIMIT = 4
 
 # How much history the two membership trends draw.
 TREND_DAYS = 365
+
+# Estonian groups thousands with a non-breaking space, as Django's own `et`
+# locale does. Written as an escape because the character is invisible in
+# source and an ordinary space would let a figure wrap in the middle.
+GROUP_SEPARATOR = "\N{NO-BREAK SPACE}"
 
 SOURCE_PUBLIC_DIRECTORY = "Koda.ee liikmekataloog"
 SOURCE_INTERNAL_REPORT = "Sisemine liikmeskonna aruanne"
@@ -347,12 +352,12 @@ def _fee_collection_kpi(internal_latest, connection) -> Kpi:
 
     secondary = ""
     if received is not None and budget is not None:
-        secondary = f"{received} € / {budget} €"
+        secondary = f"{_euros(received)} / {_euros(budget)}"
 
     return Kpi(
         label=label,
         connection=connection,
-        value=percentage,
+        value=_percentage(percentage),
         unit="%" if percentage is not None else "",
         comparison_period=(
             "raporteeritud" if reported is not None else "arvutatud" if computed else ""
@@ -361,6 +366,29 @@ def _fee_collection_kpi(internal_latest, connection) -> Kpi:
         meter_pct=meter_width(percentage),
         as_of=internal_latest.observation_date,
     )
+
+
+def _percentage(value: Decimal | None) -> Decimal | None:
+    """A percentage at two decimals.
+
+    The board report stores four, and `94,0400 %` reads as a precision the
+    figure does not have. Rounding is presentational only: the stored value,
+    which the Liikmeskond page shows beside the computed one, is untouched.
+    """
+    if value is None:
+        return None
+    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+
+
+def _euros(amount: Decimal) -> str:
+    """A whole-euro amount, grouped so it can be read at a glance.
+
+    Cents are noise beside a budget in the millions, and an ungrouped
+    `1276101` has to be counted digit by digit. The separator is the
+    non-breaking space Estonian uses, so a grouped figure never wraps mid-number.
+    """
+    whole = amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+    return f"{whole:,}".replace(",", GROUP_SEPARATOR) + f"{GROUP_SEPARATOR}€"
 
 
 def _build_attention(*, snapshot, summaries) -> tuple[AttentionItem, ...]:
