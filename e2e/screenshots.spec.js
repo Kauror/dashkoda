@@ -19,6 +19,12 @@ test("capture the dashboard overview", async ({ page }, testInfo) => {
   await page.screenshot({ path: shot(testInfo, "overview"), fullPage: true });
 });
 
+test("capture the visibility page", async ({ page }, testInfo) => {
+  await signIn(page);
+  await page.goto("/nahtavus/");
+  await page.screenshot({ path: shot(testInfo, "visibility"), fullPage: true });
+});
+
 test("capture the open mobile drawer", async ({ page }, testInfo) => {
   test.skip(page.viewportSize().width >= 1024, "narrow layouts only");
 

@@ -275,12 +275,17 @@ class VisibilityObservation(models.Model):
                 condition=Q(value__gte=0),
                 name="visibilityobservation_value_non_negative",
             ),
-            # A row cannot replace itself, which would make the correction chain
-            # a loop with no original in it.
-            models.CheckConstraint(
-                condition=Q(supersedes__isnull=True) | ~Q(supersedes=F("id")),
-                name="visibilityobservation_does_not_supersede_itself",
-            ),
+            # There is deliberately **no** `supersedes != id` check constraint.
+            # It would be unenforceable in the one place it matters and harmful
+            # everywhere else: `Model.full_clean()` validates check constraints
+            # against the in-memory instance, whose `id` is still `None` before
+            # the first save, so `supersedes = id` evaluates to SQL NULL and the
+            # constraint would reject **every correction** at validation time.
+            #
+            # Nothing is lost. A row cannot name itself at creation because it
+            # has no identifier yet, and it cannot acquire one later because
+            # `supersedes` is not in `MUTABLE_FIELDS`. `clean()` and
+            # `publishing.supersede_observation` refuse the case explicitly.
         ]
         indexes = [
             models.Index(fields=["metric", "-observation_date"]),
@@ -310,10 +315,17 @@ class VisibilityObservation(models.Model):
                 raise ValidationError(
                     {"source": f"Näitaja {self.metric} allikas peab olema {spec.source_slug}."}
                 )
-        if self.supersedes_id and self.supersedes.metric != self.metric:
-            raise ValidationError({"supersedes": "Parandus peab asendama sama näitaja vaatlust."})
-        if self.supersedes_id and self.supersedes.observation_date != self.observation_date:
-            raise ValidationError({"supersedes": "Parandus peab asendama sama kuupäeva vaatlust."})
+        if self.supersedes_id:
+            if self.pk is not None and self.supersedes_id == self.pk:
+                raise ValidationError({"supersedes": "Vaatlus ei saa asendada iseennast."})
+            if self.supersedes.metric != self.metric:
+                raise ValidationError(
+                    {"supersedes": "Parandus peab asendama sama näitaja vaatlust."}
+                )
+            if self.supersedes.observation_date != self.observation_date:
+                raise ValidationError(
+                    {"supersedes": "Parandus peab asendama sama kuupäeva vaatlust."}
+                )
 
     def save(self, *args, **kwargs):
         if self.pk is not None and not self._state.adding:

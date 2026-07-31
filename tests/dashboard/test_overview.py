@@ -74,6 +74,7 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
         "legislation",
         "events",
         "news",
+        "visibility",
     }
     assert {item.key for item in planned} == {
         "opinions",
@@ -119,8 +120,14 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     assert "Kontrollitud andmed puuduvad." in content
 
 
-def test_overview_names_every_unconnected_channel(client, authenticate_viewer):
-    """The channel band shows its intended shape and that nothing feeds it."""
+def test_overview_names_every_channel_and_says_which_are_empty(client, authenticate_viewer):
+    """The band shows all six channels and, with nothing entered, no figures.
+
+    Five of the six now have somewhere to store a value — `apps.visibility` — but
+    a database with no observation in it is exactly the state a fresh deployment
+    is in, and the band must say so rather than imply a zero. Website visits stay
+    unconnected regardless: nothing collects them at all.
+    """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
@@ -130,9 +137,12 @@ def test_overview_names_every_unconnected_channel(client, authenticate_viewer):
         "Uudiskirja saajad",
         "Facebooki jälgijad",
         "LinkedIni jälgijad",
+        "Instagrami jälgijad",
         "YouTube’i tellijad",
     ):
         assert label in content
+    assert "Google Analytics ei ole ühendatud." in content
+    assert "Andmed puuduvad." in content
     assert "Meediakajastused" in content
     assert "Uudiskiri" in content
 
