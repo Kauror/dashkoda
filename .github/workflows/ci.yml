@@ -192,6 +192,14 @@ jobs:
           logout_status, _logout_location = request("POST", "/logi-valja/")
           assert logout_status >= 300, f"POST logout unexpectedly returned {logout_status}"
           PY
+          # The runtime must start clean. Gunicorn logs `[ERROR]` only for real
+          # faults, so anything at that level here is a regression — a missing
+          # writable path, a failed subsystem — and is worth failing the build
+          # for even when the application still answers requests.
+          if docker compose -f compose.yaml -f compose.dev.yaml logs web | grep -F "[ERROR]"; then
+            echo "the web container logged an error during startup"
+            exit 1
+          fi
           if [ -n "$(docker compose -f compose.yaml -f compose.dev.yaml port db 5432 2>/dev/null)" ]; then
             echo "PostgreSQL must not publish a host port"
             exit 1
