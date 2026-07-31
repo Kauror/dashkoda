@@ -79,7 +79,9 @@ revealed again.
 The overview draws its miniature trends and its proportion bars as server-rendered
 SVG rather than through `charts.js`. It is the page every viewer loads first, and
 a card-sized line of a dozen points does not justify a megabyte of charting
-library. See [design-system.md](design-system.md).
+library. The Nähtavus page follows the same rule for the four social follower
+histories: server-drawn `<polyline>` plus the values as a table, and no chart
+bundle. See [design-system.md](design-system.md).
 
 htmx is configured through a `htmx-config` meta tag in `templates/base.html`:
 
@@ -178,11 +180,17 @@ one. `DASHKODA_E2E_BASE_URL` selects the target and defaults to
 `http://127.0.0.1:8000`. `DASHKODA_E2E_PIN` supplies the viewer PIN and defaults
 to the synthetic CI value `4071`. **The real PIN must never be used here.**
 
-CI runs it in four projects — 1440, 768, 390 and 320 px — against the Compose
-development runtime. That run uses `config.settings.local`, because the browser
-drives the application over plain HTTP on loopback and the production settings
-force an HTTPS redirect and secure cookies. The separate production-settings
-Compose smoke test is unchanged and still covers that configuration.
+CI runs it in six projects — 1920, 1440, 1024, 768, 375 and 320 px — against the
+Compose development runtime. The widths sit on both sides of every layout
+breakpoint: 320 and 375 below `sm`, 768 at the tablet grid, 1024 where the
+persistent sidebar replaces the drawer, 1440 for an ordinary desktop, and 1920
+for a meeting-room display, which is also where the six-slot channel band first
+fits on one line.
+
+That run uses `config.settings.local`, because the browser drives the
+application over plain HTTP on loopback and the production settings force an
+HTTPS redirect and secure cookies. The separate production-settings Compose
+smoke test is unchanged and still covers that configuration.
 
 ## Dependency audit
 

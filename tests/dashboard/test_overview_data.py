@@ -241,9 +241,14 @@ def test_unconnected_parts_still_say_so_on_a_page_full_of_data(viewer, legal_wor
     page = body(viewer.get(reverse("home")))
 
     assert "Kanalite statistika" in page
-    assert "Kodulehe külastused" in page
     assert "Meediakajastused" in page
-    assert page.count("Andmeallikas ei ole veel ühendatud.") >= 5
+    # Website visits have no source at all and say exactly that.
+    assert "Kodulehe külastused" in page
+    assert "Google Analytics ei ole ühendatud." in page
+    # The five channels that *can* hold a value have none entered yet, which is a
+    # different statement and gets different wording.
+    assert page.count("Andmed puuduvad.") >= 5
+    assert "Andmeallikas ei ole veel ühendatud." in page
 
 
 def test_an_unconnected_source_contributes_no_zero(viewer):

@@ -74,6 +74,7 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
         "legislation",
         "events",
         "news",
+        "visibility",
     }
     assert {item.key for item in planned} == {
         "opinions",
@@ -119,8 +120,14 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     assert "Kontrollitud andmed puuduvad." in content
 
 
-def test_overview_names_every_unconnected_channel(client, authenticate_viewer):
-    """The channel band shows its intended shape and that nothing feeds it."""
+def test_overview_names_every_channel_and_says_which_are_empty(client, authenticate_viewer):
+    """The band shows all six channels and, with nothing entered, no figures.
+
+    Five of the six now have somewhere to store a value — `apps.visibility` — but
+    a database with no observation in it is exactly the state a fresh deployment
+    is in, and the band must say so rather than imply a zero. Website visits stay
+    unconnected regardless: nothing collects them at all.
+    """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
@@ -130,9 +137,12 @@ def test_overview_names_every_unconnected_channel(client, authenticate_viewer):
         "Uudiskirja saajad",
         "Facebooki jälgijad",
         "LinkedIni jälgijad",
+        "Instagrami jälgijad",
         "YouTube’i tellijad",
     ):
         assert label in content
+    assert "Google Analytics ei ole ühendatud." in content
+    assert "Andmed puuduvad." in content
     assert "Meediakajastused" in content
     assert "Uudiskiri" in content
 
@@ -168,9 +178,15 @@ def test_overview_loads_only_local_bundled_assets(client, authenticate_viewer):
 
     assert '<link rel="stylesheet" href="/static/build/styles.css">' in content
     assert '<script type="module" src="/static/build/app.js"></script>' in content
-    assert "https://" not in content
     assert "<script>" not in content
     assert 'style="' not in content
+    # Every asset the page *loads* is local. Checked as asset URLs rather than
+    # as a blanket "no https anywhere", because the channel band legitimately
+    # links out to the Chamber's public social pages once a figure is entered —
+    # a link a reader may follow is not an asset the page pulls in.
+    assets = re.findall(r'<(?:script|link|img)\b[^>]*\b(?:src|href)="([^"]+)"', content)
+    assert assets, "the page is expected to load its own bundle"
+    assert all(url.startswith("/static/") for url in assets), assets
 
 
 def test_overview_wires_the_htmx_freshness_pattern(client, authenticate_viewer):

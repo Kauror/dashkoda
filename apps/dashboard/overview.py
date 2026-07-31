@@ -28,6 +28,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.events.selectors import count_upcoming_within, get_upcoming_events
@@ -50,11 +51,11 @@ from apps.membership.selectors import (
     get_public_membership_history,
 )
 from apps.news.selectors import count_published_since, get_latest_news
+from apps.visibility.page import ChannelSlot, build_channel_band
 
 from .connections import (
     CADENCE_DAILY,
     CADENCE_MONTHLY,
-    CHANNEL_STATISTICS,
     Connection,
     ConnectionState,
     from_summary,
@@ -180,7 +181,7 @@ class OverviewPage:
     upcoming_events: tuple
     news: Connection
     latest_news: tuple
-    channels: tuple[Connection, ...]
+    channels: tuple[ChannelSlot, ...]
 
     @property
     def has_attention(self) -> bool:
@@ -188,7 +189,13 @@ class OverviewPage:
 
 
 def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
-    """Read every connected module once and shape it for the page."""
+    """Read every connected module once and shape it for the page.
+
+    The channel band is the one part assembled elsewhere: `apps.visibility` owns
+    what those figures mean, how stale they are and how they must be worded, and
+    restating any of that here would let the overview and the Nähtavus page drift
+    apart about the same number.
+    """
     today = timezone.localdate()
     window_start = today - timedelta(days=ACTIVITY_WINDOW_DAYS)
     snapshot = legal_work.snapshot
@@ -265,7 +272,7 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
         upcoming_events=tuple(get_upcoming_events(events.snapshot, limit=PREVIEW_LIMIT)),
         news=news_connection,
         latest_news=tuple(get_latest_news(news.snapshot, limit=PREVIEW_LIMIT)),
-        channels=CHANNEL_STATISTICS,
+        channels=build_channel_band(detail_url=reverse("visibility")),
     )
 
 

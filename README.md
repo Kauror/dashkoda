@@ -20,6 +20,14 @@ the news RSS feed and the events calendar, at `/liikmeskond/`, `/uudised/` and
 morning; no raw response is retained. See
 [docs/koda-public-feeds.md](docs/koda-public-feeds.md).
 
+The communication-channel figures — the two newsletter lists and the Facebook,
+LinkedIn, Instagram and YouTube follower counts — are **entered by hand** by a
+staff user and shown at `/nahtavus/` and in the overview's channel band. Nothing
+collects them: there is no social or mailing-list integration, no credential and
+no scheduled job. Website visits stay unconnected because Google Analytics is
+not wired up. See
+[docs/visibility-manual-entry.md](docs/visibility-manual-entry.md).
+
 The remaining sections still render an explicit empty state, because no other
 data source is connected — nothing on those pages is a placeholder metric.
 
@@ -178,6 +186,9 @@ npm run e2e
 - [docs/internal-membership-history.md](docs/internal-membership-history.md) —
   the Chamber's own board-report membership history, why it is a separate source
   from the public member count, the one-time import and the staff entry form
+- [docs/visibility-manual-entry.md](docs/visibility-manual-entry.md) — the
+  manually entered newsletter and social audience figures, the newsletter union
+  rule, the staff data-entry hub and the Google Analytics placeholder
 - [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
 - [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
 - [docs/security.md](docs/security.md) — viewer access boundary and browser policy

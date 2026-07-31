@@ -39,6 +39,9 @@ NAVIGATION: tuple[NavItem, ...] = (
     NavItem(key="opinions", label="Arvamused"),
     NavItem(key="events", label="Sündmused", url_name="events"),
     NavItem(key="news", label="Uudised", url_name="news"),
+    # Beside Uudised: both answer "who did we reach", one by what was published
+    # and one by how many people are listening.
+    NavItem(key="visibility", label="Nähtavus", url_name="visibility"),
     NavItem(
         key="projects",
         label="Projektid",

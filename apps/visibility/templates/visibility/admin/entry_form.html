@@ -1,0 +1,215 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+One submission of the channel figures.
+
+The whole thing is a single form. "Kontrolli" re-renders it with the preview
+filled in and saves nothing; "Kinnita ja salvesta" submits the identical fields a
+second time and is the only action that writes. There is no draft record and no
+server-side copy of a half-finished submission, so closing this tab leaves
+nothing behind.
+
+The profile links beside the social labels are display links. They are fixed
+application configuration, they are never editable here, and nothing in DashKoda
+fetches them. They carry `rel="noopener noreferrer"` and open in the same tab,
+because the design system has no approved accessible new-tab pattern.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Avaleht</a>
+    &rsaquo; <a href="{% url 'data-entry-hub' %}">Andmete sisestamine</a>
+    &rsaquo; <a href="{% url 'visibility-admin-entry-list' %}">Kanalite statistika sisestused</a>
+    &rsaquo; {{ title }}
+  </div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+{% if correcting %}
+  <p class="help">
+    Parandus loob uue kirje. Seisuga
+    <strong>{{ correcting.observation_date|date:"d.m.Y" }}</strong> senised väärtused
+    märgitakse asendatuks, kuid nende numbreid ei muudeta.
+  </p>
+{% endif %}
+
+<p class="help">
+  Väärtused loetakse platvormi enda statistikast ja sisestatakse käsitsi.
+  DashKoda ei päri ühtegi platvormi ega Google Analyticsit. Iga väli võib jääda
+  tühjaks — tühi väli ei tähenda nulli. Sisestatud <code>0</code> on päris väärtus.
+</p>
+
+<form method="post" novalidate>
+  {% csrf_token %}
+
+  {% if form.non_field_errors %}
+    <ul class="errorlist">{% for error in form.non_field_errors %}<li>{{ error }}</li>{% endfor %}</ul>
+  {% endif %}
+
+  <fieldset class="module aligned">
+    <h2>A. Vaatlus</h2>
+    <div class="form-row">
+      {{ form.observation_date.errors }}
+      {{ form.observation_date.label_tag }} {{ form.observation_date }}
+      <p class="help">Millise päeva seisu need numbrid kirjeldavad. Tulevikku ei saa sisestada.</p>
+    </div>
+    <div class="form-row">
+      {{ form.note.errors }}
+      {{ form.note.label_tag }} {{ form.note }}
+      <p class="help">{{ form.note.help_text }}</p>
+    </div>
+  </fieldset>
+
+  <fieldset class="module aligned">
+    <h2>B. Uudiskiri</h2>
+    <p class="help">
+      Aktiivsete saajate arv nimekirjas. See ei ole saadetud ega kohale toimetatud
+      kirjade arv ning ei ole avamiste või klikkide arv. Unikaalse auditooriumi
+      arvutamiseks on vaja kõiki kolme väärtust.
+    </p>
+    {% for spec, field, reading in newsletter_rows %}
+      <div class="form-row">
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+        <p class="help">{{ spec.definition }}</p>
+        {% include "visibility/admin/_latest_value.html" with reading=reading only %}
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  <fieldset class="module aligned">
+    <h2>C. Sotsiaalmeedia</h2>
+    <p class="help">Jälgijate ja tellijate arv kanali enda statistika järgi.</p>
+    {% for spec, field, reading in social_rows %}
+      <div class="form-row">
+        {{ field.errors }}
+        {{ field.label_tag }} {{ field }}
+        {% if spec.profile_url %}
+          <p class="help">
+            Avalik leht:
+            <a href="{{ spec.profile_url }}" rel="noopener noreferrer">{{ spec.profile_url }}</a>
+          </p>
+        {% endif %}
+        {% include "visibility/admin/_latest_value.html" with reading=reading only %}
+      </div>
+    {% endfor %}
+  </fieldset>
+
+  {% if preview %}
+    <fieldset class="module aligned">
+      <h2>D. Kontroll</h2>
+
+      {% if preview.errors %}
+        <ul class="errorlist">
+          {% for error in preview.errors %}<li>{{ error }}</li>{% endfor %}
+        </ul>
+        <p class="help">Salvestamine ei ole võimalik, kuni ülaltoodud vead on parandatud.</p>
+      {% endif %}
+
+      {% if preview.warnings %}
+        <h3>Hoiatused</h3>
+        <ul>
+          {% for warning in preview.warnings %}<li>{{ warning }}</li>{% endfor %}
+        </ul>
+        <p class="help">
+          Hoiatus ei takista salvestamist. See on sisestuskontroll, mitte väide, et
+          number on vale. Kinnitamine tähendab, et need on läbi vaadatud.
+        </p>
+      {% endif %}
+
+      <table>
+        <caption>Salvestatavad väärtused seisuga {{ preview.observation_date|date:"d.m.Y" }}</caption>
+        <thead>
+          <tr>
+            <th scope="col">Näitaja</th>
+            <th scope="col">Uus väärtus</th>
+            <th scope="col">Võrdlusalus</th>
+            <th scope="col">Muutus</th>
+            <th scope="col">Muutus %</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for change in preview.changes %}
+            <tr>
+              <th scope="row">
+                {{ change.spec.label }}
+                {% if change.is_correction %}<span class="help">(parandus)</span>{% endif %}
+              </th>
+              <td>{{ change.value }}</td>
+              <td>
+                {% if change.baseline %}
+                  {{ change.baseline_value }} ({{ change.baseline_date|date:"d.m.Y" }})
+                {% else %}
+                  esimene vaatlus
+                {% endif %}
+              </td>
+              <td>{{ change.difference|default_if_none:"–" }}</td>
+              <td>{{ change.difference_pct|default_if_none:"–" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+
+      <table>
+        <caption>Uudiskirja auditoorium</caption>
+        <tbody>
+          <tr>
+            <th scope="row">Liikmete uudiskirja aktiivsed saajad</th>
+            <td>{{ preview.newsletter.member|default_if_none:"–" }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Mitteliikmete uudiskirja aktiivsed saajad</th>
+            <td>{{ preview.newsletter.nonmember|default_if_none:"–" }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Mõlemas nimekirjas olevad saajad</th>
+            <td>{{ preview.newsletter.overlap|default_if_none:"–" }}</td>
+          </tr>
+          <tr>
+            <th scope="row">Unikaalsed uudiskirja saajad</th>
+            <td>
+              {% if preview.newsletter.unique_recipients is not None %}
+                {{ preview.newsletter.unique_recipients }}
+              {% else %}
+                ei ole arvutatav
+              {% endif %}
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      {% if not preview.newsletter.has_overlap %}
+        <p class="help">
+          {{ preview.newsletter.missing_overlap_message }} Kahte nimekirja ei liideta
+          unikaalseks auditooriumiks ilma kattuvuseta.
+        </p>
+      {% endif %}
+
+      {% if preview.corrections %}
+        <p>
+          Salvestamisel märgitakse asendatuks sama kuupäeva senised väärtused:
+          {% for change in preview.corrections %}
+            <strong>{{ change.spec.label }}</strong> ({{ change.replaces.value }}){% if not forloop.last %}, {% endif %}
+          {% endfor %}.
+        </p>
+      {% else %}
+        <p class="help">Ühtegi olemasolevat väärtust ei asendata.</p>
+      {% endif %}
+
+      {% if preview.already_published %}
+        <p class="help">
+          Täpselt sama sisuga sisestus on juba avaldatud. Kinnitamine ei loo teist kirjet.
+        </p>
+      {% endif %}
+    </fieldset>
+  {% endif %}
+
+  <div class="submit-row">
+    <button type="submit" name="action" value="{{ action_preview }}" class="button">Kontrolli</button>
+    {% if preview and preview.can_publish %}
+      <button type="submit" name="action" value="{{ action_confirm }}" class="default">Kinnita ja salvesta</button>
+    {% endif %}
+  </div>
+</form>
+{% endblock %}

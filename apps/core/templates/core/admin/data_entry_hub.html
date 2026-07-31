@@ -1,0 +1,52 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+The staff-only data-entry hub.
+
+One card per manual-entry workflow, built from `apps.core.data_entry`. Adding a
+third module is one entry in that tuple; nothing about authentication or
+navigation changes, which is the whole point of the page existing.
+
+It lists no model and offers no form of its own — every link leads to the
+purpose-built workflow that owns the data.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Avaleht</a>
+    &rsaquo; {{ title }}
+  </div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<p class="help">
+  Siit sisestatakse andmed, millel ei ole automaatset allikat. Iga vorm näitab
+  enne salvestamist täpselt, mis salvestatakse. Avaldatud väärtusi ei muudeta —
+  parandus loob uue kirje ja märgib senise asendatuks.
+</p>
+
+{% for module in modules %}
+  <div class="module">
+    <h2>{{ module.title }}</h2>
+    <div class="form-row">
+      <p>{{ module.description }}</p>
+      <ul>
+        {% for link in module.available_links %}
+          <li>
+            <a href="{{ link.url }}">{{ link.label }}</a>
+            {% if link.description %}<span class="help"> — {{ link.description }}</span>{% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </div>
+{% empty %}
+  <div class="module">
+    <div class="form-row">
+      <p>Ühtegi käsitsi sisestatavat moodulit ei ole saadaval.</p>
+    </div>
+  </div>
+{% endfor %}
+{% endblock %}

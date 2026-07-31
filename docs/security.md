@@ -51,12 +51,19 @@ trail's append-only guarantee has documented limits.
 
 ## Staff data entry
 
-One workflow writes domain data from a browser: the internal membership report
-form at `/admin/membership/internal-report/new/`. It is guarded twice over — the
-viewer PIN middleware covers all of `/admin/`, and every view is wrapped in
-`admin.site.admin_view`, which requires an active Django staff account. A
-PIN-only viewer therefore reaches the admin login page and stops there, and has
-no account to get past it.
+Two workflows write domain data from a browser, indexed by the hub at
+`/admin/data-entry/`:
+
+- the internal membership report form at
+  `/admin/membership/internal-report/new/`;
+- the communication-channel figures at `/admin/data-entry/visibility/new/`.
+
+All of it is guarded twice over — the viewer PIN middleware covers all of
+`/admin/`, and every view is wrapped in `admin.site.admin_view`, which requires
+an active Django staff account. A PIN-only viewer therefore reaches the admin
+login page and stops there, and has no account to get past it. The hub is a
+signpost inside that same boundary: it adds no second admin site, no separate
+password, no new permission model and no viewer-side editing.
 
 Three properties keep it from becoming a general write surface:
 
@@ -70,6 +77,29 @@ Three properties keep it from becoming a general write surface:
 The imported quality warnings are the one thing an administrator may edit, and
 only their resolution fields — recording that a person looked at a warning must
 never be able to change what the source said.
+
+### Communication-channel figures
+
+The newsletter and social audience sizes widen the write surface by one form and
+nothing else:
+
+- **no platform credential exists.** There is no Smaily, Meta, LinkedIn,
+  Instagram, YouTube or Google Analytics client, no token, no OAuth flow and no
+  model field capable of holding one;
+- **nothing is fetched.** No page render, command or background job contacts a
+  social platform. The four public profile URLs are fixed application
+  configuration used as display links; they are never fetched, never editable and
+  never stored as an artifact reference;
+- **no personal data is stored.** These are aggregate counts. No subscriber
+  address, no individual follower and no per-person record exists in the schema;
+- the optional note is bounded to 500 characters, is plain text, is escaped
+  normally by Django and is deliberately kept out of the audit summary;
+- no file upload, no API endpoint, no public POST route and no CSP change.
+
+`GA4_PROPERTY_ID` and `GA4_CREDENTIALS_FILE` are declared and optional. The
+credentials file will be a **read-only** service-account key mounted into the
+deployment; it belongs in the server environment only and must never reach Git,
+PostgreSQL, a log line, an audit summary or the interface. Nothing reads it yet.
 
 The membership package import is an **operator command**, not a route. It reads a
 path the operator supplies on the server; nothing in the application accepts an
@@ -180,6 +210,9 @@ data. **This pull request does not change Cloudflare, DNS or the tunnel.**
 - `OIGUSLOOME_PUBLIC_URL`: the view-only workbook sharing link. Optional and
   blank by default; required only by `sync_oigusloome_public`. Treat it like a
   credential and keep it only in the server environment.
+- `GA4_PROPERTY_ID`, `GA4_CREDENTIALS_FILE`: declared for a future Google
+  Analytics collector, optional and blank by default. Nothing requires or reads
+  them today; the application, the tests and every page work with both unset.
 
 The real PIN and its plaintext value must never be written to source, tests,
 workflow files, documentation, shell history, or logs. The browser smoke suite

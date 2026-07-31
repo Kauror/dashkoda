@@ -100,6 +100,20 @@ These rules apply to the whole repository.
 - A published domain record is immutable. A correction creates a new record that
   supersedes the old one; it never rewrites history in place, and there is no
   delete action.
+- Communication-channel audience figures are **entered by hand and nothing
+  more**. Do not add a Smaily, Meta, LinkedIn, Instagram, YouTube or Google
+  Analytics client, credential, OAuth flow, scraper or schedule; do not store
+  post reach, impressions, engagement, opens, clicks or any individual
+  subscriber or follower. The fixed public profile URLs are display links, are
+  application configuration rather than form values, and are never fetched.
+- Manually entered data must never be worded as an automatic feed. Do not write
+  `sünkroonitud`, `API-ga ühendatud` or `automaatselt uuendatud` beside a value
+  a person typed, and do not add manual observations to `current_freshness()`
+  without changing what its denominator claims.
+- A staff data-entry workflow belongs behind `/admin/`, wrapped in
+  `admin.site.admin_view`, and is listed in `apps/core/data_entry.py`. Do not
+  create a second admin site, a separate password, a new permissions system or
+  any viewer-side editing.
 - Do not add a webhook, a public ingestion endpoint or any route that accepts a
   remote file or URL. Collection is outbound and read-only.
 - Do not add an in-process scheduler. Scheduling belongs to the host.

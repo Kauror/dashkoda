@@ -13,6 +13,7 @@ end.
 | `sources` | source registration, private artifacts, the import-run registry, the source/import admin workflow, private artifact access | any domain data, any parsing, any scheduling |
 | `audit` | append-only records of significant actions | anything domain-specific; it has no dependency on `sources` |
 | `legal_work` | imported legal-work snapshots and rows, their selectors and page, the workbook importer, the OneDrive feed state | generic artifact registration, the generic import lifecycle, audit infrastructure, authentication, any other OneDrive file |
+| `visibility` | manually observed audience sizes, their metric registry, selectors, staff entry workflow, the Nähtavus page and the Google Analytics seam | any collector, any platform credential, any individual subscriber or follower |
 
 `legal_work` is the first module to consume this foundation end to end. Its
 models, importer, Graph collector and scheduling are documented separately in
@@ -121,11 +122,19 @@ hexadecimal characters, the size must be positive and within
 same rules an upload passes. Without a checksum the artifact stays a
 registration-only reference exactly as before.
 
-Four producers of the second shape exist, each with its own fixed non-secret
-label: `onedrive-public:oigusloome` for the legal-work workbook, and
+Several producers of the second shape exist, each with its own fixed non-secret
+label: `onedrive-public:oigusloome` for the legal-work workbook,
 `koda-public:company-list`, `koda-public:news-feed` and `koda-public:events` for
-the three public Koda.ee feeds. Because no file is stored, the admin offers no
-download for these artifacts and the download route returns `404`.
+the three public Koda.ee feeds, `manual:membership-report` for a typed board
+report, and `manual:smaily-audience`, `manual:facebook-followers`,
+`manual:linkedin-followers`, `manual:instagram-followers` and
+`manual:youtube-subscribers` for the typed audience figures. Because no file is
+stored, the admin offers no download for these artifacts and the download route
+returns `404`.
+
+A social profile URL is never one of these labels. The model independently
+refuses any reference containing `@` or `?`, and the visibility service uses the
+fixed prefix plus the submission's correlation ID.
 
 For the public feeds the checksum covers **normalised canonical JSON**, not the
 response body: a CMS re-render changes markup without changing meaning, and
@@ -265,10 +274,18 @@ trail.
 Recorded so far: data-source creation, material update and deactivation,
 artifact registration, staff artifact download, import-run creation, import-run
 terminal transitions, the legal-work events — snapshot imported, snapshot
-published, synchronisation unchanged and synchronisation failed — and an
-imported / unchanged / failed triple for each of the three public Koda.ee feeds.
-All of them go through `apps.audit.services.record_event`; there are no signal
-handlers, so every writer is findable by searching for that one function.
+published, synchronisation unchanged and synchronisation failed — an
+imported / unchanged / failed triple for each of the three public Koda.ee feeds,
+the internal membership manual-entry events, and the three visibility events:
+`visibility.manual_batch_published`, `visibility.observation_published` and
+`visibility.observation_superseded`. All of them go through
+`apps.audit.services.record_event`; there are no signal handlers, so every writer
+is findable by searching for that one function.
+
+Visibility summaries carry the metric key, the value, the observation date, the
+batch id, the source slug, the collection method, the content checksum and
+whether something was superseded. They never carry the note the user typed, a
+form payload, session data, a platform token or a profile URL.
 
 Public-feed summaries carry the source slug, checksum, aggregate counts, the
 observed timestamp and the record id. They never carry member names,
@@ -333,6 +350,20 @@ Two membership datasets exist and they are deliberately not one:
 No selector, template or query joins them. See
 [internal-membership-history.md](internal-membership-history.md) for the full
 model, the quality policy and the manual workflow.
+
+## Manually observed audience sizes
+
+`apps/visibility` is the second dataset with no remote source. Three models:
+`VisibilityEntryBatch` (one submission, one idempotency boundary, one
+correlation ID), `VisibilityObservation` (one metric on one date, immutable
+apart from `is_current_for_date`) and `WebsiteTrafficObservation` (the Google
+Analytics shape, which **nothing writes yet**).
+
+The metric vocabulary is a closed `TextChoices` set of seven, deliberately not a
+JSON blob: a free-text metric name would make "was this ever reported"
+unanswerable in SQL. A correction supersedes rather than edits, a later date is
+history rather than a correction, and a missing value is never zero. See
+[visibility-manual-entry.md](visibility-manual-entry.md).
 
 ## External semantic-agent boundary
 

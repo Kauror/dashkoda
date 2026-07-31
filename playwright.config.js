@@ -21,10 +21,25 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
+  /*
+   * Six widths, chosen to sit on both sides of every layout breakpoint the
+   * design system defines: 320 and 375 below `sm`, 768 at the tablet grid, 1024
+   * where the persistent sidebar replaces the drawer, 1440 for an ordinary
+   * desktop and 1920 for a meeting-room display — which is also where the
+   * six-slot channel band first fits on one line.
+   */
   projects: [
+    {
+      name: "wide",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1920, height: 1080 } },
+    },
     {
       name: "desktop",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      name: "laptop",
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1024, height: 768 } },
     },
     {
       name: "tablet",
@@ -32,7 +47,7 @@ export default defineConfig({
     },
     {
       name: "phone",
-      use: { ...devices["Desktop Chrome"], viewport: { width: 390, height: 844 }, isMobile: false },
+      use: { ...devices["Desktop Chrome"], viewport: { width: 375, height: 812 }, isMobile: false },
     },
     {
       name: "phone-narrow",

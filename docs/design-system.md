@@ -130,6 +130,7 @@ context contract in a leading `{% comment %}` block.
 | `callout` | one short note with a thin accent edge |
 | `chart_figure` | one ECharts chart, plus the text summary and data table that always accompany it |
 | `sparkline_figure` | one server-drawn miniature trend, with the same alternatives |
+| `channel_card` | one communication channel: a value, its provenance, or a truthful reason it has neither |
 
 `kpi_card` accepts `label`, `value`, `unit`, `change`, `change_direction`,
 `comparison_period`, `secondary`, `meter_pct`, `status`, `status_label`,
@@ -152,6 +153,30 @@ what makes the numbers on the page trustworthy:
 `apps/dashboard/connections.py` holds the vocabulary — `Ühendatud`,
 `Vananenud`, `Ühendamata`, `Lisamisel` — and derives a wired feed's state from
 that module's own summary rather than restating the rule.
+
+### Manually entered is a third thing again
+
+A figure somebody typed is neither a connected feed nor an empty module, and it
+must not borrow the words for either. `Ühendatud` beside a hand-entered follower
+count would tell a board member an integration exists.
+
+`apps/visibility/selectors.ReadingState` therefore carries its own vocabulary —
+`Käsitsi sisestatud`, `Vajab uuendamist`, `Andmed puuduvad` — and `channel_card`
+renders three distinct states:
+
+- **planned** — nothing collects this at all. A dash, no link, and why. Google
+  Analytics is the only one;
+- **no data** — a store exists and nobody has entered a reading. `Andmed
+  puuduvad`, never a zero: a zero would claim the Chamber has no followers;
+- **observed** — a value, always with its observation date and `Käsitsi
+  sisestatud`.
+
+The words *sünkroonitud*, *API-ga ühendatud* and *automaatselt uuendatud* never
+appear for a manually entered value, and a test asserts it.
+
+The six-slot channel band uses `.dk-kpi-strip-wide`: one column below `sm`, two
+to `lg`, three to `2xl` and six above it. Six across at 1280 px would wrap the
+labels mid-word.
 
 ### Provenance travels with the figure
 
@@ -225,6 +250,8 @@ Target is practical WCAG 2.2 AA:
   `sr-only` label;
 - `prefers-reduced-motion: reduce` disables animation and transitions;
 - no page-level horizontal scrolling from 320 px upward, including at 200% zoom.
+  The browser suite measures this at 320, 375, 768, 1024, 1440 and 1920 px, and
+  again at half viewport to emulate 200% zoom.
 
 A full focus trap inside the drawer is not implemented. Focus is moved into and
 out of the drawer and Escape closes it; trapping is deferred to a later pull

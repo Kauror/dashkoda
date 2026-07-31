@@ -1,0 +1,87 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+Read-only confirmation of exactly what one submission published.
+
+The landing page of the redirect after publication, and the page the admin links
+to. It shows the stored record; nothing on it can change one. The only action
+offered is "Paranda", which opens the correction form — a correction creates a
+new record and never edits this one.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Avaleht</a>
+    &rsaquo; <a href="{% url 'data-entry-hub' %}">Andmete sisestamine</a>
+    &rsaquo; <a href="{% url 'visibility-admin-entry-list' %}">Kanalite statistika sisestused</a>
+    &rsaquo; {{ title }}
+  </div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<div class="module">
+  <h2>Sisestus</h2>
+  <table>
+    <tbody>
+      <tr><th scope="row">Vaatluse kuupäev</th><td>{{ batch.observation_date|date:"d.m.Y" }}</td></tr>
+      <tr><th scope="row">Sisestaja</th><td>{{ batch.created_by|default:"—" }}</td></tr>
+      <tr><th scope="row">Avaldatud</th><td>{{ batch.created_at|date:"d.m.Y H:i" }}</td></tr>
+      <tr><th scope="row">Näitajaid</th><td>{{ row.metric_count }}</td></tr>
+      <tr><th scope="row">Parandusi</th><td>{{ row.correction_count }}</td></tr>
+      <tr><th scope="row">Sisu SHA-256</th><td><code>{{ batch.content_hash }}</code></td></tr>
+      <tr><th scope="row">Korrelatsiooni ID</th><td><code>{{ batch.correlation_id }}</code></td></tr>
+      {% if batch.note %}
+        <tr><th scope="row">Märkus</th><td>{{ batch.note }}</td></tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
+
+<div class="module">
+  <h2>Avaldatud väärtused</h2>
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Näitaja</th>
+        <th scope="col">Väärtus</th>
+        <th scope="col">Kogumisviis</th>
+        <th scope="col">Olek</th>
+        <th scope="col">Allikas</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for observation in row.observations %}
+        <tr>
+          <th scope="row">{{ observation.get_metric_display }}</th>
+          <td>{{ observation.value }}</td>
+          <td>{{ observation.get_collection_method_display }}</td>
+          <td>
+            {% if not observation.is_current_for_date %}
+              Asendatud hilisema parandusega
+            {% elif observation.supersedes %}
+              Kehtiv; asendas väärtust {{ observation.supersedes.value }}
+            {% else %}
+              Kehtiv
+            {% endif %}
+          </td>
+          <td>{{ observation.source.name }}</td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="5">Selle sisestusega ei avaldatud ühtegi väärtust.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<p class="help">
+  Avaldatud väärtusi ei muudeta. Parandus loob uue kirje, mis märgib sama kuupäeva
+  senise väärtuse asendatuks; vana number jääb ajalukku alles.
+</p>
+
+<p>
+  <a class="button" href="{% url 'visibility-admin-entry-correct' batch.pk %}">Paranda</a>
+  <a class="button" href="{% url 'visibility-admin-entry-list' %}">Tagasi ajalukku</a>
+</p>
+{% endblock %}

@@ -10,7 +10,7 @@ const PLANNED = [
   "Käimasolevad",
   "Lõppenud",
 ];
-const ROUTED = ["Ülevaade", "Liikmeskond", "Õigusloome", "Sündmused", "Uudised"];
+const ROUTED = ["Ülevaade", "Liikmeskond", "Õigusloome", "Sündmused", "Uudised", "Nähtavus"];
 
 const isDesktop = (page) => page.viewportSize().width >= 1024;
 

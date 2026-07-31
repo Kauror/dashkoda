@@ -1,0 +1,384 @@
+"""What the overview band and the Nähtavus page actually show a viewer."""
+
+from __future__ import annotations
+
+import html as html_module
+import re
+
+import pytest
+from django.urls import reverse
+from django.utils.html import strip_tags
+
+from .conftest import PAGE_URL
+
+pytestmark = pytest.mark.django_db
+
+
+def body(response) -> str:
+    return response.content.decode()
+
+
+def visible_text(response) -> str:
+    """Rendered text with entities decoded, for assertions about digits.
+
+    `strip_tags` leaves `&#x27;` intact, and the digits inside a numeric entity
+    would otherwise read as a number on a page asserting it shows none.
+    """
+    return html_module.unescape(strip_tags(body(response)))
+
+
+# ======================================================================
+# The overview channel band
+# ======================================================================
+
+
+def test_the_band_has_all_six_channels_in_order(viewer_client):
+    page = body(viewer_client.get(reverse("home")))
+
+    positions = [
+        page.index(label)
+        for label in (
+            "Kodulehe külastused",
+            "Uudiskirja saajad",
+            "Facebooki jälgijad",
+            "LinkedIni jälgijad",
+            "Instagrami jälgijad",
+            "YouTube’i tellijad",
+        )
+    ]
+    assert positions == sorted(positions), "the band is out of the required order"
+
+
+def test_instagram_is_present(viewer_client):
+    assert "Instagrami jälgijad" in body(viewer_client.get(reverse("home")))
+
+
+def test_an_unpopulated_channel_shows_no_number(viewer_client):
+    text = visible_text(viewer_client.get(reverse("home")))
+
+    # The freshness region carries the connection-check time; the band itself
+    # must contribute no digit at all.
+    assert "Andmed puuduvad" in text
+    assert re.search(r"\d+\s*(jälgijat|tellijat|saajat)", text) is None
+
+
+def test_no_channel_shows_a_zero_when_it_has_no_data(viewer_client):
+    """A zero here would claim the Chamber has no followers."""
+    page = body(viewer_client.get(reverse("home")))
+
+    assert ">0<" not in page
+
+
+def test_a_published_value_replaces_the_empty_slot(submit, viewer_client, today):
+    submit(facebook_followers=4200)
+
+    page = body(viewer_client.get(reverse("home")))
+
+    assert "4200" in page
+    assert today.strftime("%d.%m.%Y") in page
+
+
+def test_a_published_value_is_labelled_as_manually_collected(submit, viewer_client):
+    submit(facebook_followers=4200)
+
+    page = body(viewer_client.get(reverse("home")))
+
+    assert "Käsitsi sisestatud" in page
+
+
+def channel_band(response) -> str:
+    """Just the Kanalite statistika section.
+
+    Scoped deliberately: the legal-work card on the same page legitimately talks
+    about synchronisation, because that feed genuinely is synchronised. What must
+    never borrow those words is a figure somebody typed.
+    """
+    page = body(response)
+    start = page.index('aria-labelledby="section-channels"')
+    return page[start : page.index('id="freshness-region"')]
+
+
+def test_no_card_claims_an_automatic_feed(submit, viewer_client):
+    submit(facebook_followers=4200, linkedin_followers=2500)
+
+    band = channel_band(viewer_client.get(reverse("home"))).lower()
+
+    assert "4200" in band, "the band is expected to contain the published figure"
+    assert "sünkroon" not in band
+    assert "api-ga ühendatud" not in band
+    assert "automaatselt uuendatud" not in band
+    assert "käsitsi sisestatud" in band
+
+
+def test_a_stale_reading_is_marked_on_the_band(submit, viewer_client, days_ago):
+    from apps.visibility.registry import SOCIAL_STALE_AFTER_DAYS
+
+    submit(observation_date=days_ago(SOCIAL_STALE_AFTER_DAYS + 1), facebook_followers=4200)
+
+    page = body(viewer_client.get(reverse("home")))
+
+    assert "Vajab uuendamist" in page
+    assert "4200" in page, "a stale figure is still the last thing anybody counted"
+
+
+def test_each_social_card_links_to_the_correct_public_page(submit, viewer_client):
+    submit(
+        facebook_followers=4200,
+        linkedin_followers=2500,
+        instagram_followers=700,
+        youtube_subscribers=60,
+    )
+
+    page = body(viewer_client.get(reverse("home")))
+
+    assert 'href="https://www.facebook.com/Kaubanduskoda"' in page
+    assert 'href="https://www.linkedin.com/company/ecci/"' in page
+    assert 'href="https://www.instagram.com/kaubanduskoda"' in page
+    assert 'href="https://www.youtube.com/user/Kaubanduskoda"' in page
+    assert 'rel="noopener noreferrer"' in page
+    assert 'target="_blank"' not in page
+
+
+def test_an_outbound_link_says_it_leaves_dashkoda(submit, viewer_client):
+    submit(facebook_followers=4200)
+
+    page = body(viewer_client.get(reverse("home")))
+
+    assert "avaneb välisel lehel" in page
+
+
+def test_no_search_index_linkedin_figure_is_hard_coded():
+    """A planning-time search result is not production data.
+
+    3 992 was what a public search index showed while this was being designed.
+    It must not appear in any model, migration, fixture, selector or template.
+
+    Walks the tree rather than shelling out to `git grep`: this suite also runs
+    inside the production image, which has no git — and should not gain one just
+    so a test can run.
+    """
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parents[2]
+    searchable = {".py", ".html", ".css", ".js", ".json", ".txt"}
+    offenders = [
+        str(path.relative_to(root))
+        for directory in ("apps", "config", "templates")
+        for path in (root / directory).rglob("*")
+        if path.is_file()
+        and path.suffix in searchable
+        and any(
+            needle in path.read_text(encoding="utf-8", errors="ignore")
+            for needle in ("3992", "3 992")
+        )
+    ]
+
+    assert offenders == [], offenders
+
+
+def test_the_website_slot_stays_planned_and_links_nowhere(viewer_client):
+    page = body(viewer_client.get(reverse("home")))
+
+    assert "Kodulehe külastused" in page
+    assert "Google Analytics ei ole ühendatud." in page
+    assert "analytics.google.com" not in page
+
+
+def test_the_website_slot_shows_no_value_even_when_other_channels_do(submit, viewer_client):
+    submit(facebook_followers=4200)
+
+    page = body(viewer_client.get(reverse("home")))
+    band = page[page.index("Kodulehe külastused") : page.index("Uudiskirja saajad")]
+
+    assert re.search(r"\d", strip_tags(band)) is None
+
+
+# -- the newsletter slot ------------------------------------------------
+
+
+def test_the_band_shows_the_unique_audience_when_the_overlap_is_known(submit, viewer_client):
+    submit(
+        newsletter_member_recipients=1200,
+        newsletter_nonmember_recipients=800,
+        newsletter_overlap_recipients=150,
+    )
+
+    assert "1850" in body(viewer_client.get(reverse("home")))
+
+
+def test_the_band_discloses_an_unknown_overlap(submit, viewer_client):
+    submit(newsletter_member_recipients=1200, newsletter_nonmember_recipients=800)
+
+    page = body(viewer_client.get(reverse("home")))
+
+    assert "Nimekirjade kattuvus ei ole sisestatud." in page
+    # The two lists are shown separately rather than summed.
+    assert "1200" in page
+    assert "800" in page
+    assert "2000" not in page
+
+
+def test_the_newsletter_slot_links_to_the_visibility_page(submit, viewer_client):
+    submit(newsletter_member_recipients=1200)
+
+    assert f'href="{PAGE_URL}"' in body(viewer_client.get(reverse("home")))
+
+
+# ======================================================================
+# The Nähtavus page
+# ======================================================================
+
+
+def test_the_page_requires_viewer_access(client):
+    response = client.get(PAGE_URL)
+
+    assert response.status_code == 302
+    assert response.url.startswith("/sisene/?")
+
+
+def test_a_viewer_can_open_the_page(viewer_client):
+    response = viewer_client.get(PAGE_URL)
+
+    assert response.status_code == 200
+    assert "Mõju ja nähtavus" in body(response)
+
+
+def test_the_navigation_offers_nahtavus(viewer_client):
+    page = body(viewer_client.get(reverse("home")))
+
+    assert "Nähtavus" in page
+    assert f'href="{PAGE_URL}"' in page
+
+
+def test_the_page_shows_the_latest_value_for_each_channel(submit, viewer_client, today):
+    submit(
+        facebook_followers=4200,
+        linkedin_followers=2500,
+        instagram_followers=700,
+        youtube_subscribers=60,
+    )
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    for value in ("4200", "2500", "700", "60"):
+        assert value in page
+    assert today.strftime("%d.%m.%Y") in page
+
+
+def test_the_page_states_the_newsletter_definition(viewer_client):
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "aktiivsete saajate arv" in page.lower()
+    assert "ei ole saadetud" in page.lower()
+
+
+def test_the_page_states_each_social_definition(viewer_client):
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "Allikate määratlused" in page
+    assert "jälgijate arv" in page.lower()
+
+
+def test_the_page_lists_every_observation_including_superseded_ones(submit, viewer_client, today):
+    submit(facebook_followers=4200)
+    submit(facebook_followers=4250)
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "Vaatluste ajalugu" in page
+    assert "4200" in page
+    assert "4250" in page
+    assert "Asendatud" in page
+
+
+def test_a_trend_needs_at_least_two_observations(submit, viewer_client, days_ago):
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "<polyline" not in page
+    assert "Trendi kuvamiseks on vaja vähemalt kahte vaatlust." in page
+
+
+def test_two_observations_draw_a_sparkline_with_an_accessible_table(
+    submit, viewer_client, today, days_ago
+):
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "<polyline" in page
+    assert "Andmed tabelina" in page
+    assert 'role="img"' in page
+    assert "vaatlust, väikseim" in page
+
+
+def test_the_page_loads_no_chart_bundle(submit, viewer_client, today, days_ago):
+    """Four small follower histories do not justify a megabyte of ECharts."""
+    submit(observation_date=days_ago(30), facebook_followers=4100)
+    submit(observation_date=today, facebook_followers=4200)
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "charts.js" not in page
+
+
+def test_the_page_carries_no_inline_style_and_no_external_asset(submit, viewer_client):
+    submit(facebook_followers=4200)
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert 'style="' not in page
+    assert "<script>" not in page
+    # The only absolute URLs are the four fixed public profile links.
+    for match in re.findall(r'href="(https://[^"]+)"', page):
+        assert match.startswith(
+            (
+                "https://www.facebook.com/",
+                "https://www.linkedin.com/",
+                "https://www.instagram.com/",
+                "https://www.youtube.com/",
+            )
+        ), match
+
+
+def test_an_ordinary_viewer_sees_no_editing_control(submit, viewer_client):
+    submit(facebook_followers=4200)
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "Lisa andmed" not in page
+    assert "/admin/data-entry/" not in page
+
+
+def test_a_staff_user_sees_the_add_action(submit, staff_client):
+    submit(facebook_followers=4200)
+
+    page = body(staff_client.get(PAGE_URL))
+
+    assert "Lisa andmed" in page
+    assert "/admin/data-entry/visibility/new/" in page
+
+
+def test_the_page_does_not_name_who_entered_a_figure(submit, viewer_client, staff_user):
+    """Who typed it is a staff detail and belongs in the admin history."""
+    submit(facebook_followers=4200, actor=staff_user)
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert staff_user.username not in page
+
+
+def test_the_page_says_google_analytics_is_not_connected(viewer_client):
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "Google Analytics ei ole ühendatud." in page
+    assert "Lisamisel" in page
+
+
+def test_an_empty_page_says_so_rather_than_showing_zeros(viewer_client):
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "Andmed puuduvad." in page
+    assert "Vaatlusi ei ole veel sisestatud." in page

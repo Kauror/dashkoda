@@ -1,0 +1,60 @@
+{% extends "admin/base_site.html" %}
+
+{% comment %}
+Read-only history of manual submissions, newest first.
+
+Every submission ever published is listed, including the ones a later correction
+superseded. "What did we think the figure was in June" is a question the record
+has to be able to answer, so nothing is filtered away.
+{% endcomment %}
+
+{% block breadcrumbs %}
+  <div class="breadcrumbs">
+    <a href="{% url 'admin:index' %}">Avaleht</a>
+    &rsaquo; <a href="{% url 'data-entry-hub' %}">Andmete sisestamine</a>
+    &rsaquo; {{ title }}
+  </div>
+{% endblock %}
+
+{% block content %}
+<h1>{{ title }}</h1>
+
+<p>
+  <a class="button" href="{% url 'visibility-admin-entry-new' %}">Lisa kanalite näitajad</a>
+</p>
+
+<div class="module">
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Vaatluse kuupäev</th>
+        <th scope="col">Sisestatud näitajad</th>
+        <th scope="col">Sisestaja</th>
+        <th scope="col">Avaldatud</th>
+        <th scope="col">Parandusi</th>
+        <th scope="col">Toimingud</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in rows %}
+        <tr>
+          <th scope="row">{{ row.observation_date|date:"d.m.Y" }}</th>
+          <td>
+            {% for label in row.metric_labels %}{{ label }}{% if not forloop.last %}, {% endif %}{% endfor %}
+          </td>
+          <td>{{ row.batch.created_by|default:"—" }}</td>
+          <td>{{ row.batch.created_at|date:"d.m.Y H:i" }}</td>
+          <td>{{ row.correction_count }}</td>
+          <td>
+            <a href="{% url 'visibility-admin-entry-detail' row.batch.pk %}">Vaata</a>
+            &middot;
+            <a href="{% url 'visibility-admin-entry-correct' row.batch.pk %}">Paranda</a>
+          </td>
+        </tr>
+      {% empty %}
+        <tr><td colspan="6">Ühtegi sisestust ei ole veel tehtud.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% endblock %}
