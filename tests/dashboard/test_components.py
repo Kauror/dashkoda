@@ -283,6 +283,54 @@ def test_sparkline_figure_draws_a_line_and_keeps_the_table_beside_it():
     assert "Sünteetiline testallikas · iga päev" in html
 
 
+def test_trend_chart_draws_both_series_and_tells_them_apart_without_colour():
+    from datetime import date
+
+    from apps.dashboard.sparkline import TrendSource, build_trend_chart
+
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Liikmeid kokku",
+                style="solid",
+                source="Sünteetiline kataloog · iga päev",
+                series=((date(2025, 11, 1), 3300), (date(2026, 1, 1), 3412)),
+            ),
+            TrendSource(
+                label="Tasunud liikmeid",
+                style="dashed",
+                source="Sünteetiline aruanne · kord kuus",
+                series=((date(2025, 11, 1), 2600), (date(2026, 1, 1), 2798)),
+            ),
+        )
+    )
+
+    html = render("trend_chart", {"chart": chart})
+
+    assert html.count("<polyline") == 2
+    # Pattern as well as colour, so the lines survive greyscale and a reader who
+    # cannot separate the two hues.
+    assert "stroke-brand" in html
+    assert "stroke-success" in html
+    assert 'stroke-dasharray="4 3"' in html
+    # Geometry and dashes are attributes: the CSP forbids an inline style.
+    assert 'style="' not in html
+    # Each line is named, and so is where it came from.
+    assert "Liikmeid kokku" in html
+    assert "Tasunud liikmeid" in html
+    assert "Sünteetiline kataloog · iga päev" in html
+    assert "Sünteetiline aruanne · kord kuus" in html
+    # The axis names its months and states the year where it turns.
+    assert "nov" in html
+    assert "2026" in html
+    assert "viimased 3 kuud · nov 2025 – jaan 2026" in html
+    # The table is not a fallback; one per line, never merged onto one date
+    # column, because two sources report on their own days.
+    assert html.count("<table") == 2
+    assert "3412" in html
+    assert "2798" in html
+
+
 def test_sparkline_figure_draws_nothing_when_one_point_cannot_show_a_trend():
     from datetime import date
 

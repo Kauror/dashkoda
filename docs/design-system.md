@@ -4,9 +4,10 @@
 
 One dark, Chamber-aligned interface language for an internal board and
 management dashboard. It is built to be read quickly on a meeting-room display
-and to stay honest: a value is never shown without its source, as-of date and
-freshness state, and an empty module says so plainly rather than filling itself
-with something plausible.
+and to stay honest: a value is never shown without the date it describes, a
+figure drawn beside another of a different definition says which is which, and
+an empty module says so plainly rather than filling itself with something
+plausible.
 
 Version 1 is dark only. There is no light theme and no user theme selection.
 
@@ -130,6 +131,7 @@ context contract in a leading `{% comment %}` block.
 | `callout` | one short note with a thin accent edge |
 | `chart_figure` | one ECharts chart, plus the text summary and data table that always accompany it |
 | `sparkline_figure` | one server-drawn miniature trend, with the same alternatives |
+| `trend_chart` | two or more dated series on one pair of axes, solid and dashed, with the same alternatives |
 | `channel_card` | one communication channel: a value, its provenance, or a truthful reason it has neither |
 
 `kpi_card` accepts `label`, `value`, `unit`, `change`, `change_direction`,
@@ -201,6 +203,23 @@ a bar length or a line position may never be an inline width. Both are drawn as
 SVG **attributes** — `<rect width="78">`, `<polyline points="…">` — with colour
 supplied by Tailwind `fill-*` and `stroke-*` classes. Coordinates are computed
 server-side in `apps/dashboard/sparkline.py`.
+
+`trend_chart` puts several dated series on **one** pair of axes, which is what
+the Liikmeskond card needs: the board reads it for the gap between the member
+total and the paid members, and two drawings with two independent scales made
+that gap a matter of guesswork. The x axis is time, not position in the series,
+so a daily source and a monthly one land on their own dates instead of being
+lined up by index. Lines differ in **pattern as well as colour** — one solid,
+one dashed — so they survive greyscale and a reader who cannot separate the two
+hues. Sharing axes is a drawing decision only: each line keeps its own label and
+source, nothing is summed, and neither is extended with the other's
+observations.
+
+Its month labels are HTML below the drawing rather than SVG text, because the
+drawing is stretched to the card width with `preserveAspectRatio="none"` and
+that would stretch any glyph inside it. They are hidden below `sm`, where twelve
+month names cannot fit a phone-width card; the stated range and the tables
+carry the same window in words.
 
 `sparkline_figure` exists so the overview does not have to load the ECharts
 bundle to draw a card-sized line. It keeps `chart_figure`'s contract: the text

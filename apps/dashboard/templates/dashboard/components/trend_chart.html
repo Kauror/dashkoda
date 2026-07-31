@@ -1,0 +1,115 @@
+{% comment %}
+Several dated series on one pair of axes, drawn on the server.
+
+Context:
+  chart – a TrendChart from `apps/dashboard/sparkline.py`
+
+Why not `chart_figure`: ECharts is a large bundle and the overview is the page
+every viewer loads first. Two lines of a dozen points each do not justify
+shipping a charting library, so the coordinates are computed in
+`apps/dashboard/sparkline.py` and emitted as plain `<polyline>` elements.
+
+Geometry travels in the `points` attribute and the dash pattern in
+`stroke-dasharray`, never in a `style`. That is what keeps `style-src 'self'`
+intact.
+
+The two lines differ in **pattern as well as colour** — one solid, one dashed —
+so they stay distinguishable in greyscale and to a reader who cannot separate
+the two hues. The stroke classes are spelled out per branch rather than built
+from `line.style`, because Tailwind generates utilities by scanning this file
+and a class assembled at render time would simply not exist.
+
+The axis labels are HTML rather than SVG text: the drawing is stretched to the
+card's width with `preserveAspectRatio="none"`, which would stretch any glyph
+inside it. They are hidden on a narrow screen, where twelve month names would
+either overflow the card or truncate to nothing legible; the range below and the
+table beneath state the same window in words.
+
+The same contract as `chart_figure` applies to the alternative: the table is
+**not** a fallback for a broken drawing — it stays in the document for every
+reader, one table per line, each naming its own source. The two are never merged
+into one table on a shared date column, because they are two sources that report
+on their own days and a blank cell would read as a missing measurement.
+{% endcomment %}
+<figure class="flex min-w-0 flex-col gap-2">
+  <svg viewBox="0 0 100 40"
+       preserveAspectRatio="none"
+       class="h-24 w-full"
+       role="img"
+       aria-label="{% for line in chart.lines %}{{ line.label }} ({% if line.style == 'dashed' %}katkendjoon{% else %}pidevjoon{% endif %}): {{ line.point_count }} vaatlust, väikseim {{ line.minimum|stringformat:'g' }}, suurim {{ line.maximum|stringformat:'g' }}. {% endfor %}Ühine ajatelg {{ chart.range_label }}. Täpsed väärtused on allpool tabelis.">
+    {% for line in chart.lines %}
+      {% if line.style == "dashed" %}
+        <polyline points="{{ line.points }}"
+                  fill="none"
+                  stroke-width="1.5"
+                  stroke-dasharray="4 3"
+                  stroke-linecap="round"
+                  vector-effect="non-scaling-stroke"
+                  class="stroke-success"/>
+      {% else %}
+        <polyline points="{{ line.points }}"
+                  fill="none"
+                  stroke-width="1.5"
+                  stroke-linecap="round"
+                  vector-effect="non-scaling-stroke"
+                  class="stroke-brand"/>
+      {% endif %}
+    {% endfor %}
+  </svg>
+
+  <ul class="hidden justify-between gap-1 dk-meta sm:flex" aria-hidden="true">
+    {% for tick in chart.ticks %}
+      <li class="min-w-0 truncate text-center">
+        {{ tick.label }}
+        {% if tick.year %}<span class="block text-text-muted">{{ tick.year }}</span>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+
+  <figcaption class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <ul class="flex flex-wrap items-center gap-x-4 gap-y-1">
+      {% for line in chart.lines %}
+        <li class="flex items-center gap-1.5 text-sm text-text-secondary">
+          {% if line.style == "dashed" %}
+            <svg viewBox="0 0 16 2" class="h-0.5 w-4 flex-none" aria-hidden="true">
+              <line x1="0" y1="1" x2="16" y2="1" stroke-width="2" stroke-dasharray="4 3" class="stroke-success"/>
+            </svg>
+          {% else %}
+            <svg viewBox="0 0 16 2" class="h-0.5 w-4 flex-none" aria-hidden="true">
+              <line x1="0" y1="1" x2="16" y2="1" stroke-width="2" class="stroke-brand"/>
+            </svg>
+          {% endif %}
+          {{ line.label }}
+        </li>
+      {% endfor %}
+    </ul>
+    <span class="dk-meta">{{ chart.range_label }}</span>
+  </figcaption>
+
+  <details class="text-sm">
+    <summary class="cursor-pointer dk-meta">Andmed tabelina</summary>
+    <div class="mt-2 flex flex-col gap-4">
+      {% for line in chart.lines %}
+        <div class="w-full overflow-x-auto">
+          <table class="w-full min-w-max border-collapse text-sm">
+            <caption class="pb-1 text-left dk-meta">{{ line.label }} — {{ line.source }}</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Seisuga</th>
+                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">{{ line.label }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for when, amount in line.observations %}
+                <tr>
+                  <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ when|date:"d.m.Y" }}</th>
+                  <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">{{ amount|floatformat:"0" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% endfor %}
+    </div>
+  </details>
+</figure>

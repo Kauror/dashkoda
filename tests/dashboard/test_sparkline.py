@@ -10,10 +10,14 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 
+import pytest
+
 from apps.dashboard.sparkline import (
     VIEWBOX_HEIGHT,
     VIEWBOX_WIDTH,
+    TrendSource,
     build_sparkline,
+    build_trend_chart,
     meter_width,
 )
 
@@ -22,6 +26,19 @@ DAY = dt.date(2026, 1, 1)
 
 def series(*values):
     return tuple((DAY + dt.timedelta(days=index), value) for index, value in enumerate(values))
+
+
+def monthly(start, *values):
+    """One value a month, which is how the board report arrives."""
+    return tuple(
+        (
+            dt.date(
+                start.year + (start.month - 1 + index) // 12, (start.month - 1 + index) % 12 + 1, 1
+            ),
+            value,
+        )
+        for index, value in enumerate(values)
+    )
 
 
 def coordinates(sparkline):
@@ -79,6 +96,174 @@ def test_decimal_values_survive_the_conversion():
 
     assert sparkline.first_value == 10.5
     assert sparkline.last_value == 20.5
+
+
+# -- two series on shared axes ------------------------------------------
+
+
+def public_and_internal():
+    """A daily-ish total and a monthly paid count, as the card draws them."""
+    return (
+        TrendSource(
+            label="Liikmeid kokku",
+            style="solid",
+            source="Koda.ee liikmekataloog · iga päev",
+            series=monthly(dt.date(2025, 8, 1), 3300, 3340, 3380, 3412),
+        ),
+        TrendSource(
+            label="Tasunud liikmeid",
+            style="dashed",
+            source="Sisemine liikmeskonna aruanne · kord kuus",
+            series=monthly(dt.date(2025, 8, 1), 2600, 2700, 2750, 2798),
+        ),
+    )
+
+
+def test_both_lines_are_measured_against_one_scale():
+    """The card exists to show the gap between the two, which only means
+    something if both are drawn against the same values and the same dates."""
+    chart = build_trend_chart(public_and_internal())
+
+    assert chart.minimum == 2600
+    assert chart.maximum == 3412
+    # The larger series never dips below the smaller one, so every one of its
+    # points must sit higher on the drawing (SVG y grows downward).
+    total_ys = [y for _x, y in _points(chart.lines[0])]
+    paid_ys = [y for _x, y in _points(chart.lines[1])]
+    assert all(total < paid for total, paid in zip(total_ys, paid_ys, strict=True))
+
+
+def test_the_lines_keep_their_own_identity():
+    chart = build_trend_chart(public_and_internal())
+
+    assert [line.label for line in chart.lines] == ["Liikmeid kokku", "Tasunud liikmeid"]
+    assert [line.style for line in chart.lines] == ["solid", "dashed"]
+    assert "Koda.ee liikmekataloog" in chart.lines[0].source
+    assert "Sisemine liikmeskonna aruanne" in chart.lines[1].source
+    # Nothing is summed, and neither line inherits the other's observations.
+    assert chart.lines[0].maximum == 3412
+    assert chart.lines[1].maximum == 2798
+
+
+def test_a_point_sits_on_its_own_date_not_on_its_position_in_the_series():
+    """The two sources report on their own days, so a shared x axis has to be
+    time. Placing the fourth point of a monthly series beside the fourth point
+    of a daily one would be a drawing accident."""
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Iga päev",
+                style="solid",
+                source="Sünteetiline",
+                series=series(10, 11, 12, 13),
+            ),
+            TrendSource(
+                label="Harva",
+                style="dashed",
+                source="Sünteetiline",
+                series=((DAY, 10), (DAY + dt.timedelta(days=3), 13)),
+            ),
+        )
+    )
+
+    dense = _points(chart.lines[0])
+    sparse = _points(chart.lines[1])
+
+    assert [x for x, _y in dense] == [
+        0.0,
+        pytest.approx(33.33, abs=0.01),
+        pytest.approx(66.67, abs=0.01),
+        100.0,
+    ]
+    assert [x for x, _y in sparse] == [0.0, 100.0]
+
+
+def test_the_axis_names_every_month_and_states_the_year_where_it_turns():
+    chart = build_trend_chart(public_and_internal())
+
+    labels = [tick.label for tick in chart.ticks]
+    years = [tick.year for tick in chart.ticks]
+
+    assert labels == ["aug", "sept", "okt", "nov"]
+    assert years == ["", "", "", ""]
+    assert chart.range_label == "viimased 4 kuud · aug 2025 – nov 2025"
+
+
+def test_the_year_is_stated_once_where_it_changes():
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Sünteetiline",
+                style="solid",
+                source="Sünteetiline",
+                series=monthly(dt.date(2025, 11, 1), 10, 20, 30),
+            ),
+        )
+    )
+
+    assert [(tick.label, tick.year) for tick in chart.ticks] == [
+        ("nov", ""),
+        ("dets", ""),
+        ("jaan", "2026"),
+    ]
+    assert chart.range_label == "viimased 3 kuud · nov 2025 – jaan 2026"
+
+
+def test_a_series_too_short_to_draw_is_left_out_rather_than_faked():
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Piisav", style="solid", source="Sünteetiline", series=series(10, 20, 30)
+            ),
+            TrendSource(label="Üksik", style="dashed", source="Sünteetiline", series=series(10)),
+        )
+    )
+
+    assert [line.label for line in chart.lines] == ["Piisav"]
+
+
+def test_nothing_drawable_produces_no_chart():
+    assert build_trend_chart(()) is None
+    assert (
+        build_trend_chart(
+            (TrendSource(label="Üksik", style="solid", source="S", series=series(10)),)
+        )
+        is None
+    )
+    # Every observation on one day: a trend needs two dates, not two rows.
+    assert (
+        build_trend_chart(
+            (
+                TrendSource(
+                    label="Sama päev",
+                    style="solid",
+                    source="S",
+                    series=((DAY, 10), (DAY, 20)),
+                ),
+            )
+        )
+        is None
+    )
+
+
+def test_an_absent_value_leaves_a_gap_rather_than_a_zero():
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Auguga",
+                style="solid",
+                source="Sünteetiline",
+                series=series(10, None, 30),
+            ),
+        )
+    )
+
+    assert chart.lines[0].point_count == 2
+    assert chart.lines[0].minimum == 10
+
+
+def _points(line):
+    return [tuple(float(part) for part in pair.split(",")) for pair in line.points.split(" ")]
 
 
 def test_the_meter_clamps_its_rectangle_without_hiding_the_number():

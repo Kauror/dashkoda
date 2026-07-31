@@ -60,7 +60,13 @@ from .connections import (
     ConnectionState,
     from_summary,
 )
-from .sparkline import Sparkline, build_sparkline, meter_width
+from .sparkline import (
+    Sparkline,
+    TrendChart,
+    TrendSource,
+    build_trend_chart,
+    meter_width,
+)
 
 # How many rows each card previews before sending the reader to its own page.
 PREVIEW_LIMIT = 4
@@ -134,12 +140,19 @@ class SourcedFigure:
 
 @dataclass(frozen=True)
 class MembershipCard:
-    """The two membership sources, side by side and never merged."""
+    """The two membership sources, drawn together and never merged.
+
+    `chart` puts both trends on one pair of axes, which is what makes the gap
+    between them readable at a glance. It changes how they are drawn and nothing
+    about what they are: two lines, two labels, two sources, never summed and
+    never continued into one another.
+    """
 
     public: SourcedFigure
     internal: SourcedFigure
     change: MembershipChange
     paid_share_pct: Decimal | None = None
+    chart: TrendChart | None = None
 
     @property
     def has_any_data(self) -> bool:
@@ -350,6 +363,19 @@ def _percentage(value: Decimal | None) -> Decimal | None:
     return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
 
 
+def _whole_percent(value: Decimal | None) -> Decimal | None:
+    """A supporting share, to the nearest whole percent.
+
+    The paid share sits beside the paid figure as a ratio to be taken in at a
+    glance, and `82,00 %` there offers a precision nobody reads. It is derived
+    inside the board report rather than reported by it, so rounding the display
+    states nothing the source did not.
+    """
+    if value is None:
+        return None
+    return value.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
 def _euros(amount: Decimal) -> str:
     """A whole-euro amount, grouped so it can be read at a glance.
 
@@ -392,8 +418,9 @@ def _build_membership_card(
 
     They are not two views of one number. The directory counts published member
     profiles and is recounted every day; the board report counts the Chamber's
-    own membership and arrives once a month. Both trends are drawn, both are
-    labelled with their cadence, and neither is ever continued into the other.
+    own membership and arrives once a month. Both trends are drawn on one pair
+    of axes so the gap between them can be read, both lines are labelled with
+    their source and cadence, and neither is ever continued into the other.
     """
     public_series = get_public_membership_history(days=TREND_DAYS)
     public = SourcedFigure(
@@ -402,7 +429,6 @@ def _build_membership_card(
         value=change.current.total_members if change.current else None,
         unit="liiget",
         as_of=change.current.observed_at if change.current else None,
-        sparkline=build_sparkline(public_series),
         series=public_series,
         note="Avalikus kataloogis avaldatud liikmeprofiilid.",
     )
@@ -424,7 +450,6 @@ def _build_membership_card(
         value=paid_value,
         unit="liiget",
         as_of=internal_latest.observation_date if internal_latest else None,
-        sparkline=build_sparkline(internal_series),
         series=internal_series,
         note="Koja enda aruande liikmeskonna määratlus.",
     )
@@ -433,5 +458,30 @@ def _build_membership_card(
         public=public,
         internal=internal,
         change=change,
-        paid_share_pct=paid_share,
+        paid_share_pct=_whole_percent(paid_share),
+        chart=build_trend_chart(
+            (
+                _trend_source(public, style="solid"),
+                _trend_source(internal, style="dashed"),
+            )
+        ),
+    )
+
+
+def _trend_source(figure: SourcedFigure, *, style: str) -> TrendSource:
+    """A figure offered to the chart, carrying the name of where it came from.
+
+    The source travels with the line rather than being written beside the
+    drawing, so a legend cannot end up naming one series and describing the
+    other.
+    """
+    return TrendSource(
+        label=figure.label,
+        style=style,
+        source=(
+            f"{figure.connection.label} · {figure.connection.cadence}"
+            if figure.connection.cadence
+            else figure.connection.label
+        ),
+        series=figure.series,
     )

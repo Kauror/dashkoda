@@ -173,6 +173,13 @@ None of them reached this file.
     is. The paid share is computed inside the board report alone — dividing the
     internal paid count by the public directory total would be a ratio between
     two different definitions and is never shown.
+
+    Both trends run on one pair of axes, as a solid and a dashed line. The board
+    reads this card to see the gap between the two, and two separate drawings
+    with two independent scales made that gap a matter of guesswork. Sharing the
+    axes is a drawing decision and nothing more: the lines keep their own
+    labels, their own sources and their own cadences, they are never summed, and
+    neither is ever continued into the other.
     {% endcomment %}
     <section aria-labelledby="section-membership" class="dk-section flex flex-col">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
@@ -183,19 +190,49 @@ None of them reached this file.
       </div>
       <div class="dk-section-body flex flex-1 flex-col gap-4">
         {% if page.membership.has_any_data %}
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {% include "dashboard/components/sparkline_figure.html" with figure=page.membership.public only %}
-            {% include "dashboard/components/sparkline_figure.html" with figure=page.membership.internal only %}
+          <div class="flex flex-wrap gap-x-10 gap-y-4">
+            {% comment %}
+            Each figure carries its own source and cadence directly beneath it.
+            Two member totals side by side without them would be two numbers a
+            reader is invited to compare without being told they count
+            different things.
+            {% endcomment %}
+            <div class="min-w-0">
+              <h3 class="text-sm text-text-secondary">{{ page.membership.public.label }}</h3>
+              {% if page.membership.public.value is not None %}
+                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.public.value }}</p>
+              {% else %}
+                <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
+              {% endif %}
+              <p class="dk-meta">{{ page.membership.public.connection.label }}{% if page.membership.public.connection.cadence %} · {{ page.membership.public.connection.cadence }}{% endif %}</p>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm text-text-secondary">{{ page.membership.internal.label }}</h3>
+              {% if page.membership.internal.value is not None %}
+                <p class="flex flex-wrap items-baseline gap-x-2">
+                  <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.internal.value }}</span>
+                  {% if page.membership.paid_share_pct is not None %}
+                    <span class="dk-meta tabular-nums">· {{ page.membership.paid_share_pct }} %</span>
+                  {% endif %}
+                </p>
+              {% else %}
+                <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
+              {% endif %}
+              <p class="dk-meta">{{ page.membership.internal.connection.label }}{% if page.membership.internal.connection.cadence %} · {{ page.membership.internal.connection.cadence }}{% endif %}</p>
+            </div>
           </div>
-          {% if page.membership.paid_share_pct is not None %}
-            <p class="text-sm text-text-secondary">
-              Tasunute osakaal sisemises aruandes
-              <span class="font-semibold tabular-nums text-text">{{ page.membership.paid_share_pct }} %</span>.
-              Osakaal on arvutatud aruande enda liikmearvust, mitte avalikust kataloogist.
-            </p>
+
+          {% if page.membership.chart %}
+            {% include "dashboard/components/trend_chart.html" with chart=page.membership.chart only %}
+          {% else %}
+            <p class="dk-meta">Trendi kuvamiseks on vaja vähemalt kahte vaatlust.</p>
           {% endif %}
+
           <p class="dk-meta">
             Kaks eri allikat, mis loendavad eri asju. Neid ei liideta ega esitata ühe näitajana.
+            {% if page.membership.paid_share_pct is not None %}
+              Tasunute osakaal on arvutatud aruande enda liikmearvust, mitte avalikust kataloogist.
+            {% endif %}
           </p>
         {% else %}
           {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
