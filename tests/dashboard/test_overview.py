@@ -10,7 +10,6 @@ pytestmark = pytest.mark.django_db
 
 SECTION_TITLES = [
     "Põhinäitajad",
-    "Juhatuse tähelepanu",
     "Muutus viimase kuu jooksul",
     "Õigusloome",
     "Liikmeskond",

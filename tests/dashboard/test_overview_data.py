@@ -140,25 +140,17 @@ def test_the_open_count_and_activity_come_from_the_snapshot(viewer, legal_work_s
     assert "Sünteetiline kiireloomuline teema" in page
 
 
-def test_an_approaching_deadline_reaches_the_attention_section(viewer, legal_work_snapshot):
+def test_the_overview_no_longer_carries_a_deadline_section(viewer, legal_work_snapshot):
+    """The board asked for the attention block to go.
+
+    The deadlines themselves are unchanged — `get_upcoming_deadlines` and the
+    Õigusloome page still work through them — but the overview no longer
+    repeats them above the fold.
+    """
     page = text_of(viewer.get(reverse("home")))
 
-    assert "Juhatuse tähelepanu" in page
-    assert "Sünteetiline kiireloomuline teema" in page
-    assert "3 päeva" in page
-
-
-def test_only_the_approaching_deadline_is_flagged(viewer, legal_work_snapshot):
-    """Which rows qualify is asserted precisely in `tests/legal_work`.
-
-    Here the point is narrower: exactly one attention row reaches the page, so
-    an expired deadline and one four hundred days out do not both arrive with
-    it.
-    """
-    attention = section(viewer.get(reverse("home")), "section-attention")
-
-    assert attention.count("<li") == 1
-    assert "Sünteetiline kiireloomuline teema" in attention
+    assert "Juhatuse tähelepanu" not in page
+    assert "arvamuse tähtaeg" not in page
 
 
 # -- public membership --------------------------------------------------
@@ -220,13 +212,19 @@ def test_news_and_events_reach_their_cards(viewer):
     assert "eelseisvat sündmust" in page
 
 
-def test_a_stale_source_is_named_in_the_attention_section(viewer):
+def test_a_failed_check_is_still_disclosed_and_keeps_the_last_good_data(viewer):
+    """The attention section is gone; the disclosure is not.
+
+    The connection strip at the foot of the page counts the stale sources, so a
+    failed check is still stated where a reader can see it, and the last data
+    that did arrive stays on the page rather than being withdrawn.
+    """
     synchronize_events(collector=collector_returning(event_collection(3)))
     synchronize_events(collector=collector_raising(EventCollectionError("Sünteetiline viga.")))
 
     page = text_of(viewer.get(reverse("home")))
 
-    assert "viimane kontroll ebaõnnestus" in page.lower()
+    assert "Vananenud: 1" in page
     assert "Sünteetiline viga" not in page, "no exception detail may reach a viewer"
     assert "Sünteetiline sündmus 0" in page, "the last good data must still be shown"
 

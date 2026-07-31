@@ -118,8 +118,8 @@ context contract in a leading `{% comment %}` block.
 | --- | --- |
 | `nav_item` | routed link, active state, or inert `Lisamisel` entry, with optional nested children |
 | `section_header` | section title, description and optional badge |
-| `kpi_card` | one indicator, with a full provenance footer |
-| `freshness_row` | source, update cadence, as-of date and freshness badge |
+| `kpi_card` | one indicator, with the date it describes in the footer |
+| `freshness_row` | the as-of date of the value above it |
 | `status_badge` | status expressed as text inside a coloured chip |
 | `empty_state` | truthful "there is nothing here yet" |
 | `planned_module` | truthful "nothing collects this at all" |
@@ -134,8 +134,7 @@ context contract in a leading `{% comment %}` block.
 
 `kpi_card` accepts `label`, `value`, `unit`, `change`, `change_direction`,
 `comparison_period`, `secondary`, `meter_pct`, `status`, `status_label`,
-`source`, `cadence`, `as_of`, `freshness`, `freshness_label`, `empty_message` and
-`flush`. Its presence test is `is not None` rather than truthiness, so a reported
+`as_of`, `empty_message` and `flush`. Its presence test is `is not None` rather than truthiness, so a reported
 zero renders as the measurement it is instead of falling through to the empty
 state.
 
@@ -180,10 +179,19 @@ labels mid-word.
 
 ### Provenance travels with the figure
 
-`freshness_row` carries the source **and its update cadence**. A figure recounted
+`freshness_row` carries the **as-of date** of the value above it, and that is
+all: the board asked for the source name, the update cadence and the connection
+badge to come out of the card footers.
+
+Provenance itself is not gone, and where two figures of different currency sit
+together it is still spelled out. `sparkline_figure` names its source and its
+cadence, so the Liikmeskond card still says which number came from the daily
+public directory and which from the monthly board report — a figure recounted
 every day and one reported once a month are different kinds of claim, and the
-overview shows both at once, so the cadence is part of the provenance rather
-than decoration.
+overview shows both at once. The connection strip at the foot of the overview
+still counts the connected and the stale sources, so a failed check is disclosed
+even though no card carries a badge for it. Every figure is still *built* with
+the `Connection` it came from; what changed is how much of it the footer prints.
 
 ### Proportions and trends are SVG geometry
 

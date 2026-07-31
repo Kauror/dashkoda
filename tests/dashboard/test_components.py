@@ -58,11 +58,7 @@ def test_kpi_card_supports_the_full_future_api():
             "comparison_period": "vs eelmine kvartal",
             "status": "success",
             "status_label": "Kontrollitud",
-            "source": "Sünteetiline testallikas",
-            "cadence": "iga päev",
             "as_of": "31.12.2025",
-            "freshness": "success",
-            "freshness_label": "Värske",
             "secondary": "111 € / 222 €",
             "meter_pct": 42.5,
         },
@@ -73,10 +69,8 @@ def test_kpi_card_supports_the_full_future_api():
     assert "↑" in html
     assert "vs eelmine kvartal" in html
     assert "Kontrollitud" in html
-    assert "Sünteetiline testallikas" in html
-    assert "iga päev" in html
+    assert "Seisuga" in html
     assert "31.12.2025" in html
-    assert "Värske" in html
     assert "111 € / 222 €" in html
     # The proportion is geometry, never a width inside a style attribute: the
     # Content Security Policy is style-src 'self'.
@@ -102,7 +96,6 @@ def test_kpi_card_without_a_value_states_that_data_is_missing():
     html = render("kpi_card", {"label": "Näidisnäitaja"})
 
     assert "Kontrollitud andmed puuduvad." in html
-    assert "ühendamata" in html
     assert "—" in html
 
 
@@ -115,11 +108,19 @@ def test_kpi_card_marks_a_falling_value_in_text_as_well_as_colour():
     assert "↓" in html
 
 
-def test_freshness_row_falls_back_to_an_explicit_unknown_state():
-    html = render("freshness_row", {})
+def test_freshness_row_shows_the_as_of_date_and_nothing_else():
+    """The row was trimmed to the date the board asked to keep.
 
-    assert "ühendamata" in html
-    assert "—" in html
+    The source name, the update cadence and the connection badge that used to
+    sit beside it are gone; an absent date still falls back to an em dash rather
+    than to a blank."""
+    html = render("freshness_row", {"as_of": "31.12.2025"})
+
+    assert "Seisuga" in html
+    assert "31.12.2025" in html
+    assert "Allikas" not in html
+    assert "dk-badge" not in html
+    assert "—" in render("freshness_row", {})
 
 
 def test_empty_state_shows_the_reason():

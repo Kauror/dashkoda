@@ -9,7 +9,6 @@ when the source actually stated one, never an invented midnight.
 {% endcomment %}
 
 {% block title %}Sündmused – DashKoda{% endblock %}
-{% block breadcrumb %}Sündmused{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
@@ -27,8 +26,8 @@ when the source actually stated one, never an invented midnight.
   <section aria-labelledby="section-figures" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Kalendri hetkeseisu kokkuvõte." only %}
     <div class="dk-kpi-strip sm:grid-cols-2 xl:grid-cols-2">
-      {% include "dashboard/components/kpi_card.html" with label="Sündmusi lähikuul" value=near_term_count source="Koda.ee kalender" cadence="iga päev" as_of=summary.observed_at|date:"d.m.Y H:i" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Eelseisvaid sündmusi kokku" value=total_count source="Koda.ee kalender" cadence="iga päev" as_of=summary.observed_at|date:"d.m.Y H:i" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Sündmusi lähikuul" value=near_term_count as_of=summary.observed_at|date:"d.m.Y H:i" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Eelseisvaid sündmusi kokku" value=total_count as_of=summary.observed_at|date:"d.m.Y H:i" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
     </div>
   </section>
 

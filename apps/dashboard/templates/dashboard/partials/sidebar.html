@@ -4,15 +4,12 @@ Sidebar contents, shared by the persistent desktop sidebar and the mobile
 drawer. Context: navigation, active_nav.
 {% endcomment %}
 <div class="dk-sidebar">
-  <div class="flex flex-col gap-2">
-    <a href="{% url 'home' %}" class="block rounded-md">
-      <img class="dk-brand-mark"
-           src="{% static 'brand/koda-logo-horizontal-negative.png' %}"
-           width="1654" height="709"
-           alt="Eesti Kaubandus-Tööstuskoda – DashKoda esileht">
-    </a>
-    <p class="dk-meta px-1">DashKoda · juhatuse töölaud</p>
-  </div>
+  <a href="{% url 'home' %}" class="block rounded-md">
+    <img class="dk-brand-mark"
+         src="{% static 'brand/koda-logo-horizontal-negative.png' %}"
+         width="1654" height="709"
+         alt="Eesti Kaubandus-Tööstuskoda – DashKoda esileht">
+  </a>
 
   <nav aria-label="Peamenüü" class="min-w-0 flex-1">
     <ul class="dk-nav-list">

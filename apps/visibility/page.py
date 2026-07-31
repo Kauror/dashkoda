@@ -56,6 +56,11 @@ class ChannelSlot:
     be worse than six that look alike and *say* what they are. Every field a card
     can render is on this object, and `is_planned` is what separates "nothing
     collects this" from "nothing has been entered yet".
+
+    `source_label` and `method_label` are the exception: the card footer was
+    trimmed to the observation date alone, so the band no longer prints either.
+    A card still says a person typed the figure — that is `state_label`, in the
+    card's own header — and the Nähtavus page still names every source in full.
     """
 
     label: str

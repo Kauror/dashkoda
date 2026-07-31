@@ -4,8 +4,8 @@
 Ülevaade — the board's landing page.
 
 Layout follows direction 1a of the Overview Refresh design: a headline strip,
-what needs attention, one activity window, a two-by-two grid of module cards,
-and the communication channels that have no source yet.
+one activity window, a two-by-two grid of module cards, and the communication
+channels that have no source yet.
 
 Everything it renders comes from `apps.dashboard.overview.build_overview`, which
 reads PostgreSQL through each module's own selectors. The template chooses
@@ -26,7 +26,6 @@ None of them reached this file.
 {% endcomment %}
 
 {% block title %}Ülevaade – DashKoda{% endblock %}
-{% block breadcrumb %}Ülevaade{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-5">
@@ -39,49 +38,19 @@ None of them reached this file.
 
   {# ---------------- 1. Põhinäitajad ---------------- #}
   {% comment %}
-  One strip, four indicators, each carrying its own source and cadence in the
+  One strip, four indicators, each carrying the date its value describes in the
   footer row. The dividers belong to the strip, so the cards render flush.
   {% endcomment %}
   <section aria-labelledby="section-kpi" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" description="Koja seisu kokkuvõtvad näitajad." only %}
     <div class="dk-kpi-strip">
       {% for kpi in page.kpis %}
-        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary meter_pct=kpi.meter_pct source=kpi.source cadence=kpi.cadence as_of=kpi.as_of freshness=kpi.freshness freshness_label=kpi.freshness_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary meter_pct=kpi.meter_pct as_of=kpi.as_of flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
       {% endfor %}
     </div>
   </section>
 
-  {# ---------------- 2. Juhatuse tähelepanu ---------------- #}
-  {% comment %}
-  Approaching opinion deadlines first, because they expire; then any source that
-  is showing older data after a failed check. When neither exists the section
-  says so rather than disappearing, so its absence is never ambiguous.
-  {% endcomment %}
-  <section aria-labelledby="section-attention" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Juhatuse tähelepanu" heading_id="section-attention" description="Lähenevad tähtajad ja andmeallikate probleemid." only %}
-    {% if page.has_attention %}
-      <ul class="divide-y divide-border">
-        {% for item in page.attention %}
-          {% comment %}
-          The colour classes are spelled out rather than built from
-          `item.variant`. Tailwind generates utilities by scanning this source,
-          so a class name assembled at render time would simply not exist in the
-          stylesheet. The urgency is in the text either way.
-          {% endcomment %}
-          <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-            <span class="flex-none text-micro font-semibold tracking-wide uppercase {% if item.variant == 'danger' %}text-danger{% elif item.variant == 'warning' %}text-warning{% else %}text-info{% endif %}">{{ item.kind }} · {{ item.marker }}</span>
-            <span class="min-w-0 flex-1 text-sm text-text">{{ item.message }}</span>
-          </li>
-        {% endfor %}
-      </ul>
-    {% else %}
-      <div class="dk-section-body">
-        {% include "dashboard/components/empty_state.html" with message="Tähelepanu vajavaid tähtaegu ei ole." detail="Siia ilmuvad lähenevad arvamuse tähtajad ja allikad, mis kuvavad vananenud andmeid." only %}
-      </div>
-    {% endif %}
-  </section>
-
-  {# ---------------- 3. Muutus viimase kuu jooksul ---------------- #}
+  {# ---------------- 2. Muutus viimase kuu jooksul ---------------- #}
   <section aria-labelledby="section-activity" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Muutus viimase kuu jooksul" heading_id="section-activity" description="Ühendatud allikate tegevus ühes ja samas ajaaknas." only %}
     <div class="dk-section-body">
@@ -101,7 +70,7 @@ None of them reached this file.
     </div>
   </section>
 
-  {# ---------------- 4. Module cards ---------------- #}
+  {# ---------------- 3. Module cards ---------------- #}
   <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
 
     {# -------- Õigusloome -------- #}
@@ -188,7 +157,7 @@ None of them reached this file.
         </div>
 
         <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with source=page.legal_work.label as_of=legal_work.reporting_date|date:"d.m.Y" state=page.legal_work.state_variant state_label=page.legal_work.state_label only %}
+          {% include "dashboard/components/freshness_row.html" with as_of=legal_work.reporting_date|date:"d.m.Y" only %}
         </div>
       {% else %}
         <div class="dk-section-body">
@@ -270,7 +239,7 @@ None of them reached this file.
           {% endfor %}
         </ul>
         <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with source=page.events.label cadence=page.events.cadence as_of=events.observed_at|date:"d.m.Y H:i" state=page.events.state_variant state_label=page.events.state_label only %}
+          {% include "dashboard/components/freshness_row.html" with as_of=events.observed_at|date:"d.m.Y H:i" only %}
         </div>
       {% else %}
         <div class="dk-section-body">
@@ -317,7 +286,7 @@ None of them reached this file.
           {% endfor %}
         </ul>
         <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with source=page.news.label cadence=page.news.cadence as_of=news.observed_at|date:"d.m.Y H:i" state=page.news.state_variant state_label=page.news.state_label only %}
+          {% include "dashboard/components/freshness_row.html" with as_of=news.observed_at|date:"d.m.Y H:i" only %}
         </div>
       {% else %}
         <div class="dk-section-body">
@@ -333,7 +302,7 @@ None of them reached this file.
 
   </div>
 
-  {# ---------------- 5. Kanalite statistika ---------------- #}
+  {# ---------------- 4. Kanalite statistika ---------------- #}
   {% comment %}
   Six channels, built by `apps.visibility.page.build_channel_band`.
 
@@ -357,7 +326,7 @@ None of them reached this file.
     </div>
   </section>
 
-  {# ---------------- 6. Connection state ---------------- #}
+  {# ---------------- 5. Connection state ---------------- #}
   <div class="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
     <div id="freshness-region" aria-live="polite" class="min-w-0">
       {% include "dashboard/partials/freshness.html" %}

@@ -56,12 +56,11 @@ test("each layout shows exactly one logout control", async ({ page }) => {
   await expect(visibleLogout(page)).toHaveCount(1);
 
   if (isDesktop) {
-    // The desktop header must not repeat the control the sidebar already has,
-    // while keeping its breadcrumb and its slot for later global controls.
+    // Logout lives in the sidebar on desktop, and there is no page header bar
+    // above the content for it — or anything else — to appear in.
     await expect(page.locator(`header ${LOGOUT_BUTTON}`)).toHaveCount(0);
     await expect(page.locator(`.dk-sidebar ${LOGOUT_BUTTON}`)).toHaveCount(1);
-    await expect(page.locator("#page-header")).toBeVisible();
-    await expect(page.locator("#page-header")).toContainText("Ülevaade");
+    await expect(page.locator("#page-header")).toHaveCount(0);
   } else {
     await expect(page.locator(`header ${LOGOUT_BUTTON}`)).toHaveCount(1);
 

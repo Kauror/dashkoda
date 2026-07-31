@@ -12,10 +12,12 @@ Three rules run through the whole module:
 
 - a figure whose source is not connected is `None`, and the card renders its
   empty state. It is never `0`, because nobody counted zero;
-- every figure carries the name of its source **and how often that source
-  updates**. The public directory is recounted daily and the internal board
-  report arrives monthly; two numbers of such different currency must never sit
-  side by side unlabelled;
+- every figure is built with the `Connection` it came from — its source name,
+  its update cadence and its state. The card footers now show only the as-of
+  date, but the two membership figures still name their sources beside their
+  trends, because the public directory is recounted daily and the internal board
+  report arrives monthly and two numbers of such different currency must never
+  sit side by side unlabelled;
 - a comparison states its own baseline. The activity strip is one fixed window
   so all four of its counts mean the same thing, and the member delta — whose
   baseline is the previous reading, not a fixed period — is shown with its own
@@ -34,12 +36,10 @@ from django.utils import timezone
 from apps.events.selectors import count_upcoming_within, get_upcoming_events
 from apps.legal_work.selectors import (
     ACTIVITY_WINDOW_DAYS,
-    Deadline,
     count_received_since,
     count_sent_since,
     get_latest_sent_items,
     get_newest_received_items,
-    get_upcoming_deadlines,
 )
 from apps.membership.internal_selectors import (
     get_internal_membership_latest,
@@ -86,6 +86,11 @@ class Kpi:
 
     Field names match `dashboard/components/kpi_card.html` so the template
     passes them straight through rather than renaming them on the way.
+
+    `connection` is the exception: the card footer prints only `as_of`, so
+    nothing renders it today. It stays because a figure that does not know
+    where it came from cannot be given its source back — by a footer, an
+    export or a tooltip — without re-deriving it somewhere else.
     """
 
     label: str
@@ -98,32 +103,6 @@ class Kpi:
     secondary: str = ""
     meter_pct: float | None = None
     as_of: date | datetime | None = None
-
-    @property
-    def source(self) -> str:
-        return self.connection.label
-
-    @property
-    def cadence(self) -> str:
-        return self.connection.cadence
-
-    @property
-    def freshness(self) -> str:
-        return self.connection.state_variant
-
-    @property
-    def freshness_label(self) -> str:
-        return self.connection.state_label
-
-
-@dataclass(frozen=True)
-class AttentionItem:
-    """One thing the board is being asked to notice."""
-
-    kind: str
-    marker: str
-    message: str
-    variant: str
 
 
 @dataclass(frozen=True)
@@ -169,10 +148,14 @@ class MembershipCard:
 
 @dataclass(frozen=True)
 class OverviewPage:
-    """Everything the overview template renders."""
+    """Everything the overview template renders, plus each module's connection.
+
+    The three `Connection` fields are not rendered: the card footers show the
+    as-of date alone. They are what the page knows about where its figures came
+    from, and they are kept for the same reason as `Kpi.connection`.
+    """
 
     kpis: tuple[Kpi, ...]
-    attention: tuple[AttentionItem, ...]
     activity: tuple[ChangeChip, ...]
     activity_window_days: int
     membership: MembershipCard
@@ -187,10 +170,6 @@ class OverviewPage:
     news: Connection
     latest_news: tuple
     channels: tuple[ChannelSlot, ...]
-
-    @property
-    def has_attention(self) -> bool:
-        return bool(self.attention)
 
 
 def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
@@ -239,15 +218,6 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
             internal_connection=internal_connection,
             change=change,
             received_recent=received_recent,
-        ),
-        attention=_build_attention(
-            snapshot=snapshot,
-            summaries=(
-                (legal_work, SOURCE_LEGAL_WORKBOOK),
-                (membership, SOURCE_PUBLIC_DIRECTORY),
-                (events, SOURCE_EVENTS),
-                (news, SOURCE_NEWS),
-            ),
         ),
         activity=_build_activity(
             received_recent=received_recent,
@@ -389,38 +359,6 @@ def _euros(amount: Decimal) -> str:
     """
     whole = amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     return f"{whole:,}".replace(",", GROUP_SEPARATOR) + f"{GROUP_SEPARATOR}€"
-
-
-def _build_attention(*, snapshot, summaries) -> tuple[AttentionItem, ...]:
-    """Approaching opinion deadlines, then any source showing older data.
-
-    Deadlines lead because they are the only items here that expire. A stale
-    source is important but it is a statement about the dashboard, not about
-    something the board can miss.
-    """
-    items = [_deadline_item(deadline) for deadline in get_upcoming_deadlines(snapshot)]
-    items.extend(
-        AttentionItem(
-            kind="Andmed",
-            marker="allikas",
-            message=(f"{label}: viimane kontroll ebaõnnestus, kuvatakse varasemat seisu."),
-            variant="warning",
-        )
-        for summary, label in summaries
-        if summary.is_stale_after_failure
-    )
-    return tuple(items)
-
-
-def _deadline_item(deadline: Deadline) -> AttentionItem:
-    return AttentionItem(
-        kind="Tähtaeg",
-        marker=deadline.remaining_label,
-        message=(
-            f"{deadline.item.topic} — arvamuse tähtaeg {deadline.item.deadline_date:%d.%m.%Y}"
-        ),
-        variant=deadline.variant,
-    )
 
 
 def _start_of_day(day: date) -> datetime:

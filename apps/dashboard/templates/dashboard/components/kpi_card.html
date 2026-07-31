@@ -14,11 +14,7 @@ explicit "no verified data" state rather than to a guess):
   meter_pct         – 0–100; draws a proportion bar beneath the value
   status            – neutral | brand | success | warning | danger | info
   status_label      – text for the status badge
-  source            – name of the verified source
-  cadence           – how often that source updates, e.g. "iga päev"
   as_of             – date the value describes
-  freshness         – neutral | success | warning | danger
-  freshness_label   – text for the freshness state
   empty_message     – shown instead of a value when none is available
   flush             – drop the card's own border, for use inside a divided strip
 
@@ -76,5 +72,5 @@ proportion may only be drawn as geometry. Colour comes from Tailwind `fill-*`.
     <p class="text-sm text-text-secondary">{{ empty_message|default:"Kontrollitud andmed puuduvad." }}</p>
   {% endif %}
 
-  {% include "dashboard/components/freshness_row.html" with source=source cadence=cadence as_of=as_of state=freshness state_label=freshness_label only %}
+  {% include "dashboard/components/freshness_row.html" with as_of=as_of only %}
 </article>

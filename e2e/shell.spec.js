@@ -4,7 +4,6 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
 const SECTIONS = [
   "Põhinäitajad",
-  "Juhatuse tähelepanu",
   "Muutus viimase kuu jooksul",
   "Õigusloome",
   "Liikmeskond",

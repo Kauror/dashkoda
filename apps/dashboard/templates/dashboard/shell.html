@@ -85,15 +85,12 @@ and the <noscript> navigation below keeps the same links reachable on a phone.
     {% comment %}
     Logout lives at the bottom of the sidebar on desktop, in the top bar on a
     phone and at the bottom of the drawer, so exactly one logout control is ever
-    visible. The right-hand area here is reserved for the global date and
-    freshness controls a later pull request will add.
-    {% endcomment %}
-    <header id="page-header"
-            class="hidden min-h-14 border-b border-border bg-surface px-6 py-3 lg:flex lg:items-center lg:justify-between lg:gap-4">
-      <p class="text-sm font-medium text-text-secondary">{% block breadcrumb %}{% endblock %}</p>
-      <div class="flex items-center gap-3">{% block header_actions %}{% endblock %}</div>
-    </header>
+    visible.
 
+    There is no desktop page header. It carried a breadcrumb repeating the name
+    the sidebar already marks as the current page and the page's own <h1> already
+    states, so it was a bar of chrome above every view and nothing else.
+    {% endcomment %}
     <main id="main" class="mx-auto w-full max-w-content flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
       {% block content %}{% endblock %}
     </main>

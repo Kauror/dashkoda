@@ -1,33 +1,22 @@
 {% comment %}
-Freshness / source row.
+As-of row.
 
 Context:
-  source      – verified source name; falls back to an explicit "not connected"
-  cadence     – optional, how often that source updates ("iga päev")
-  as_of       – the date the values describe; falls back to an em dash
-  state       – neutral (default) | success | warning | danger
-  state_label – text for the state badge
+  as_of – the date the values describe; falls back to an em dash
 
-Every dashboard value is expected to carry this row, so provenance and as-of
-date stay visible next to the number instead of in a separate legend.
+Every dashboard value is expected to carry this row, so the date the figure
+describes stays visible next to the number instead of in a separate legend.
 
-The cadence is part of the provenance, not decoration. A figure recounted every
-day and one reported once a month are different kinds of claim, and a reader
-comparing two numbers has to be able to see which is which.
+The row used to name the source, its update cadence and its connection state as
+well. The board asked for the date alone, so the badge and the source name are
+gone from the card footers. Provenance itself did not go anywhere: the page
+still builds a `Connection` per figure, the Liikmeskond card still names both of
+its sources beside their trends, and the connection strip at the foot of the
+overview still says how many sources are connected and how many are stale.
 {% endcomment %}
 <dl class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-2 dk-meta">
-  <div class="flex items-center gap-1.5">
-    <dt class="text-text-muted">Allikas:</dt>
-    <dd class="text-text-secondary">{{ source|default:"ühendamata" }}{% if cadence %} · {{ cadence }}{% endif %}</dd>
-  </div>
   <div class="flex items-center gap-1.5">
     <dt class="text-text-muted">Seisuga:</dt>
     <dd class="text-text-secondary">{{ as_of|default:"—" }}</dd>
   </div>
-  {% if state_label %}
-    <div class="flex items-center gap-1.5">
-      <dt class="sr-only">Värskus:</dt>
-      <dd>{% include "dashboard/components/status_badge.html" with label=state_label variant=state only %}</dd>
-    </div>
-  {% endif %}
 </dl>

@@ -15,7 +15,6 @@ current snapshot the page renders the documented empty states instead.
 {% endcomment %}
 
 {% block title %}Õigusloome – DashKoda{% endblock %}
-{% block breadcrumb %}Õigusloome{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
@@ -40,10 +39,10 @@ current snapshot the page renders the documented empty states instead.
   <section aria-labelledby="section-figures" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Hetkeseisu kokkuvõte." only %}
     <div class="dk-kpi-strip">
-      {% include "dashboard/components/kpi_card.html" with label="Hetkel töös" value=open_count source="Õigusloome töövihik" as_of=summary.reporting_date|date:"d.m.Y" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Kirjeid kokku" value=total_count source="Õigusloome töövihik" as_of=summary.reporting_date|date:"d.m.Y" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Sisse tulnud" value=received_recent comparison_period="viimase kuu jooksul" source="Õigusloome töövihik" as_of=summary.reporting_date|date:"d.m.Y" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Välja läinud" value=sent_recent comparison_period="viimase kuu jooksul" source="Õigusloome töövihik" as_of=summary.reporting_date|date:"d.m.Y" freshness=summary.state_variant freshness_label=summary.state_label flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Hetkel töös" value=open_count as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Kirjeid kokku" value=total_count as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Sisse tulnud" value=received_recent comparison_period="viimase kuu jooksul" as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Välja läinud" value=sent_recent comparison_period="viimase kuu jooksul" as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
     </div>
   </section>
 
