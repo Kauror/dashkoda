@@ -14,9 +14,11 @@ layout and nothing else.
 Three things are deliberate and should stay that way:
 
   - a figure with no connected source renders its empty state, never a zero;
-  - the member total and the paid-member figure are drawn as two sources with
-    their own names and their own update cadence. They count different things
-    and are never added, compared or continued into one another;
+  - the membership chart draws the board report's total against its own paid
+    count — one source, one definition, one reading date, so the gap between
+    the lines is the paid share and nothing else. The koda.ee directory count
+    is a different definition on a different cadence: it appears as a figure
+    under its own name and never on those axes;
   - the activity strip uses one fixed window, so all of its counts describe the
     same period. The member delta, whose baseline is the previous reading rather
     than a period, is shown beside the member figure with its own date.
@@ -196,15 +198,20 @@ None of them reached this file.
             Two member totals side by side without them would be two numbers a
             reader is invited to compare without being told they count
             different things.
+
+            The first two are the board report's own total and paid counts, in
+            the order the chart below draws them. The directory count follows,
+            under its own name, because it is a different definition on a
+            different cadence and is not on those axes.
             {% endcomment %}
             <div class="min-w-0">
-              <h3 class="text-sm text-text-secondary">{{ page.membership.public.label }}</h3>
-              {% if page.membership.public.value is not None %}
-                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.public.value }}</p>
+              <h3 class="text-sm text-text-secondary">{{ page.membership.internal_total.label }}</h3>
+              {% if page.membership.internal_total.value is not None %}
+                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.internal_total.value }}</p>
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.public.connection.label }}{% if page.membership.public.connection.cadence %} · {{ page.membership.public.connection.cadence }}{% endif %}</p>
+              <p class="dk-meta">{{ page.membership.internal_total.connection.label }}{% if page.membership.internal_total.connection.cadence %} · {{ page.membership.internal_total.connection.cadence }}{% endif %}</p>
             </div>
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">{{ page.membership.internal.label }}</h3>
@@ -219,6 +226,15 @@ None of them reached this file.
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
               <p class="dk-meta">{{ page.membership.internal.connection.label }}{% if page.membership.internal.connection.cadence %} · {{ page.membership.internal.connection.cadence }}{% endif %}</p>
+            </div>
+            <div class="min-w-0">
+              <h3 class="text-sm text-text-secondary">{{ page.membership.public.label }}</h3>
+              {% if page.membership.public.value is not None %}
+                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.public.value }}</p>
+              {% else %}
+                <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
+              {% endif %}
+              <p class="dk-meta">{{ page.membership.public.connection.label }}{% if page.membership.public.connection.cadence %} · {{ page.membership.public.connection.cadence }}{% endif %}</p>
             </div>
           </div>
 

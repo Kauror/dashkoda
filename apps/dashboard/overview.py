@@ -142,14 +142,20 @@ class SourcedFigure:
 class MembershipCard:
     """The two membership sources, drawn together and never merged.
 
-    `chart` puts both trends on one pair of axes, which is what makes the gap
-    between them readable at a glance. It changes how they are drawn and nothing
-    about what they are: two lines, two labels, two sources, never summed and
-    never continued into one another.
+    `internal_total` and `internal` are the board report's own total and paid
+    counts. They share a definition, a report and a reading date, so `chart`
+    puts them on one pair of axes and the gap between the lines *is* the paid
+    share stated beside the figure.
+
+    `public` is the koda.ee directory count. It is a different definition on a
+    different cadence, so it appears as a figure under its own name and is never
+    drawn against the other two, never summed with them and never continued into
+    them.
     """
 
     public: SourcedFigure
     internal: SourcedFigure
+    internal_total: SourcedFigure
     change: MembershipChange
     paid_share_pct: Decimal | None = None
     chart: TrendChart | None = None
@@ -414,35 +420,63 @@ def _build_activity(
 def _build_membership_card(
     *, change, public_connection, internal_latest, internal_connection, today
 ) -> MembershipCard:
-    """Two sources drawn together, each keeping its own identity.
+    """Three figures from two sources, and only one of them is charted.
 
-    They are not two views of one number. The directory counts published member
-    profiles and is recounted every day; the board report counts the Chamber's
-    own membership and arrives once a month. Both trends are drawn on one pair
-    of axes so the gap between them can be read, both lines are labelled with
-    their source and cadence, and neither is ever continued into the other.
+    The two sources are not two views of one number. The directory counts
+    published member profiles on koda.ee and is recounted every day; the board
+    report counts the Chamber's own membership and arrives once a month.
+
+    The **chart is the board report alone** — its total against its paid count.
+    That pairing is a real comparison: both lines are the same definition of a
+    member, read off the same report on the same day, and the share stated
+    beside the paid figure is literally the gap between them.
+
+    Drawing the directory's total against the report's paid count instead would
+    put two definitions on one axis and invite exactly the subtraction that is
+    forbidden. It also could not be drawn: an unchanged daily check writes no
+    observation, so the directory series is a single point for weeks at a time
+    and a single point is not a trend.
+
+    The directory total keeps its place as a figure, under its own name and its
+    own source, where it states what it is without being compared to anything.
     """
-    public_series = get_public_membership_history(days=TREND_DAYS)
     public = SourcedFigure(
-        label="Liikmeid kokku",
+        # Not "Liikmeid kokku": the chart below carries a differently-sourced
+        # total under that name, and two adjacent totals sharing one label is
+        # the confusion this whole card is arranged to prevent.
+        label="Liikmeid kataloogis",
         connection=public_connection,
         value=change.current.total_members if change.current else None,
         unit="liiget",
         as_of=change.current.observed_at if change.current else None,
-        series=public_series,
+        series=get_public_membership_history(days=TREND_DAYS),
         note="Avalikus kataloogis avaldatud liikmeprofiilid.",
     )
 
-    internal_series: tuple = ()
+    total_series: tuple = ()
+    paid_series: tuple = ()
     paid_share = None
     paid_value = None
+    total_value = None
     if internal_latest is not None:
         trend = get_internal_membership_trend(
             date_from=today - timedelta(days=TREND_DAYS),
         )
-        internal_series = trend.series("paid_members")
+        total_series = trend.series("total_members")
+        paid_series = trend.series("paid_members")
         paid_share = internal_latest.paid_member_share_pct
         paid_value = internal_latest.value("paid_members")
+        total_value = internal_latest.value("total_members")
+
+    internal_total = SourcedFigure(
+        label="Liikmeid kokku",
+        connection=internal_connection,
+        value=total_value,
+        unit="liiget",
+        as_of=internal_latest.observation_date if internal_latest else None,
+        series=total_series,
+        note="Koja enda aruande liikmeskonna määratlus.",
+    )
 
     internal = SourcedFigure(
         label="Tasunud liikmeid",
@@ -450,18 +484,19 @@ def _build_membership_card(
         value=paid_value,
         unit="liiget",
         as_of=internal_latest.observation_date if internal_latest else None,
-        series=internal_series,
+        series=paid_series,
         note="Koja enda aruande liikmeskonna määratlus.",
     )
 
     return MembershipCard(
         public=public,
         internal=internal,
+        internal_total=internal_total,
         change=change,
         paid_share_pct=_whole_percent(paid_share),
         chart=build_trend_chart(
             (
-                _trend_source(public, style="solid"),
+                _trend_source(internal_total, style="solid"),
                 _trend_source(internal, style="dashed"),
             )
         ),
