@@ -56,7 +56,7 @@ def test_dashboard_still_shows_truthful_empty_states(client, authenticate_viewer
     content = client.get("/").content.decode()
 
     assert "Andmeallikas ei ole veel ühendatud." in content
-    assert "Kontrollitud andmed puuduvad." in content
+    assert "Andmed puuduvad." in content
 
 
 def test_no_new_public_route_was_added():

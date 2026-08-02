@@ -162,7 +162,10 @@ def test_overview_shows_real_legal_work_data_once_imported(
     content = client.get("/").content.decode()
 
     assert "Sünteetiline avatud teema" in content
-    assert "Õigusloome teemasid töös" in content
+    # The headline cell is named for the module and lists its counts; the count
+    # itself is what carries the wording "teemasid töös".
+    assert "Õigusloome" in content
+    assert "teemasid töös" in content
     assert "Vaata õigusloomet" in content
     assert imported_snapshot.reporting_date.strftime("%d.%m.%Y") in content
 

@@ -115,7 +115,9 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     assert FRESHNESS_REGION.search(content) is not None
     assert re.search(r"\d", visible_text) is None, visible_text
     assert "Andmeallikas ei ole veel ühendatud." in content
-    assert "Kontrollitud andmed puuduvad." in content
+    # The channel band words it differently: those figures are entered by hand,
+    # so nobody has failed to connect anything — nobody has typed one in yet.
+    assert "Andmed puuduvad." in content
 
 
 def test_overview_names_every_channel_and_says_which_are_empty(client, authenticate_viewer):

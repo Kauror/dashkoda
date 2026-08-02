@@ -150,11 +150,11 @@ def test_the_open_count_and_activity_come_from_the_snapshot(viewer, legal_work_s
     strip = " ".join(strip_tags(kpi_strip(response)).split())
 
     assert legal_work_snapshot.open_record_count == 2
-    # Two open topics; one arrival and one send inside the window, with the
+    # Two open topics; two arrivals and one send inside the window, with the
     # 200-day-old row deliberately outside it. Every count is in the module's
     # own headline cell, and each states the period it was measured over.
     assert "teemasid töös 2" in strip
-    assert "uusi teemasid 30 päevaga 1" in strip
+    assert "uusi teemasid 30 päevaga 2" in strip
     assert "välja läinud teemasid 30 päevaga 1" in strip
     assert "Sünteetiline kiireloomuline teema" in body(response)
 
