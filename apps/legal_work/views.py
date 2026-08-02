@@ -32,8 +32,11 @@ from .selectors import (
 # focus topic, so the page names it as unconnected rather than showing an empty
 # list a reader could mistake for "no focus topics this quarter".
 FOCUS_TOPICS = planned(
+    # "Juhatuse valitud prioriteetsed teemad" was removed with the section
+    # descriptions. What stays is why the section is empty, which is the only
+    # part a reader cannot infer from the heading.
     "Fookusteemad",
-    promise="Juhatuse valitud prioriteetsed teemad. Allikat ei ole veel määratud.",
+    promise="Allikat ei ole veel määratud.",
 )
 
 
