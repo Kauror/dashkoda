@@ -258,18 +258,34 @@ def test_each_page_requires_viewer_access(client, name):
     assert response.headers["Location"].startswith("/sisene/")
 
 
+# Each page words its own emptiness. The Liikmeskond page is the board report
+# now — its source is imported, not connected, so "ei ole veel ühendatud" would
+# be the wrong sentence there.
+EMPTY_STATE_WORDING = {
+    "membership": "Sisemist liikmeskonna aruannet ei ole veel imporditud",
+    "news": "ei ole veel ühendatud",
+    "events": "ei ole veel ühendatud",
+}
+
+
 @pytest.mark.parametrize("name", ["membership", "news", "events"])
 def test_each_page_renders_a_truthful_empty_state(viewer, name):
     response = viewer.get(reverse(name))
 
     assert response.status_code == 200
-    assert "ei ole veel ühendatud" in response.content.decode()
+    assert EMPTY_STATE_WORDING[name] in response.content.decode()
 
 
-def test_the_membership_page_shows_the_count(viewer):
+def test_the_public_member_count_reaches_the_overview(viewer):
+    """The directory count leads the headline strip.
+
+    It used to have a section of its own on the Liikmeskond page; the board
+    asked for that section to go, so the overview is where the count is read
+    now. Nothing about how it is collected or stored changed with it.
+    """
     synchronize_membership(collector=collector_returning(membership_collection(3395)))
 
-    body = viewer.get(reverse("membership")).content.decode()
+    body = viewer.get(reverse("home")).content.decode()
 
     assert "3395" in body
     assert "Liikmeid kokku" in body
@@ -306,16 +322,22 @@ def test_the_overview_shows_all_three_sources(viewer):
 
 
 def test_a_failed_check_shows_previous_data_with_a_warning(viewer):
+    """A failed check is disclosed, and the last good number is not withdrawn.
+
+    Both now happen on the overview: the count is in the headline strip and the
+    stale source is counted in the connection strip at the foot of the page. The
+    Liikmeskond page no longer carries the directory's connection state, because
+    it no longer carries the directory.
+    """
     synchronize_membership(collector=collector_returning(membership_collection(3395)))
     synchronize_membership(
         collector=collector_raising(MembershipCollectionError("Sünteetiline sisemine veateade."))
     )
 
-    response = viewer.get(reverse("membership"))
-    body = response.content.decode()
+    body = viewer.get(reverse("home")).content.decode()
 
     assert "3395" in body, "the previous good number must still be shown"
-    assert "Viimane kontroll ebaõnnestus" in body
+    assert "Vananenud: 1" in body, "the failed check is disclosed"
     assert "Sünteetiline sisemine veateade" not in body, "no exception detail may reach a viewer"
 
 

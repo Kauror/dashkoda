@@ -19,15 +19,13 @@ current snapshot the page renders the documented empty states instead.
 {% block content %}
 <div class="flex flex-col gap-6">
 
-  <header class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Õigusloome</h1>
-      <p class="text-sm text-text-secondary">Koja jälgitavad eelnõud ja esitatud arvamused</p>
-    </div>
-
-    <div class="rounded-lg border border-border bg-surface px-4 py-3">
-      {% include "legal_work/partials/data_state.html" %}
-    </div>
+  {% comment %}
+  Title only. The subtitle and the connection strip came off at the board's
+  request; the strip's contents are unchanged and still render further down, in
+  the Andmete seis section at the foot of the page.
+  {% endcomment %}
+  <header>
+    <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Õigusloome</h1>
   </header>
 
   {# ---------------- 0. Näitajad ---------------- #}
@@ -37,7 +35,7 @@ current snapshot the page renders the documented empty states instead.
   none is published each cell shows its own empty state rather than a zero.
   {% endcomment %}
   <section aria-labelledby="section-figures" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Hetkeseisu kokkuvõte." only %}
+    {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" only %}
     <div class="dk-kpi-strip">
       {% include "dashboard/components/kpi_card.html" with label="Hetkel töös" value=open_count as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
       {% include "dashboard/components/kpi_card.html" with label="Kirjeid kokku" value=total_count as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
@@ -49,7 +47,7 @@ current snapshot the page renders the documented empty states instead.
   {# ---------------- 0b. Lähenevad tähtajad ---------------- #}
   {% if deadlines %}
     <section aria-labelledby="section-deadlines" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Lähenevad tähtajad" heading_id="section-deadlines" description="Avatud teemad, mille arvamuse tähtaeg on lähedal." only %}
+      {% include "dashboard/components/section_header.html" with title="Lähenevad tähtajad" heading_id="section-deadlines" only %}
       <ul class="divide-y divide-border">
         {% for deadline in deadlines %}
           <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
@@ -64,7 +62,7 @@ current snapshot the page renders the documented empty states instead.
 
   {# ---------------- 1. Hetkel töös ---------------- #}
   <section aria-labelledby="section-open" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Hetkel töös" heading_id="section-open" description="Teemad, mille menetlus ei ole lõppenud." only %}
+    {% include "dashboard/components/section_header.html" with title="Hetkel töös" heading_id="section-open" only %}
     {% if open_items %}
       <div class="w-full overflow-x-auto">
         <table class="w-full min-w-max border-collapse text-sm">
@@ -106,7 +104,7 @@ current snapshot the page renders the documented empty states instead.
 
   {# ---------------- 2. Viimati välja läinud ---------------- #}
   <section aria-labelledby="section-sent" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Viimati välja läinud" heading_id="section-sent" description="Koja viimati esitatud arvamused." only %}
+    {% include "dashboard/components/section_header.html" with title="Viimati välja läinud" heading_id="section-sent" only %}
     {% if sent_items %}
       <div class="w-full overflow-x-auto">
         <table class="w-full min-w-max border-collapse text-sm">
@@ -149,7 +147,7 @@ current snapshot the page renders the documented empty states instead.
 
   {# ---------------- 3. Uusimad sisse tulnud ---------------- #}
   <section aria-labelledby="section-received" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Uusimad sisse tulnud" heading_id="section-received" description="Viimati kojale saabunud eelnõud ja teemad." only %}
+    {% include "dashboard/components/section_header.html" with title="Uusimad sisse tulnud" heading_id="section-received" only %}
     {% if received_items %}
       <div class="w-full overflow-x-auto">
         <table class="w-full min-w-max border-collapse text-sm">
@@ -187,7 +185,7 @@ current snapshot the page renders the documented empty states instead.
 
   {# ---------------- 4. Fookusteemad ---------------- #}
   <section aria-labelledby="section-focus" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Fookusteemad" heading_id="section-focus" description="Juhatuse valitud prioriteetsed teemad." badge_label="Lisamisel" badge_variant="neutral" only %}
+    {% include "dashboard/components/section_header.html" with title="Fookusteemad" heading_id="section-focus" badge_label="Lisamisel" badge_variant="neutral" only %}
     <div class="dk-section-body">
       {% include "dashboard/components/planned_module.html" with connection=focus_topics only %}
     </div>
@@ -195,7 +193,7 @@ current snapshot the page renders the documented empty states instead.
 
   {# ---------------- 5. Andmete seis ---------------- #}
   <section aria-labelledby="section-data-state" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="section-data-state" description="Kust andmed pärinevad ja kui värsked need on." only %}
+    {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="section-data-state" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "legal_work/partials/data_state.html" %}
       {% if summary.has_data %}
