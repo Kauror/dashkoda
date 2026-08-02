@@ -117,6 +117,8 @@ current snapshot the page renders the documented empty states instead.
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Välja</th>
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kellele</th>
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tagasisidet andis</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Küsiti otse</th>
             </tr>
           </thead>
           <tbody>
@@ -126,6 +128,13 @@ current snapshot the page renders the documented empty states instead.
                 <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.sent_date|date:"d.m.Y" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.recipient|default:"—" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
+                {% comment %}
+                `default_if_none`, not `default`: a reported 0 is a real answer —
+                nobody responded — and must stay distinguishable from a topic
+                where the question was never tracked, which is the em dash.
+                {% endcomment %}
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ item.feedback_member_count|default_if_none:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ item.feedback_requested_member_count|default_if_none:"—" }}</td>
               </tr>
             {% endfor %}
           </tbody>

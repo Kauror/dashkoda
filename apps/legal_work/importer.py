@@ -142,6 +142,8 @@ def _item_for(snapshot: LegalWorkSnapshot, row) -> LegalWorkItem:
         warning_codes=row.warning_codes,
         source_row=row.source_row,
         refreshed_at=refreshed_at,
+        feedback_member_count=row.feedback_member_count,
+        feedback_requested_member_count=row.feedback_requested_member_count,
     )
 
 

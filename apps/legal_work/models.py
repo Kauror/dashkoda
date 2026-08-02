@@ -162,6 +162,19 @@ class LegalWorkItem(models.Model):
     warning_codes = models.JSONField(default=list, blank=True, verbose_name="Hoiatuskoodid")
     source_row = models.PositiveIntegerField(verbose_name="Lähterida")
     refreshed_at = models.DateTimeField(null=True, blank=True, verbose_name="Värskendatud")
+    # Schema 1.2. Counts of members, never their identities: the workbook
+    # carries only how many answered and how many were asked, and there is no
+    # field here capable of holding who they were.
+    #
+    # `null` is the absence of a count, which an older workbook and an untracked
+    # row both produce. It is not `0`: a topic nobody answered and a topic
+    # nobody was asked about are different facts, and only the first is a zero.
+    feedback_member_count = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Tagasisidet andnud liikmeid"
+    )
+    feedback_requested_member_count = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Liikmeid, kellelt otse küsiti"
+    )
 
     class Meta:
         ordering = ("-received_date", "topic", "record_id")

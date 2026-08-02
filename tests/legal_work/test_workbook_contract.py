@@ -6,12 +6,18 @@ import pytest
 
 from apps.legal_work.workbook import (
     DATA_COLUMNS,
+    DATA_COLUMNS_V12,
     SUPPORTED_SCHEMA_VERSIONS,
     WorkbookContractError,
     parse_workbook,
 )
 
-from .workbook_factory import REPORTING_DATE, default_rows, synthetic_row
+from .workbook_factory import (
+    REPORTING_DATE,
+    default_rows,
+    synthetic_row,
+    write_workbook,
+)
 
 
 def test_control_is_parsed_including_the_real_generator_metadata(make_workbook):
@@ -60,7 +66,17 @@ def test_a_mandatory_control_value_may_not_be_blank_text(make_workbook, key):
 
 @pytest.mark.parametrize("version", SUPPORTED_SCHEMA_VERSIONS)
 def test_every_supported_schema_version_is_accepted(make_workbook, version):
-    parsed = parse_workbook(make_workbook(schema_version=version))
+    """Each version is read in its own shape.
+
+    1.2 appends two columns, so a workbook declaring it must carry them. That
+    is the point of the version: it says what the DATA table looks like.
+    """
+    columns = DATA_COLUMNS_V12 if version == "1.2" else DATA_COLUMNS
+    rows = None
+    if version == "1.2":
+        rows = [row + [None, None] for row in default_rows()]
+
+    parsed = parse_workbook(make_workbook(schema_version=version, columns=columns, rows=rows))
 
     assert parsed.control.schema_version == version
 
@@ -242,3 +258,74 @@ def test_warning_rows_never_carry_the_original_value(make_workbook):
     for warning in parsed.warnings:
         assert "original_value" not in warning
         assert "explanation" not in warning
+
+
+# -- schema 1.2: member feedback counts ---------------------------------
+
+
+def _row_with_counts(given, asked, **kwargs) -> list:
+    """A 1.2 DATA row: the base row plus the two appended counts."""
+    return synthetic_row(**kwargs) + [given, asked]
+
+
+def test_a_12_workbook_carries_the_member_feedback_counts(tmp_path):
+    path = write_workbook(
+        tmp_path / "v12.xlsx",
+        rows=[_row_with_counts(7, 12, record_id="OIG-2026-0001", source_row=2)],
+        schema_version="1.2",
+        columns=DATA_COLUMNS_V12,
+    )
+
+    parsed = parse_workbook(path)
+
+    assert parsed.control.schema_version == "1.2"
+    assert parsed.rows[0].feedback_member_count == 7
+    assert parsed.rows[0].feedback_requested_member_count == 12
+
+
+def test_a_blank_count_is_absent_rather_than_zero(tmp_path):
+    """Nobody counted zero: the question simply was not tracked on that row.
+
+    A reported 0 is a real answer — nobody responded — and has to stay
+    distinguishable from it.
+    """
+    path = write_workbook(
+        tmp_path / "blank.xlsx",
+        rows=[
+            _row_with_counts(None, 0, record_id="OIG-2026-0001", source_row=2),
+        ],
+        schema_version="1.2",
+        columns=DATA_COLUMNS_V12,
+    )
+
+    parsed = parse_workbook(path)
+
+    assert parsed.rows[0].feedback_member_count is None
+    assert parsed.rows[0].feedback_requested_member_count == 0
+
+
+def test_declaring_12_without_the_columns_is_a_contract_break(tmp_path):
+    """A generator that bumps the version but forgets the columns must fail.
+
+    Silently reading every count as absent would look exactly like a workbook
+    where nobody tracked the question, which is a different claim entirely.
+    """
+    path = write_workbook(
+        tmp_path / "liar.xlsx",
+        schema_version="1.2",
+        columns=DATA_COLUMNS,
+    )
+
+    with pytest.raises(WorkbookContractError, match="DATA veerud"):
+        parse_workbook(path)
+
+
+def test_an_11_workbook_still_parses_and_reports_no_counts(tmp_path):
+    """The columns are appended, so the older shape is untouched."""
+    path = write_workbook(tmp_path / "v11.xlsx", schema_version="1.1")
+
+    parsed = parse_workbook(path)
+
+    assert parsed.control.schema_version == "1.1"
+    assert all(row.feedback_member_count is None for row in parsed.rows)
+    assert all(row.feedback_requested_member_count is None for row in parsed.rows)

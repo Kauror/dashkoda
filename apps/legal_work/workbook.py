@@ -24,9 +24,10 @@ from openpyxl import load_workbook
 DATASET_KEY = "oigusloome"
 
 # The workbook's own declared contract version. 1.0 and 1.1 describe an
-# identical DATA table; 1.1 only added CONTROL metadata and multi-year support,
-# so both are accepted and the value is recorded on the snapshot.
-SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1")
+# identical DATA table; 1.1 only added CONTROL metadata and multi-year support.
+# 1.2 appends two member-feedback counts to DATA and changes nothing else, so
+# all three are accepted and the value is recorded on the snapshot.
+SUPPORTED_SCHEMA_VERSIONS = ("1.0", "1.1", "1.2")
 
 CONTROL_SHEET = "CONTROL"
 OVERVIEW_SHEET = "OVERVIEW"
@@ -57,6 +58,17 @@ DATA_COLUMNS = (
     "source_row",
     "refreshed_at",
 )
+
+# Added by schema 1.2, and **appended** rather than inserted: every base column
+# keeps its position, so one parser reads both shapes and a 1.1 workbook needs
+# no special case. Absent columns are `None`, which is not `0` — nobody counted
+# zero members, the question was simply not tracked for that row.
+FEEDBACK_COLUMNS = (
+    "feedback_member_count",
+    "feedback_requested_member_count",
+)
+
+DATA_COLUMNS_V12 = DATA_COLUMNS + FEEDBACK_COLUMNS
 
 REQUIRED_CONTROL_KEYS = (
     "dataset_key",
@@ -134,6 +146,10 @@ class WorkbookRow:
     warning_codes: list[str]
     source_row: int
     refreshed_at: dt.datetime | None
+    # Schema 1.2. `None` on an older workbook and on any row where the lawyers
+    # left the cell empty; never coerced to zero.
+    feedback_member_count: int | None = None
+    feedback_requested_member_count: int | None = None
 
 
 @dataclass(frozen=True)
@@ -329,12 +345,21 @@ def _require_data_table(sheet) -> None:
         )
 
 
-def _require_header(sheet) -> None:
-    header = tuple(_text(cell.value, limit=200) for cell in sheet[1][: len(DATA_COLUMNS)])
-    if header != DATA_COLUMNS:
+def _require_header(sheet, schema_version: str) -> None:
+    """The declared version decides which columns are required.
+
+    Only the columns that version promises are checked. A 1.1 workbook carrying
+    extra trailing columns is still a 1.1 workbook and its extras are ignored;
+    a workbook declaring 1.2 must actually name the two feedback columns, so a
+    generator that bumps the version without adding them fails here rather than
+    importing every count as absent.
+    """
+    expected = DATA_COLUMNS_V12 if schema_version == "1.2" else DATA_COLUMNS
+    header = tuple(_text(cell.value, limit=200) for cell in sheet[1][: len(expected)])
+    if header != expected:
         raise WorkbookContractError(
             "DATA veerud ei vasta kokkuleppele.\n"
-            f"Oodatud: {', '.join(DATA_COLUMNS)}\n"
+            f"Oodatud: {', '.join(expected)}\n"
             f"Leitud:  {', '.join(header)}"
         )
 
@@ -344,7 +369,7 @@ def _reject_formulas(path: Path) -> None:
     workbook = load_workbook(path, data_only=False, read_only=True)
     try:
         sheet = workbook[DATA_SHEET]
-        for row in sheet.iter_rows(min_row=2, max_col=len(DATA_COLUMNS)):
+        for row in sheet.iter_rows(min_row=2, max_col=len(DATA_COLUMNS_V12)):
             for cell in row:
                 if isinstance(cell.value, str) and cell.value.startswith("="):
                     raise WorkbookContractError(
@@ -356,7 +381,9 @@ def _reject_formulas(path: Path) -> None:
 
 
 def _parse_row(values: tuple, row_number: int) -> WorkbookRow:
-    cells = dict(zip(DATA_COLUMNS, values))
+    cells = dict(zip(DATA_COLUMNS_V12, values))
+    for column in FEEDBACK_COLUMNS:
+        cells.setdefault(column, None)
 
     record_id = _text(cells["record_id"], limit=64)
     if not record_id:
@@ -407,6 +434,18 @@ def _parse_row(values: tuple, row_number: int) -> WorkbookRow:
         refreshed_at=(
             cells["refreshed_at"] if isinstance(cells["refreshed_at"], dt.datetime) else None
         ),
+        feedback_member_count=_as_int(
+            cells["feedback_member_count"],
+            column="feedback_member_count",
+            row_number=row_number,
+            allow_none=True,
+        ),
+        feedback_requested_member_count=_as_int(
+            cells["feedback_requested_member_count"],
+            column="feedback_requested_member_count",
+            row_number=row_number,
+            allow_none=True,
+        ),
     )
 
 
@@ -450,13 +489,13 @@ def parse_workbook(path: Path | str) -> ParsedWorkbook:
 
         data_sheet = workbook[DATA_SHEET]
         _require_data_table(data_sheet)
-        _require_header(data_sheet)
+        _require_header(data_sheet, control.schema_version)
 
         rows: list[WorkbookRow] = []
         seen_records: set[str] = set()
         seen_source_rows: set[tuple[int, int]] = set()
         for offset, values in enumerate(
-            data_sheet.iter_rows(min_row=2, max_col=len(DATA_COLUMNS), values_only=True),
+            data_sheet.iter_rows(min_row=2, max_col=len(DATA_COLUMNS_V12), values_only=True),
             start=2,
         ):
             if all(value is None for value in values):
