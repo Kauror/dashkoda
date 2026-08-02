@@ -1,179 +1,125 @@
-"""The newsletter union rule.
+"""The three newsletters, and the total that is never computed.
 
-The Chamber runs two lists and some people are on both. Adding the two counts
-and calling the sum "unique recipients" would double-count exactly those people,
-so the union is computed only when the overlap is known — and when it is not,
-the page says so instead of guessing.
+The Chamber sends e-Teataja, eNews and e-Vestnik, each to its own list. Nobody
+has counted how many people are on more than one of them, so there is no
+arithmetic to do here: adding the three would claim an overlap of zero, which is
+a measurement no source has made. Each list is reported under its own name.
+
+This replaced a member / non-member / overlap model of a single newsletter,
+which derived a unique audience from those three. The tests below are what stops
+that arithmetic coming back.
 """
 
 from __future__ import annotations
 
 import pytest
 
-from apps.visibility.manual import VisibilitySubmission, build_preview
 from apps.visibility.models import VisibilityMetric, VisibilityObservation
+from apps.visibility.page import build_channel_band
+from apps.visibility.registry import NEWSLETTER_METRICS, spec_for
 from apps.visibility.selectors import get_newsletter_summary
 
 pytestmark = pytest.mark.django_db
 
 
-def _preview(today, **values):
-    return build_preview(VisibilitySubmission(observation_date=today, values=values))
+def newsletter_slot():
+    return next(slot for slot in build_channel_band() if slot.label == "Uudiskirjad")
 
 
-# -- the union ----------------------------------------------------------
+# -- each list on its own -----------------------------------------------
 
 
-def test_unique_audience_is_member_plus_nonmember_minus_overlap(submit):
-    submit(
-        newsletter_member_recipients=1200,
-        newsletter_nonmember_recipients=800,
-        newsletter_overlap_recipients=150,
-    )
+def test_each_newsletter_is_stored_under_its_own_metric(submit):
+    submit(newsletter_eteataja=20622, newsletter_enews=750, newsletter_evestnik=525)
 
-    assert get_newsletter_summary().unique_recipients == 1850
+    stored = {row.metric: row.value for row in VisibilityObservation.objects.all()}
 
-
-def test_a_zero_overlap_is_a_real_answer_and_the_lists_simply_add(submit):
-    submit(
-        newsletter_member_recipients=1200,
-        newsletter_nonmember_recipients=800,
-        newsletter_overlap_recipients=0,
-    )
-
-    summary = get_newsletter_summary()
-    assert summary.overlap_known is True
-    assert summary.overlap.value == 0
-    assert summary.unique_recipients == 2000
-
-
-def test_a_missing_overlap_is_not_a_zero_and_yields_no_union(submit):
-    submit(newsletter_member_recipients=1200, newsletter_nonmember_recipients=800)
-
-    summary = get_newsletter_summary()
-    assert summary.overlap_known is False
-    assert summary.overlap.value is None
-    assert summary.unique_recipients is None
-    assert summary.missing_overlap_message == "Nimekirjade kattuvus ei ole sisestatud."
-
-
-def test_the_two_lists_are_stored_as_separate_metrics(submit):
-    submit(newsletter_member_recipients=1200, newsletter_nonmember_recipients=800)
-
-    stored = {
-        row.metric: row.value
-        for row in VisibilityObservation.objects.filter(
-            metric__in=[
-                VisibilityMetric.NEWSLETTER_MEMBER_RECIPIENTS,
-                VisibilityMetric.NEWSLETTER_NONMEMBER_RECIPIENTS,
-            ]
-        )
-    }
     assert stored == {
-        VisibilityMetric.NEWSLETTER_MEMBER_RECIPIENTS: 1200,
-        VisibilityMetric.NEWSLETTER_NONMEMBER_RECIPIENTS: 800,
+        VisibilityMetric.NEWSLETTER_ETEATAJA: 20622,
+        VisibilityMetric.NEWSLETTER_ENEWS: 750,
+        VisibilityMetric.NEWSLETTER_EVESTNIK: 525,
     }
 
 
-def test_the_union_is_never_stored_as_a_metric_of_its_own(submit):
-    """Persisting it would create a fourth number able to disagree with three."""
-    submit(
-        newsletter_member_recipients=1200,
-        newsletter_nonmember_recipients=800,
-        newsletter_overlap_recipients=150,
-    )
+def test_the_lists_are_never_added_together(submit):
+    """No total, anywhere: not on the summary, not on the card.
 
-    assert VisibilityObservation.objects.count() == 3
-    assert "unique" not in " ".join(VisibilityMetric.values)
-
-
-def test_a_union_is_dated_by_its_oldest_ingredient(submit, today, days_ago):
-    """A union is only as current as the stalest figure that went into it."""
-    submit(observation_date=days_ago(40), newsletter_overlap_recipients=150)
-    submit(
-        observation_date=today,
-        newsletter_member_recipients=1200,
-        newsletter_nonmember_recipients=800,
-    )
+    21 897 is the sum of the three. It may not appear, because it would be the
+    audience only if nobody subscribed to two newsletters — and nobody has
+    checked whether anyone does.
+    """
+    submit(newsletter_eteataja=20622, newsletter_enews=750, newsletter_evestnik=525)
 
     summary = get_newsletter_summary()
-    assert summary.unique_recipients == 1850
+    slot = newsletter_slot()
+
+    assert not hasattr(summary, "unique_recipients")
+    assert slot.value is None, "the card lists the newsletters and leads with none of them"
+    assert [detail.value for detail in slot.details] == [20622, 750, 525]
+
+
+def test_a_list_nobody_entered_contributes_no_row_rather_than_a_zero(submit):
+    """A zero would say the newsletter has no subscribers, which nobody counted."""
+    submit(newsletter_eteataja=20622)
+
+    slot = newsletter_slot()
+
+    assert [detail.label for detail in slot.details] == ["e-Teataja"]
+    assert [detail.value for detail in slot.details] == [20622]
+    # The unentered lists are named as unentered, not drawn as empty figures.
+    assert "eNews" in slot.secondary
+    assert "e-Vestnik" in slot.secondary
+
+
+def test_nothing_entered_at_all_leaves_the_card_empty():
+    slot = newsletter_slot()
+
+    assert slot.value is None
+    assert slot.details == ()
+    assert slot.has_value is False
+
+
+def test_the_card_is_dated_by_its_oldest_entered_list(submit, today, days_ago):
+    """A card is only as current as the stalest list on it."""
+    submit(observation_date=days_ago(40), newsletter_evestnik=525)
+    submit(observation_date=today, newsletter_eteataja=20622, newsletter_enews=750)
+
+    summary = get_newsletter_summary()
+
     assert summary.as_of == days_ago(40)
     assert summary.readings_share_a_date is False
 
 
-# -- validation ---------------------------------------------------------
+# -- how the metrics are described --------------------------------------
 
 
-def test_an_overlap_larger_than_the_member_list_is_refused(today):
-    preview = _preview(
-        today,
-        newsletter_member_recipients=100,
-        newsletter_nonmember_recipients=900,
-        newsletter_overlap_recipients=101,
-    )
-
-    assert preview.can_publish is False
-    assert any("liikmete" in error.lower() for error in preview.errors)
+def test_every_newsletter_has_a_registry_entry_of_its_own():
+    assert len(NEWSLETTER_METRICS) == 3
+    assert [spec_for(metric).label for metric in NEWSLETTER_METRICS] == [
+        "e-Teataja",
+        "eNews",
+        "e-Vestnik",
+    ]
 
 
-def test_an_overlap_larger_than_the_nonmember_list_is_refused(today):
-    preview = _preview(
-        today,
-        newsletter_member_recipients=900,
-        newsletter_nonmember_recipients=100,
-        newsletter_overlap_recipients=101,
-    )
+def test_the_definitions_never_describe_sends_opens_or_clicks():
+    """These count list membership.
 
-    assert preview.can_publish is False
-    assert any("mitteliikmete" in error.lower() for error in preview.errors)
-
-
-def test_an_overlap_equal_to_a_list_is_allowed(today):
-    """Every member-list recipient also being on the other list is possible."""
-    preview = _preview(
-        today,
-        newsletter_member_recipients=100,
-        newsletter_nonmember_recipients=900,
-        newsletter_overlap_recipients=100,
-    )
-
-    assert preview.can_publish is True
-    assert preview.newsletter.unique_recipients == 900
-
-
-def test_the_overlap_is_checked_against_a_stored_list_it_was_not_submitted_with(submit, today):
-    """Entering only a corrected overlap must still be checked against the lists.
-
-    The list values are not in this submission, so the check uses the readings
-    that will still be current after it — otherwise a nonsensical overlap could
-    be entered simply by omitting the fields it contradicts.
+    Naming them anything else would be a claim no source has made: Smaily
+    reports who is on a list, not who received, opened or clicked anything.
     """
-    submit(newsletter_member_recipients=100, newsletter_nonmember_recipients=900)
-
-    preview = _preview(today, newsletter_overlap_recipients=500)
-
-    assert preview.can_publish is False
-
-
-def test_a_missing_overlap_warns_but_does_not_block(today):
-    preview = _preview(
-        today, newsletter_member_recipients=1200, newsletter_nonmember_recipients=800
-    )
-
-    assert preview.can_publish is True
-    assert preview.newsletter.unique_recipients is None
-    assert any("kattuvus" in warning.lower() for warning in preview.warnings)
-
-
-def test_the_labels_never_describe_sends_opens_or_clicks():
-    """These count list membership. Naming them anything else would be a claim
-    no source has made."""
-    from apps.visibility.registry import NEWSLETTER_METRICS, spec_for
-
-    forbidden = ("saadetud", "avamis", "klikk", "kohale toimetatud")
     for metric in NEWSLETTER_METRICS:
         spec = spec_for(metric)
-        assert "saajad" in spec.label.lower() or "saajad" in spec.label
-        for word in forbidden:
-            assert word not in spec.label.lower()
+        assert spec.unit == "saajat"
+        assert "aktiivsete saajate arv" in spec.definition.lower()
+        for word in ("avamis", "klikk"):
+            assert word not in spec.definition.lower()
+
+
+def test_the_retired_overlap_vocabulary_is_gone():
+    """The union rule cannot come back through a stray metric key."""
+    values = " ".join(VisibilityMetric.values)
+
+    assert "overlap" not in values
+    assert "unique" not in values
+    assert "member_recipients" not in values

@@ -8,8 +8,13 @@ route or placeholder app is created.
 
 An entry may carry children. A child follows exactly the same rule as its
 parent: it is a link when it has a route and inert text when it does not.
-Nesting is how the sidebar shows that Fookusteemad belongs to Õigusloome and
-that Projektid has two views, without inventing a route for any of them.
+Nesting is how the sidebar shows that Fookusteemad belongs to Õigusloome,
+without inventing a route for it.
+
+Arvamused, Projektid and Finantsid were listed here as planned modules and were
+removed at the board's request. Naming a module the sidebar cannot open earns
+its place only while somebody is waiting for it; these three were reading as
+clutter instead.
 """
 
 from dataclasses import dataclass, field
@@ -36,21 +41,11 @@ NAVIGATION: tuple[NavItem, ...] = (
         url_name="legal-work",
         children=(NavItem(key="focus-topics", label="Fookusteemad"),),
     ),
-    NavItem(key="opinions", label="Arvamused"),
     NavItem(key="events", label="Sündmused", url_name="events"),
     NavItem(key="news", label="Uudised", url_name="news"),
     # Beside Uudised: both answer "who did we reach", one by what was published
     # and one by how many people are listening.
     NavItem(key="visibility", label="Nähtavus", url_name="visibility"),
-    NavItem(
-        key="projects",
-        label="Projektid",
-        children=(
-            NavItem(key="projects-active", label="Käimasolevad"),
-            NavItem(key="projects-finished", label="Lõppenud"),
-        ),
-    ),
-    NavItem(key="finance", label="Finantsid"),
 )
 
 

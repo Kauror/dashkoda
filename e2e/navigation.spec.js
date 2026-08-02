@@ -2,14 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { signIn, watchConsole } from "./helpers.js";
 
-const PLANNED = [
-  "Arvamused",
-  "Finantsid",
-  "Fookusteemad",
-  "Projektid",
-  "Käimasolevad",
-  "Lõppenud",
-];
+const PLANNED = ["Fookusteemad"];
 const ROUTED = ["Ülevaade", "Liikmeskond", "Õigusloome", "Sündmused", "Uudised", "Nähtavus"];
 
 const isDesktop = (page) => page.viewportSize().width >= 1024;

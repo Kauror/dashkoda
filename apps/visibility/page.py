@@ -10,10 +10,10 @@ Three things are decided here and nowhere else:
   carries no value, links nowhere and says why. It becomes a real card only when
   a `WebsiteTrafficObservation` actually exists — configuration alone is not
   data;
-- **the newsletter slot shows the unique audience only when the overlap is
-  known.** Otherwise it shows the two lists as supporting text and states that
-  the overlap has not been entered. Adding the two lists and calling the sum
-  unique would double-count everybody on both;
+- **the newsletter slot lists each newsletter and never totals them.** The
+  Chamber sends three, to three lists, and nobody has counted how many people
+  are on more than one. A sum would silently claim that overlap is zero, so the
+  card shows the lists and no headline figure at all;
 - **manual never reads as automatic.** Every populated card carries
   `Käsitsi sisestatud` and its observation date, and no card anywhere says
   synchronised, connected or automatically updated.
@@ -41,11 +41,19 @@ from .selectors import (
 )
 
 WEBSITE_LABEL = "Kodulehe külastused"
-NEWSLETTER_LABEL = "Uudiskirja saajad"
+NEWSLETTER_LABEL = "Uudiskirjad"
 
 #: Appended to every outbound profile link for screen-reader users, because the
 #: link text alone does not say the destination is outside DashKoda.
 EXTERNAL_LINK_NOTE = "avaneb välisel lehel"
+
+
+@dataclass(frozen=True)
+class ChannelDetail:
+    """One named figure inside a slot that has several of equal standing."""
+
+    label: str
+    value: int | str
 
 
 @dataclass(frozen=True)
@@ -67,6 +75,8 @@ class ChannelSlot:
     value: int | None = None
     unit: str = ""
     secondary: str = ""
+    #: Several figures of equal standing, shown instead of a single `value`.
+    details: tuple[ChannelDetail, ...] = ()
     as_of: date | None = None
     source_label: str = ""
     method_label: str = ""
@@ -109,42 +119,44 @@ def _website_slot(status: Ga4ConnectionStatus) -> ChannelSlot:
 
 
 def _newsletter_slot(summary: NewsletterSummary, *, detail_url: str) -> ChannelSlot:
-    """Unique recipients when the overlap is known, the two lists when it is not."""
+    """Each newsletter under its own name, with no total across them.
+
+    The three lists are separate audiences. Adding them would count a reader
+    subscribed to two of them twice, and the number nobody has — how many
+    people appear on more than one list — is exactly what a total would have to
+    assume was zero. So the slot has no `value`: it lists what was counted.
+
+    A list nobody has entered contributes no row, rather than a zero that would
+    read as "this newsletter has no subscribers".
+    """
+    first = summary.lists[0]
     if not summary.has_any_data:
         return ChannelSlot(
             label=NEWSLETTER_LABEL,
-            state_label=summary.member.state_label,
-            state_variant=summary.member.state_variant,
-            source_label=summary.member.source_label,
+            state_label=first.state_label,
+            state_variant=first.state_variant,
+            source_label=first.source_label,
             detail_url=detail_url,
         )
 
-    unique = summary.unique_recipients
-    if unique is not None:
-        secondary = (
-            f"Liikmed {summary.member.value} + mitteliikmed {summary.nonmember.value} "
-            f"− kattuvus {summary.overlap.value}"
-        )
-    else:
-        parts = []
-        if summary.member.has_data:
-            parts.append(f"Liikmete nimekiri {summary.member.value}")
-        if summary.nonmember.has_data:
-            parts.append(f"mitteliikmete nimekiri {summary.nonmember.value}")
-        secondary = ". ".join([", ".join(parts), summary.missing_overlap_message])
+    entered = summary.entered
+    missing = tuple(reading.label for reading in summary.lists if not reading.has_data)
+    secondary = ""
+    if missing:
+        secondary = f"Sisestamata: {', '.join(missing)}."
 
     return ChannelSlot(
         label=NEWSLETTER_LABEL,
-        value=unique,
-        unit="saajat" if unique is not None else "",
+        details=tuple(
+            ChannelDetail(label=reading.label, value=reading.value) for reading in entered
+        ),
         secondary=secondary,
         as_of=summary.as_of,
-        source_label=summary.member.source_label,
-        method_label=summary.member.method_label,
+        source_label=first.source_label,
+        method_label=first.method_label,
         state_label="Vajab uuendamist" if summary.is_stale else "Käsitsi sisestatud",
         state_variant="warning" if summary.is_stale else "neutral",
         detail_url=detail_url,
-        empty_message="Unikaalne auditoorium ei ole arvutatav.",
     )
 
 

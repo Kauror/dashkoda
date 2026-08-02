@@ -17,9 +17,9 @@ Four rules run through all of it:
   labels a figure. An old reading is still the last thing anybody counted, so it
   is never hidden.
 
-The unique newsletter audience is derived here and stored nowhere. Persisting it
-would create a fourth number capable of disagreeing with the three it comes
-from.
+The three newsletter lists are reported one by one and never added up, here or
+anywhere else. Nobody has counted how many people are on more than one of them,
+so a total would silently claim an overlap of zero.
 """
 
 from __future__ import annotations
@@ -291,35 +291,29 @@ def _reading(spec: VisibilityMetricSpec, *, today: date) -> MetricReading:
 
 @dataclass(frozen=True)
 class NewsletterSummary:
-    """The two lists, their overlap, and the union only when it is knowable."""
+    """The Chamber's three newsletters, each list on its own.
 
-    member: MetricReading
-    nonmember: MetricReading
-    overlap: MetricReading
+    There is no union figure and no total. The three lists are separate
+    audiences, and nobody has ever counted how many people appear on more than
+    one of them, so any sum would silently claim an overlap of zero. A reader
+    who wants "how many people do we reach" is given three numbers and the
+    honest answer that they are three lists.
+    """
+
+    lists: tuple[MetricReading, ...]
 
     @property
     def readings(self) -> tuple[MetricReading, ...]:
-        return (self.member, self.nonmember, self.overlap)
+        return self.lists
 
     @property
     def has_any_data(self) -> bool:
         return any(reading.has_data for reading in self.readings)
 
     @property
-    def overlap_known(self) -> bool:
-        return self.overlap.has_data
-
-    @property
-    def unique_recipients(self) -> int | None:
-        """Member + non-member − overlap, and only when all three exist.
-
-        Adding the two lists without the overlap would double-count everybody in
-        both, so a missing overlap yields `None` and the page shows the two
-        counts separately instead.
-        """
-        if not (self.member.has_data and self.nonmember.has_data and self.overlap_known):
-            return None
-        return self.member.value + self.nonmember.value - self.overlap.value
+    def entered(self) -> tuple[MetricReading, ...]:
+        """Only the lists somebody has actually read off Smaily."""
+        return tuple(reading for reading in self.readings if reading.has_data)
 
     @property
     def _dates(self) -> tuple[date, ...]:
@@ -327,10 +321,10 @@ class NewsletterSummary:
 
     @property
     def as_of(self) -> date | None:
-        """The **oldest** contributing reading.
+        """The **oldest** entered reading.
 
-        A union is only as current as its stalest ingredient, so claiming the
-        newest date would overstate it.
+        The card is only as current as its stalest list, so claiming the newest
+        date would overstate it.
         """
         dates = self._dates
         return min(dates) if dates else None
@@ -341,20 +335,15 @@ class NewsletterSummary:
         return len(set(dates)) <= 1
 
     @property
-    def missing_overlap_message(self) -> str:
-        return "Nimekirjade kattuvus ei ole sisestatud."
-
-    @property
     def is_stale(self) -> bool:
         return any(reading.is_stale for reading in self.readings if reading.has_data)
 
 
 def get_newsletter_summary(*, today: date | None = None) -> NewsletterSummary:
     today = today or timezone.localdate()
-    member, nonmember, overlap = (
-        _reading(spec_for(metric), today=today) for metric in NEWSLETTER_METRICS
+    return NewsletterSummary(
+        lists=tuple(_reading(spec_for(metric), today=today) for metric in NEWSLETTER_METRICS)
     )
-    return NewsletterSummary(member=member, nonmember=nonmember, overlap=overlap)
 
 
 @dataclass(frozen=True)

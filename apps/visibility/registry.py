@@ -32,7 +32,9 @@ provenance.
 
 A social follower count is worth re-reading roughly monthly, so 45 days marks
 one clearly missed cycle. A newsletter list moves more slowly and is read from
-a different system, so it gets 90. Both are thresholds for saying "vajab
+a different system, so it gets 90. The three newsletters are separate lists with
+separate audiences; they are never added together, because a reader subscribed
+to two of them would be counted twice. Both are thresholds for saying "vajab
 uuendamist" beside a figure — never for hiding it. An old number is still the
 last thing anybody counted.
 """
@@ -160,9 +162,9 @@ class VisibilityMetricSpec:
 
 
 NEWSLETTER_METRICS: tuple[str, ...] = (
-    VisibilityMetric.NEWSLETTER_MEMBER_RECIPIENTS,
-    VisibilityMetric.NEWSLETTER_NONMEMBER_RECIPIENTS,
-    VisibilityMetric.NEWSLETTER_OVERLAP_RECIPIENTS,
+    VisibilityMetric.NEWSLETTER_ETEATAJA,
+    VisibilityMetric.NEWSLETTER_ENEWS,
+    VisibilityMetric.NEWSLETTER_EVESTNIK,
 )
 
 SOCIAL_METRICS: tuple[str, ...] = (
@@ -175,42 +177,42 @@ SOCIAL_METRICS: tuple[str, ...] = (
 
 METRICS: tuple[VisibilityMetricSpec, ...] = (
     VisibilityMetricSpec(
-        key=VisibilityMetric.NEWSLETTER_MEMBER_RECIPIENTS,
-        label="Liikmete uudiskirja aktiivsed saajad",
+        key=VisibilityMetric.NEWSLETTER_ETEATAJA,
+        label="e-Teataja",
         unit="saajat",
         source_slug=SOURCE_SMAILY,
         source_label=SOURCE_NAMES[SOURCE_SMAILY],
         display_order=10,
         stale_after_days=NEWSLETTER_STALE_AFTER_DAYS,
         definition=(
-            "Liikmete uudiskirja nimekirja aktiivsete saajate arv Smailys. "
+            "e-Teataja nimekirja aktiivsete saajate arv Smailys. "
             "Ei ole saadetud ega kohale toimetatud kirjade arv."
         ),
     ),
     VisibilityMetricSpec(
-        key=VisibilityMetric.NEWSLETTER_NONMEMBER_RECIPIENTS,
-        label="Mitteliikmete uudiskirja aktiivsed saajad",
+        key=VisibilityMetric.NEWSLETTER_ENEWS,
+        label="eNews",
         unit="saajat",
         source_slug=SOURCE_SMAILY,
         source_label=SOURCE_NAMES[SOURCE_SMAILY],
         display_order=20,
         stale_after_days=NEWSLETTER_STALE_AFTER_DAYS,
         definition=(
-            "Mitteliikmete uudiskirja nimekirja aktiivsete saajate arv Smailys. "
+            "eNewsi nimekirja aktiivsete saajate arv Smailys. "
             "Ei ole saadetud ega kohale toimetatud kirjade arv."
         ),
     ),
     VisibilityMetricSpec(
-        key=VisibilityMetric.NEWSLETTER_OVERLAP_RECIPIENTS,
-        label="Mõlemas nimekirjas olevad saajad",
+        key=VisibilityMetric.NEWSLETTER_EVESTNIK,
+        label="e-Vestnik",
         unit="saajat",
         source_slug=SOURCE_SMAILY,
         source_label=SOURCE_NAMES[SOURCE_SMAILY],
         display_order=30,
         stale_after_days=NEWSLETTER_STALE_AFTER_DAYS,
         definition=(
-            "Saajad, kes on korraga mõlemas nimekirjas. Ilma selleta ei saa "
-            "unikaalset auditooriumi arvutada."
+            "e-Vestniku nimekirja aktiivsete saajate arv Smailys. "
+            "Ei ole saadetud ega kohale toimetatud kirjade arv."
         ),
     ),
     VisibilityMetricSpec(

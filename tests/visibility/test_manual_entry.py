@@ -143,19 +143,27 @@ def test_a_stray_submit_previews_rather_than_publishing(staff_client):
     assert VisibilityObservation.objects.count() == 0
 
 
-def test_preview_shows_the_derived_unique_newsletter_audience(staff_client):
+def test_preview_lists_each_newsletter_and_derives_nothing_from_them(staff_client):
+    """The preview shows what was typed, list by list.
+
+    There is no total: the three go to three separate lists whose overlap
+    nobody has counted, so 2150 would be an audience figure invented here.
+    """
     response = staff_client.post(
         NEW_URL,
         preview(
             form_data(
-                newsletter_member_recipients=1200,
-                newsletter_nonmember_recipients=800,
-                newsletter_overlap_recipients=150,
+                newsletter_eteataja=1200,
+                newsletter_enews=800,
+                newsletter_evestnik=150,
             )
         ),
     )
+    body = response.content.decode()
 
-    assert "1850" in response.content.decode()
+    for label in ("e-Teataja", "eNews", "e-Vestnik"):
+        assert label in body
+    assert "2150" not in body
 
 
 def test_preview_shows_the_change_against_the_previous_observation(submit, staff_client, days_ago):
@@ -183,9 +191,9 @@ def test_confirmation_publishes_every_supplied_metric(staff_client, today):
         NEW_URL,
         confirm(
             form_data(
-                newsletter_member_recipients=1200,
-                newsletter_nonmember_recipients=800,
-                newsletter_overlap_recipients=150,
+                newsletter_eteataja=1200,
+                newsletter_enews=800,
+                newsletter_evestnik=150,
                 facebook_followers=4200,
                 linkedin_followers=2500,
                 instagram_followers=700,
@@ -236,8 +244,8 @@ def test_each_contributing_source_gets_its_own_artifact_and_import_run(staff_cli
         NEW_URL,
         confirm(
             form_data(
-                newsletter_member_recipients=1200,
-                newsletter_nonmember_recipients=800,
+                newsletter_eteataja=1200,
+                newsletter_enews=800,
                 facebook_followers=4200,
                 linkedin_followers=2500,
             )
@@ -332,16 +340,20 @@ def test_an_explicit_zero_is_stored(staff_client):
 
 
 def test_one_invalid_metric_rolls_back_the_whole_batch(staff_client):
-    """The overlap contradicts the list in the same submission, so nothing at
-    all is written — not the valid Facebook figure beside it."""
+    """One negative figure, so nothing at all is written.
+
+    Not the three valid newsletter counts beside it either: a batch is one
+    reading of the whole board, and half of one is not a state this table is
+    allowed to hold.
+    """
     response = staff_client.post(
         NEW_URL,
         confirm(
             form_data(
-                newsletter_member_recipients=100,
-                newsletter_nonmember_recipients=900,
-                newsletter_overlap_recipients=500,
-                facebook_followers=4200,
+                newsletter_eteataja=100,
+                newsletter_enews=900,
+                newsletter_evestnik=500,
+                facebook_followers=-1,
             )
         ),
     )

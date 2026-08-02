@@ -13,7 +13,7 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
 const CHANNELS = [
   "Kodulehe külastused",
-  "Uudiskirja saajad",
+  "Uudiskirjad",
   "Facebooki jälgijad",
   "LinkedIni jälgijad",
   "Instagrami jälgijad",
@@ -63,7 +63,7 @@ test("the visibility page renders its sections and its empty states", async ({ p
 
   for (const section of [
     "Praegune seis",
-    "Uudiskirja auditoorium",
+    "Uudiskirjad",
     "Sotsiaalmeedia",
     "Vaatluste ajalugu",
     "Allikate määratlused",

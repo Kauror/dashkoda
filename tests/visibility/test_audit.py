@@ -70,7 +70,7 @@ def test_a_first_observation_records_no_supersession(submit):
 
 
 def test_one_correlation_id_covers_a_whole_submission(submit):
-    submit(facebook_followers=4200, linkedin_followers=2500, newsletter_member_recipients=1200)
+    submit(facebook_followers=4200, linkedin_followers=2500, newsletter_eteataja=1200)
 
     batch = VisibilityEntryBatch.objects.get()
     correlation_ids = set(

@@ -33,9 +33,9 @@ pytestmark = pytest.mark.django_db
 def test_the_metric_vocabulary_is_explicit_and_closed():
     """Seven named metrics, and no way to invent an eighth by typing one."""
     assert set(VisibilityMetric.values) == {
-        "newsletter_member_recipients",
-        "newsletter_nonmember_recipients",
-        "newsletter_overlap_recipients",
+        "newsletter_eteataja",
+        "newsletter_enews",
+        "newsletter_evestnik",
         "facebook_followers",
         "linkedin_followers",
         "instagram_followers",

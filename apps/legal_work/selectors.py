@@ -72,6 +72,30 @@ def get_open_items(snapshot: LegalWorkSnapshot | None = None, limit: int | None 
     return queryset[:limit] if limit else queryset
 
 
+def get_open_items_by_deadline(
+    snapshot: LegalWorkSnapshot | None = None, limit: int | None = MAX_OPEN_ITEMS
+):
+    """Topics still in work, the ones closest to going out first.
+
+    Ordered by the opinion deadline rather than by arrival, because what the
+    board wants off this list is what has to leave next. A topic whose deadline
+    has already passed is *not* filtered out the way `get_upcoming_deadlines`
+    filters it: there the block asks "what can you still act on", while here the
+    question is "what is in work", and something overdue is in work most of all.
+
+    A record with no deadline trails the dated ones rather than leading them. In
+    a descending order PostgreSQL puts NULLs first, so `nulls_last` is spelled
+    out; ascending needs it too, since an undated record is not the most urgent.
+    """
+    snapshot = snapshot or get_current_snapshot()
+    queryset = (
+        _items(snapshot)
+        .filter(is_open=True)
+        .order_by(F("deadline_date").asc(nulls_last=True), "topic", "record_id")
+    )
+    return queryset[:limit] if limit else queryset
+
+
 def get_latest_sent_items(
     snapshot: LegalWorkSnapshot | None = None, limit: int = DEFAULT_RECENT_LIMIT
 ):

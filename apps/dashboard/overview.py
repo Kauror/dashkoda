@@ -43,7 +43,7 @@ from apps.legal_work.selectors import (
     count_received_since,
     count_sent_since,
     get_latest_sent_items,
-    get_newest_received_items,
+    get_open_items_by_deadline,
 )
 from apps.membership.internal_selectors import (
     get_internal_membership_latest,
@@ -186,8 +186,9 @@ class MembershipCard:
     sit in the headline strip away from the counts it is a ratio of.
 
     The koda.ee directory count is a different definition on a different cadence.
-    It leads the headline strip under its own source name, and it is not repeated
-    here: one number, in one place, said once.
+    It leads the headline strip and is not repeated here: one number, in one
+    place, said once. Neither figure prints its source on the overview any more;
+    the Liikmeskond page is where both are named in full.
     """
 
     internal: SourcedFigure
@@ -218,7 +219,7 @@ class OverviewPage:
     kpis: tuple[Kpi, ...]
     membership: MembershipCard
     legal_work: Connection
-    legal_work_received: tuple
+    legal_work_open: tuple
     legal_work_sent: tuple
     events: Connection
     upcoming_events: tuple
@@ -279,8 +280,8 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
             today=today,
         ),
         legal_work=legal_connection,
-        legal_work_received=(
-            tuple(get_newest_received_items(snapshot, limit=PREVIEW_LIMIT)) if snapshot else ()
+        legal_work_open=(
+            tuple(get_open_items_by_deadline(snapshot, limit=PREVIEW_LIMIT)) if snapshot else ()
         ),
         legal_work_sent=(
             tuple(get_latest_sent_items(snapshot, limit=PREVIEW_LIMIT)) if snapshot else ()
@@ -324,11 +325,11 @@ def _build_kpis(
             comparison_period=(
                 f"viimase {CHANGE_WINDOW_DAYS} päeva jooksul" if change.has_change else ""
             ),
-            # Two totals appear on this page under two definitions. The card in
-            # the Liikmeskond section names its source beneath the figure; this
-            # one has no such row, so its source is stated here. Neither total is
-            # ever shown without saying which count it is.
-            secondary=_source_note(public_connection),
+            # The source line is deliberately not repeated under the figure: the
+            # strip states the reading date, and the board reads this cell as the
+            # public count. `connection` still travels with the figure, so a
+            # footer or an export can give it its source back without re-deriving
+            # where the number came from.
             as_of=change.current.observed_at if change.current else None,
         ),
         Kpi(
@@ -361,13 +362,6 @@ def _counts(*rows) -> tuple[KpiDetail, ...]:
     counted reads as "none happened", which is a measurement nobody made.
     """
     return tuple(KpiDetail(label=label, value=value) for value, label in rows if value is not None)
-
-
-def _source_note(connection: Connection) -> str:
-    """A figure's source and cadence on one line."""
-    if connection.cadence:
-        return f"{connection.label} · {connection.cadence}"
-    return connection.label
 
 
 def _build_fee_collection(internal_latest, connection) -> FeeCollection:
@@ -447,8 +441,8 @@ def _build_membership_card(
     definitions on one axis and invite exactly the subtraction that is forbidden.
     It also could not be drawn: an unchanged daily check writes no observation,
     so the directory series is a single point for weeks at a time and a single
-    point is not a trend. That count leads the headline strip under its own
-    source name, and it is not repeated in this card.
+    point is not a trend. That count leads the headline strip and is not
+    repeated in this card.
 
     Fee collection is read off the same report as the two counts, so it sits with
     them rather than in a strip of unrelated headline figures.

@@ -169,10 +169,10 @@ def test_the_newsletter_threshold_is_longer_than_the_social_one(submit, days_ago
     older_than_social = SOCIAL_STALE_AFTER_DAYS + 1
     submit(
         observation_date=days_ago(older_than_social),
-        newsletter_member_recipients=1200,
+        newsletter_eteataja=1200,
     )
 
-    reading = get_visibility_summary().reading(VisibilityMetric.NEWSLETTER_MEMBER_RECIPIENTS)
+    reading = get_visibility_summary().reading(VisibilityMetric.NEWSLETTER_ETEATAJA)
     assert NEWSLETTER_STALE_AFTER_DAYS > SOCIAL_STALE_AFTER_DAYS
     assert reading.is_stale is False
 
@@ -180,10 +180,10 @@ def test_the_newsletter_threshold_is_longer_than_the_social_one(submit, days_ago
 def test_a_newsletter_reading_past_its_own_threshold_is_stale(submit, days_ago):
     submit(
         observation_date=days_ago(NEWSLETTER_STALE_AFTER_DAYS + 1),
-        newsletter_member_recipients=1200,
+        newsletter_eteataja=1200,
     )
 
-    reading = get_visibility_summary().reading(VisibilityMetric.NEWSLETTER_MEMBER_RECIPIENTS)
+    reading = get_visibility_summary().reading(VisibilityMetric.NEWSLETTER_ETEATAJA)
     assert reading.is_stale is True
 
 
@@ -199,7 +199,7 @@ def test_a_metric_with_no_reading_is_never_stale(submit):
 def test_the_thresholds_come_from_the_registry():
     assert spec_for(FACEBOOK).stale_after_days == SOCIAL_STALE_AFTER_DAYS
     assert (
-        spec_for(VisibilityMetric.NEWSLETTER_OVERLAP_RECIPIENTS).stale_after_days
+        spec_for(VisibilityMetric.NEWSLETTER_EVESTNIK).stale_after_days
         == NEWSLETTER_STALE_AFTER_DAYS
     )
 

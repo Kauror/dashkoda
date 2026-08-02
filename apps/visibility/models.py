@@ -54,18 +54,14 @@ class VisibilityMetric(models.TextChoices):
     create a second series that looks like the first one.
     """
 
-    NEWSLETTER_MEMBER_RECIPIENTS = (
-        "newsletter_member_recipients",
-        "Liikmete uudiskirja aktiivsed saajad",
-    )
-    NEWSLETTER_NONMEMBER_RECIPIENTS = (
-        "newsletter_nonmember_recipients",
-        "Mitteliikmete uudiskirja aktiivsed saajad",
-    )
-    NEWSLETTER_OVERLAP_RECIPIENTS = (
-        "newsletter_overlap_recipients",
-        "Mõlemas nimekirjas olevad saajad",
-    )
+    # The Chamber sends three newsletters, each to its own list. They replaced
+    # a member / non-member / overlap model of a single newsletter, which never
+    # matched what actually goes out. Observations recorded under those retired
+    # keys are left in the table — they were real readings — but nothing reads
+    # them, because no registry entry describes them any more.
+    NEWSLETTER_ETEATAJA = "newsletter_eteataja", "e-Teataja"
+    NEWSLETTER_ENEWS = "newsletter_enews", "eNews"
+    NEWSLETTER_EVESTNIK = "newsletter_evestnik", "e-Vestnik"
     FACEBOOK_FOLLOWERS = "facebook_followers", "Facebooki jälgijad"
     LINKEDIN_FOLLOWERS = "linkedin_followers", "LinkedIni jälgijad"
     INSTAGRAM_FOLLOWERS = "instagram_followers", "Instagrami jälgijad"

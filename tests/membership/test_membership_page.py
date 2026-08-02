@@ -166,25 +166,25 @@ def test_content_security_policy_is_unchanged(viewer_client, imported_package):
 def test_overview_does_not_show_two_competing_totals(
     viewer_client, public_observation, imported_package
 ):
-    """Both totals appear, each named and dated, and neither is the other.
+    """Both totals appear on the overview, and neither stands in for the other.
 
-    The board report's own total is on the overview: it is the solid line of the
+    The board report's own total is there: it is the solid line of the
     Liikmeskond chart, and the paid share stated beside it is the gap between
-    the two lines. What must never happen is either total appearing without the
-    source and cadence that say which count it is — that is what would let a
-    reader set one against the other.
+    the two lines. The per-figure source lines and the explanatory note were
+    both removed at the board's request, so the overview no longer states the
+    distinction in words — this page does, and that is asserted below.
     """
     body = viewer_client.get(reverse("home")).content.decode()
 
     assert "3555" in body, "the public directory total leads the headline strip"
     assert "3300" in body, "the board report's own total is charted in its card"
-    assert "Koda.ee liikmekataloog" in body
-    assert "Sisemine liikmeskonna aruanne" in body
-    # Each figure states how current it is, because one is recounted daily and
-    # the other is reported once a month.
-    assert "iga päev" in body
-    assert "kord kuus" in body
-    assert "Neid ei liideta ega esitata ühe näitajana." in body
+    assert "Sisemine liikmeskonna aruanne" in body, "named by the chart's data table"
+
+    membership = viewer_client.get(reverse("membership")).content.decode()
+
+    assert "Kaks eri allikat, mis loendavad eri asju." in membership
+    assert "Koda.ee liikmekataloog" in membership
+    assert "Sisemine liikmeskonna aruanne" in membership
     # Each total is stated once. The directory count used to appear a second
     # time inside the board report's card, under a second name.
     assert "Liikmeid kataloogis" not in body

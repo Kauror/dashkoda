@@ -41,8 +41,8 @@ _MANUAL_DESCRIPTION_SUFFIX = (
 
 SOURCE_DESCRIPTIONS = {
     SOURCE_SMAILY: (
-        "Koja kahe uudiskirja nimekirja aktiivsete saajate arv Smailys: liikmete "
-        "nimekiri, mitteliikmete nimekiri ja nende kattuvus. Ei ole saadetud kirjade, "
+        "Koja uudiskirjade nimekirjade aktiivsete saajate arv Smailys: e-Teataja, "
+        "eNews ja e-Vestnik, iga nimekiri eraldi. Ei ole saadetud kirjade, "
         "avamiste ega klikkide arv. " + _MANUAL_DESCRIPTION_SUFFIX
     ),
     SOURCE_FACEBOOK: "Koja Facebooki lehe jälgijate arv. " + _MANUAL_DESCRIPTION_SUFFIX,

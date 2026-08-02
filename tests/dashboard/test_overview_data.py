@@ -220,20 +220,27 @@ def test_a_first_ever_reading_shows_no_change_it_cannot_know(viewer):
 
 
 def test_the_two_membership_sources_are_never_merged(viewer, imported_internal_history):
+    """Each total is stated once, and the two are never drawn together.
+
+    The board asked for the per-figure source lines and the explanatory note to
+    go, so the overview no longer argues the point in prose. What still has to
+    hold structurally is that the directory count appears only in the headline
+    strip, the board report's own figures appear only in their card, and the
+    chart is built from the report alone — the Liikmeskond page is where both
+    sources are named in full and where the distinction is spelled out.
+    """
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
 
     page = body(viewer.get(reverse("home")))
+    card = section(viewer.get(reverse("home")), "section-membership")
 
-    assert "Koda.ee liikmekataloog" in page
-    assert "Sisemine liikmeskonna aruanne" in page
-    assert "iga päev" in page
-    assert "kord kuus" in page
-    assert "Neid ei liideta ega esitata ühe näitajana." in page
-    # The directory total is stated once, in the headline strip, with the source
-    # that counted it. Repeating it inside the board report's card is what let a
-    # reader read two definitions as one number.
+    assert "Sisemine liikmeskonna aruanne" in card, "the chart's data table names its source"
+    # The directory total is stated once, in the headline strip. Repeating it
+    # inside the board report's card is what let a reader read two definitions
+    # as one number.
     assert "Liikmeid kataloogis" not in page
-    assert "Koda.ee liikmekataloog" in kpi_strip(viewer.get(reverse("home")))
+    assert "Koda.ee liikmekataloog" not in card, "the directory is not a source of this card"
+    assert "3400" in kpi_strip(viewer.get(reverse("home")))
 
 
 def test_fee_collection_sits_with_the_counts_it_was_read_beside(viewer, imported_internal_history):

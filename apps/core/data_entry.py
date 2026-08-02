@@ -88,10 +88,10 @@ DATA_ENTRY_MODULES: tuple[DataEntryModule, ...] = (
         key="visibility",
         title="Kanalite statistika",
         description=(
-            "Uudiskirja ja sotsiaalmeedia auditooriumi suurus: liikmete ja mitteliikmete "
-            "uudiskirja aktiivsed saajad, nende kattuvus ning Facebooki, LinkedIni, "
-            "Instagrami ja YouTube’i jälgijad. Väärtused loetakse platvormi enda "
-            "statistikast — DashKoda ei päri ühtegi platvormi."
+            "Uudiskirjade ja sotsiaalmeedia auditooriumi suurus: e-Teataja, eNewsi ja "
+            "e-Vestniku aktiivsed saajad ning Facebooki, LinkedIni, Instagrami ja "
+            "YouTube’i jälgijad. Väärtused loetakse platvormi enda statistikast — "
+            "DashKoda ei päri ühtegi platvormi."
         ),
         links=(
             DataEntryLink(

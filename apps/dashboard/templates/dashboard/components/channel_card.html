@@ -5,6 +5,10 @@ Context:
   slot  – a ChannelSlot from `apps.visibility.page`
   flush – drop the card's own border, for use inside a divided strip
 
+A slot carries either one figure or a short list of `details` — the newsletter
+slot is three separate lists that are never summed, so it has no single value to
+lead with. Everything below applies to both shapes.
+
 Three states, and keeping them apart is what makes the band trustworthy:
 
   - **planned** — nothing collects this figure at all. It shows a dash, says the
@@ -43,6 +47,15 @@ accessible new-tab pattern.
       <span class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ slot.value }}</span>
       {% if slot.unit %}<span class="text-sm text-text-secondary">{{ slot.unit }}</span>{% endif %}
     </p>
+  {% elif slot.details %}
+    <dl class="flex flex-col gap-1">
+      {% for detail in slot.details %}
+        <div class="flex items-baseline justify-between gap-3">
+          <dt class="min-w-0 text-sm text-text-secondary">{{ detail.label }}</dt>
+          <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.value }}</dd>
+        </div>
+      {% endfor %}
+    </dl>
   {% else %}
     <p class="flex items-baseline gap-1.5" aria-hidden="true">
       <span class="text-metric font-semibold tracking-tight text-text-muted">—</span>
@@ -73,8 +86,10 @@ accessible new-tab pattern.
       </p>
     {% endif %}
     {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"d.m.Y" only %}
+  {% elif slot.details %}
+    {% if slot.secondary %}<p class="dk-meta">{{ slot.secondary }}</p>{% endif %}
+    {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"d.m.Y" only %}
   {% elif slot.secondary %}
-    {# The newsletter slot's two list counts, when the overlap is unknown. #}
     <p class="text-sm text-text-secondary">{{ slot.secondary }}</p>
     {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"d.m.Y" only %}
   {% endif %}

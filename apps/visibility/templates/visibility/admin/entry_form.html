@@ -153,38 +153,20 @@ because the design system has no approved accessible new-tab pattern.
       </table>
 
       <table>
-        <caption>Uudiskirja auditoorium</caption>
+        <caption>Uudiskirjad</caption>
         <tbody>
-          <tr>
-            <th scope="row">Liikmete uudiskirja aktiivsed saajad</th>
-            <td>{{ preview.newsletter.member|default_if_none:"–" }}</td>
-          </tr>
-          <tr>
-            <th scope="row">Mitteliikmete uudiskirja aktiivsed saajad</th>
-            <td>{{ preview.newsletter.nonmember|default_if_none:"–" }}</td>
-          </tr>
-          <tr>
-            <th scope="row">Mõlemas nimekirjas olevad saajad</th>
-            <td>{{ preview.newsletter.overlap|default_if_none:"–" }}</td>
-          </tr>
-          <tr>
-            <th scope="row">Unikaalsed uudiskirja saajad</th>
-            <td>
-              {% if preview.newsletter.unique_recipients is not None %}
-                {{ preview.newsletter.unique_recipients }}
-              {% else %}
-                ei ole arvutatav
-              {% endif %}
-            </td>
-          </tr>
+          {% for label, value in preview.newsletter.rows %}
+            <tr>
+              <th scope="row">{{ label }}</th>
+              <td>{{ value|default_if_none:"–" }}</td>
+            </tr>
+          {% endfor %}
         </tbody>
       </table>
-      {% if not preview.newsletter.has_overlap %}
-        <p class="help">
-          {{ preview.newsletter.missing_overlap_message }} Kahte nimekirja ei liideta
-          unikaalseks auditooriumiks ilma kattuvuseta.
-        </p>
-      {% endif %}
+      <p class="help">
+        Iga nimekiri eraldi. Neid ei liideta üheks auditooriumiks, sest nimekirjade
+        kattuvust ei ole loendatud.
+      </p>
 
       {% if preview.corrections %}
         <p>

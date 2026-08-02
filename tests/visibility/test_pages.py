@@ -39,7 +39,7 @@ def test_the_band_has_all_six_channels_in_order(viewer_client):
         page.index(label)
         for label in (
             "Kodulehe külastused",
-            "Uudiskirja saajad",
+            "Uudiskirjad",
             "Facebooki jälgijad",
             "LinkedIni jälgijad",
             "Instagrami jälgijad",
@@ -188,7 +188,7 @@ def test_the_website_slot_shows_no_value_even_when_other_channels_do(submit, vie
     submit(facebook_followers=4200)
 
     page = body(viewer_client.get(reverse("home")))
-    band = page[page.index("Kodulehe külastused") : page.index("Uudiskirja saajad")]
+    band = page[page.index("Kodulehe külastused") : page.index("Uudiskirjad")]
 
     assert re.search(r"\d", strip_tags(band)) is None
 
@@ -196,30 +196,38 @@ def test_the_website_slot_shows_no_value_even_when_other_channels_do(submit, vie
 # -- the newsletter slot ------------------------------------------------
 
 
-def test_the_band_shows_the_unique_audience_when_the_overlap_is_known(submit, viewer_client):
+def test_the_band_lists_each_newsletter_and_totals_none_of_them(submit, viewer_client):
     submit(
-        newsletter_member_recipients=1200,
-        newsletter_nonmember_recipients=800,
-        newsletter_overlap_recipients=150,
+        newsletter_eteataja=1200,
+        newsletter_enews=800,
+        newsletter_evestnik=150,
     )
-
-    assert "1850" in body(viewer_client.get(reverse("home")))
-
-
-def test_the_band_discloses_an_unknown_overlap(submit, viewer_client):
-    submit(newsletter_member_recipients=1200, newsletter_nonmember_recipients=800)
 
     page = body(viewer_client.get(reverse("home")))
 
-    assert "Nimekirjade kattuvus ei ole sisestatud." in page
-    # The two lists are shown separately rather than summed.
+    for label in ("e-Teataja", "eNews", "e-Vestnik"):
+        assert label in page
     assert "1200" in page
     assert "800" in page
-    assert "2000" not in page
+    assert "150" in page
+    # 2150 is the sum. It would be the audience only if nobody were on two
+    # lists, and nobody has counted whether anyone is.
+    assert "2150" not in page
+
+
+def test_the_band_names_the_newsletters_nobody_has_entered(submit, viewer_client):
+    submit(newsletter_eteataja=1200)
+
+    page = body(viewer_client.get(reverse("home")))
+
+    assert "1200" in page
+    # Named as unentered rather than drawn as a zero.
+    assert "Sisestamata" in page
+    assert "eNews" in page
 
 
 def test_the_newsletter_slot_links_to_the_visibility_page(submit, viewer_client):
-    submit(newsletter_member_recipients=1200)
+    submit(newsletter_eteataja=1200)
 
     assert f'href="{PAGE_URL}"' in body(viewer_client.get(reverse("home")))
 

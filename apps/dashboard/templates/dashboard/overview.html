@@ -18,7 +18,7 @@ Three things are deliberate and should stay that way:
     count — one source, one definition, one reading date, so the gap between
     the lines is the paid share and nothing else. The koda.ee directory count
     is a different definition on a different cadence: it leads the headline
-    strip under its own source name and never appears on those axes;
+    strip and never appears on those axes;
   - each headline cell carries its own module's counts, and every count states
     the period it was measured over. There is no separate strip repeating those
     same movements underneath.
@@ -33,9 +33,8 @@ None of them reached this file.
 <div class="flex flex-col gap-5">
 
   {# ---------------- Page header ---------------- #}
-  <header class="flex flex-col gap-1">
+  <header>
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Koja töölaud</h1>
-    <p class="text-sm text-text-secondary">Ülevaade koja olulisematest näitajatest ja tegevustest</p>
   </header>
 
   {# ---------------- 1. Põhinäitajad ---------------- #}
@@ -48,8 +47,8 @@ None of them reached this file.
   whose module they describe.
   {% endcomment %}
   <section aria-labelledby="section-kpi" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" description="Koja seisu kokkuvõtvad näitajad." only %}
-    <div class="dk-kpi-strip">
+    {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" only %}
+    <div class="dk-kpi-strip sm:grid-cols-1 lg:grid-cols-3 xl:grid-cols-3">
       {% for kpi in page.kpis %}
         {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary details=kpi.details meter_pct=kpi.meter_pct as_of=kpi.as_of flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
       {% endfor %}
@@ -82,21 +81,21 @@ None of them reached this file.
           {% endcomment %}
           <div x-cloak role="tablist" aria-label="Õigusloome nimekirjad" class="flex gap-1">
             <button type="button"
-                    id="tab-received"
-                    role="tab"
-                    aria-controls="panel-received"
-                    x-on:click="showFirst"
-                    :aria-selected="firstSelected"
-                    :class="firstTabClass"
-                    class="dk-tab">Sisse tulnud</button>
-            <button type="button"
                     id="tab-sent"
                     role="tab"
                     aria-controls="panel-sent"
+                    x-on:click="showFirst"
+                    :aria-selected="firstSelected"
+                    :class="firstTabClass"
+                    class="dk-tab">Välja läinud</button>
+            <button type="button"
+                    id="tab-open"
+                    role="tab"
+                    aria-controls="panel-open"
                     x-on:click="showSecond"
                     :aria-selected="secondSelected"
                     :class="secondTabClass"
-                    class="dk-tab">Välja läinud</button>
+                    class="dk-tab">Töös</button>
           </div>
           {% comment %}
           The three counts that used to sit here — in hand, arrived, sent — are
@@ -105,21 +104,7 @@ None of them reached this file.
           {% endcomment %}
         </div>
 
-        <div id="panel-received" role="tabpanel" aria-labelledby="tab-received" x-show="firstSelected" class="flex-1">
-          <h3 class="sr-only">Uusimad sisse tulnud</h3>
-          <ul class="divide-y divide-border">
-            {% for item in page.legal_work_received %}
-              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                <span class="min-w-0 truncate text-sm text-text">{{ item.topic }}</span>
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">sisse {{ item.received_date|date:"d.m.Y" }}</span>
-              </li>
-            {% empty %}
-              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Selles hetkeseisus ei ole kuupäevaga sisse tulnud kirjeid.</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="secondSelected" class="flex-1">
+        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="firstSelected" class="flex-1">
           <h3 class="sr-only">Viimati välja läinud</h3>
           <ul class="divide-y divide-border">
             {% for item in page.legal_work_sent %}
@@ -129,6 +114,29 @@ None of them reached this file.
               </li>
             {% empty %}
               <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Välja läinud arvamusi ei ole selles hetkeseisus.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        {% comment %}
+        Ordered by deadline, soonest first, so the topic nearest to going out
+        leads. A record with no deadline trails the dated ones; it says so
+        rather than borrowing a date it does not have.
+        {% endcomment %}
+        <div id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="secondSelected" class="flex-1">
+          <h3 class="sr-only">Töös olevad teemad</h3>
+          <ul class="divide-y divide-border">
+            {% for item in page.legal_work_open %}
+              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
+                <span class="min-w-0 truncate text-sm text-text">{{ item.topic }}</span>
+                {% if item.deadline_date %}
+                  <span class="dk-meta flex-none whitespace-nowrap tabular-nums">tähtaeg {{ item.deadline_date|date:"d.m.Y" }}</span>
+                {% else %}
+                  <span class="dk-meta flex-none whitespace-nowrap">tähtajata</span>
+                {% endif %}
+              </li>
+            {% empty %}
+              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Töös olevaid teemasid ei ole selles hetkeseisus.</li>
             {% endfor %}
           </ul>
         </div>
@@ -150,9 +158,9 @@ None of them reached this file.
     monthly report and says so beneath itself.
 
     The koda.ee directory total is not repeated here. It is a different
-    definition on a different cadence, it leads the headline strip under its own
-    source name, and stating it twice on one page is what invites a reader to
-    subtract one total from the other. The paid share is computed inside the
+    definition on a different cadence, it leads the headline strip, and stating
+    it twice on one page is what invites a reader to subtract one total from the
+    other. The paid share is computed inside the
     board report alone — dividing the internal paid count by the public directory
     total would be a ratio between two different definitions and is never shown.
 
@@ -174,13 +182,12 @@ None of them reached this file.
         {% if page.membership.has_any_data %}
           <div class="flex flex-wrap gap-x-10 gap-y-4">
             {% comment %}
-            Each figure carries its own source and cadence directly beneath it.
-            A member total on a page that also carries a differently-defined one
-            must never be shown without saying which count it is.
-
-            The first two are the board report's own total and paid counts, in
-            the order the chart below draws them. Fee collection follows, off the
-            same report and the same reading date.
+            Three figures off one monthly report, in the order the chart below
+            draws them: its total, its paid count, and the fee collection read
+            beside them. Each carries the date its value describes and nothing
+            more — the source was named three times in a row under three figures
+            that all came from it, and the board asked for that to go. The
+            Liikmeskond page still names it in full.
             {% endcomment %}
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">{{ page.membership.internal_total.label }}</h3>
@@ -189,7 +196,7 @@ None of them reached this file.
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.internal_total.connection.label }}{% if page.membership.internal_total.connection.cadence %} · {{ page.membership.internal_total.connection.cadence }}{% endif %}</p>
+              <p class="dk-meta">{{ page.membership.internal_total.as_of|date:"d.m.Y" }}</p>
             </div>
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">{{ page.membership.internal.label }}</h3>
@@ -203,7 +210,7 @@ None of them reached this file.
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.internal.connection.label }}{% if page.membership.internal.connection.cadence %} · {{ page.membership.internal.connection.cadence }}{% endif %}</p>
+              <p class="dk-meta">{{ page.membership.internal.as_of|date:"d.m.Y" }}</p>
             </div>
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">Liikmemaksude laekumine</h3>
@@ -211,9 +218,6 @@ None of them reached this file.
                 <p class="flex flex-wrap items-baseline gap-x-2">
                   <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.fee.percentage }}</span>
                   <span class="text-sm text-text-secondary">%</span>
-                  {% if page.membership.fee.basis %}
-                    <span class="dk-meta">{{ page.membership.fee.basis }}</span>
-                  {% endif %}
                 </p>
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
@@ -221,7 +225,7 @@ None of them reached this file.
               {% if page.membership.fee.amounts %}
                 <p class="text-sm tabular-nums text-text-secondary">{{ page.membership.fee.amounts }}</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.fee.connection.label }}{% if page.membership.fee.connection.cadence %} · {{ page.membership.fee.connection.cadence }}{% endif %}</p>
+              <p class="dk-meta">{{ page.membership.fee.as_of|date:"d.m.Y" }}</p>
             </div>
           </div>
 
@@ -230,14 +234,6 @@ None of them reached this file.
           {% else %}
             <p class="dk-meta">Trendi kuvamiseks on vaja vähemalt kahte vaatlust.</p>
           {% endif %}
-
-          <p class="dk-meta">
-            Koja enda aruande näitajad. Põhinäitajate riba liikmearv tuleb avalikust kataloogist —
-            kaks eri allikat, mis loendavad eri asju. Neid ei liideta ega esitata ühe näitajana.
-            {% if page.membership.paid_share_pct is not None %}
-              Tasunute osakaal on arvutatud aruande enda liikmearvust, mitte avalikust kataloogist.
-            {% endif %}
-          </p>
         {% else %}
           {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
         {% endif %}

@@ -64,7 +64,6 @@ from .models import (
     MAX_NOTE_LENGTH,
     CollectionMethod,
     VisibilityEntryBatch,
-    VisibilityMetric,
     VisibilityObservation,
 )
 from .publishing import lock_current, publish_observation
@@ -72,6 +71,7 @@ from .registry import (
     ARTIFACT_REFERENCE_PREFIXES,
     MANUAL_SOURCE_SLUGS,
     METRICS,
+    NEWSLETTER_METRICS,
     VisibilityMetricSpec,
     metrics_for_source,
     spec_for,
@@ -95,8 +95,6 @@ ARTIFACT_MIME_TYPE = "application/json"
 # --------------------------------------------------------------------------
 SUBSTANTIAL_CHANGE_RATIO = Decimal("0.25")
 SUBSTANTIAL_CHANGE_ABSOLUTE = 100
-
-OVERLAP_MISSING_MESSAGE = "Nimekirjade kattuvus ei ole sisestatud."
 
 
 class VisibilityEntryError(RuntimeError):
@@ -239,31 +237,19 @@ class MetricChange:
 
 
 @dataclass(frozen=True)
-class NewsletterMath:
-    """The union rule, applied to the values that will exist after publication.
+class NewsletterEntries:
+    """The newsletter figures this submission will publish, list by list.
 
-    `unique_recipients` is a **derived** figure and is never stored as a metric
-    of its own. Deriving it keeps one definition; storing it would create a
-    fourth number that could disagree with the three it comes from.
+    There is deliberately no arithmetic here. The three lists are separate
+    audiences with an unknown overlap, so there is nothing to derive: the
+    preview shows what was typed, under the name of the list it belongs to.
     """
 
-    member: int | None
-    nonmember: int | None
-    overlap: int | None
+    rows: tuple[tuple[str, int | None], ...] = ()
 
     @property
-    def has_overlap(self) -> bool:
-        return self.overlap is not None
-
-    @property
-    def unique_recipients(self) -> int | None:
-        if self.member is None or self.nonmember is None or self.overlap is None:
-            return None
-        return self.member + self.nonmember - self.overlap
-
-    @property
-    def missing_overlap_message(self) -> str:
-        return OVERLAP_MISSING_MESSAGE
+    def has_any_value(self) -> bool:
+        return any(value is not None for _label, value in self.rows)
 
 
 @dataclass(frozen=True)
@@ -272,7 +258,7 @@ class SubmissionPreview:
 
     observation_date: date
     changes: tuple[MetricChange, ...]
-    newsletter: NewsletterMath
+    newsletter: NewsletterEntries
     warnings: tuple[str, ...]
     errors: tuple[str, ...]
     content_hash: str
@@ -393,29 +379,12 @@ def build_preview(
                 f"{change.baseline_date:%d.%m.%Y}."
             )
 
-    newsletter = NewsletterMath(
-        member=_effective_value(submission, VisibilityMetric.NEWSLETTER_MEMBER_RECIPIENTS),
-        nonmember=_effective_value(submission, VisibilityMetric.NEWSLETTER_NONMEMBER_RECIPIENTS),
-        overlap=_effective_value(submission, VisibilityMetric.NEWSLETTER_OVERLAP_RECIPIENTS),
-    )
-
-    # The overlap is a subset of each list by definition, so exceeding either one
-    # is arithmetically impossible rather than merely surprising.
-    if newsletter.overlap is not None:
-        if newsletter.member is not None and newsletter.overlap > newsletter.member:
-            errors.append(
-                "Mõlemas nimekirjas olevaid saajaid ei saa olla rohkem kui liikmete "
-                "uudiskirja saajaid."
-            )
-        if newsletter.nonmember is not None and newsletter.overlap > newsletter.nonmember:
-            errors.append(
-                "Mõlemas nimekirjas olevaid saajaid ei saa olla rohkem kui mitteliikmete "
-                "uudiskirja saajaid."
-            )
-    elif newsletter.member is not None or newsletter.nonmember is not None:
-        warnings.append(
-            f"{OVERLAP_MISSING_MESSAGE} Unikaalset uudiskirja auditooriumi ei saa arvutada."
+    newsletter = NewsletterEntries(
+        rows=tuple(
+            (spec_for(metric).label, _effective_value(submission, metric))
+            for metric in NEWSLETTER_METRICS
         )
+    )
 
     content_hash = canonical_sha256(submission)
     return SubmissionPreview(

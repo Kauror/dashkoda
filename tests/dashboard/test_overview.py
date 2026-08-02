@@ -40,7 +40,6 @@ def test_overview_renders_the_shell(client, authenticate_viewer):
     assert response.headers["Cache-Control"] == "private, no-store"
     assert content.count("<h1") == 1
     assert "Koja töölaud" in content
-    assert "Ülevaade koja olulisematest näitajatest ja tegevustest" in content
     assert 'href="#main"' in content
     assert 'id="main"' in content
 
@@ -74,14 +73,10 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
         "news",
         "visibility",
     }
-    assert {item.key for item in planned} == {
-        "opinions",
-        "finance",
-        "focus-topics",
-        "projects",
-        "projects-active",
-        "projects-finished",
-    }
+    # Fookusteemad is the only planned module left: Arvamused, Projektid and
+    # Finantsid were removed at the board's request rather than left as names
+    # the sidebar cannot open.
+    assert {item.key for item in planned} == {"focus-topics"}
     assert content.count('aria-disabled="true"') >= len(planned)
 
 
@@ -91,7 +86,7 @@ def test_navigation_nests_planned_children_under_their_parent(client, authentica
     content = client.get("/").content.decode()
     parents = [item for item in NAVIGATION if item.children]
 
-    assert {item.key for item in parents} == {"legislation", "projects"}
+    assert {item.key for item in parents} == {"legislation"}
     assert "dk-nav-sublist" in content
     for parent in parents:
         for child in parent.children:
@@ -134,7 +129,7 @@ def test_overview_names_every_channel_and_says_which_are_empty(client, authentic
 
     for label in (
         "Kodulehe külastused",
-        "Uudiskirja saajad",
+        "Uudiskirjad",
         "Facebooki jälgijad",
         "LinkedIni jälgijad",
         "Instagrami jälgijad",

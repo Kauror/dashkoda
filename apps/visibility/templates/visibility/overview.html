@@ -12,10 +12,9 @@ Four things are deliberate and should stay that way:
   - **every figure on this page was typed by a person.** Each one carries
     "Käsitsi sisestatud" and the date it describes. Nothing says synchronised,
     API-connected or automatically updated, because none of it is;
-  - the unique newsletter audience appears **only** when the overlap between the
-    two lists is known. Without it the two counts are shown separately and the
-    page says the overlap has not been entered — adding them would double-count
-    everybody on both lists;
+  - the three newsletters are listed one by one and **never totalled**. They go
+    to three separate lists and nobody has counted how many people are on more
+    than one, so a sum would silently claim that overlap is zero;
   - a channel nobody has entered says "Andmed puuduvad". Never a zero;
   - trends are server-drawn sparklines and each one keeps its values as a table.
     The table is not a fallback: it stays in the document for every reader.
@@ -55,7 +54,7 @@ Four things are deliberate and should stay that way:
 
   {# ---------------- 2. Uudiskiri ---------------- #}
   <section aria-labelledby="section-newsletter" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Uudiskirja auditoorium" heading_id="section-newsletter" description="Kaks nimekirja, nende kattuvus ja unikaalsete saajate arv." only %}
+    {% include "dashboard/components/section_header.html" with title="Uudiskirjad" heading_id="section-newsletter" description="Iga uudiskirja nimekirja suurus eraldi." only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% if page.newsletter.has_any_data %}
         <div class="w-full overflow-x-auto">
@@ -88,22 +87,14 @@ Four things are deliberate and should stay that way:
           </table>
         </div>
 
-        {% if page.newsletter.unique_recipients is not None %}
-          <p class="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-            <span class="text-sm text-text-secondary">Unikaalsed uudiskirja saajad</span>
-            <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.newsletter.unique_recipients }}</span>
-            <span class="text-sm text-text-secondary">saajat</span>
-          </p>
-          <p class="dk-meta">
-            Arvutatud: liikmete nimekiri + mitteliikmete nimekiri − mõlemas nimekirjas olevad saajad.
-            Seisuga {{ page.newsletter.as_of|date:"d.m.Y" }}.
-            {% if not page.newsletter.readings_share_a_date %}
-              Väärtused pärinevad eri kuupäevadelt; kuvatakse vanim neist.
-            {% endif %}
-          </p>
-        {% else %}
-          {% include "dashboard/components/callout.html" with variant="info" title=page.newsletter.missing_overlap_message message="Kahte nimekirja ei liideta unikaalseks auditooriumiks ilma kattuvuseta, sest osa saajaid on mõlemas nimekirjas." only %}
-        {% endif %}
+        <p class="dk-meta">
+          Kolm eraldi nimekirja. Neid ei liideta üheks auditooriumiks: keegi ei ole
+          loendanud, kui paljud saajad on korraga mitmes nimekirjas, ja liitmine
+          eeldaks, et neid ei ole ühtegi.
+          {% if not page.newsletter.readings_share_a_date %}
+            Väärtused pärinevad eri kuupäevadelt.
+          {% endif %}
+        </p>
 
         <p class="dk-meta">
           Aktiivsete saajate arv nimekirjas. See ei ole saadetud ega kohale toimetatud
