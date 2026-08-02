@@ -23,6 +23,8 @@ from apps.events.sync import synchronize_events
 from apps.legal_work.bootstrap import ensure_legal_work_source
 from apps.legal_work.importer import import_artifact
 from apps.membership.history_import import import_history_package
+from apps.membership.models import MembershipCountObservation
+from apps.membership.selectors import get_current_membership_observation
 from apps.membership.sync import synchronize_membership
 from apps.news.sync import synchronize_news
 from apps.sources.services import register_artifact
@@ -126,18 +128,35 @@ def kpi_strip(response) -> str:
     return section(response, "section-kpi")
 
 
+def backdate_current_observation(*, days: int) -> None:
+    """Age the published member count so a window has something behind it.
+
+    A recorded observation is immutable through `save()`, deliberately. A test
+    that needs a reading from last month has no other way to make one: the sync
+    stamps `timezone.now()`, and freezing the clock would move the window too.
+    `QuerySet.update()` writes the column directly and is used here only.
+    """
+    current = get_current_membership_observation()
+    MembershipCountObservation.objects.filter(pk=current.pk).update(
+        observed_at=current.observed_at - dt.timedelta(days=days)
+    )
+
+
 # -- legal work ---------------------------------------------------------
 
 
 def test_the_open_count_and_activity_come_from_the_snapshot(viewer, legal_work_snapshot):
-    page = body(viewer.get(reverse("home")))
+    response = viewer.get(reverse("home"))
+    strip = " ".join(strip_tags(kpi_strip(response)).split())
 
     assert legal_work_snapshot.open_record_count == 2
     # Two open topics; one arrival and one send inside the window, with the
-    # 200-day-old row deliberately outside it.
-    assert "uut õigusloome teemat" in page
-    assert "esitatud arvamust" in page
-    assert "Sünteetiline kiireloomuline teema" in page
+    # 200-day-old row deliberately outside it. Every count is in the module's
+    # own headline cell, and each states the period it was measured over.
+    assert "teemasid töös 2" in strip
+    assert "uusi teemasid 30 päevaga 1" in strip
+    assert "välja läinud teemasid 30 päevaga 1" in strip
+    assert "Sünteetiline kiireloomuline teema" in body(response)
 
 
 def test_the_overview_no_longer_carries_a_deadline_section(viewer, legal_work_snapshot):
@@ -156,19 +175,35 @@ def test_the_overview_no_longer_carries_a_deadline_section(viewer, legal_work_sn
 # -- public membership --------------------------------------------------
 
 
-def test_the_member_total_carries_its_own_baseline_date(viewer):
+def test_the_member_total_states_its_movement_over_the_stated_window(viewer):
+    synchronize_membership(collector=collector_returning(membership_collection(3400)))
+    backdate_current_observation(days=40)
+    synchronize_membership(collector=collector_returning(membership_collection(3396)))
+
+    strip = kpi_strip(viewer.get(reverse("home")))
+
+    assert "3396" in strip
+    # The baseline is the last reading before the window opened, and the cell
+    # names the window it measured rather than leaving the reader to guess.
+    assert "-4" in strip
+    assert "↓" in strip
+    assert "viimase 30 päeva jooksul" in strip
+
+
+def test_a_reading_with_no_baseline_that_old_shows_no_change(viewer):
+    """Two readings a moment apart do not make a month's movement."""
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
     synchronize_membership(collector=collector_returning(membership_collection(3396)))
 
     strip = kpi_strip(viewer.get(reverse("home")))
 
     assert "3396" in strip
-    # The delta's baseline is the previous reading, not the activity window, so
-    # it is stated beside the figure with its own date rather than being mixed
-    # into a row of counts that all mean the same period.
-    assert "-4" in strip
-    assert "↓" in strip
-    assert "pärast" in strip
+    # Nothing predates the window, so the month's difference is unknown rather
+    # than the -4 that happened inside a single test run.
+    assert "↑" not in strip
+    assert "↓" not in strip
+    assert "→" not in strip
+    assert "viimase 30 päeva jooksul" not in strip
 
 
 def test_a_first_ever_reading_shows_no_change_it_cannot_know(viewer):
@@ -182,7 +217,6 @@ def test_a_first_ever_reading_shows_no_change_it_cannot_know(viewer):
     assert "↑" not in strip
     assert "↓" not in strip
     assert "→" not in strip
-    assert "pärast" not in strip
 
 
 def test_the_two_membership_sources_are_never_merged(viewer, imported_internal_history):
@@ -195,6 +229,27 @@ def test_the_two_membership_sources_are_never_merged(viewer, imported_internal_h
     assert "iga päev" in page
     assert "kord kuus" in page
     assert "Neid ei liideta ega esitata ühe näitajana." in page
+    # The directory total is stated once, in the headline strip, with the source
+    # that counted it. Repeating it inside the board report's card is what let a
+    # reader read two definitions as one number.
+    assert "Liikmeid kataloogis" not in page
+    assert "Koda.ee liikmekataloog" in kpi_strip(viewer.get(reverse("home")))
+
+
+def test_fee_collection_sits_with_the_counts_it_was_read_beside(viewer, imported_internal_history):
+    """The percentage belongs to the board report, so it lives in its card.
+
+    In the headline strip it sat between a directory count and a calendar, four
+    cells with nothing in common; the amounts behind it are the same report's
+    and the reader needs them side by side.
+    """
+    response = viewer.get(reverse("home"))
+    card = " ".join(strip_tags(section(response, "section-membership")).split())
+
+    assert "Liikmemaksude laekumine" in card
+    assert "Liikmemaksude laekumine" not in strip_tags(kpi_strip(response))
+    # The euros behind the percentage, grouped and in the report's own currency.
+    assert "€" in card
 
 
 # -- feeds --------------------------------------------------------------
@@ -208,8 +263,7 @@ def test_news_and_events_reach_their_cards(viewer):
 
     assert "Sünteetiline uudis" in page
     assert "Sünteetiline sündmus" in page
-    assert "avaldatud uudist" in page
-    assert "eelseisvat sündmust" in page
+    assert "sündmusi järgmise 30 päeva jooksul" in page
 
 
 def test_a_failed_check_is_still_disclosed_and_keeps_the_last_good_data(viewer):
@@ -253,5 +307,7 @@ def test_an_unconnected_source_contributes_no_zero(viewer):
     """Nothing is connected, so no count may appear — least of all a zero."""
     page = text_of(viewer.get(reverse("home")))
 
-    assert "uut õigusloome teemat" not in page
-    assert "avaldatud uudist" not in page
+    assert "teemasid töös" not in page
+    assert "uusi teemasid" not in page
+    assert "sündmusi järgmise" not in page
+    assert "sündmusi eelmise" not in page

@@ -18,10 +18,9 @@ Three rules run through the whole module:
   trends, because the public directory is recounted daily and the internal board
   report arrives monthly and two numbers of such different currency must never
   sit side by side unlabelled;
-- a comparison states its own baseline. The activity strip is one fixed window
-  so all four of its counts mean the same thing, and the member delta — whose
-  baseline is the previous reading, not a fixed period — is shown with its own
-  date beside the member figure instead.
+- a comparison states its own baseline. Every count on the headline strip is
+  measured over the same fixed window, and each cell says so in its own words,
+  so no reader has to hold a period in their head while moving between cells.
 """
 
 from __future__ import annotations
@@ -33,7 +32,12 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.events.selectors import count_upcoming_within, get_upcoming_events
+from apps.events.selectors import (
+    NEAR_TERM_DAYS,
+    count_started_in_past_window,
+    count_upcoming_within,
+    get_upcoming_events,
+)
 from apps.legal_work.selectors import (
     ACTIVITY_WINDOW_DAYS,
     count_received_since,
@@ -46,11 +50,11 @@ from apps.membership.internal_selectors import (
     get_internal_membership_trend,
 )
 from apps.membership.selectors import (
+    CHANGE_WINDOW_DAYS,
     MembershipChange,
-    get_membership_change,
-    get_public_membership_history,
+    get_membership_change_over,
 )
-from apps.news.selectors import count_published_since, get_latest_news
+from apps.news.selectors import get_latest_news
 from apps.visibility.page import ChannelSlot, build_channel_band
 
 from .connections import (
@@ -87,6 +91,20 @@ SOURCE_NEWS = "Koda.ee uudisvoog"
 
 
 @dataclass(frozen=True)
+class KpiDetail:
+    """One supporting count inside a headline cell.
+
+    A module whose figures are of equal weight — topics in hand, arrived, sent —
+    has no single number to promote, and promoting one anyway would read as the
+    module's headline while the rest read as footnotes. Each row states its own
+    period, because they are not all the same.
+    """
+
+    label: str
+    value: int | str
+
+
+@dataclass(frozen=True)
 class Kpi:
     """One cell of the headline strip.
 
@@ -109,14 +127,11 @@ class Kpi:
     secondary: str = ""
     meter_pct: float | None = None
     as_of: date | datetime | None = None
+    details: tuple[KpiDetail, ...] = ()
 
-
-@dataclass(frozen=True)
-class ChangeChip:
-    """One count from the activity window."""
-
-    value: str
-    label: str
+    @property
+    def has_data(self) -> bool:
+        return self.value is not None or bool(self.details)
 
 
 @dataclass(frozen=True)
@@ -139,30 +154,56 @@ class SourcedFigure:
 
 
 @dataclass(frozen=True)
-class MembershipCard:
-    """The two membership sources, drawn together and never merged.
+class FeeCollection:
+    """Membership-fee collection from the latest board report.
 
-    `internal_total` and `internal` are the board report's own total and paid
-    counts. They share a definition, a report and a reading date, so `chart`
-    puts them on one pair of axes and the gap between the lines *is* the paid
-    share stated beside the figure.
-
-    `public` is the koda.ee directory count. It is a different definition on a
-    different cadence, so it appears as a figure under its own name and is never
-    drawn against the other two, never summed with them and never continued into
-    them.
+    The report may carry a stated percentage and the ingredients to compute one,
+    and those two do not always agree. Neither is silently preferred: `basis`
+    names which one is on screen, and the Liikmeskond page shows both side by
+    side without reconciling them.
     """
 
-    public: SourcedFigure
+    connection: Connection
+    percentage: Decimal | None = None
+    basis: str = ""
+    amounts: str = ""
+    meter_pct: float | None = None
+    as_of: date | None = None
+
+    @property
+    def has_data(self) -> bool:
+        return self.percentage is not None or bool(self.amounts)
+
+
+@dataclass(frozen=True)
+class MembershipCard:
+    """Everything the board report says about the membership, in one card.
+
+    `internal_total` and `internal` are the report's own total and paid counts.
+    They share a definition, a report and a reading date, so `chart` puts them on
+    one pair of axes and the gap between the lines *is* the paid share stated
+    beside the figure. `fee` is the same report's fee collection, which used to
+    sit in the headline strip away from the counts it is a ratio of.
+
+    The koda.ee directory count is a different definition on a different cadence.
+    It leads the headline strip under its own source name, and it is not repeated
+    here: one number, in one place, said once.
+    """
+
     internal: SourcedFigure
     internal_total: SourcedFigure
+    fee: FeeCollection
     change: MembershipChange
     paid_share_pct: Decimal | None = None
     chart: TrendChart | None = None
 
     @property
     def has_any_data(self) -> bool:
-        return self.public.value is not None or self.internal.value is not None
+        return (
+            self.internal_total.value is not None
+            or self.internal.value is not None
+            or self.fee.has_data
+        )
 
 
 @dataclass(frozen=True)
@@ -175,15 +216,10 @@ class OverviewPage:
     """
 
     kpis: tuple[Kpi, ...]
-    activity: tuple[ChangeChip, ...]
-    activity_window_days: int
     membership: MembershipCard
     legal_work: Connection
     legal_work_received: tuple
     legal_work_sent: tuple
-    legal_work_open_count: int | None
-    legal_work_received_recent: int | None
-    legal_work_sent_recent: int | None
     events: Connection
     upcoming_events: tuple
     news: Connection
@@ -217,13 +253,11 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
         cadence=CADENCE_MONTHLY,
     )
 
-    change = get_membership_change()
+    change = get_membership_change_over(days=CHANGE_WINDOW_DAYS)
     received_recent = count_received_since(snapshot, window_start) if snapshot else None
     sent_recent = count_sent_since(snapshot, window_start) if snapshot else None
     events_near_term = count_upcoming_within(events.snapshot) if events.has_data else None
-    news_recent = (
-        count_published_since(news.snapshot, _start_of_day(window_start)) if news.has_data else None
-    )
+    events_last_month = count_started_in_past_window() if events.has_data else None
 
     return OverviewPage(
         kpis=_build_kpis(
@@ -233,21 +267,13 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
             events=events,
             events_connection=events_connection,
             events_near_term=events_near_term,
-            internal_latest=internal_latest,
-            internal_connection=internal_connection,
+            events_last_month=events_last_month,
             change=change,
-            received_recent=received_recent,
-        ),
-        activity=_build_activity(
             received_recent=received_recent,
             sent_recent=sent_recent,
-            news_recent=news_recent,
-            events_near_term=events_near_term,
         ),
-        activity_window_days=ACTIVITY_WINDOW_DAYS,
         membership=_build_membership_card(
             change=change,
-            public_connection=public_connection,
             internal_latest=internal_latest,
             internal_connection=internal_connection,
             today=today,
@@ -259,9 +285,6 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
         legal_work_sent=(
             tuple(get_latest_sent_items(snapshot, limit=PREVIEW_LIMIT)) if snapshot else ()
         ),
-        legal_work_open_count=legal_work.open_count if legal_work.has_data else None,
-        legal_work_received_recent=received_recent,
-        legal_work_sent_recent=sent_recent,
         events=events_connection,
         upcoming_events=tuple(get_upcoming_events(events.snapshot, limit=PREVIEW_LIMIT)),
         news=news_connection,
@@ -278,60 +301,79 @@ def _build_kpis(
     events,
     events_connection,
     events_near_term,
-    internal_latest,
-    internal_connection,
+    events_last_month,
     change,
     received_recent,
+    sent_recent,
 ) -> tuple[Kpi, ...]:
-    """The four headline figures, in the order the board reads them."""
+    """The three headline cells, in the order the board reads them.
+
+    Each cell now carries its module's own counts instead of one figure with a
+    separate strip of movements repeating the same numbers underneath. A module
+    with several counts of equal weight lists them; only the member total has a
+    single figure to lead with.
+    """
     return (
         Kpi(
             label="Liikmeid kokku",
             connection=public_connection,
             value=change.current.total_members if change.current else None,
             unit="liiget",
-            # The baseline is the previous reading, so it is named here rather
-            # than in the fixed-window activity strip below.
             change=change.label or "",
-            change_direction=change.direction,
-            comparison_period=(f"pärast {change.since:%d.%m.%Y}" if change.since else ""),
+            change_direction=change.direction if change.has_change else "",
+            comparison_period=(
+                f"viimase {CHANGE_WINDOW_DAYS} päeva jooksul" if change.has_change else ""
+            ),
+            # Two totals appear on this page under two definitions. The card in
+            # the Liikmeskond section names its source beneath the figure; this
+            # one has no such row, so its source is stated here. Neither total is
+            # ever shown without saying which count it is.
+            secondary=_source_note(public_connection),
             as_of=change.current.observed_at if change.current else None,
         ),
         Kpi(
-            label="Õigusloome teemasid töös",
+            label="Õigusloome",
             connection=legal_connection,
-            value=legal_work.open_count if legal_work.has_data else None,
-            change=f"+{received_recent}" if received_recent else "",
-            change_direction="up" if received_recent else "",
-            comparison_period=(
-                f"uut viimase {ACTIVITY_WINDOW_DAYS} päeva jooksul" if received_recent else ""
+            details=_counts(
+                (legal_work.open_count if legal_work.has_data else None, "teemasid töös"),
+                (received_recent, f"uusi teemasid {ACTIVITY_WINDOW_DAYS} päevaga"),
+                (sent_recent, f"välja läinud teemasid {ACTIVITY_WINDOW_DAYS} päevaga"),
             ),
             as_of=legal_work.reporting_date,
         ),
         Kpi(
-            # Worded without the number so the label states no measurement of
-            # its own; the exact window is stated once, in the activity strip.
-            label="Sündmusi lähikuul",
+            label="Sündmused",
             connection=events_connection,
-            value=events_near_term,
+            details=_counts(
+                (events_near_term, f"sündmusi järgmise {NEAR_TERM_DAYS} päeva jooksul"),
+                (events_last_month, f"sündmusi eelmise {NEAR_TERM_DAYS} päeva jooksul"),
+            ),
             secondary=(f"Kalendris kokku {events.item_count}" if events.has_data else ""),
             as_of=events.observed_at,
         ),
-        _fee_collection_kpi(internal_latest, internal_connection),
     )
 
 
-def _fee_collection_kpi(internal_latest, connection) -> Kpi:
-    """Membership-fee collection from the latest board report.
+def _counts(*rows) -> tuple[KpiDetail, ...]:
+    """The rows whose count is known.
 
-    The report may carry a stated percentage and the ingredients to compute one,
-    and those two do not always agree. Neither is silently preferred: the cell
-    names which one it is showing, and the Liikmeskond page shows both side by
-    side without reconciling them.
+    A missing count contributes no row at all. A zero written where nothing was
+    counted reads as "none happened", which is a measurement nobody made.
     """
-    label = "Liikmemaksude laekumine"
+    return tuple(KpiDetail(label=label, value=value) for value, label in rows if value is not None)
+
+
+def _source_note(connection: Connection) -> str:
+    """A figure's source and cadence on one line."""
+    if connection.cadence:
+        return f"{connection.label} · {connection.cadence}"
+    return connection.label
+
+
+def _build_fee_collection(internal_latest, connection) -> FeeCollection:
+    """Fee collection, read off the same board report as the member counts."""
     if internal_latest is None:
-        return Kpi(label=label, connection=connection)
+        return FeeCollection(connection=connection)
 
     reported = internal_latest.value("membership_fee_collection_pct_reported")
     computed = internal_latest.computed_collection_pct
@@ -339,19 +381,17 @@ def _fee_collection_kpi(internal_latest, connection) -> Kpi:
     received = internal_latest.value("membership_fees_received_eur")
     budget = internal_latest.value("membership_fee_budget_eur")
 
-    secondary = ""
+    amounts = ""
     if received is not None and budget is not None:
-        secondary = f"{_euros(received)} / {_euros(budget)}"
+        amounts = f"{_euros(received)} / {_euros(budget)}"
+    elif received is not None:
+        amounts = _euros(received)
 
-    return Kpi(
-        label=label,
+    return FeeCollection(
         connection=connection,
-        value=_percentage(percentage),
-        unit="%" if percentage is not None else "",
-        comparison_period=(
-            "raporteeritud" if reported is not None else "arvutatud" if computed else ""
-        ),
-        secondary=secondary,
+        percentage=_percentage(percentage),
+        basis=("raporteeritud" if reported is not None else "arvutatud" if computed else ""),
+        amounts=amounts,
         meter_pct=meter_width(percentage),
         as_of=internal_latest.observation_date,
     )
@@ -393,66 +433,26 @@ def _euros(amount: Decimal) -> str:
     return f"{whole:,}".replace(",", GROUP_SEPARATOR) + f"{GROUP_SEPARATOR}€"
 
 
-def _start_of_day(day: date) -> datetime:
-    """Midnight local time, as the aware datetime a timestamp query needs."""
-    return timezone.make_aware(datetime.combine(day, datetime.min.time()))
-
-
-def _build_activity(
-    *, received_recent, sent_recent, news_recent, events_near_term
-) -> tuple[ChangeChip, ...]:
-    """Counts over one fixed window, so every chip means the same period.
-
-    A chip appears only for a connected source. An unconnected one contributes
-    nothing rather than a zero, which would read as "nothing happened".
-    """
-    counts = (
-        (received_recent, "uut õigusloome teemat"),
-        (sent_recent, "esitatud arvamust"),
-        (news_recent, "avaldatud uudist"),
-        (events_near_term, "eelseisvat sündmust"),
-    )
-    return tuple(
-        ChangeChip(value=str(count), label=label) for count, label in counts if count is not None
-    )
-
-
 def _build_membership_card(
-    *, change, public_connection, internal_latest, internal_connection, today
+    *, change, internal_latest, internal_connection, today
 ) -> MembershipCard:
-    """Three figures from two sources, and only one of them is charted.
+    """The board report's own figures, and only two of them are charted.
 
-    The two sources are not two views of one number. The directory counts
-    published member profiles on koda.ee and is recounted every day; the board
-    report counts the Chamber's own membership and arrives once a month.
+    The **chart is the report's total against its paid count**. That pairing is a
+    real comparison: both lines are the same definition of a member, read off the
+    same report on the same day, and the share stated beside the paid figure is
+    literally the gap between them.
 
-    The **chart is the board report alone** — its total against its paid count.
-    That pairing is a real comparison: both lines are the same definition of a
-    member, read off the same report on the same day, and the share stated
-    beside the paid figure is literally the gap between them.
+    Drawing the koda.ee directory's total on those axes instead would put two
+    definitions on one axis and invite exactly the subtraction that is forbidden.
+    It also could not be drawn: an unchanged daily check writes no observation,
+    so the directory series is a single point for weeks at a time and a single
+    point is not a trend. That count leads the headline strip under its own
+    source name, and it is not repeated in this card.
 
-    Drawing the directory's total against the report's paid count instead would
-    put two definitions on one axis and invite exactly the subtraction that is
-    forbidden. It also could not be drawn: an unchanged daily check writes no
-    observation, so the directory series is a single point for weeks at a time
-    and a single point is not a trend.
-
-    The directory total keeps its place as a figure, under its own name and its
-    own source, where it states what it is without being compared to anything.
+    Fee collection is read off the same report as the two counts, so it sits with
+    them rather than in a strip of unrelated headline figures.
     """
-    public = SourcedFigure(
-        # Not "Liikmeid kokku": the chart below carries a differently-sourced
-        # total under that name, and two adjacent totals sharing one label is
-        # the confusion this whole card is arranged to prevent.
-        label="Liikmeid kataloogis",
-        connection=public_connection,
-        value=change.current.total_members if change.current else None,
-        unit="liiget",
-        as_of=change.current.observed_at if change.current else None,
-        series=get_public_membership_history(days=TREND_DAYS),
-        note="Avalikus kataloogis avaldatud liikmeprofiilid.",
-    )
-
     total_series: tuple = ()
     paid_series: tuple = ()
     paid_share = None
@@ -489,9 +489,9 @@ def _build_membership_card(
     )
 
     return MembershipCard(
-        public=public,
         internal=internal,
         internal_total=internal_total,
+        fee=_build_fee_collection(internal_latest, internal_connection),
         change=change,
         paid_share_pct=_whole_percent(paid_share),
         chart=build_trend_chart(

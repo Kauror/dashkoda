@@ -11,6 +11,9 @@ explicit "no verified data" state rather than to a guess):
   change_direction  – up | down | flat, used for the textual direction marker
   comparison_period – what the change is measured against
   secondary         – one supporting line, e.g. the amounts behind a percentage
+  details           – supporting counts, each `.label` beside its `.value`; used
+                      where a module has several figures of equal weight and one
+                      of them promoted to a hero number would misstate the rest
   meter_pct         – 0–100; draws a proportion bar beneath the value
   status            – neutral | brand | success | warning | danger | info
   status_label      – text for the status badge
@@ -65,11 +68,22 @@ proportion may only be drawn as geometry. Colour comes from Tailwind `fill-*`.
     {% if secondary %}
       <p class="text-sm tabular-nums text-text-secondary">{{ secondary }}</p>
     {% endif %}
-  {% else %}
+  {% elif not details %}
     <p class="flex items-baseline gap-1.5" aria-hidden="true">
       <span class="text-metric font-semibold tracking-tight text-text-muted">—</span>
     </p>
     <p class="text-sm text-text-secondary">{{ empty_message|default:"Kontrollitud andmed puuduvad." }}</p>
+  {% endif %}
+
+  {% if details %}
+    <dl class="flex flex-col gap-1">
+      {% for detail in details %}
+        <div class="flex items-baseline justify-between gap-3">
+          <dt class="min-w-0 text-sm text-text-secondary">{{ detail.label }}</dt>
+          <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.value }}</dd>
+        </div>
+      {% endfor %}
+    </dl>
   {% endif %}
 
   {% include "dashboard/components/freshness_row.html" with as_of=as_of only %}

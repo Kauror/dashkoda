@@ -66,6 +66,35 @@ def count_upcoming_within(
     )
 
 
+def count_started_in_past_window(*, days: int = NEAR_TERM_DAYS) -> int | None:
+    """How many events started inside the last `days` days, or `None`.
+
+    The collector drops events that have already finished, so the current
+    snapshot cannot answer this: counting past events in it would always return
+    zero. What can answer it is the archive — an event that ran last month was
+    upcoming in some earlier snapshot and its row is still there — so this counts
+    distinct events across every snapshot of the source.
+
+    `None`, not `0`, when the archive does not reach back past the window. A
+    dashboard installed a fortnight ago never saw last month's calendar, and
+    "0 sündmust" would state that nothing happened rather than that nothing was
+    recorded.
+    """
+    today = timezone.localdate()
+    window_start = today - timedelta(days=days)
+    snapshots = EventSnapshot.objects.filter(source__slug=settings.KODA_EVENTS_SOURCE_SLUG)
+    earliest = snapshots.order_by("observed_at", "id").first()
+    if earliest is None or timezone.localtime(earliest.observed_at).date() > window_start:
+        return None
+    return (
+        EventItem.objects.filter(snapshot__in=snapshots)
+        .filter(starts_on__gte=window_start, starts_on__lt=today)
+        .values("stable_key")
+        .distinct()
+        .count()
+    )
+
+
 def _not_finished(today) -> Q:
     """A single-day event counts until its own day is over."""
     return Q(ends_on__isnull=True, starts_on__gte=today) | Q(ends_on__gte=today)

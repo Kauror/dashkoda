@@ -20,6 +20,10 @@ from .models import MembershipCountObservation, MembershipFeedState
 # direction, short enough that the sparkline stays legible at card width.
 DEFAULT_HISTORY_DAYS = 365
 
+# The window the overview states the member delta over. Matches the legal-work
+# and events windows so every figure on the headline strip means one month.
+CHANGE_WINDOW_DAYS = 30
+
 
 def get_current_membership_observation() -> MembershipCountObservation | None:
     return (
@@ -105,6 +109,33 @@ def get_membership_change() -> MembershipChange:
             .order_by("-observed_at", "-id")
             .first()
         )
+    return MembershipChange(current=current, previous=previous)
+
+
+def get_membership_change_over(*, days: int = CHANGE_WINDOW_DAYS) -> MembershipChange:
+    """The published count against the last reading before the window opened.
+
+    The baseline is the newest observation *older* than the window, which is the
+    number that stood when the window began — not the oldest reading inside it,
+    which would silently drop whatever movement happened on the window's first
+    day.
+
+    If no reading predates the window, `previous` is `None` and the change is
+    unknown: the count may have been published for the first time last week, and
+    a difference measured from that is not a month's movement.
+    """
+    current = get_current_membership_observation()
+    if current is None:
+        return MembershipChange(current=None, previous=None)
+    cutoff = current.observed_at - timedelta(days=days)
+    previous = (
+        MembershipCountObservation.objects.filter(
+            source__slug=settings.KODA_MEMBERS_SOURCE_SLUG,
+            observed_at__lte=cutoff,
+        )
+        .order_by("-observed_at", "-id")
+        .first()
+    )
     return MembershipChange(current=current, previous=previous)
 
 

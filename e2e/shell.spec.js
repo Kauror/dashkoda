@@ -4,7 +4,6 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
 const SECTIONS = [
   "Põhinäitajad",
-  "Muutus viimase kuu jooksul",
   "Õigusloome",
   "Liikmeskond",
   "Tulevased sündmused",
@@ -18,7 +17,9 @@ test("the shell renders every section with a truthful empty state", async ({ pag
   await signIn(page);
 
   for (const section of SECTIONS) {
-    await expect(page.getByRole("heading", { name: section, exact: true })).toBeVisible();
+    // Level 2 pins this to the section headings. A headline cell now names its
+    // module too ("Õigusloome"), and that label is an h3 inside the strip.
+    await expect(page.getByRole("heading", { name: section, exact: true, level: 2 })).toBeVisible();
   }
   await expect(page.getByText("Andmeallikas ei ole veel ühendatud.").first()).toBeVisible();
   expect(errors).toEqual([]);

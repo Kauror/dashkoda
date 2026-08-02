@@ -3,9 +3,9 @@
 {% comment %}
 Ülevaade — the board's landing page.
 
-Layout follows direction 1a of the Overview Refresh design: a headline strip,
-one activity window, a two-by-two grid of module cards, and the communication
-channels that have no source yet.
+Layout follows direction 1a of the Overview Refresh design: a headline strip, a
+two-by-two grid of module cards, and the communication channels that have no
+source yet.
 
 Everything it renders comes from `apps.dashboard.overview.build_overview`, which
 reads PostgreSQL through each module's own selectors. The template chooses
@@ -17,11 +17,11 @@ Three things are deliberate and should stay that way:
   - the membership chart draws the board report's total against its own paid
     count — one source, one definition, one reading date, so the gap between
     the lines is the paid share and nothing else. The koda.ee directory count
-    is a different definition on a different cadence: it appears as a figure
-    under its own name and never on those axes;
-  - the activity strip uses one fixed window, so all of its counts describe the
-    same period. The member delta, whose baseline is the previous reading rather
-    than a period, is shown beside the member figure with its own date.
+    is a different definition on a different cadence: it leads the headline
+    strip under its own source name and never appears on those axes;
+  - each headline cell carries its own module's counts, and every count states
+    the period it was measured over. There is no separate strip repeating those
+    same movements underneath.
 
 The mockup this follows carries synthetic numbers and says so on its own banner.
 None of them reached this file.
@@ -40,39 +40,23 @@ None of them reached this file.
 
   {# ---------------- 1. Põhinäitajad ---------------- #}
   {% comment %}
-  One strip, four indicators, each carrying the date its value describes in the
+  One strip, three indicators, each carrying the date its value describes in the
   footer row. The dividers belong to the strip, so the cards render flush.
+
+  A cell holds either one leading figure or a short list of its module's counts;
+  the movements that used to sit in a separate band below now belong to the cell
+  whose module they describe.
   {% endcomment %}
   <section aria-labelledby="section-kpi" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" description="Koja seisu kokkuvõtvad näitajad." only %}
     <div class="dk-kpi-strip">
       {% for kpi in page.kpis %}
-        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary meter_pct=kpi.meter_pct as_of=kpi.as_of flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary details=kpi.details meter_pct=kpi.meter_pct as_of=kpi.as_of flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
       {% endfor %}
     </div>
   </section>
 
-  {# ---------------- 2. Muutus viimase kuu jooksul ---------------- #}
-  <section aria-labelledby="section-activity" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Muutus viimase kuu jooksul" heading_id="section-activity" description="Ühendatud allikate tegevus ühes ja samas ajaaknas." only %}
-    <div class="dk-section-body">
-      {% if page.activity %}
-        <ul class="flex flex-wrap items-center gap-2">
-          {% for chip in page.activity %}
-            <li class="rounded-md border border-border bg-elevated px-2.5 py-1 text-sm">
-              <span class="font-semibold tabular-nums text-text">{{ chip.value }}</span>
-              <span class="text-text-secondary">{{ chip.label }}</span>
-            </li>
-          {% endfor %}
-        </ul>
-        <p class="dk-meta mt-2">Ajaaken: viimased {{ page.activity_window_days }} päeva.</p>
-      {% else %}
-        {% include "dashboard/components/empty_state.html" with message="Kontrollitud andmed puuduvad." detail="Võrdlus muutub võimalikuks, kui vähemalt üks andmeallikas on ühendatud." only %}
-      {% endif %}
-    </div>
-  </section>
-
-  {# ---------------- 3. Module cards ---------------- #}
+  {# ---------------- 2. Module cards ---------------- #}
   <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
 
     {# -------- Õigusloome -------- #}
@@ -114,20 +98,11 @@ None of them reached this file.
                     :class="secondTabClass"
                     class="dk-tab">Välja läinud</button>
           </div>
-          <dl class="flex flex-wrap gap-x-4 gap-y-1 dk-meta tabular-nums">
-            <div class="flex items-center gap-1.5">
-              <dt>Töös</dt>
-              <dd class="font-semibold text-text">{{ page.legal_work_open_count }}</dd>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <dt>Sisse</dt>
-              <dd class="font-semibold text-text">{{ page.legal_work_received_recent }}</dd>
-            </div>
-            <div class="flex items-center gap-1.5">
-              <dt>Välja</dt>
-              <dd class="font-semibold text-text">{{ page.legal_work_sent_recent }}</dd>
-            </div>
-          </dl>
+          {% comment %}
+          The three counts that used to sit here — in hand, arrived, sent — are
+          now in the Õigusloome headline cell above, stated once with the period
+          each was measured over.
+          {% endcomment %}
         </div>
 
         <div id="panel-received" role="tabpanel" aria-labelledby="tab-received" x-show="firstSelected" class="flex-1">
@@ -170,11 +145,16 @@ None of them reached this file.
 
     {# -------- Liikmeskond -------- #}
     {% comment %}
-    Two sources drawn together and kept apart. The directory is recounted every
-    day and the board report arrives once a month; each figure states which it
-    is. The paid share is computed inside the board report alone — dividing the
-    internal paid count by the public directory total would be a ratio between
-    two different definitions and is never shown.
+    The board report's own figures: its member total, its paid count and the fee
+    collection those two are read alongside. Every figure here comes off one
+    monthly report and says so beneath itself.
+
+    The koda.ee directory total is not repeated here. It is a different
+    definition on a different cadence, it leads the headline strip under its own
+    source name, and stating it twice on one page is what invites a reader to
+    subtract one total from the other. The paid share is computed inside the
+    board report alone — dividing the internal paid count by the public directory
+    total would be a ratio between two different definitions and is never shown.
 
     Both trends run on one pair of axes, as a solid and a dashed line. The board
     reads this card to see the gap between the two, and two separate drawings
@@ -195,14 +175,12 @@ None of them reached this file.
           <div class="flex flex-wrap gap-x-10 gap-y-4">
             {% comment %}
             Each figure carries its own source and cadence directly beneath it.
-            Two member totals side by side without them would be two numbers a
-            reader is invited to compare without being told they count
-            different things.
+            A member total on a page that also carries a differently-defined one
+            must never be shown without saying which count it is.
 
             The first two are the board report's own total and paid counts, in
-            the order the chart below draws them. The directory count follows,
-            under its own name, because it is a different definition on a
-            different cadence and is not on those axes.
+            the order the chart below draws them. Fee collection follows, off the
+            same report and the same reading date.
             {% endcomment %}
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">{{ page.membership.internal_total.label }}</h3>
@@ -228,13 +206,22 @@ None of them reached this file.
               <p class="dk-meta">{{ page.membership.internal.connection.label }}{% if page.membership.internal.connection.cadence %} · {{ page.membership.internal.connection.cadence }}{% endif %}</p>
             </div>
             <div class="min-w-0">
-              <h3 class="text-sm text-text-secondary">{{ page.membership.public.label }}</h3>
-              {% if page.membership.public.value is not None %}
-                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.public.value }}</p>
+              <h3 class="text-sm text-text-secondary">Liikmemaksude laekumine</h3>
+              {% if page.membership.fee.percentage is not None %}
+                <p class="flex flex-wrap items-baseline gap-x-2">
+                  <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.fee.percentage }}</span>
+                  <span class="text-sm text-text-secondary">%</span>
+                  {% if page.membership.fee.basis %}
+                    <span class="dk-meta">{{ page.membership.fee.basis }}</span>
+                  {% endif %}
+                </p>
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.public.connection.label }}{% if page.membership.public.connection.cadence %} · {{ page.membership.public.connection.cadence }}{% endif %}</p>
+              {% if page.membership.fee.amounts %}
+                <p class="text-sm tabular-nums text-text-secondary">{{ page.membership.fee.amounts }}</p>
+              {% endif %}
+              <p class="dk-meta">{{ page.membership.fee.connection.label }}{% if page.membership.fee.connection.cadence %} · {{ page.membership.fee.connection.cadence }}{% endif %}</p>
             </div>
           </div>
 
@@ -245,7 +232,8 @@ None of them reached this file.
           {% endif %}
 
           <p class="dk-meta">
-            Kaks eri allikat, mis loendavad eri asju. Neid ei liideta ega esitata ühe näitajana.
+            Koja enda aruande näitajad. Põhinäitajate riba liikmearv tuleb avalikust kataloogist —
+            kaks eri allikat, mis loendavad eri asju. Neid ei liideta ega esitata ühe näitajana.
             {% if page.membership.paid_share_pct is not None %}
               Tasunute osakaal on arvutatud aruande enda liikmearvust, mitte avalikust kataloogist.
             {% endif %}
@@ -355,7 +343,7 @@ None of them reached this file.
 
   </div>
 
-  {# ---------------- 4. Kanalite statistika ---------------- #}
+  {# ---------------- 3. Kanalite statistika ---------------- #}
   {% comment %}
   Six channels, built by `apps.visibility.page.build_channel_band`.
 
@@ -379,7 +367,7 @@ None of them reached this file.
     </div>
   </section>
 
-  {# ---------------- 5. Connection state ---------------- #}
+  {# ---------------- 4. Connection state ---------------- #}
   <div class="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
     <div id="freshness-region" aria-live="polite" class="min-w-0">
       {% include "dashboard/partials/freshness.html" %}
