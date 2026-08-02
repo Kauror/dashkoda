@@ -225,22 +225,23 @@ def test_the_two_membership_sources_are_never_merged(viewer, imported_internal_h
     The board asked for the per-figure source lines and the explanatory note to
     go, so the overview no longer argues the point in prose. What still has to
     hold structurally is that the directory count appears only in the headline
-    strip, the board report's own figures appear only in their card, and the
-    chart is built from the report alone — the Liikmeskond page is where both
-    sources are named in full and where the distinction is spelled out.
+    strip and the board report's own figures only in their card. Naming the
+    sources is the Liikmeskond page's job now, and `test_membership_page.py`
+    holds it to that.
     """
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
 
-    page = body(viewer.get(reverse("home")))
-    card = section(viewer.get(reverse("home")), "section-membership")
+    response = viewer.get(reverse("home"))
+    page = body(response)
+    card = section(response, "section-membership")
 
-    assert "Sisemine liikmeskonna aruanne" in card, "the chart's data table names its source"
     # The directory total is stated once, in the headline strip. Repeating it
     # inside the board report's card is what let a reader read two definitions
     # as one number.
+    assert "3400" in kpi_strip(response)
     assert "Liikmeid kataloogis" not in page
     assert "Koda.ee liikmekataloog" not in card, "the directory is not a source of this card"
-    assert "3400" in kpi_strip(viewer.get(reverse("home")))
+    assert "Tasunud liikmeid" in card, "the card holds the report's own figures"
 
 
 def test_fee_collection_sits_with_the_counts_it_was_read_beside(viewer, imported_internal_history):
