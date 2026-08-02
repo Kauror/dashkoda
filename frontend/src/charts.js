@@ -9,17 +9,19 @@
  * Contract for later modules:
  *
  *   <figure data-chart data-chart-payload="membership-trend">
- *     <div data-chart-canvas></div>
+ *     <div data-chart-canvas role="img" aria-label="...text alternative..."></div>
  *     <p data-chart-empty>Andmeallikas ei ole veel ühendatud.</p>
- *     <figcaption data-chart-summary>...text alternative...</figcaption>
+ *     <figcaption>...title...</figcaption>
  *     <table data-chart-table>...same values as rows...</table>
  *   </figure>
  *   <script type="application/json" id="membership-trend">{ ... }</script>
  *
  * The payload is read from a non-executable `application/json` block, so no
- * inline script and no `unsafe-eval` is ever required. The text summary and the
- * table are the accessible alternative and stay in the document; only the
- * canvas is hidden when there is nothing to draw.
+ * inline script and no `unsafe-eval` is ever required. The table is the
+ * accessible alternative and stays in the document; only the canvas is hidden
+ * when there is nothing to draw. The text description is the canvas's own
+ * `aria-label` — it used to be a visible caption and the board asked for it
+ * off the page.
  */
 import * as echarts from "echarts";
 

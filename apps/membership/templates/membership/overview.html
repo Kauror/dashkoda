@@ -1,5 +1,6 @@
 {% extends "dashboard/shell.html" %}
 {% load static %}
+{% load membership_format %}
 
 {% comment %}
 Liikmeskond page.
@@ -32,74 +33,9 @@ No individual member is listed anywhere, because neither dataset stores one.
 {% block content %}
 <div class="flex flex-col gap-6">
 
-  <header class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Liikmeskond</h1>
-      <p class="text-sm text-text-secondary">Avalik liikmekataloog ja koja sisemine liikmeskonna aruanne</p>
-    </div>
-    <div class="rounded-lg border border-border bg-surface px-4 py-3">
-      {% include "dashboard/components/feed_state.html" with summary=summary observed_label="Loendatud" only %}
-    </div>
+  <header>
+    <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Liikmeskond</h1>
   </header>
-
-  {# ---------------- 0. Andmeallikad ---------------- #}
-  {% comment %}
-  The two sources named side by side, each with its update cadence and its
-  current state. This page shows both all the way down, so the distinction is
-  established once here rather than being re-explained beside every figure.
-  {% endcomment %}
-  <section aria-labelledby="section-sources" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Andmeallikad" heading_id="section-sources" description="Kaks eri allikat, mis loendavad eri asju." only %}
-    <ul class="divide-y divide-border">
-      {% for source in sources %}
-        <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-3 sm:px-5">
-          <div class="min-w-0">
-            <p class="text-sm font-medium text-text">{{ source.label }}</p>
-            {% if source.promise and not source.is_connected %}
-              <p class="dk-meta">{{ source.promise }}</p>
-            {% endif %}
-          </div>
-          <div class="flex items-center gap-3">
-            <span class="dk-meta">Uuendatakse {{ source.cadence }}</span>
-            {% include "dashboard/components/status_badge.html" with label=source.state_label variant=source.state_variant only %}
-          </div>
-        </li>
-      {% endfor %}
-    </ul>
-  </section>
-
-  {# ---------------- 1. Public member directory ---------------- #}
-  <section aria-labelledby="section-public" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Avalik liikmekataloog" heading_id="section-public" description="Koda.ee avalikus liikmekataloogis avaldatud liikmeprofiilide arv." only %}
-    <div class="dk-section-body flex flex-col gap-3">
-      {% if summary.has_data %}
-        <div class="flex flex-col gap-1">
-          <h3 class="text-sm font-medium text-text-secondary">Liikmeid kokku</h3>
-          <p class="flex items-baseline gap-2">
-            <span class="text-metric font-semibold tracking-tight text-text">{{ summary.total_members }}</span>
-            <span class="text-sm text-text-secondary">liiget</span>
-          </p>
-        </div>
-      {% else %}
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
-      {% endif %}
-      <div class="flex flex-col gap-3 text-sm text-text-secondary">
-        <p>
-          See on Koda.ee avalikus liikmekataloogis avaldatud liikmeprofiilide arv
-          kontrollimise hetkel. Arv pärineb koja avalikult veebilehelt.
-        </p>
-        <p>
-          <strong class="font-medium text-text">See ei ole</strong> raamatupidamislik,
-          arveldatav ega CRM-i lepingutel põhinev liikmearv. Ükski praegune avalik
-          allikas sellist määratlust ei anna, seega DashKoda seda ka ei väida.
-        </p>
-        <p>
-          Üksikuid liikmeid, nende nimesid, registrikoode ega profiiliviiteid ei
-          salvestata — loendamine toimub mälus ja alles jääb ainult koondarv.
-        </p>
-      </div>
-    </div>
-  </section>
 
   {# ---------------- 2. Internal board report ---------------- #}
   <section aria-labelledby="section-internal" class="dk-section">
@@ -120,10 +56,10 @@ No individual member is listed anywhere, because neither dataset stores one.
         <dl class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {% include "membership/partials/internal_metric.html" with label="Liikmeid kokku" value=internal_latest.observation.total_members withheld=internal_latest.withheld field="total_members" only %}
           {% include "membership/partials/internal_metric.html" with label="Tasunud liikmeid" value=internal_latest.observation.paid_members withheld=internal_latest.withheld field="paid_members" only %}
-          {% include "membership/partials/internal_metric.html" with label="Tasunute osakaal" value=internal_latest.paid_member_share_pct suffix="%" only %}
-          {% include "membership/partials/internal_metric.html" with label="Laekunud liikmemaks" value=internal_latest.observation.membership_fees_received_eur suffix="EUR" withheld=internal_latest.withheld field="membership_fees_received_eur" only %}
-          {% include "membership/partials/internal_metric.html" with label="Liikmemaksu aastaeelarve" value=internal_latest.observation.membership_fee_budget_eur suffix="EUR" withheld=internal_latest.withheld field="membership_fee_budget_eur" only %}
-          {% include "membership/partials/internal_metric.html" with label="Laekumise protsent" value=internal_latest.observation.membership_fee_collection_pct_reported suffix="%" withheld=internal_latest.withheld field="membership_fee_collection_pct_reported" only %}
+          {% include "membership/partials/internal_metric.html" with label="Tasunute osakaal" value=internal_latest.paid_member_share_pct|percentage suffix="%" only %}
+          {% include "membership/partials/internal_metric.html" with label="Laekunud liikmemaks" value=internal_latest.observation.membership_fees_received_eur|whole_euros suffix="EUR" withheld=internal_latest.withheld field="membership_fees_received_eur" only %}
+          {% include "membership/partials/internal_metric.html" with label="Liikmemaksu aastaeelarve" value=internal_latest.observation.membership_fee_budget_eur|whole_euros suffix="EUR" withheld=internal_latest.withheld field="membership_fee_budget_eur" only %}
+          {% include "membership/partials/internal_metric.html" with label="Laekumise protsent" value=internal_latest.observation.membership_fee_collection_pct_reported|percentage suffix="%" withheld=internal_latest.withheld field="membership_fee_collection_pct_reported" only %}
           {% include "membership/partials/internal_metric.html" with label="Uusi liikmeid aasta algusest" value=internal_latest.observation.new_members_ytd withheld=internal_latest.withheld field="new_members_ytd" only %}
           {% include "membership/partials/internal_metric.html" with label="Väljaarvatuid aasta algusest" value=internal_latest.observation.removed_members_ytd withheld=internal_latest.withheld field="removed_members_ytd" only %}
           {% include "membership/partials/internal_metric.html" with label="Peatatud liikmeid" value=internal_latest.observation.suspended_members withheld=internal_latest.withheld field="suspended_members" only %}
@@ -145,7 +81,7 @@ No individual member is listed anywhere, because neither dataset stores one.
   {# ---------------- 3. Trends ---------------- #}
   {% if charts %}
     <section aria-labelledby="section-trends" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Ajaloolised trendid" heading_id="section-trends" description="Ajalooline sisemine aruanne. Kuvatakse kinnitatud või eelistatud vaatlus." only %}
+      {% include "dashboard/components/section_header.html" with title="Ajaloolised trendid" heading_id="section-trends" only %}
       <div class="dk-section-body flex flex-col gap-8">
 
         <form method="get" class="flex flex-wrap items-center gap-3 text-sm">

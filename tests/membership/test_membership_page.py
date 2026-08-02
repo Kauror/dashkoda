@@ -48,13 +48,21 @@ def _page(client):
     return client.get(reverse("membership")).content.decode()
 
 
-def test_public_definition_survives_the_new_section(viewer_client, public_observation):
+def test_the_public_catalogue_is_no_longer_on_this_page(viewer_client, public_observation):
+    """The board asked for the top of the page to go.
+
+    That took the source list, the connection strip and the public-catalogue
+    section with it, so the directory count and its definition are not here any
+    more. The count itself is unaffected — it leads the overview's headline
+    strip, and `apps.membership.selectors` still records it every day.
+    """
     body = _page(viewer_client)
 
-    assert "Avalik liikmekataloog" in body
-    assert "3555" in body
-    assert "raamatupidamislik" in body
-    assert "CRM-i lepingutel põhinev liikmearv" in body
+    assert "3555" not in body
+    assert "raamatupidamislik" not in body
+    assert "Andmeallikad" not in body
+    # The page is the internal report now, and starts with it.
+    assert "Sisemine liikmeskonna aruanne" in body
 
 
 def test_internal_section_appears_only_after_import(viewer_client, public_observation):
@@ -67,10 +75,7 @@ def test_internal_section_shows_after_import(viewer_client, public_observation, 
 
     assert "Sisemine liikmeskonna aruanne" in body
     assert "15.01.2025" in body
-    # The internal total and the public total both appear, each under its own
-    # heading, and neither is presented as the other.
     assert "3300" in body
-    assert "3555" in body
 
 
 def test_the_page_never_claims_the_definitions_match(
@@ -171,7 +176,8 @@ def test_overview_does_not_show_two_competing_totals(
     The board report's own total is there, in the Liikmeskond card, beside its
     paid count. The per-figure source lines and the explanatory note were both
     removed at the board's request, so the overview no longer states the
-    distinction in words — this page does, and that is asserted below.
+    distinction in words. The Liikmeskond page still does, in the note under its
+    figures, and that is asserted below.
     """
     body = viewer_client.get(reverse("home")).content.decode()
 
@@ -180,9 +186,10 @@ def test_overview_does_not_show_two_competing_totals(
 
     membership = viewer_client.get(reverse("membership")).content.decode()
 
-    assert "Kaks eri allikat, mis loendavad eri asju." in membership
-    assert "Koda.ee liikmekataloog" in membership
+    # The Liikmeskond page is the internal report, and says outright that its
+    # count and the catalogue's are not the same measurement.
     assert "Sisemine liikmeskonna aruanne" in membership
+    assert "ei ole sama näitaja" in membership
     # Each total is stated once. The directory count used to appear a second
     # time inside the board report's card, under a second name.
     assert "Liikmeid kataloogis" not in body

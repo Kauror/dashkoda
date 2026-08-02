@@ -3,9 +3,14 @@ One chart, with its accessible alternative always present.
 
 Contract (see `frontend/src/charts.js`): the figure carries `data-chart` and
 names a payload block; the canvas is the only part hidden when there is nothing
-to draw. The summary and the table are **not** a fallback — they stay in the
-document for every reader, so a browser that never runs the module still shows
-the same numbers as a table.
+to draw. The table is **not** a fallback — it stays in the document for every
+reader, so a browser that never runs the module still shows the same numbers.
+
+`chart.summary` describes the drawing in words. The board asked for it off the
+page, so it is no longer printed as a caption — but it stays as the canvas's
+`aria-label`, because a `role="img"` with no label is an image nobody using a
+screen reader can read at all. It is written for that use now, and any
+assertion about what a reader *sees* should look at the title or the table.
 
 The payload is emitted by `json_script`, which produces a non-executable
 `application/json` block. That is what keeps `script-src` at `'self'` with no
@@ -19,9 +24,8 @@ Context:
 {% endcomment %}
 
 <figure data-chart data-chart-payload="{{ chart.payload_id }}" class="flex w-full flex-col gap-3">
-  <figcaption class="flex flex-col gap-1">
+  <figcaption>
     <span class="text-sm font-medium text-text">{{ chart.title }}</span>
-    <span class="text-sm text-text-secondary" data-chart-summary>{{ chart.summary }}</span>
   </figcaption>
 
   <div data-chart-canvas

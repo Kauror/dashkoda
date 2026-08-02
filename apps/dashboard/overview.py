@@ -32,6 +32,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from django.urls import reverse
 from django.utils import timezone
 
+from apps.core.formatting import GROUP_SEPARATOR, percentage, whole_euros
 from apps.events.selectors import (
     NEAR_TERM_DAYS,
     count_started_in_past_window,
@@ -77,11 +78,6 @@ PREVIEW_LIMIT = 4
 
 # How much history the two membership trends draw.
 TREND_DAYS = 365
-
-# Estonian groups thousands with a non-breaking space, as Django's own `et`
-# locale does. Written as an escape because the character is invisible in
-# source and an ordinary space would let a figure wrap in the middle.
-GROUP_SEPARATOR = "\N{NO-BREAK SPACE}"
 
 SOURCE_PUBLIC_DIRECTORY = "Koda.ee liikmekataloog"
 SOURCE_INTERNAL_REPORT = "Sisemine liikmeskonna aruanne"
@@ -392,15 +388,12 @@ def _build_fee_collection(internal_latest, connection) -> FeeCollection:
 
 
 def _percentage(value: Decimal | None) -> Decimal | None:
-    """A percentage at two decimals.
+    """A percentage at two decimals, as `apps.core.formatting` defines it.
 
-    The board report stores four, and `94,0400 %` reads as a precision the
-    figure does not have. Rounding is presentational only: the stored value,
-    which the Liikmeskond page shows beside the computed one, is untouched.
+    Rounding is presentational only: the stored value, which the Liikmeskond
+    page shows beside the computed one, is untouched.
     """
-    if value is None:
-        return None
-    return value.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+    return percentage(value)
 
 
 def _whole_percent(value: Decimal | None) -> Decimal | None:
@@ -417,14 +410,12 @@ def _whole_percent(value: Decimal | None) -> Decimal | None:
 
 
 def _euros(amount: Decimal) -> str:
-    """A whole-euro amount, grouped so it can be read at a glance.
+    """A whole-euro amount with its symbol.
 
-    Cents are noise beside a budget in the millions, and an ungrouped
-    `1276101` has to be counted digit by digit. The separator is the
-    non-breaking space Estonian uses, so a grouped figure never wraps mid-number.
+    The number itself is shaped by `apps.core.formatting`, so this card and the
+    Liikmeskond page cannot end up writing the same amount two ways.
     """
-    whole = amount.quantize(Decimal("1"), rounding=ROUND_HALF_UP)
-    return f"{whole:,}".replace(",", GROUP_SEPARATOR) + f"{GROUP_SEPARATOR}€"
+    return whole_euros(amount) + f"{GROUP_SEPARATOR}€"
 
 
 def _build_membership_card(
