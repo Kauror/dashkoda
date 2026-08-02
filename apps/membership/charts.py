@@ -25,6 +25,8 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
+from apps.core.formatting import percentage, whole_euros
+
 from .internal_selectors import InternalTrend, MonthlyValue
 from .models import SizeBand
 
@@ -143,7 +145,7 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
                 point.observation_date,
                 total_value,
                 paid_value,
-                point.paid_member_share_pct,
+                percentage(point.paid_member_share_pct),
                 point.observation.get_quality_status_display(),
             )
         )
@@ -319,10 +321,10 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
         table_rows=tuple(
             (
                 row["observation_date"],
-                row["received"],
-                row["budget"],
-                row["reported_pct"],
-                row["computed_pct"],
+                whole_euros(row["received"]),
+                whole_euros(row["budget"]),
+                percentage(row["reported_pct"]),
+                percentage(row["computed_pct"]),
             )
             for row in rows
         ),
@@ -415,7 +417,9 @@ def removal_reasons_chart(rows: tuple[dict, ...], *, observation_date: date | No
         title="Lahkumise põhjused",
         option=option,
         table_headers=("Põhjus", "Liikmeid", "Osakaal"),
-        table_rows=tuple((row["label"], row["count"], row["share_pct"]) for row in rows),
+        table_rows=tuple(
+            (row["label"], row["count"], percentage(row["share_pct"])) for row in rows
+        ),
         summary=(
             f"Horisontaalne tulpgraafik {len(rows)} lahkumise põhjuse kohta"
             + (f" seisuga {observation_date:%d.%m.%Y}." if observation_date else ".")
