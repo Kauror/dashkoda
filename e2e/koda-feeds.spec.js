@@ -2,16 +2,24 @@ import { expect, test } from "@playwright/test";
 
 import { signIn, watchConsole } from "./helpers.js";
 
-// The three public-feed pages. Without a synchronisation run they render their
+// The public-feed pages. Without a synchronisation run they render their
 // truthful empty states, which is exactly what CI should see: the suite never
 // contacts koda.ee.
-const PAGES = [
-  { path: "/liikmeskond/", heading: "Liikmeskond" },
+const PUBLIC_FEED_PAGES = [
   { path: "/uudised/", heading: "Uudised" },
   { path: "/sundmused/", heading: "Sündmused" },
 ];
 
-for (const { path, heading } of PAGES) {
+// /liikmeskond/ used to belong to the list above and no longer does. It is the
+// board report now, fed by a one-off history import and manual entry rather
+// than by collection from koda.ee, so "the data source is not yet connected"
+// would be the wrong thing for it to say and it asserts its own empty state
+// below. Its layout and heading rules are still shared.
+const BOARD_REPORT_PAGE = { path: "/liikmeskond/", heading: "Liikmeskond" };
+
+const PAGES = [...PUBLIC_FEED_PAGES, BOARD_REPORT_PAGE];
+
+for (const { path, heading } of PUBLIC_FEED_PAGES) {
   test(`${path} renders its shell and a truthful empty state`, async ({ page }) => {
     const errors = watchConsole(page);
     await signIn(page);
@@ -22,7 +30,26 @@ for (const { path, heading } of PAGES) {
     await expect(page.getByText("Andmeallikas ei ole veel ühendatud.").first()).toBeVisible();
     expect(errors).toEqual([]);
   });
+}
 
+test(`${BOARD_REPORT_PAGE.path} renders its shell and a truthful empty state`, async ({ page }) => {
+  const errors = watchConsole(page);
+  await signIn(page);
+
+  await page.goto(BOARD_REPORT_PAGE.path);
+
+  await expect(
+    page.getByRole("heading", { level: 1, name: BOARD_REPORT_PAGE.heading }),
+  ).toBeVisible();
+  // Not a feed that failed to connect: nobody has imported a board report yet.
+  await expect(
+    page.getByText("Sisemist liikmeskonna aruannet ei ole veel imporditud.").first(),
+  ).toBeVisible();
+  await expect(page.getByText("Andmeallikas ei ole veel ühendatud.")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});
+
+for (const { path } of PAGES) {
   test(`${path} does not scroll horizontally`, async ({ page }) => {
     await signIn(page);
     await page.goto(path);
