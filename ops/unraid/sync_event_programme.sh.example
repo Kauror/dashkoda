@@ -1,0 +1,61 @@
+#!/bin/bash
+#
+# DashKoda event-programme synchronisation over the public read-only OneDrive
+# link, intended for the Unraid host's own scheduler. It needs no Microsoft
+# Entra application and no Graph credentials, only EVENT_PROGRAMME_PUBLIC_URL in
+# the deployment's environment file.
+#
+# Copy this file, replace the deployment directory, make it executable, and
+# schedule it. This repository installs nothing and enables nothing.
+#
+#   cp sync_event_programme.sh.example \
+#     /boot/config/plugins/user.scripts/sync_event_programme.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_event_programme.sh
+#
+# Run it by hand once before scheduling it, and check the exit code:
+#
+#   /boot/config/plugins/user.scripts/sync_event_programme.sh; echo "exit=$?"
+#
+# Intended schedule — 07:00 every day, Europe/Tallinn:
+#
+#   0 7 * * *
+#
+# This must run AFTER the workbook exists. The Power Automate flow "DashKoda -
+# Publish events export" runs at 06:30 Europe/Tallinn and takes about a minute,
+# so 07:00 leaves ample room. Running early is harmless rather than wrong: the
+# content checksum decides, so an unchanged file simply reports "unchanged".
+#
+# Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn
+# before enabling it. Estonia observes daylight saving, so a host left on UTC
+# runs this job an hour early or late depending on the season:
+#
+#   timedatectl                      # look for "Time zone: Europe/Tallinn"
+#   date +'%Z %z %H:%M'              # expect EET +0200 in winter, EEST +0300 in summer
+#
+# The application already refuses overlapping runs through a PostgreSQL
+# advisory lock, which is the primary overlap protection and works even across
+# hosts, containers and shells. The flock below is defence in depth on the host,
+# for the case where the container itself is slow to start.
+#
+# Expected exit codes:
+#
+#   0  imported, unchanged, or a successful dry run
+#   1  failed — the previous snapshot stays published and the dashboard says the
+#      last check failed
+#   3  another synchronisation was still running
+#
+# The URL is never passed on the command line: the container reads it from its
+# own environment, so it stays out of shell history and process listings.
+
+set -euo pipefail
+
+# Replace with the directory holding compose.yaml on the Unraid host.
+DEPLOYMENT_DIRECTORY="<DASHKODA_DEPLOYMENT_DIRECTORY>"
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+exec flock --nonblock /tmp/dashkoda-sync-event-programme.lock \
+  docker compose exec -T web \
+    python manage.py sync_event_programme --json
