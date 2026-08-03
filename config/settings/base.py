@@ -141,6 +141,17 @@ MS_GRAPH_TIMEOUT_SECONDS = 30
 MS_GRAPH_MAX_ATTEMPTS = 4
 LEGAL_WORK_MAX_DOWNLOAD_BYTES = SOURCE_ARTIFACT_MAX_BYTES
 
+# The Chamber's own event programme, prepared from the operational service-code
+# workbook by an Office Script and a scheduled Power Automate flow. DashKoda
+# only consumes the result, read-only, over one view-only sharing link.
+#
+# The same secret handling as the legal-work URL above: bearer-style, deployment
+# environment only, required by `sync_event_programme` and by nothing that runs
+# during ordinary startup.
+EVENT_PROGRAMME_SOURCE_SLUG = "sundmuste-programm-onedrive"
+EVENT_PROGRAMME_PUBLIC_URL = os.environ.get("EVENT_PROGRAMME_PUBLIC_URL", "")
+EVENT_PROGRAMME_MAX_DOWNLOAD_BYTES = SOURCE_ARTIFACT_MAX_BYTES
+
 # Public Koda.ee feeds.
 #
 # Three anonymous, read-only public endpoints. No credential exists for any of
