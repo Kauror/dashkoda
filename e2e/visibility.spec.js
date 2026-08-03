@@ -61,9 +61,11 @@ test("the visibility page renders its sections and its empty states", async ({ p
 
   await openVisibility(page);
 
+  // Not "Uudiskirjad": that is the channel card's heading in the band above, and
+  // the section is named for what it lists so the two never collide.
   for (const section of [
     "Praegune seis",
-    "Uudiskirjad",
+    "Uudiskirjade nimekirjad",
     "Sotsiaalmeedia",
     "Vaatluste ajalugu",
     "Allikate määratlused",

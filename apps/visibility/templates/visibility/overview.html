@@ -54,7 +54,11 @@ Four things are deliberate and should stay that way:
 
   {# ---------------- 2. Uudiskiri ---------------- #}
   <section aria-labelledby="section-newsletter" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Uudiskirjad" heading_id="section-newsletter" description="Iga uudiskirja nimekirja suurus eraldi." only %}
+    {# Named for what it lists rather than for the channel. The overview band
+       already carries an "Uudiskirjad" card heading, and two headings sharing one
+       accessible name leave anyone navigating by heading unable to tell them
+       apart. #}
+    {% include "dashboard/components/section_header.html" with title="Uudiskirjade nimekirjad" heading_id="section-newsletter" description="Iga uudiskirja nimekirja suurus eraldi." only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% if page.newsletter.has_any_data %}
         <div class="w-full overflow-x-auto">
