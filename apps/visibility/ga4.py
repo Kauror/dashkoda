@@ -44,6 +44,8 @@ from datetime import date
 from typing import Protocol, runtime_checkable
 
 from django.conf import settings
+from google.auth.transport.requests import AuthorizedSession
+from google.oauth2 import service_account
 
 from .registry import SOURCE_GA4
 
@@ -174,6 +176,52 @@ class WebsiteTrafficReading:
             "active_users": self.active_users,
             "page_views": self.page_views,
         }
+
+
+class Ga4ApiCollector:
+    """Read one completed reporting day from GA4's Data API.
+
+    This is deliberately transport-only: publication remains in the management
+    command, which is the only caller allowed to touch the database.
+    """
+
+    SCOPE = "https://www.googleapis.com/auth/analytics.readonly"
+
+    def __init__(self, configuration: Ga4Configuration):
+        self.configuration = configuration.require()
+
+    def collect(self, *, period_start: date, period_end: date) -> WebsiteTrafficReading:
+        WebsiteTrafficReading(period_start=period_start, period_end=period_end).validate()
+        credentials = service_account.Credentials.from_service_account_file(
+            self.configuration.credentials_file, scopes=[self.SCOPE]
+        )
+        session = AuthorizedSession(credentials)
+        response = session.post(
+            f"https://analyticsdata.googleapis.com/v1beta/properties/{self.configuration.property_id}:runReport",
+            json={
+                "dateRanges": [
+                    {"startDate": period_start.isoformat(), "endDate": period_end.isoformat()}
+                ],
+                "metrics": [
+                    {"name": "sessions"},
+                    {"name": "activeUsers"},
+                    {"name": "screenPageViews"},
+                ],
+            },
+            timeout=30,
+        )
+        response.raise_for_status()
+        values = response.json().get("rows", [{}])[0].get("metricValues", [])
+        numbers = [int(item["value"]) for item in values]
+        if len(numbers) != 3:
+            raise ValueError("Google Analytics ei tagastanud nõutud veebistatistika näitajaid.")
+        return WebsiteTrafficReading(
+            period_start=period_start,
+            period_end=period_end,
+            sessions=numbers[0],
+            active_users=numbers[1],
+            page_views=numbers[2],
+        ).validate()
 
 
 @runtime_checkable

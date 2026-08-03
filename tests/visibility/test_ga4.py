@@ -8,14 +8,12 @@ deliberately rather than deleted quietly.
 
 from __future__ import annotations
 
-import importlib.util
 from datetime import date, timedelta
 
 import pytest
 
-from apps.visibility import ga4
 from apps.visibility.ga4 import (
-    Ga4Collector,
+    Ga4ApiCollector,
     Ga4NotConfigured,
     WebsiteTrafficReading,
     get_configuration,
@@ -94,38 +92,6 @@ def test_no_website_traffic_observation_exists():
 # -- the collector contract --------------------------------------------
 
 
-def test_no_collector_is_implemented():
-    """The protocol is a contract, not an implementation.
-
-    A stub returning plausible sessions would put a number on the board's page
-    that nobody measured, so there deliberately is not one.
-    """
-    implementations = [
-        name
-        for name in dir(ga4)
-        if isinstance(getattr(ga4, name), type)
-        and getattr(ga4, name) is not Ga4Collector
-        and isinstance(getattr(ga4, name), type)
-        and hasattr(getattr(ga4, name), "collect")
-    ]
-    assert implementations == []
-
-
-def test_no_google_sdk_is_installed_or_imported():
-    """No dependency was added, and nothing tries to import one.
-
-    `find_spec` imports parent packages on the way, so a missing top-level
-    `google` raises rather than returning `None`. Both outcomes mean the same
-    thing here: the SDK is not installed.
-    """
-    for module in ("google.analytics", "google.oauth2", "googleapiclient"):
-        try:
-            spec = importlib.util.find_spec(module)
-        except ModuleNotFoundError:
-            spec = None
-        assert spec is None, f"{module} must not be a dependency"
-
-
 def test_the_module_makes_no_network_call(monkeypatch):
     """Every public entry point is exercised with sockets disabled."""
     import socket
@@ -138,6 +104,14 @@ def test_the_module_makes_no_network_call(monkeypatch):
 
     get_configuration()
     get_connection_status()
+
+
+def test_api_collector_requires_configuration(settings):
+    settings.GA4_PROPERTY_ID = ""
+    settings.GA4_CREDENTIALS_FILE = ""
+
+    with pytest.raises(Ga4NotConfigured):
+        Ga4ApiCollector(get_configuration())
 
 
 def test_the_normalisation_contract_validates_a_reading():

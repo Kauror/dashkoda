@@ -1,0 +1,12 @@
+#!/bin/bash
+# DashKoda GA4 daily collection. Copy to the Unraid host; this repository does
+# not install or enable schedules. Run it by hand after mounting the read-only
+# service-account key and setting GA4_PROPERTY_ID / GA4_CREDENTIALS_FILE.
+#
+# Intended schedule: 0 6 * * * (host time zone Europe/Tallinn).
+set -euo pipefail
+
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+cd "${DEPLOYMENT_DIRECTORY}"
+exec flock --nonblock /tmp/dashkoda-sync-ga4.lock \
+  docker compose exec -T web python manage.py sync_ga4
