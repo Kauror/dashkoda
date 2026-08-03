@@ -24,6 +24,7 @@ from apps.event_programme.public_download import PublicDownloadError, PublicUrlN
 from apps.event_programme.sync import (
     EXIT_LOCKED,
     PUBLIC_EXTERNAL_REFERENCE,
+    SyncLocked,
     advisory_lock,
     synchronize_public_workbook,
 )
@@ -280,14 +281,32 @@ def test_command_reports_missing_configuration_by_name(settings):
     assert "EVENT_PROGRAMME_PUBLIC_URL" in out.getvalue()
 
 
-def test_command_refuses_to_overlap(make_workbook):
-    out = StringIO()
+@pytest.mark.django_db(transaction=True)
+def test_command_refuses_to_overlap():
+    """A second run must exit 3 rather than import alongside the first.
+
+    The contending run needs its own database connection: a PostgreSQL advisory
+    lock is re-entrant within one session, so taking it twice on the same
+    connection succeeds and would prove nothing.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections
+
+    def run_locked_command():
+        close_old_connections()
+        try:
+            with pytest.raises(SystemExit) as exit_info:
+                call_command("sync_event_programme", "--json", stdout=StringIO())
+            return exit_info.value.code
+        except SyncLocked:  # pragma: no cover - defensive
+            return EXIT_LOCKED
+        finally:
+            close_old_connections()
 
     with advisory_lock():
-        with pytest.raises(SystemExit) as exit_info:
-            call_command("sync_event_programme", stdout=out)
-
-    assert exit_info.value.code == EXIT_LOCKED
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            assert executor.submit(run_locked_command).result() == EXIT_LOCKED
 
 
 def test_the_command_offers_no_url_option():
