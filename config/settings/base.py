@@ -19,6 +19,7 @@ INSTALLED_APPS = [
     "apps.membership.apps.MembershipConfig",
     "apps.news.apps.NewsConfig",
     "apps.events.apps.EventsConfig",
+    "apps.event_programme.apps.EventProgrammeConfig",
     "apps.visibility.apps.VisibilityConfig",
 ]
 

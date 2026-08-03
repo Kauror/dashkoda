@@ -103,6 +103,25 @@ class AuditAction(models.TextChoices):
         "events.sync_failed",
         "Sündmuste sünkroonimine ebaõnnestus",
     )
+    # The Chamber's own event programme, prepared from the operational service-code
+    # workbook. A different dataset from the public Koda.ee listing above, so it
+    # gets its own actions rather than reusing them and making the trail ambiguous.
+    EVENT_PROGRAMME_SNAPSHOT_IMPORTED = (
+        "event_programme.snapshot_imported",
+        "Sündmuste programmi hetkeseis imporditud",
+    )
+    EVENT_PROGRAMME_SNAPSHOT_PUBLISHED = (
+        "event_programme.snapshot_published",
+        "Sündmuste programmi hetkeseis kehtestatud",
+    )
+    EVENT_PROGRAMME_SYNC_UNCHANGED = (
+        "event_programme.sync_unchanged",
+        "Sündmuste programm: muutusteta",
+    )
+    EVENT_PROGRAMME_SYNC_FAILED = (
+        "event_programme.sync_failed",
+        "Sündmuste programmi sünkroonimine ebaõnnestus",
+    )
     # Manually observed audience sizes. A batch event describes one submission;
     # the per-observation events describe what that submission did to each
     # metric, which is what makes a correction auditable on its own.
