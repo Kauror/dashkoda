@@ -24,7 +24,7 @@ See [design-system.md](design-system.md) for the visual language,
 [data-model.md](data-model.md) for the source, import and audit foundation,
 [legal-work-feed.md](legal-work-feed.md) for the first module carrying real
 business data, and [visibility-manual-entry.md](visibility-manual-entry.md) for
-the manually entered audience figures and the Google Analytics seam.
+the manually entered audience figures and the Google Analytics collector.
 
 ## Runtime topology
 
@@ -112,8 +112,10 @@ The future monolith will separate shared infrastructure from business modules:
 - `visibility` owns the manually observed audience sizes — the two newsletter
   lists and their overlap, and the four social follower counts — their metric
   registry, selectors, staff entry workflow, the Nähtavus page, the overview's
-  channel band and the Google Analytics backend seam. It owns no collector, no
-  platform credential and no individual subscriber or follower.
+  channel band and the Google Analytics website-traffic collector (`sync_ga4`,
+  optional and off until the deployment supplies a property ID and a read-only
+  service-account key). It stores no platform credential and no individual
+  subscriber, follower or visitor.
 
 Each public feed is its own business app rather than one generic "web scraper"
 domain, because what makes a member count valid has nothing to do with what
@@ -276,12 +278,15 @@ chart or demo data in this repository.
 Arvamused, Finantsid, Fookusteemad and Projektid are inert navigation entries,
 because no source is connected for any of them.
 
-Nothing **collects** the communication-channel figures. Six of the seven can now
-be stored — a staff user types them in and `apps/visibility` publishes them
-through the ordinary artifact and import path — but no Smaily, Meta, LinkedIn,
-Instagram or YouTube integration exists, and none is planned in this stage.
-Website visits have no store at all: Google Analytics is not connected, the
-backend shape exists without a collector, and that slot stays `Lisamisel`.
+Nothing **collects** the communication-channel audience figures. Six of the
+seven can be stored — a staff user types them in and `apps/visibility`
+publishes them through the ordinary artifact and import path — but no Smaily,
+Meta, LinkedIn, Instagram or YouTube integration exists, and none is planned in
+this stage. Website visits are the exception: the scheduled `sync_ga4` command
+can collect one completed day of Google Analytics traffic when the deployment
+supplies `GA4_PROPERTY_ID` and a mounted read-only service-account key. Until
+an observation has actually been published the website slot stays `Lisamisel`;
+configuration alone never makes the page claim a connection.
 
 Press coverage, the newsletter itself and event history once an event has passed
 remain entirely unconnected, and no model is capable of holding those.

@@ -83,9 +83,9 @@ never be able to change what the source said.
 The newsletter and social audience sizes widen the write surface by one form and
 nothing else:
 
-- **no platform credential exists.** There is no Smaily, Meta, LinkedIn,
-  Instagram, YouTube or Google Analytics client, no token, no OAuth flow and no
-  model field capable of holding one;
+- **no social-platform credential exists.** There is no Smaily, Meta, LinkedIn,
+  Instagram or YouTube client, no token, no OAuth flow and no model field
+  capable of holding one;
 - **nothing is fetched.** No page render, command or background job contacts a
   social platform. The four public profile URLs are fixed application
   configuration used as display links; they are never fetched, never editable and
@@ -96,10 +96,13 @@ nothing else:
   normally by Django and is deliberately kept out of the audit summary;
 - no file upload, no API endpoint, no public POST route and no CSP change.
 
-`GA4_PROPERTY_ID` and `GA4_CREDENTIALS_FILE` are declared and optional. The
-credentials file will be a **read-only** service-account key mounted into the
-deployment; it belongs in the server environment only and must never reach Git,
-PostgreSQL, a log line, an audit summary or the interface. Nothing reads it yet.
+Website traffic is the one automated exception, and it stays aggregate-only:
+the scheduled `sync_ga4` command reads one completed day of session, user and
+page-view totals through a **read-only** service account. `GA4_PROPERTY_ID` and
+`GA4_CREDENTIALS_FILE` are optional and blank by default; the credentials file
+is mounted into the deployment, belongs in the server environment only and must
+never reach Git, PostgreSQL, a log line, an audit summary or the interface.
+Only `sync_ga4` reads it — never a page render.
 
 The membership package import is an **operator command**, not a route. It reads a
 path the operator supplies on the server; nothing in the application accepts an
@@ -210,9 +213,10 @@ data. **This pull request does not change Cloudflare, DNS or the tunnel.**
 - `OIGUSLOOME_PUBLIC_URL`: the view-only workbook sharing link. Optional and
   blank by default; required only by `sync_oigusloome_public`. Treat it like a
   credential and keep it only in the server environment.
-- `GA4_PROPERTY_ID`, `GA4_CREDENTIALS_FILE`: declared for a future Google
-  Analytics collector, optional and blank by default. Nothing requires or reads
-  them today; the application, the tests and every page work with both unset.
+- `GA4_PROPERTY_ID`, `GA4_CREDENTIALS_FILE`: the Google Analytics property and
+  the mounted read-only service-account key for the scheduled `sync_ga4`
+  collector. Optional and blank by default; only that command reads them, and
+  the application, the tests and every page work with both unset.
 
 The real PIN and its plaintext value must never be written to source, tests,
 workflow files, documentation, shell history, or logs. The browser smoke suite

@@ -2,11 +2,12 @@
 
 How many people the Chamber currently reaches, entered by hand.
 
-**Nothing in this module is collected automatically.** There is no Smaily, Meta,
-LinkedIn, Instagram, YouTube or Google Analytics client anywhere in this
-repository, no credential that would let one exist, and no model field capable
-of holding a token. A staff user reads a figure off a platform's own statistics
-screen and types it in.
+**No channel audience figure is collected automatically.** There is no Smaily,
+Meta, LinkedIn, Instagram or YouTube client anywhere in this repository, no
+credential that would let one exist, and no model field capable of holding a
+token. A staff user reads a figure off a platform's own statistics screen and
+types it in. The one automated exception is website traffic: the optional
+`sync_ga4` command described [below](#google-analytics-website-traffic).
 
 That is a deliberate first step, not a shortcut. A typed value publishes through
 the same path a collector would use — canonical JSON, SHA-256 content identity,
@@ -26,8 +27,10 @@ historical row.
 | `instagram_followers` | Instagrami jälgijad | jälgijat | `manual-instagram-followers` | 45 days |
 | `youtube_subscribers` | YouTube’i tellijad | tellijat | `manual-youtube-subscribers` | 45 days |
 
-Website traffic (`ga4-website-traffic`) is registered as a source and is **not
-connected**. See [Google Analytics](#google-analytics-placeholder).
+Website traffic (`ga4-website-traffic`) is registered as a source and has its
+own optional daily collector. It counts as connected only once an observation
+has been published. See
+[Google Analytics](#google-analytics-website-traffic).
 
 Deliberately out of scope, and absent from the schema: post reach, impressions,
 engagement, video views, newsletter opens, newsletter clicks, media coverage,
@@ -401,42 +404,41 @@ and lives in the admin history instead.
 A staff-only `Lisa andmed` action appears when `request.user.is_staff`. An
 ordinary shared-PIN viewer never sees an editing control they cannot use.
 
-## Google Analytics placeholder
+## Google Analytics website traffic
 
-The backend shape exists. **Nothing connects to Google.**
+A daily collector exists and is **off until the deployment configures it**.
 
 - `WebsiteTrafficObservation` stores a reporting period with sessions, active
   users and page views. All three are nullable, because an API that omits a
   metric has not reported zero;
 - `apps/visibility/ga4.py` holds the configuration status, a
-  `Ga4NotConfigured` exception, the typed `Ga4Collector` protocol and the
-  `WebsiteTrafficReading` normalisation contract;
-- `GA4_PROPERTY_ID` and `GA4_CREDENTIALS_FILE` are optional and default to empty.
-  Startup, local development and the whole test suite need neither;
-- no Google SDK dependency was added, no request is made, no scheduled command
-  exists and **no fake collection is implemented**. A stub returning plausible
-  sessions would put a number on the board's page that nobody measured.
+  `Ga4NotConfigured` exception, the `WebsiteTrafficReading` normalisation
+  contract and `Ga4ApiCollector`, which reads one completed day from the GA4
+  Data API through a **read-only** service account
+  (`analytics.readonly` and nothing wider);
+- the scheduled `sync_ga4` management command is the only caller. It collects
+  the previous completed day, and a re-run of an already-collected day finishes
+  cleanly without publishing a duplicate. `ops/unraid/sync_ga4.sh.example` is
+  the schedule template; the schedule itself is not installed by this
+  repository;
+- `GA4_PROPERTY_ID` and `GA4_CREDENTIALS_FILE` are optional and default to
+  empty. Startup, local development and the whole test suite need neither, and
+  only `sync_ga4` reads them. The JSON key belongs in the deployment
+  environment only — never in Git, PostgreSQL, a log, an audit summary or the
+  interface;
+- live acceptance against the real property has not been performed.
 
-The website card stays `Lisamisel` until a real observation exists. Configuration
-alone does not make it connected.
+The website card stays `Lisamisel` until a real observation exists.
+Configuration alone does not make it connected.
 
-### What the next pull request needs
-
-- a GA4 property ID;
-- a **read-only** service account (`analytics.readonly` and nothing wider);
-- a secret-file mount — the JSON key belongs in the deployment environment only,
-  never in Git, PostgreSQL, a log, an audit summary or the interface;
-- a reporting-period definition, decided rather than defaulted;
-- a scheduled host command, because collection is never part of a request;
-- live acceptance: no Google credential has ever existed in this project.
-
-Publication then follows the path every other source uses: canonical JSON →
+Publication follows the path every other source uses: canonical JSON →
 SHA-256 → metadata-only artifact → `ImportRun` → an immutable observation →
 audit event. No GA4 response body is retained.
 
 ## Future automation path
 
-The same seam serves Smaily and the social platforms. When a collector arrives it
+The same seam would serve Smaily and the social platforms. If a collector ever
+arrives it
 writes `CollectionMethod.AUTOMATIC` rows into the **same table**, through the
 same publication service, and the form becomes one of two writers rather than
 being replaced by a migration. Historical manual rows keep their values and their

@@ -272,8 +272,9 @@ def test_an_observation_cannot_supersede_one_of_a_different_metric(submit):
 # -- website traffic ----------------------------------------------------
 
 
-def test_nothing_publishes_website_traffic_yet():
-    """Google Analytics is not connected, so the table is empty by design."""
+def test_website_traffic_starts_empty():
+    """Nothing but the configured `sync_ga4` command ever writes this table,
+    so with no collector run it is empty by design."""
     assert WebsiteTrafficObservation.objects.count() == 0
 
 

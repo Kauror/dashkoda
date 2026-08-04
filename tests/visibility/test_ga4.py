@@ -1,9 +1,10 @@
-"""The Google Analytics seam, which must not connect to anything.
+"""The Google Analytics configuration, connection state and reading contract.
 
-The point of these tests is negative: they assert that nothing was wired up.
-A future pull request will add a collector, and the day it does, the assertions
-about "no request" and "no SDK" are exactly the ones that should be revisited
-deliberately rather than deleted quietly.
+A real collector exists (`Ga4ApiCollector`, driven by the `sync_ga4` command,
+covered in `test_sync_ga4.py`). What these tests pin down is everything around
+it: that nothing requires the settings, that reading the configuration or the
+connection state never opens a socket, that configuration alone is not a
+connection, and that the normalisation contract refuses impossible readings.
 """
 
 from __future__ import annotations

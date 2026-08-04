@@ -225,9 +225,10 @@ Both need a Django superuser as well as the viewer PIN. The results appear at
 Use obviously synthetic values locally. **Never enter real Chamber follower
 counts into a development database**, and never commit one.
 
-Google Analytics is not connected. `GA4_PROPERTY_ID` and `GA4_CREDENTIALS_FILE`
-may stay unset: the application starts, every page renders and the whole test
-suite passes with neither. See
+Google Analytics needs no local configuration. `GA4_PROPERTY_ID` and
+`GA4_CREDENTIALS_FILE` may stay unset: the application starts, every page
+renders and the whole test suite passes with neither, and only the scheduled
+`sync_ga4` command ever requires them. See
 [visibility-manual-entry.md](visibility-manual-entry.md).
 
 ## Deployment boundary

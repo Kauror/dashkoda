@@ -164,11 +164,14 @@ It creates three tables and touches no existing one. The five manual data source
 register themselves on first use, so nothing has to be seeded.
 
 Two settings are declared and **optional**: `GA4_PROPERTY_ID` and
-`GA4_CREDENTIALS_FILE`. Both may stay unset indefinitely — Google Analytics is
-not connected, no request is made and no Google SDK is installed. When that
-integration is built it will additionally need a read-only service account, a
-mounted secret file, a decided reporting period, a host schedule and live
-acceptance; none of that exists.
+`GA4_CREDENTIALS_FILE`. Both may stay unset indefinitely — the application
+starts, every page renders and nothing contacts Google without them. The
+scheduled `sync_ga4` command can collect one completed day of website traffic
+once the deployment supplies the property ID and a mounted **read-only**
+service-account key (`ops/unraid/sync_ga4.sh.example` is the schedule
+template). Live acceptance against the real property has not been performed,
+and the website slot claims a connection only after an observation has actually
+been published.
 
 The first real figures are typed by an authorised staff user after deployment at
 `/admin/data-entry/visibility/new/`. **No production figure is committed to this

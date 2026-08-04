@@ -13,7 +13,7 @@ end.
 | `sources` | source registration, private artifacts, the import-run registry, the source/import admin workflow, private artifact access | any domain data, any parsing, any scheduling |
 | `audit` | append-only records of significant actions | anything domain-specific; it has no dependency on `sources` |
 | `legal_work` | imported legal-work snapshots and rows, their selectors and page, the workbook importer, the OneDrive feed state | generic artifact registration, the generic import lifecycle, audit infrastructure, authentication, any other OneDrive file |
-| `visibility` | manually observed audience sizes, their metric registry, selectors, staff entry workflow, the Nähtavus page and the Google Analytics seam | any collector, any platform credential, any individual subscriber or follower |
+| `visibility` | manually observed audience sizes, their metric registry, selectors, staff entry workflow, the Nähtavus page and the optional Google Analytics website-traffic collector | any social-platform collector or credential, any individual subscriber, follower or visitor |
 
 `legal_work` is the first module to consume this foundation end to end. Its
 models, importer, Graph collector and scheduling are documented separately in
