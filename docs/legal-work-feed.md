@@ -134,7 +134,10 @@ Both surviving entry points publish through the same importer, the same import
 registry and the same immutable snapshot. They differ only in how the bytes
 arrive and in what is kept afterwards.
 
-The recurring route is not installed as a schedule by this repository.
+The recurring route is not installed as a schedule by this repository. An
+administrator has installed it on the pilot host, at 07:00 `Europe/Tallinn`; see
+[deployment-status.md](deployment-status.md) for how that host expresses Tallinn
+time and what the job's log now records.
 
 ## The public read-only sharing link
 

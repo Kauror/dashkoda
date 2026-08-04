@@ -12,8 +12,9 @@ DashKoda runs as a **development/pilot deployment**:
 - Docker on Unraid, two application containers (`web` and `db`);
 - PostgreSQL data persists on the host, outside the container;
 - an existing Cloudflare Tunnel fronts it;
-- the deployed build still predates the legal-work feed, so it shows only
-  truthful empty states and **no business data source is connected there**.
+- the deployed build carries the legal-work feed, the public Koda.ee feeds and
+  the canonical Excel event programme, so it now shows **real Chamber data**
+  rather than only empty states.
 
 ## What this repository owns
 
@@ -36,30 +37,58 @@ contains placeholders only.
 The earlier deployment is a **sequencing deviation**. It does not mean the
 planned operations milestone (PR-09) is complete. Still outstanding:
 
-- backup automation;
 - a tested restore procedure;
 - rollback tooling;
 - Unraid deployment configuration held in this repository;
 - the full operations runbook.
 
-Until those exist, the deployment should be treated as a pilot rather than as a
-hardened production service.
+A nightly database backup **is** installed on the pilot host: a dump at 02:30
+UTC that the script verifies before keeping and that prunes only its own nightly
+archives. It was created by an administrator on the server, so this repository
+neither holds it nor tests it, and nothing here yet describes how to restore
+from it. A backup nobody has restored does not complete the milestone.
+
+Until the rest exists, the deployment should be treated as a pilot rather than
+as a hardened production service.
 
 ## Known risk
 
 **The deployed environment is currently also the development/pilot
 environment.** There is no separate staging. A change reaches the same place
-people are looking at. This is accepted for now because the dashboard holds no
-business data, but it stops being acceptable once real Chamber data is
-connected, and it should be resolved before that point.
+people are looking at. This used to be accepted on the grounds that the
+dashboard held no business data — **that ground is gone**. The legal-work feed,
+the public Koda.ee feeds and the event programme are connected and carry real
+Chamber information, which is the point at which this document said the
+arrangement stops being acceptable. A separate staging environment, and
+Cloudflare Access in front of the tunnel, are now overdue rather than
+anticipated.
+
+## How the host expresses Tallinn time
+
+Every schedule below is described in `Europe/Tallinn`, but the pilot host cannot
+express it: its `/etc/localtime` is absent and both the clock and `crond` run on
+UTC. Each job is therefore installed as a **pair** of UTC entries, and the
+script's own time guard runs only the occurrence that is the intended Tallinn
+time:
+
+- summer (EEST, UTC+3): the `04:xx` UTC entry runs, the `05:xx` one skips;
+- winter (EET, UTC+2): the `05:xx` UTC entry runs, the `04:xx` one skips.
+
+The skipped occurrence is a no-op. A literal `07:00` entry would fire at 10:00
+Tallinn, which is why the templates in `ops/unraid/` are not installed verbatim.
+
+The pairs are held on the Unraid flash drive so they survive a reboot, and they
+are applied into the system crontab rather than into a user crontab. This
+repository ships the script templates only; it installs no schedule.
 
 ## What the legal-work feed changes here
 
 It is the first module carrying **real Chamber information**, which changes the
 risk picture even though it changes nothing operationally in this repository.
 
-Still true: no server, Cloudflare, DNS or tunnel change; no deployment; no
-schedule installed. The 07:00 job exists only as a script template.
+Still true: this repository makes no server, Cloudflare, DNS or tunnel change
+and performs no deployment, and the 07:00 job exists here only as a script
+template. An administrator has since installed that template on the pilot host.
 
 Newly required for a deployment that actually syncs, via the **MVP public-link
 route**:
@@ -75,14 +104,17 @@ needed because this route keeps no permanent copy of the workbook.
 The Microsoft Graph route was retired, so its five variables, its Entra
 application and its tenant admin consent are no longer needed by anything.
 
-**The schedule is not installed.**
+**The schedule is installed** on the pilot host, at 07:00 `Europe/Tallinn` as the
+UTC pair described above.
 
 - Public link: the download, URL handling, XLSX validation and temporary-file
-  cleanup **have** been verified against the live link, across more than one
-  published revision of the workbook. The end-to-end import has not completed. It
-  needs two things that are outside this repository: a PostgreSQL instance to
-  publish into, and a workbook published with its `tbl_oigusloome` Excel Table
-  intact — uploading through Excel Online strips it. See
+  cleanup were verified against the live link across more than one published
+  revision of the workbook, and **the end-to-end import has since completed
+  there** — the job's log records both `imported` and `unchanged` runs. It had
+  needed two things outside this repository: a PostgreSQL instance to publish
+  into, and a workbook published with its `tbl_oigusloome` Excel Table intact,
+  because uploading through Excel Online strips it. The log also carries earlier
+  failed runs from before those were satisfied. See
   [legal-work-feed.md](legal-work-feed.md).
 
 The exact post-deployment commands are in
@@ -92,21 +124,24 @@ The exact post-deployment commands are in
 
 Three further sources — the public member directory, the news RSS feed and the
 events calendar — need **no credential at all**. They are anonymous, read-only
-public endpoints, so a deployment that syncs them requires only a host schedule:
+public endpoints, so a deployment that syncs them requires only a host schedule
+at 07:05 `Europe/Tallinn` — five minutes after the legal-work job, so the two
+never contend and each keeps its own readable log — created by an administrator
+from
+[`ops/unraid/sync_koda_public.sh.example`](../ops/unraid/sync_koda_public.sh.example).
+On the pilot host that is the UTC pair described above:
 
 ```text
-5 7 * * *
+5 4 * * *
+5 5 * * *
 ```
-
-at 07:05 `Europe/Tallinn`, five minutes after the legal-work job, created by an
-administrator from
-[`ops/unraid/sync_koda_public.sh.example`](../ops/unraid/sync_koda_public.sh.example).
 
 No new environment variable, no new volume and no new container. Nothing is
 retained on disk: the collectors keep no raw response and their artifacts are
 metadata only.
 
-**This schedule is not installed either.** See
+**This schedule is installed too**, and the collectors are running: the job's log
+records `imported` and `unchanged` runs. See
 [koda-public-feeds.md](koda-public-feeds.md).
 
 The events calendar is now a **supplementary** source within this schedule. The
@@ -123,17 +158,19 @@ bearer-style secret that stays in the server environment and reaches no log, aud
 summary, command output or database row. No new volume and no new container.
 
 One host schedule, at 07:00 `Europe/Tallinn` after the 06:30 workbook
-publication, from
+publication — on the pilot host the UTC pair described above — from
 [`ops/unraid/sync_event_programme.sh.example`](../ops/unraid/sync_event_programme.sh.example).
 
-**Neither the variable nor the schedule is installed.** The full acceptance
-sequence — dry run, first import, unchanged re-run, count verification against
-`DASH_CONTROL`, page checks, and only then the schedule — is in
-[event-programme-feed.md](event-programme-feed.md).
+**Both the variable and the schedule are installed**, and the feed has been
+accepted in production: the full acceptance sequence — dry run, first import,
+unchanged re-run, count verification against `DASH_CONTROL`, page checks, and
+only then the schedule — was completed in the order set out in
+[event-programme-feed.md](event-programme-feed.md). The variable holds the
+sharing link in the server's environment file alone; it is in no log, no command
+output and no database row, and it is not in this repository.
 
-The known risk below now matters more: the pilot no longer holds only empty
-states, so Cloudflare Access in front of the tunnel should be settled before
-this is treated as a production service.
+This is the change that retired the known risk above from a future condition to
+a present one.
 
 ## What the internal membership history changes here
 
