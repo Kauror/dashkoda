@@ -104,12 +104,16 @@ def test_a_page_may_hand_back_the_programme_summary_it_already_read(published_pr
 
 
 def test_the_overview_event_cell_reads_the_workbook(viewer, published_programme):
+    """Each count is asserted with its value, not just its label.
+
+    The synthetic programme has one event five days out, and two behind: the one
+    still running and the one ten days ago. A label-only assertion would pass on
+    a cell that had lost its figures.
+    """
     page = text_of(viewer.get(reverse("home")))
 
-    assert "sündmusi järgmise 30 päeva jooksul" in page
-    assert "sündmusi eelmise 30 päeva jooksul" in page
-    # One event five days out; the ongoing one and the recent one behind.
-    assert "Programmis kokku 9" in page
+    assert "sündmusi järgmise 30 päeva jooksul 1" in page
+    assert "sündmusi eelmise 30 päeva jooksul 2" in page
 
 
 def test_the_overview_names_the_programme_as_its_event_source():
@@ -126,7 +130,7 @@ def test_the_overview_takes_no_event_figure_from_the_public_calendar(viewer):
     preview = section(response, "section-events")
 
     assert "sündmusi järgmise 30 päeva jooksul" not in page
-    assert "Programmis kokku" not in page
+    assert "sündmusi eelmise 30 päeva jooksul" not in page
     assert "Sünteetiline sündmus 0" not in strip_tags(preview), (
         "no public-calendar event may reach the overview preview"
     )
@@ -158,5 +162,6 @@ def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_p
     page = text_of(viewer.get(reverse("home")))
 
     assert "Vananenud: 1" in page
-    assert "Programmis kokku 9" in page
+    assert "sündmusi järgmise 30 päeva jooksul 1" in page, "the figures are not withdrawn"
+    assert "sündmusi eelmise 30 päeva jooksul 2" in page
     assert "Sünteetiline tõrge" not in page, "no failure detail may reach a viewer"
