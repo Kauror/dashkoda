@@ -98,7 +98,7 @@ def membership_overview(request):
         {
             "navigation": NAVIGATION,
             "active_nav": "membership",
-            "freshness": current_freshness(),
+            "freshness": current_freshness(summary),
             # Read only by the closing note, which says the two counts are
             # not the same measurement and appears only when both exist.
             "summary": summary,

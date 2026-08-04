@@ -45,7 +45,7 @@ def news_overview(request):
         {
             "navigation": NAVIGATION,
             "active_nav": "news",
-            "freshness": current_freshness(),
+            "freshness": current_freshness(summary),
             "summary": summary,
             "items": get_latest_news(summary.snapshot, limit=DEFAULT_LIMIT),
             "recent_count": (
