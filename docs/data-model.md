@@ -16,7 +16,7 @@ end.
 | `visibility` | manually observed audience sizes, their metric registry, selectors, staff entry workflow, the Nähtavus page and the optional Google Analytics website-traffic collector | any social-platform collector or credential, any individual subscriber, follower or visitor |
 
 `legal_work` is the first module to consume this foundation end to end. Its
-models, importer, Graph collector and scheduling are documented separately in
+models, importer, collector and scheduling are documented separately in
 [legal-work-feed.md](legal-work-feed.md); only its place in the shared flow is
 described here.
 
