@@ -42,7 +42,8 @@ from django.utils import timezone
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
-from apps.sources.models import ImportStatus, SourceArtifact
+from apps.core.feed_sync import find_published_artifact
+from apps.sources.models import SourceArtifact
 from apps.sources.services import register_external_reference
 
 from .bootstrap import ensure_event_programme_source
@@ -198,8 +199,10 @@ def synchronize_public_workbook(
             message = f"{type(error).__name__}: {error}".replace("\n", " ")
             return _fail(state, message, correlation_id=correlation_id, stage="download")
 
-        existing = SourceArtifact.objects.filter(source=source, sha256=download.sha256).first()
-        if existing is not None and _has_successful_live_import(existing):
+        artifact, already_published = find_published_artifact(
+            source, download.sha256, IMPORTER_NAME
+        )
+        if already_published:
             return _record_unchanged(
                 state, download, dry_run=dry_run, correlation_id=correlation_id
             )
@@ -208,7 +211,7 @@ def synchronize_public_workbook(
             # A previous dry run or a previous failed run already registered
             # this content. Reuse that artifact: the checksum is unique per
             # source, so registering a second one is both impossible and wrong.
-            artifact = existing or _register_metadata_only(
+            artifact = artifact or _register_metadata_only(
                 source, download, correlation_id=correlation_id, actor=actor
             )
             result = import_artifact(
@@ -254,21 +257,6 @@ def synchronize_public_workbook(
         rows_imported=result.rows_added,
         warnings=result.import_run.warnings,
     )
-
-
-def _has_successful_live_import(artifact: SourceArtifact) -> bool:
-    """Whether this exact content has already been published.
-
-    Only a *successful live* import counts. An artifact left behind by a dry run
-    or by a failed run is reusable and must not be treated as "already
-    imported" - otherwise a dry run would permanently block the live import of
-    the same bytes.
-    """
-    return artifact.import_runs.filter(
-        importer_name=IMPORTER_NAME,
-        status=ImportStatus.SUCCEEDED,
-        dry_run=False,
-    ).exists()
 
 
 def _register_metadata_only(

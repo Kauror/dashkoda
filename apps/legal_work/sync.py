@@ -27,7 +27,8 @@ from django.utils import timezone
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
-from apps.sources.models import ImportStatus, SourceArtifact
+from apps.core.feed_sync import find_published_artifact
+from apps.sources.models import SourceArtifact
 from apps.sources.services import calculate_sha256, register_artifact
 
 from .bootstrap import ensure_legal_work_source
@@ -130,19 +131,6 @@ def record_failure(state: LegalWorkFeedState, message: str, *, correlation_id) -
     )
 
 
-def _existing_successful_artifact(source, checksum: str) -> SourceArtifact | None:
-    """An artifact with this content that already imported successfully."""
-    artifact = SourceArtifact.objects.filter(source=source, sha256=checksum).first()
-    if artifact is None:
-        return None
-    already_imported = artifact.import_runs.filter(
-        importer_name=IMPORTER_NAME,
-        status=ImportStatus.SUCCEEDED,
-        dry_run=False,
-    ).exists()
-    return artifact if already_imported else None
-
-
 def synchronize(
     *,
     dry_run: bool = False,
@@ -193,12 +181,15 @@ def synchronize(
         with download_path.open("rb") as handle:
             checksum, _size = calculate_sha256(handle)
 
-        existing = _existing_successful_artifact(source, checksum)
-        if existing is not None and not force:
+        # An artifact left behind by a dry run or a failed run is reused rather
+        # than counted as published: a dry run must never block the later live
+        # import of the same bytes.
+        artifact, already_published = find_published_artifact(source, checksum, IMPORTER_NAME)
+        if already_published and not force:
             return _record_unchanged(state, remote, correlation_id=correlation_id)
 
         try:
-            artifact = existing or _register(source, download_path, checksum, correlation_id, actor)
+            artifact = artifact or _register(source, download_path, checksum, correlation_id, actor)
             result = import_artifact(
                 artifact,
                 dry_run=dry_run,
