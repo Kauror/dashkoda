@@ -14,8 +14,15 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 from django.core.management.base import CommandError
+from django.db import models
 
 from apps.core.management.commands import seed_e2e_data
+from apps.event_programme.models import (
+    DeliveryMode,
+    EventProgrammeItem,
+    EventProgrammeSnapshot,
+    EventStatus,
+)
 from apps.events.models import EventItem, EventSnapshot
 from apps.legal_work.models import LegalWorkItem, LegalWorkSnapshot
 from apps.membership.models import InternalMembershipObservation, MembershipCountObservation
@@ -71,11 +78,14 @@ def test_the_seed_publishes_every_wired_module():
 
     # One current snapshot per feed, published atomically.
     assert LegalWorkSnapshot.objects.filter(is_current=True).count() == 1
+    assert EventProgrammeSnapshot.objects.filter(is_current=True).count() == 1
     assert EventSnapshot.objects.filter(is_current=True).count() == 1
     assert NewsSnapshot.objects.filter(is_current=True).count() == 1
     assert MembershipCountObservation.objects.filter(is_current=True).count() == 1
 
     assert LegalWorkItem.objects.count() >= 20
+    # More than one page of 50, so the programme table's pagination is exercised.
+    assert EventProgrammeItem.objects.count() > 50
     assert EventItem.objects.count() >= 15
     assert NewsItem.objects.count() >= 10
     # Six board reports, so both overview trend lines have enough points.
@@ -137,6 +147,114 @@ def test_an_explicit_zero_and_a_missing_value_both_exist():
     assert None in suspended, "a genuinely missing value must be seeded"
 
 
+def test_the_event_programme_workbook_passed_the_real_parser():
+    """The seed writes a genuine XLSX and imports it through the real importer.
+
+    Writing `EventProgrammeItem` rows directly would let the seed publish a
+    programme the canonical contract would reject, which is the one thing the
+    browser stage must not be able to do.
+    """
+    run_seed()
+
+    snapshot = EventProgrammeSnapshot.objects.get(is_current=True)
+    items = EventProgrammeItem.objects.filter(snapshot=snapshot)
+    # DASH_CONTROL must agree with DASH_EVENTS or the parser refuses the file.
+    assert snapshot.canonical_event_count == items.count()
+    assert snapshot.dated_event_count == items.exclude(start_date=None).count()
+    assert snapshot.linked_public_url_count == items.exclude(public_url="").count()
+    assert snapshot.artifact.is_external, "the seeded artifact must carry no stored file"
+
+
+def test_the_seeded_programme_covers_every_shape_the_page_has_to_render():
+    run_seed()
+
+    items = EventProgrammeItem.objects.all()
+
+    assert len({item.event_year for item in items if item.event_year}) >= 3, "several years"
+    assert len({item.event_month_key[-2:] for item in items if item.event_month_key}) >= 4
+    assert {item.event_quarter for item in items} >= {"Q1", "Q2", "Q4"}
+    assert {item.event_status for item in items} == {
+        EventStatus.PAST,
+        EventStatus.ONGOING,
+        EventStatus.UPCOMING,
+        EventStatus.DATE_UNKNOWN,
+    }
+    assert {item.delivery_mode for item in items} == {
+        DeliveryMode.ONSITE,
+        DeliveryMode.ONLINE,
+        DeliveryMode.HYBRID,
+    }
+    assert len({item.tag_key for item in items}) >= 3
+    assert len({item.event_type_key for item in items}) >= 2
+    assert items.filter(start_date=None).exists(), "an undated record"
+    assert items.filter(end_date__gt=models.F("start_date")).exists(), "a date range"
+    assert items.exclude(public_url="").exists(), "a linked event"
+    assert items.filter(public_url="").exists(), "an unlinked event"
+    assert items.filter(review_required=True).exists(), "a review-required record"
+
+
+def test_the_seeded_programme_has_a_linked_name_long_enough_to_truncate():
+    run_seed()
+
+    linked = EventProgrammeItem.objects.exclude(public_url="")
+    assert max(len(item.event_name) for item in linked) > 150
+
+
+def test_a_quarter_boundary_is_seeded_on_consecutive_days():
+    """31 March and 1 April: the two days quarter filtering most easily confuses."""
+    run_seed()
+
+    end_of_q1 = EventProgrammeItem.objects.filter(start_date__month=3, start_date__day=31).first()
+    start_of_q2 = EventProgrammeItem.objects.filter(start_date__month=4, start_date__day=1).first()
+
+    assert end_of_q1 is not None and end_of_q1.event_quarter == "Q1"
+    assert start_of_q2 is not None and start_of_q2.event_quarter == "Q2"
+    assert (start_of_q2.start_date - end_of_q1.start_date).days == 1
+
+
+def test_the_seeded_programme_urls_are_obviously_not_production():
+    run_seed()
+
+    for url in EventProgrammeItem.objects.exclude(public_url="").values_list(
+        "public_url", flat=True
+    ):
+        assert url.startswith("https://www.koda.ee/et/sundmused/"), "an allowed host"
+        assert "sunteetiline" in url, "and an unmistakably synthetic path"
+
+
+def test_the_seeded_event_programme_workbook_is_byte_identical_across_a_second_boundary(tmp_path):
+    """Idempotency depends on it, for the same reason as the legal-work export."""
+    import datetime as dt
+    import hashlib
+    import time
+
+    today = dt.date(2099, 6, 1)
+    first = seed_e2e_data._write_event_programme_workbook(tmp_path / "first.xlsx", today)
+    time.sleep(1.1)
+    second = seed_e2e_data._write_event_programme_workbook(tmp_path / "second.xlsx", today)
+
+    assert (
+        hashlib.sha256(first.read_bytes()).hexdigest()
+        == hashlib.sha256(second.read_bytes()).hexdigest()
+    )
+
+
+def test_the_seeded_event_programme_workbook_satisfies_the_real_contract(tmp_path):
+    import datetime as dt
+
+    from apps.event_programme.workbook import parse_workbook
+
+    path = seed_e2e_data._write_event_programme_workbook(
+        tmp_path / "programme.xlsx", dt.date(2099, 6, 1)
+    )
+    parsed = parse_workbook(path)
+
+    assert len(parsed.rows) > 50
+    assert parsed.dated_event_count == len(parsed.rows) - 1
+    assert parsed.linked_public_url_count == 1
+    assert parsed.review_required_count == 1
+
+
 def test_events_span_month_and_year_boundaries():
     run_seed()
 
@@ -168,24 +286,23 @@ def test_legal_work_covers_dated_and_undated_deadlines():
 def test_running_the_seed_twice_publishes_nothing_new():
     """A cron-safe seed must be re-runnable: CI may seed a database that a
     previous step already seeded."""
+
+    def counts() -> tuple[int, ...]:
+        return (
+            LegalWorkSnapshot.objects.count(),
+            EventProgrammeSnapshot.objects.count(),
+            EventSnapshot.objects.count(),
+            NewsSnapshot.objects.count(),
+            InternalMembershipObservation.objects.count(),
+            VisibilityObservation.objects.count(),
+        )
+
     run_seed()
-    counts = (
-        LegalWorkSnapshot.objects.count(),
-        EventSnapshot.objects.count(),
-        NewsSnapshot.objects.count(),
-        InternalMembershipObservation.objects.count(),
-        VisibilityObservation.objects.count(),
-    )
+    before = counts()
 
     run_seed()
 
-    assert (
-        LegalWorkSnapshot.objects.count(),
-        EventSnapshot.objects.count(),
-        NewsSnapshot.objects.count(),
-        InternalMembershipObservation.objects.count(),
-        VisibilityObservation.objects.count(),
-    ) == counts
+    assert counts() == before
 
 
 def test_the_seeded_workbook_is_byte_identical_across_a_second_boundary(tmp_path):
