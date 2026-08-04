@@ -99,6 +99,33 @@ def test_kpi_card_without_a_value_states_that_data_is_missing():
     assert "—" in html
 
 
+def test_kpi_card_renders_a_secondary_line_beside_a_value():
+    html = render("kpi_card", {"label": "Näidisnäitaja", "value": "5", "secondary": "Tugiliin"})
+
+    assert "Tugiliin" in html
+
+
+def test_kpi_card_ignores_a_secondary_line_on_a_details_only_cell():
+    """A supporting line needs a figure to support.
+
+    A details-only cell has no hero value, so `secondary` cannot be drawn. The
+    overview passed one here for two milestones and it never reached a page —
+    silently, because a string that renders nowhere looks exactly like a string
+    that renders. The contract is pinned so the next caller puts it in `details`.
+    """
+    html = render(
+        "kpi_card",
+        {
+            "label": "Näidisnäitaja",
+            "details": [{"label": "esimene", "value": 1}],
+            "secondary": "Nähtamatu tugiliin",
+        },
+    )
+
+    assert "esimene" in html
+    assert "Nähtamatu tugiliin" not in html
+
+
 def test_kpi_card_marks_a_falling_value_in_text_as_well_as_colour():
     html = render(
         "kpi_card",

@@ -352,9 +352,11 @@ def _build_kpis(
                 (events_near_term, f"sündmusi järgmise {NEAR_TERM_DAYS} päeva jooksul"),
                 (events_last_month, f"sündmusi eelmise {NEAR_TERM_DAYS} päeva jooksul"),
             ),
-            # The programme carries the whole available history, so this is the
-            # Chamber's own event record rather than "what the calendar lists".
-            secondary=(f"Programmis kokku {events.item_count}" if events.has_data else ""),
+            # No `secondary` line: `kpi_card` renders one only beside a hero
+            # value, and this cell is details-only. The predecessor here passed
+            # "Kalendris kokku {n}" and it never reached a page either. The two
+            # window counts are what this cell claims, and the programme's own
+            # total is on the Sündmused page where it can be labelled properly.
             as_of=events.observed_at,
         ),
     )

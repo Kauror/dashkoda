@@ -10,7 +10,11 @@ explicit "no verified data" state rather than to a guess):
   change            – signed change against the comparison period
   change_direction  – up | down | flat, used for the textual direction marker
   comparison_period – what the change is measured against
-  secondary         – one supporting line, e.g. the amounts behind a percentage
+  secondary         – one supporting line, e.g. the amounts behind a percentage.
+                      Rendered only beside a hero `value`: a details-only cell has
+                      no figure for it to support, so passing it there computes a
+                      string that never reaches the page. Put the extra line in
+                      `details` instead.
   details           – supporting counts, each `.label` beside its `.value`; used
                       where a module has several figures of equal weight and one
                       of them promoted to a hero number would misstate the rest
