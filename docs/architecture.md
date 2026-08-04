@@ -303,17 +303,19 @@ configuration alone never makes the page claim a connection.
 Press coverage, the newsletter itself and event history once an event has passed
 remain entirely unconnected, and no model is capable of holding those.
 
-The 07:00 schedule is **documented as a template and is not installed**.
+The 07:00 schedule is **documented here as a template**; this repository installs
+no schedule. An administrator has installed it on the pilot host. See
+[deployment-status.md](deployment-status.md).
 
 The Microsoft Graph collection route was retired without ever completing live
 acceptance; the public sharing link is the one recurring legal-work route.
 
 The public sharing-link collector has been verified against the live link for
 download, URL handling, XLSX validation and temporary-file cleanup, across more
-than one published revision of the workbook. The end-to-end import has **not**
-completed live: it needs a PostgreSQL instance and a workbook published with its
-`tbl_oigusloome` Excel Table intact. See
-[legal-work-feed.md](legal-work-feed.md).
+than one published revision of the workbook. The end-to-end import **has since
+completed live** on the pilot deployment, once the two things it needed were in
+place: a PostgreSQL instance and a workbook published with its `tbl_oigusloome`
+Excel Table intact. See [legal-work-feed.md](legal-work-feed.md).
 
 An application deployment exists at `dash.orgusaar.ee`, but the operations
 milestone it belongs to is not complete. See
