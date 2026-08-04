@@ -68,19 +68,15 @@ route**:
   own environment file and treated as a credential;
 - a host schedule on `Europe/Tallinn`, created by an administrator.
 
-That is the whole list. **No Entra application, Graph credential, rclone, Power
-Automate, webhook or upload endpoint is required**, and no new volume is needed
-because this route keeps no permanent copy of the workbook.
+That is the whole list. **No Entra application, Microsoft credential, rclone,
+Power Automate, webhook or upload endpoint is required**, and no new volume is
+needed because this route keeps no permanent copy of the workbook.
 
-The Microsoft Graph route remains available and still needs its five variables,
-an Entra application with the read-only `Files.Read.All` application permission
-and tenant admin consent — but it is optional.
+The Microsoft Graph route was retired, so its five variables, its Entra
+application and its tenant admin consent are no longer needed by anything.
 
-**Neither route has completed live acceptance, and neither schedule is
-installed.**
+**The schedule is not installed.**
 
-- Graph: no credentials existed during development, so that collector is
-  verified against mocked transports only.
 - Public link: the download, URL handling, XLSX validation and temporary-file
   cleanup **have** been verified against the live link, across more than one
   published revision of the workbook. The end-to-end import has not completed. It

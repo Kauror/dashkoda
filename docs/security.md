@@ -112,9 +112,8 @@ reference, which also keeps ZIP out of the upload allowlist above.
 
 ## External data collection
 
-The legal-work feed reads one OneDrive workbook. Two routes exist — a public
-read-only sharing link and Microsoft Graph — and both widen the boundary as
-little as possible:
+The legal-work feed reads one OneDrive workbook through one recurring route, a
+public read-only sharing link, which widens the boundary as little as possible:
 
 - collection is **read-only** and **outbound only**. It happens solely in a
   scheduled command. There is **no webhook, no public ingestion endpoint, no
@@ -189,14 +188,14 @@ Article and event summaries are stored as sanitized plain text with scripts,
 styles and all markup removed and a length cap. No article or event-page HTML is
 retained.
 
-### Microsoft Graph
+### The retired Microsoft Graph route
 
-Optional, and not required for the MVP route. The application holds the
-`Files.Read.All` application permission and never requests write access.
-Downloads follow Graph's redirect to a pre-authenticated URL, and the bearer
-token is deliberately not forwarded to that host; that signed URL is never
-logged or stored. This route retains the workbook as an ordinary private
-artifact under the storage rules above.
+DashKoda no longer holds any Microsoft Entra application, client secret or
+`Files.Read.All` permission. The Graph collection route was retired without
+completing live acceptance, and with it went the `msal` dependency and its
+transitive `cryptography`, `cffi`, `pyjwt` and `pycparser` packages — so the
+runtime image no longer carries a credential-handling stack for a path nobody
+used.
 
 `dash.orgusaar.ee` now serves real internal Chamber information rather than
 empty states. Cloudflare Access in front of the tunnel remains the recommended

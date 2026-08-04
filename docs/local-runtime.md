@@ -161,15 +161,13 @@ bytes reports `unchanged` rather than duplicating anything. This route stores no
 workbook file: it downloads into a temporary directory that is removed in every
 outcome, and the artifact carries only the checksum, size and MIME type.
 
-`sync_oigusloome` is the optional Graph route and additionally needs the five
-Microsoft Graph variables. Neither command is required for local UI work — the
-application starts and every page renders with none of these variables set. See
+Neither command is required for local UI work — the application starts and every
+page renders with no legal-work variable set. See
 [legal-work-feed.md](legal-work-feed.md).
 
 Never copy a real workbook into the repository, and never commit the sharing URL.
 The file lives outside the working tree; a private artifact produced by the
-manual import or the Graph route is stored under `SOURCE_ARTIFACT_ROOT` like
-every other original.
+manual import is stored under `SOURCE_ARTIFACT_ROOT` like every other original.
 
 ## Public Koda.ee feeds
 

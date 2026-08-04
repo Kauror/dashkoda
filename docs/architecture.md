@@ -141,8 +141,8 @@ rule.
 ## Data collection boundary
 
 Collecting data from an external system is a scheduled command, never part of a
-web request. A page render reads PostgreSQL and nothing else: it does not call
-Microsoft Graph, download or parse a workbook, or wait on OneDrive. A slow or
+web request. A page render reads PostgreSQL and nothing else: it does not
+contact Microsoft, download or parse a workbook, or wait on OneDrive. A slow or
 broken external system can therefore delay tomorrow's data, but it can never
 make the dashboard slow, broken or untruthful.
 
@@ -156,20 +156,24 @@ the last good data. See [legal-work-feed.md](legal-work-feed.md).
 
 ### Two collection routes, one publication path
 
-The legal-work workbook can arrive two ways, and only the transport differs:
+The legal-work workbook arrives one recurring way:
 
-- **public read-only sharing link** (`sync_oigusloome_public`) — the MVP route.
-  One outbound HTTPS download of a view-only OneDrive link into a temporary
-  directory. No Entra application and no Graph credential. The workbook is never
+- **public read-only sharing link** (`sync_oigusloome_public`) — one outbound
+  HTTPS download of a view-only OneDrive link into a temporary directory. No
+  Entra application and no Microsoft credential. The workbook is never
   retained: the artifact is **metadata-only**, carrying the server-computed
   checksum, size, MIME type and a fixed non-secret provenance label instead of a
   stored file.
-- **Microsoft Graph** (`sync_oigusloome`) — available and still tested, but not
-  required. It retains the workbook as an ordinary private artifact.
 
-Both then use the same parser, the same import registry, the same all-or-nothing
-snapshot publication and the same feed state. An artifact is importable when it
-has a trusted SHA-256 content identity, not when it still has a file on disk.
+An operator can additionally import a workbook from a local path with
+`import_oigusloome`, which is not scheduled. A Microsoft Graph route existed and
+was retired without ever completing live acceptance; see
+[legal-work-feed.md](legal-work-feed.md).
+
+Both entry points then use the same parser, the same import registry, the same
+all-or-nothing snapshot publication and the same feed state. An artifact is
+importable when it has a trusted SHA-256 content identity, not when it still has
+a file on disk.
 
 ### Public Koda.ee feeds
 
@@ -248,12 +252,10 @@ and the internal board-report history count different things; see
   `LegalWorkFeedState` record of the last synchronisation attempt
 - deterministic `legal_work_xlsx` importer with an all-or-nothing snapshot
   publication and a documented workbook contract
-- read-only Microsoft Graph collector for exactly one OneDrive workbook
 - public read-only sharing-link collector with HTTPS-only redirects, a streamed
   size cap and structural XLSX validation
 - metadata-only source artifacts, so a collected workbook need not be retained
-- `import_oigusloome`, `sync_oigusloome`, `sync_oigusloome_public` and
-  `resolve_oigusloome_share` commands
+- `sync_oigusloome_public` and `import_oigusloome` commands
 - the Õigusloome page and the overview's legal-work summary
 - `membership`, `news` and `events` apps reading three public Koda.ee sources,
   with the `sync_koda_public` command and the Liikmeskond, Uudised and Sündmused
@@ -293,9 +295,8 @@ remain entirely unconnected, and no model is capable of holding those.
 
 The 07:00 schedule is **documented as a template and is not installed**.
 
-Live Microsoft Graph acceptance has **not** been performed: no credentials
-existed during development, so that collector is covered by mocked transports
-only.
+The Microsoft Graph collection route was retired without ever completing live
+acceptance; the public sharing link is the one recurring legal-work route.
 
 The public sharing-link collector has been verified against the live link for
 download, URL handling, XLSX validation and temporary-file cleanup, across more

@@ -116,20 +116,27 @@ It registers the file through the ordinary source service, reuses an existing
 artifact when the checksum matches, and then runs **the same importer** the
 scheduled sync uses. A dry run validates everything and publishes nothing.
 
-## Two collection routes
+## One recurring collection route
 
 | Route | Command | Needs | Status |
 | --- | --- | --- | --- |
-| public sharing link | `sync_oigusloome_public` | `OIGUSLOOME_PUBLIC_URL` | the MVP route |
-| Microsoft Graph | `sync_oigusloome` | five Graph variables and an Entra application | available, not required |
+| public sharing link | `sync_oigusloome_public` | `OIGUSLOOME_PUBLIC_URL` | the supported recurring route |
+| manual file import | `import_oigusloome` | a local workbook path | operator-run, not scheduled |
 
-Both publish through the same importer, the same import registry and the same
-immutable snapshot. They differ only in how the bytes arrive and in what is kept
-afterwards.
+A Microsoft Graph route also existed. It was **retired** because it never
+completed live acceptance, was not required by the production architecture and
+had already drifted behind the public route once. Its client, its
+`sync_oigusloome` and `resolve_oigusloome_share` commands, its five environment
+variables, its ops script and the `msal` dependency are all gone, and
+`tests/legal_work/test_graph_retired.py` keeps them gone.
 
-Neither is installed as a schedule by this repository.
+Both surviving entry points publish through the same importer, the same import
+registry and the same immutable snapshot. They differ only in how the bytes
+arrive and in what is kept afterwards.
 
-## MVP route: the public read-only sharing link
+The recurring route is not installed as a schedule by this repository.
+
+## The public read-only sharing link
 
 ```text
 public read-only OneDrive link
@@ -165,7 +172,8 @@ reach shell history or a process listing either.
 
 ### What one run does
 
-1. takes the same PostgreSQL advisory lock the Graph route takes;
+1. takes the feed's PostgreSQL advisory lock, so overlapping runs cannot both
+   import;
 2. ensures the `oigusloome-onedrive` data source exists and records
    `last_checked_at`;
 3. adds or replaces `download=1` on the configured URL — without it Microsoft
@@ -272,110 +280,38 @@ fields lie.
   these artifacts by construction; the checksum is the record of what was
   imported.
 
-## Microsoft Graph configuration
+## The retired Microsoft Graph route
 
-Optional. Not required for the MVP route above.
+DashKoda used to carry a second, app-only Microsoft Graph collection route:
+`sync_oigusloome`, a one-off `resolve_oigusloome_share` identifier resolver, an
+Entra application with `Files.Read.All`, five environment variables and the
+`msal` dependency.
 
-Read-only, app-only, one workbook. Environment variables:
+It is **retired and removed**, because:
 
-```text
-MS_GRAPH_TENANT_ID
-MS_GRAPH_CLIENT_ID
-MS_GRAPH_CLIENT_SECRET
-OIGUSLOOME_DRIVE_ID
-OIGUSLOOME_ITEM_ID
-```
+- it never completed live acceptance — no Graph credential ever existed for
+  this project, so the path was never exercised against the real API;
+- the production architecture does not need it: the public sharing link is the
+  accepted route and has completed live acceptance;
+- it had already drifted behind the public route once. The dry-run
+  artifact-reuse defect fixed in PR #18 existed only in the Graph flow, because
+  a correction made to the public route was never carried across;
+- it was the most security-sensitive and least-exercised code in the
+  repository: a tenant-wide read credential, app-only token acquisition and a
+  signed-URL download, all unverified.
 
-The web application starts fine without them, so local development and CI need
-no credentials. Only `sync_oigusloome` and `resolve_oigusloome_share` require
-them, and they fail with an explicit list of what is missing.
+Nothing about the retirement changes what the dashboard shows or how the
+surviving route publishes. If a Graph route is ever wanted again it should be
+designed against the current shared downloader rather than restored from
+history, and it must complete live acceptance before being documented as
+supported.
 
-### Tenant setup checklist for the administrator
-
-The code cannot create the Entra application or grant tenant permissions.
-
-1. Register an application in Microsoft Entra ID (single tenant is sufficient).
-2. Use **app-only** (client credentials) authentication. No delegated sign-in
-   and no interactive login exists in the scheduled command.
-3. Grant the **application** permission **`Files.Read.All`** on Microsoft Graph.
-   That is the least-privileged permission Microsoft documents for downloading
-   drive-item content, and it is all the sync needs. Do not grant write access.
-4. Grant tenant admin consent for that permission.
-5. Create a client secret (or a certificate) and store it only in the
-   deployment's environment, never in Git.
-6. Resolve the stable drive and item IDs (below) and set the two
-   `OIGUSLOOME_*` variables.
-
-If the organization can scope access more tightly than tenant-wide
-`Files.Read.All` — for example with `Sites.Selected` on a specific SharePoint
-site — prefer that, and treat `Files.Read.All` as the pilot fallback.
-
-### Resolving the stable identifiers
-
-A sharing URL is not a runtime identifier: it can be revoked or regenerated.
-Resolve it once, store the IDs, and never put the URL in configuration.
-
-Preferred, works with `Files.Read.All`:
-
-```powershell
-docker compose exec -T web python manage.py resolve_oigusloome_share --user <upn> --path "Documents/dashkoda_oigusloome.xlsx"
-```
-
-Fallback, when the path is unknown:
-
-```powershell
-docker compose exec -T web python manage.py resolve_oigusloome_share --url "<sharing URL>"
-```
-
-Microsoft's `/shares/` endpoint requires the broader `Files.ReadWrite.All`
-application permission, so use the fallback only for this one-off lookup and do
-not leave that permission granted. The command prints the file name, drive ID,
-item ID and size — never a token, an authorization header, a client secret or a
-signed download URL.
-
-## Graph synchronization
-
-```powershell
-docker compose exec -T web python manage.py sync_oigusloome --json
-docker compose exec -T web python manage.py sync_oigusloome --dry-run
-docker compose exec -T web python manage.py sync_oigusloome --force
-```
-
-One run:
-
-1. takes a PostgreSQL advisory lock, so overlapping runs cannot both import;
-2. ensures the `oigusloome-onedrive` data source exists;
-3. records `last_checked_at`;
-4. reads the item's metadata from Graph;
-5. skips the download when the remote etag says nothing changed;
-6. otherwise downloads, size-capped while streaming, to a temporary directory;
-7. computes SHA-256 locally and reuses the artifact when the content matches;
-8. registers a new immutable artifact and runs the importer;
-9. publishes the snapshot and updates the feed state.
-
-Results: `imported`, `unchanged`, `failed`, `locked`.
-
-Exit codes: `0` imported or unchanged, `1` failed, `3` another run in progress.
-
-`--force` re-downloads and re-imports even when the remote looks unchanged. Note
-that re-importing byte-identical content is refused by the import registry,
-because only one successful live import may exist per import key; that is the
-idempotency guarantee working, and the current snapshot survives untouched.
-
-### Failure behaviour
+## Failure behaviour
 
 On any failure the previous snapshot stays current, the feed state records
 `failed` with a sanitized and truncated message, no temporary file remains, and
 the import run is closed as failed. The dashboard keeps showing the last good
 data together with an explicit "last check failed" note.
-
-### Network behaviour
-
-Every request has an explicit timeout. Throttling (`429`) and transient `5xx`
-responses are retried a bounded number of times, honouring `Retry-After` as
-Microsoft's throttling guidance requires, with exponential backoff otherwise.
-Downloads follow Graph's `302` to a pre-authenticated URL, and the bearer token
-is deliberately **not** forwarded to that host.
 
 ## Data freshness in the interface
 
@@ -397,14 +333,12 @@ through the feed-state and import-run admin.
 DashKoda contains no scheduler: no Celery, no Redis, no APScheduler and no
 polling thread. Scheduling belongs to the host.
 
-Templates are provided for both routes; the MVP deployment needs only the first:
+One template is provided, for the one recurring route:
 
 - [`ops/unraid/sync_oigusloome_public.sh.example`](../ops/unraid/sync_oigusloome_public.sh.example)
   — the public sharing link
-- [`ops/unraid/sync_oigusloome.sh.example`](../ops/unraid/sync_oigusloome.sh.example)
-  — Microsoft Graph
 
-Copy one, replace `<DASHKODA_DEPLOYMENT_DIRECTORY>`, make it executable, run it
+Copy it, replace `<DASHKODA_DEPLOYMENT_DIRECTORY>`, make it executable, run it
 by hand once, and only then schedule:
 
 ```text
@@ -450,13 +384,12 @@ topic name and never a URL.
   snapshot, reporting unchanged on a repeat run — need a PostgreSQL instance and
   a workbook published with its Excel Table intact; see the publishing rule
   above.
-- Live Graph acceptance has not been performed either: no credentials existed
-  during development, so that collector is covered by mocked transports only.
 - The importer requires the `tbl_oigusloome` Excel Table. A workbook generated
   without it is rejected.
 - Only the current snapshot is read. There is no history view and no trend.
-- The Graph route's `--force` cannot re-publish byte-identical content. The
-  public route needs no `--force` at all.
+- Byte-identical content cannot be re-published: the import registry allows one
+  successful live import per import key. The public route needs no `--force`
+  and offers none.
 - No chart is rendered: a list communicates these values more honestly.
 
 ### Publishing the workbook without breaking it
@@ -517,7 +450,5 @@ target.save(update_fields=["is_current"])
 | `Jagamislink ei ole kättesaadav (404)` | the sharing link was revoked or regenerated |
 | `Jagamislink keeldus ligipääsust (403)` | anonymous access to the link was withdrawn |
 | `Allalaaditud ZIP-pakend ei ole XLSX töövihik` | the response was a valid archive but not a workbook |
-| `Microsoft Graphi seadistus on puudulik` | one of the five environment variables is unset |
-| `Microsoft Graph keeldus ligipääsust (403)` | `Files.Read.All` is missing or not admin-consented |
 | exit code `3` | another synchronization was still running |
 | `importrun_unique_successful_live_import` | this exact content already imported successfully |

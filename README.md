@@ -44,10 +44,11 @@ public read-only OneDrive link
 ```
 
 It needs one environment variable, `OIGUSLOOME_PUBLIC_URL`, and **no Microsoft
-Entra application or Graph credential**. No permanent copy of the workbook is
-kept: the file exists only inside a temporary directory for the duration of one
-command, and the artifact records its checksum and size. A Microsoft Graph route
-also exists and still works, but it is not required.
+Entra application or credential**. No permanent copy of the workbook is kept:
+the file exists only inside a temporary directory for the duration of one
+command, and the artifact records its checksum and size. This is the one
+recurring route; a Microsoft Graph route existed and was retired without ever
+completing live acceptance.
 
 Data collection is a scheduled command, never part of a web request. Pages read
 PostgreSQL only. A failed synchronization never replaces the last good data; it
