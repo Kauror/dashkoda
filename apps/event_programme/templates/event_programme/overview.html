@@ -1,0 +1,306 @@
+{% extends "dashboard/shell.html" %}
+
+{% comment %}
+Sündmused page.
+
+The Chamber's own event programme, from the canonical Excel export: the whole
+available history in one current snapshot, filtered server-side. Every figure and
+every row comes from that snapshot.
+
+Three rules this template keeps:
+
+- an event with no `public_url` renders its name as plain text. No dead anchor,
+  no fabricated address, and the row is never hidden;
+- an event with no start date says "Kuupäev teadmata". `source_year` is the
+  annual sheet the row sat on, not a date, and is never shown as one;
+- filtering is a plain GET form with real `<select>` controls, so the page works
+  with JavaScript unavailable. Pagination links are ordinary anchors carrying the
+  active filters.
+
+Internal row numbers and warning-code arrays stay out of the table; they are
+inspected in the read-only admin.
+{% endcomment %}
+
+{% block title %}Sündmused – DashKoda{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+
+  <header class="flex flex-col gap-4">
+    <div class="flex flex-col gap-1">
+      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Sündmused</h1>
+      <p class="text-sm text-text-secondary">Koja sündmuste programm ja ajalugu</p>
+    </div>
+    <div class="rounded-lg border border-border bg-surface px-4 py-3">
+      {% include "dashboard/components/feed_state.html" with summary=summary observed_label="Eksport seisuga" only %}
+    </div>
+  </header>
+
+  {% if page.has_data %}
+
+    <section aria-labelledby="section-figures" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Töövihiku sündmuste programmi kokkuvõte." only %}
+      <div class="dk-kpi-strip">
+        {% for figure in page.figures %}
+          {% include "dashboard/components/kpi_card.html" with label=figure.label value=figure.value comparison_period=figure.note as_of=summary.observed_at|date:"d.m.Y" flush=True only %}
+        {% endfor %}
+      </div>
+    </section>
+
+    <section aria-labelledby="section-filters" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Filtrid" heading_id="section-filters" description="Filtreeritakse sündmuse enda kuupäeva järgi, mitte lähtelehe aasta järgi." only %}
+      <div class="dk-section-body flex flex-col gap-4">
+
+        <form method="get" class="flex flex-col gap-4">
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-q" class="dk-meta">Otsi nimest või koodist</label>
+              <input id="filter-q" type="search" name="q" value="{{ page.filters.q }}" class="dk-input" autocomplete="off">
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-year" class="dk-meta">Aasta</label>
+              <select id="filter-year" name="year" class="dk-input">
+                <option value="{{ page.all_years_value }}"{% if page.all_years_selected %} selected{% endif %}>{{ page.all_years_label }}</option>
+                {% for year in page.options.years %}
+                  <option value="{{ year }}"{% if year == page.filters.year %} selected{% endif %}>{{ year }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-month" class="dk-meta">Kuu</label>
+              <select id="filter-month" name="month" class="dk-input">
+                <option value="">Kõik kuud</option>
+                {% for option in page.options.months %}
+                  <option value="{{ option.value }}"{% if option.value == page.filters.month %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-quarter" class="dk-meta">Kvartal</label>
+              <select id="filter-quarter" name="quarter" class="dk-input">
+                <option value="">Kõik kvartalid</option>
+                {% for option in page.options.quarters %}
+                  <option value="{{ option.value }}"{% if option.value == page.filters.quarter %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-tag" class="dk-meta">Silt</label>
+              <select id="filter-tag" name="tag" class="dk-input">
+                <option value="">Kõik sildid</option>
+                {% for option in page.options.tags %}
+                  <option value="{{ option.value }}"{% if option.value == page.filters.tag %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-type" class="dk-meta">Tüüp</label>
+              <select id="filter-type" name="event_type" class="dk-input">
+                <option value="">Kõik tüübid</option>
+                {% for option in page.options.event_types %}
+                  <option value="{{ option.value }}"{% if option.value == page.filters.event_type %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-delivery" class="dk-meta">Toimumisviis</label>
+              <select id="filter-delivery" name="delivery_mode" class="dk-input">
+                <option value="">Kõik viisid</option>
+                {% for option in page.options.delivery_modes %}
+                  <option value="{{ option.value }}"{% if option.value == page.filters.delivery_mode %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-status" class="dk-meta">Seisund</label>
+              <select id="filter-status" name="status" class="dk-input">
+                <option value="">Kõik seisundid</option>
+                {% for option in page.options.statuses %}
+                  <option value="{{ option.value }}"{% if option.value == page.filters.status %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-link" class="dk-meta">Avalik leht</label>
+              <select id="filter-link" name="public_link" class="dk-input">
+                {% for option in page.public_link_options %}
+                  <option value="{{ option.value }}"{% if option.value == page.filters.public_link %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+            <div class="flex min-w-0 flex-col gap-1">
+              <label for="filter-review" class="dk-meta">Andmekvaliteet</label>
+              <select id="filter-review" name="review" class="dk-input">
+                {% for option in page.review_options %}
+                  <option value="{{ option.value }}"{% if option.value == page.filters.review %} selected{% endif %}>{{ option.label }}</option>
+                {% endfor %}
+              </select>
+            </div>
+
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3">
+            <button type="submit" class="dk-button dk-button-primary">Filtreeri</button>
+            <a href="{{ page.clear_url }}" class="dk-button dk-button-secondary">Eemalda filtrid</a>
+            <p class="dk-meta">Valitud periood: {{ page.period_label }}</p>
+          </div>
+        </form>
+
+        {% if page.quality %}
+          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3">
+            {% comment %}
+            Records the default period cannot show. An undated event carries no
+            year, so saying how many there are — and linking across every year —
+            keeps the default from quietly shrinking the programme.
+            {% endcomment %}
+            {% for link in page.quality %}
+              <a href="{{ link.url }}" class="dk-link text-sm tabular-nums">{{ link.label }}: {{ link.value }}</a>
+            {% endfor %}
+          </div>
+        {% endif %}
+
+      </div>
+    </section>
+
+    <section aria-labelledby="section-programme" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Sündmuste programm" heading_id="section-programme" description="Uuemad kuupäevad ees; kuupäevata kirjed lõpus." only %}
+
+      <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2 sm:px-5">
+        <p class="text-sm text-text-secondary tabular-nums">Vastavaid sündmusi: <span class="font-semibold text-text">{{ page.result_count }}</span></p>
+        {% if page.pagination.has_pages %}
+          <p class="dk-meta tabular-nums">Kuvatud {{ page.pagination.first_index }}–{{ page.pagination.last_index }}</p>
+        {% endif %}
+      </div>
+
+      {% if page.items %}
+        <div class="w-full overflow-x-auto">
+          <table class="w-full min-w-max border-collapse text-sm">
+            <caption class="sr-only">Koja sündmuste programm valitud filtritega</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kuupäev</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sündmus</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Silt</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tüüp</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Toimumisviis</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Seisund</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teenuse kood</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in page.items %}
+                <tr>
+                  <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
+                    {% if item.start_date %}
+                      <time datetime="{{ item.start_date|date:'Y-m-d' }}">{{ item.start_date|date:"d.m.Y" }}</time>
+                      {% if item.end_date and item.end_date != item.start_date %}
+                        – <time datetime="{{ item.end_date|date:'Y-m-d' }}">{{ item.end_date|date:"d.m.Y" }}</time>
+                      {% endif %}
+                    {% else %}
+                      <span class="text-text-muted">Kuupäev teadmata</span>
+                    {% endif %}
+                  </td>
+                  <td class="max-w-md border-b border-border px-4 py-2 text-text">
+                    {% if item.public_url %}
+                      {% comment %}
+                      `relative` is load-bearing. The visually hidden destination
+                      note is absolutely positioned, and an absolutely positioned
+                      box is only contained by an ancestor that is its containing
+                      block — without a positioned anchor it settles at the
+                      untruncated text width and widens the page.
+                      {% endcomment %}
+                      <a class="dk-link relative" href="{{ item.public_url }}" rel="noopener noreferrer">
+                        {{ item.event_name }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
+                      </a>
+                    {% else %}
+                      {{ item.event_name }}
+                    {% endif %}
+                  </td>
+                  <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.tag_label|default:"—" }}</td>
+                  <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.event_type_label|default:"—" }}</td>
+                  <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">{{ item.get_delivery_mode_display|default:"—" }}</td>
+                  <td class="border-b border-border px-4 py-2">
+                    <span class="flex flex-wrap items-center gap-1.5">
+                      {% include "dashboard/components/status_badge.html" with label=item.get_event_status_display variant="neutral" only %}
+                      {% if item.review_required %}
+                        {% include "dashboard/components/status_badge.html" with label="Ülevaatamisel" variant="warning" only %}
+                      {% endif %}
+                    </span>
+                  </td>
+                  <td class="border-b border-border px-4 py-2 whitespace-nowrap tabular-nums text-text-secondary">{{ item.service_code }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if page.pagination.has_pages %}
+          <nav aria-label="Sündmuste lehekülgede navigeerimine" class="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 sm:px-5">
+            {% if page.pagination.previous_url %}
+              <a href="{{ page.pagination.previous_url }}" class="dk-button dk-button-secondary" rel="prev">Eelmine</a>
+            {% endif %}
+            {% for link in page.pagination.links %}
+              {% if link.is_current %}
+                <span class="dk-badge dk-badge-brand tabular-nums" aria-current="page">{{ link.number }}</span>
+              {% else %}
+                <a href="{{ link.url }}" class="dk-link text-sm tabular-nums">{{ link.number }}<span class="sr-only"> lehekülg</span></a>
+              {% endif %}
+            {% endfor %}
+            {% if page.pagination.next_url %}
+              <a href="{{ page.pagination.next_url }}" class="dk-button dk-button-secondary" rel="next">Järgmine</a>
+            {% endif %}
+            <p class="dk-meta tabular-nums">Lehekülg {{ page.pagination.number }} / {{ page.pagination.count }}</p>
+          </nav>
+        {% endif %}
+
+      {% else %}
+        <div class="dk-section-body">
+          {% include "dashboard/components/empty_state.html" with message="Valitud filtritele ei vasta ükski sündmus." detail="Muuda filtreid või eemalda need." only %}
+        </div>
+      {% endif %}
+    </section>
+
+  {% else %}
+
+    <section aria-labelledby="section-programme" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Sündmuste programm" heading_id="section-programme" description="Koja teenusekoodide töövihikust ette valmistatud eksport." only %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Sündmuste programm ilmub siia pärast esimest edukat importi." only %}
+      </div>
+    </section>
+
+  {% endif %}
+
+  <section aria-labelledby="section-public-calendar" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Koda.ee avalik kalender" heading_id="section-public-calendar" description="Eraldi allikas, mis ei muuda ega täienda ülal olevat programmi." only %}
+    <div class="dk-section-body flex flex-col gap-2">
+      <p class="text-sm text-text-secondary">
+        Koja avalikku kalendrit kogutakse eraldi andmeallikana. See kajastab avalikult
+        välja kuulutatud eelseisvaid sündmusi, loeb teistsugust hulka kui töövihiku
+        programm ja seda ei liideta programmi ridadega.
+      </p>
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        {% include "dashboard/components/status_badge.html" with label=public_calendar.state_label variant=public_calendar.state_variant only %}
+        {% if public_upcoming_count is not None %}
+          <p class="text-sm text-text-secondary tabular-nums">
+            Avalikus kalendris eelseisvaid sündmusi lähikuul: <span class="font-semibold text-text">{{ public_upcoming_count }}</span>
+          </p>
+        {% else %}
+          <p class="text-sm text-text-secondary">Avalikku kalendrit ei ole veel edukalt kogutud.</p>
+        {% endif %}
+      </div>
+    </div>
+  </section>
+
+</div>
+{% endblock %}

@@ -9,7 +9,11 @@ urlpatterns = [
     path("", include("apps.legal_work.urls")),
     path("", include("apps.membership.urls")),
     path("", include("apps.news.urls")),
-    path("", include("apps.events.urls")),
+    # `/sundmused/` is the event programme's page. `apps.events` keeps
+    # collecting the public calendar and holds no route of its own: one Sündmused
+    # address, one primary source, and the public feed named on that page as a
+    # secondary connection.
+    path("", include("apps.event_programme.urls")),
     path("sisene/", login_view, name="viewer-login"),
     path("logi-valja/", logout_view, name="viewer-logout"),
     path("robots.txt", robots, name="robots"),
