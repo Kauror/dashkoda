@@ -38,6 +38,26 @@ EXPORT_REFRESHED_AT = "2099-01-02T06:30:00+02:00"
 
 DEFAULT_START = dt.datetime(2099, 3, 4)
 
+# Distinguishes "the caller did not mention an end date" from "the caller asked
+# for no end date". The first means a single-day event, the second an undated one.
+SAME_DAY = object()
+
+# Estonian month names, as the Chamber's generator writes `event_month_label`.
+MONTH_LABELS = (
+    "jaanuar",
+    "veebruar",
+    "märts",
+    "aprill",
+    "mai",
+    "juuni",
+    "juuli",
+    "august",
+    "september",
+    "oktoober",
+    "november",
+    "detsember",
+)
+
 # Passenger sheets: required to be present, never read as data. One column each
 # is enough to carry a valid Excel Table.
 PASSENGER_SHEETS = {
@@ -54,7 +74,7 @@ def synthetic_row(
     service_code: str,
     event_name: str = "Sünteetiline sündmus",
     start_date: dt.datetime | None = DEFAULT_START,
-    end_date: dt.datetime | None = DEFAULT_START,
+    end_date=SAME_DAY,
     event_status: str = "past",
     tag_key: str = "seminar",
     tag_label: str = "Seminar",
@@ -76,9 +96,11 @@ def synthetic_row(
 
     The calendar fields derive from `start_date` exactly as the generator
     derives them, so an undated row leaves all four empty rather than carrying
-    a year with no date.
+    a year with no date, and a March event really does carry March and Q1.
     """
     dated = start_date is not None
+    if end_date is SAME_DAY:
+        end_date = start_date
     return {
         "event_id": event_id,
         "service_code": service_code,
@@ -90,8 +112,8 @@ def synthetic_row(
         "event_year": start_date.year if dated else None,
         "event_month": start_date.month if dated else None,
         "event_month_key": f"{start_date:%Y-%m}" if dated else None,
-        "event_month_label": "märts" if dated else None,
-        "event_quarter": "Q1" if dated else None,
+        "event_month_label": MONTH_LABELS[start_date.month - 1] if dated else None,
+        "event_quarter": f"Q{(start_date.month - 1) // 3 + 1}" if dated else None,
         "event_status": event_status,
         "short_name_raw": "SÜN",
         "short_name_normalized": "syn",

@@ -31,7 +31,11 @@ _MODULES = (
     ("legal_work", "get_legal_work_summary", ("apps.legal_work.views", "apps.dashboard.views")),
     ("membership", "get_membership_summary", ("apps.membership.views", "apps.dashboard.views")),
     ("news", "get_news_summary", ("apps.news.views", "apps.dashboard.views")),
-    ("events", "get_event_summary", ("apps.events.views", "apps.dashboard.views")),
+    (
+        "event_programme",
+        "get_event_programme_summary",
+        ("apps.event_programme.views", "apps.dashboard.views"),
+    ),
 )
 
 ALL_MODULES = {name for name, _attribute, _bindings in _MODULES}
@@ -41,7 +45,9 @@ ALL_MODULES = {name for name, _attribute, _bindings in _MODULES}
 # feed summary, so it has nothing to reuse.
 PAGES_WITH_OWN_SUMMARY = [
     ("legal-work", "legal_work"),
-    ("events", "events"),
+    # `/sundmused/` is the event programme's page; the route name did not change
+    # when its source did.
+    ("events", "event_programme"),
     ("news", "news"),
     ("membership", "membership"),
 ]
