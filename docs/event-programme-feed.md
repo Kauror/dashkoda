@@ -160,9 +160,10 @@ A failure is never destructive. Whatever goes wrong, the previously published
 snapshot stays current and the dashboard keeps showing the last good data with
 an honest "last check failed" note.
 
-> `apps/event_programme/public_download.py` is a deliberate copy of
-> `apps/legal_work/public_download.py`, differing only in the settings key,
-> logger name, user agent and the variable named in the not-configured error. It
-> was copied so that adding this feed could not change a production one. **A
-> change to either is owed to the other**; prefer extracting the pair into
-> `apps/sources/` over letting them diverge.
+> `apps/event_programme/public_download.py` and
+> `apps/legal_work/public_download.py` are thin wrappers over one shared
+> hardened implementation in `apps/sources/public_download.py`. Each wrapper
+> names only its own settings key, size cap, user agent and log prefix; the
+> transport and validation logic exists once, so a security fix there reaches
+> both feeds. `tests/sources/test_public_download.py` runs every behaviour
+> against both wrappers and asserts the delegation itself.
