@@ -252,12 +252,12 @@ None of them reached this file.
         <ul class="flex-1 divide-y divide-border">
           {% for item in page.upcoming_events %}
             <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-              {% if item.starts_at %}
-                <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.starts_at|date:'c' }}">{{ item.starts_at|date:"d.m.Y H:i" }}</time>
-              {% else %}
-                <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.starts_on|date:'Y-m-d' }}">{{ item.starts_on|date:"d.m.Y" }}</time>
-              {% endif %}
+              <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.start_date|date:'Y-m-d' }}">{{ item.start_date|date:"d.m.Y" }}</time>
               {% comment %}
+              The title is a link only when the workbook supplied a validated
+              public page for this event, and plain text otherwise. Nothing here
+              guesses an address from a title, a date or a service code.
+
               `relative` is load-bearing, not decoration. The visually-hidden
               destination note below is `position: absolute`, and an absolutely
               positioned box is only clipped by an ancestor's `overflow: hidden`
@@ -266,11 +266,15 @@ None of them reached this file.
               title width, and drags the whole page's scroll area sideways —
               which is invisible until a real title is long enough to truncate.
               {% endcomment %}
-              <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
-                {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
-              </a>
-              {% if item.category %}
-                {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
+              {% if item.public_url %}
+                <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.public_url }}" rel="noopener noreferrer">
+                  {{ item.event_name }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
+                </a>
+              {% else %}
+                <span class="min-w-0 flex-1 truncate text-sm text-text">{{ item.event_name }}</span>
+              {% endif %}
+              {% if item.tag_label %}
+                {% include "dashboard/components/status_badge.html" with label=item.tag_label variant="info" only %}
               {% endif %}
             </li>
           {% endfor %}
@@ -280,7 +284,7 @@ None of them reached this file.
         </div>
       {% else %}
         <div class="dk-section-body">
-          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelseisvad sündmused ilmuvad siia pärast esimest edukat kontrolli." only %}
+          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelseisvad sündmused ilmuvad siia pärast sündmuste programmi esimest edukat importi." only %}
         </div>
       {% endif %}
     </section>
