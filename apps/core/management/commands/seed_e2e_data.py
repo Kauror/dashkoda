@@ -28,6 +28,7 @@ from __future__ import annotations
 import datetime as dt
 import hashlib
 import os
+import re
 from decimal import Decimal
 from pathlib import Path
 
@@ -190,16 +191,31 @@ def _legal_work_rows(today: dt.date) -> list[list]:
     return rows
 
 
-# An XLSX is a ZIP, and openpyxl stamps every member with the current time, so
-# two identical workbooks saved a second apart have different bytes. The
-# synchronisation deduplicates on the checksum of those bytes, so without a
-# fixed timestamp the seed would publish a fresh snapshot on every run. The
-# value is far in the future and obviously synthetic.
+# An XLSX carries the current time in two independent places, and both have to
+# be frozen or the seed publishes a fresh snapshot on every run: the ZIP member
+# headers, and the `dcterms:created` / `dcterms:modified` fields openpyxl writes
+# into `docProps/core.xml`. Freezing only the first looks like it works, because
+# two builds inside the same second still hash identically — it fails as soon as
+# they straddle a second boundary. Both values are far in the future and
+# obviously synthetic.
 FIXED_ZIP_TIMESTAMP = (2099, 1, 1, 0, 0, 0)
+FIXED_DOCUMENT_TIMESTAMP = "2099-01-01T00:00:00Z"
 
 
-def _freeze_zip_timestamps(path: Path) -> None:
-    """Rewrite the package so identical content produces identical bytes."""
+CORE_PROPERTIES_MEMBER = "docProps/core.xml"
+_DOCUMENT_TIMESTAMP_PATTERN = re.compile(
+    rb"(<dcterms:(?:created|modified)[^>]*>)[^<]*(</dcterms:(?:created|modified)>)"
+)
+
+
+def _freeze_package_timestamps(path: Path) -> None:
+    """Rewrite the package so identical content produces identical bytes.
+
+    Both timestamps are handled here rather than on the workbook object,
+    because openpyxl re-stamps ``dcterms:modified`` with the current time while
+    saving — assigning it beforehand looks like it works and silently does not.
+    Doing it in one rewrite pass keeps a single mechanism for a single job.
+    """
     import zipfile
 
     with zipfile.ZipFile(path) as source:
@@ -207,6 +223,11 @@ def _freeze_zip_timestamps(path: Path) -> None:
 
     with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as target:
         for info, payload in members:
+            if info.filename == CORE_PROPERTIES_MEMBER:
+                payload = _DOCUMENT_TIMESTAMP_PATTERN.sub(
+                    rb"\g<1>" + FIXED_DOCUMENT_TIMESTAMP.encode("ascii") + rb"\g<2>",
+                    payload,
+                )
             frozen = zipfile.ZipInfo(info.filename, date_time=FIXED_ZIP_TIMESTAMP)
             frozen.compress_type = zipfile.ZIP_DEFLATED
             frozen.external_attr = info.external_attr
@@ -283,7 +304,7 @@ def _write_legal_work_workbook(path: Path, today: dt.date) -> Path:
     )
 
     workbook.save(path)
-    _freeze_zip_timestamps(path)
+    _freeze_package_timestamps(path)
     return path
 
 

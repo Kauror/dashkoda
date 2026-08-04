@@ -188,25 +188,47 @@ def test_running_the_seed_twice_publishes_nothing_new():
     ) == counts
 
 
-def test_the_seeded_workbook_is_byte_identical_between_builds(tmp_path):
+def test_the_seeded_workbook_is_byte_identical_across_a_second_boundary(tmp_path):
     """Idempotency depends on this, and it is not free.
 
-    An XLSX is a ZIP, and openpyxl stamps every member with the current time,
-    so two identical workbooks saved a second apart differ in bytes. The
-    synchronisation deduplicates on the checksum of those bytes, so without
-    frozen timestamps the seed published a fresh snapshot on every run.
+    An XLSX carries the current time twice: in the ZIP member headers, and in
+    `dcterms:modified` inside `docProps/core.xml`, which openpyxl re-stamps
+    while saving. The synchronisation deduplicates on the checksum of those
+    bytes, so unfrozen timestamps made the seed publish a fresh snapshot every
+    run.
+
+    The sleep is the point. Two builds inside the same second hash identically
+    even with the timestamps unfrozen, so a test without it passes against the
+    broken code — which is exactly what happened before CI caught it.
     """
     import datetime as dt
     import hashlib
+    import time
 
     today = dt.date(2099, 6, 1)
     first = seed_e2e_data._write_legal_work_workbook(tmp_path / "first.xlsx", today)
+    time.sleep(1.1)
     second = seed_e2e_data._write_legal_work_workbook(tmp_path / "second.xlsx", today)
 
     assert (
         hashlib.sha256(first.read_bytes()).hexdigest()
         == hashlib.sha256(second.read_bytes()).hexdigest()
     )
+
+
+def test_the_seeded_workbook_still_satisfies_the_real_contract(tmp_path):
+    """Freezing timestamps must not have produced a package the parser rejects."""
+    import datetime as dt
+
+    from apps.legal_work.workbook import parse_workbook
+
+    path = seed_e2e_data._write_legal_work_workbook(tmp_path / "seed.xlsx", dt.date(2099, 6, 1))
+    parsed = parse_workbook(path)
+
+    assert len(parsed.rows) > 20
+    assert parsed.open_count > 0
+    assert parsed.sent_count > 0
+    assert parsed.warning_record_count > 0
 
 
 def test_the_seed_is_deterministic_in_its_values():
