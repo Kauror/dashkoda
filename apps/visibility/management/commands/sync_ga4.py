@@ -8,6 +8,7 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 from django.utils import timezone
 
+from apps.core.feed_sync import find_published_artifact
 from apps.sources.services import (
     build_import_run,
     complete_import_run,
@@ -17,6 +18,8 @@ from apps.sources.services import (
 from apps.visibility.bootstrap import ensure_ga4_source
 from apps.visibility.ga4 import Ga4ApiCollector, Ga4NotConfigured, get_configuration
 from apps.visibility.models import WebsiteTrafficObservation
+
+IMPORTER_NAME = "ga4_daily"
 
 
 class Command(BaseCommand):
@@ -37,7 +40,19 @@ class Command(BaseCommand):
         digest = hashlib.sha256(payload).hexdigest()
         with transaction.atomic():
             source = ensure_ga4_source()
-            artifact = register_external_reference(
+
+            # A re-run of an already-collected day must finish cleanly, exactly
+            # as the other feeds treat unchanged content: the checksum is the
+            # content identity, and re-registering it would fail the artifact
+            # uniqueness rule and escape a cron job as a traceback.
+            artifact, already_published = find_published_artifact(source, digest, IMPORTER_NAME)
+            if already_published:
+                self.stdout.write(
+                    self.style.SUCCESS(f"Google Analytics: {period.isoformat()} on juba avaldatud.")
+                )
+                return
+
+            artifact = artifact or register_external_reference(
                 source=source,
                 external_reference="ga4:data-api:daily",
                 original_name="ga4-daily.json",
@@ -46,7 +61,10 @@ class Command(BaseCommand):
                 size_bytes=len(payload),
             )
             run = build_import_run(
-                artifact=artifact, importer_name="ga4_daily", schema_version="1.0", dry_run=False
+                artifact=artifact,
+                importer_name=IMPORTER_NAME,
+                schema_version="1.0",
+                dry_run=False,
             )
             start_import_run(run)
             WebsiteTrafficObservation.objects.filter(source=source, is_current=True).update(
