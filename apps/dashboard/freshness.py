@@ -72,8 +72,13 @@ class FreshnessState:
         return base
 
 
-def current_freshness() -> FreshnessState:
-    """Count the connected and stale sources from each module's own summary.
+def freshness_from(summaries) -> FreshnessState:
+    """Count the connected and stale sources from already-loaded summaries.
+
+    For a view that has just read the module summaries for its own content —
+    the overview reads all four — this avoids fetching every one of them a
+    second time. `summaries` must hold one summary per wired module, in any
+    order.
 
     Connected and stale are not restated here: `has_data` and
     `is_stale_after_failure` come from the summary the module's pages already
@@ -84,13 +89,19 @@ def current_freshness() -> FreshnessState:
     published without a feed check — a workbook imported by hand through the
     admin is current data, and a later failed collection makes it stale in
     exactly the way a synchronised source would be.
-
-    Two indexed single-row queries per wired module.
     """
-    summaries = [read_summary() for read_summary in _SUMMARIES]
+    summaries = list(summaries)
     return FreshnessState(
         checked_at=timezone.localtime(),
         connected_sources=sum(1 for summary in summaries if summary.has_data),
         total_sources=len(_SUMMARIES),
         stale_sources=sum(1 for summary in summaries if summary.is_stale_after_failure),
     )
+
+
+def current_freshness() -> FreshnessState:
+    """Read every wired module's summary and reduce it to the shell row.
+
+    Two indexed single-row queries per wired module.
+    """
+    return freshness_from(read_summary() for read_summary in _SUMMARIES)
