@@ -9,10 +9,50 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request makes an in-flight run obsolete, so it
+# is cancelled rather than left to finish against superseded code. Pushes to
+# main are never cancelled: every commit on the default branch keeps its own
+# verified result.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Shared by all three jobs. Every value is synthetic and exists only for CI;
+# no real secret, PIN or sharing URL is present in this repository.
+env:
+  COMPOSE_PROJECT_NAME: dashkoda_ci
+  DJANGO_SETTINGS_MODULE: config.settings.test
+  DJANGO_SECRET_KEY: ci-only-secret-with-sufficient-length-not-for-production
+  DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,dash.orgusaar.ee
+  POSTGRES_DB: dashkoda
+  POSTGRES_USER: dashkoda
+  POSTGRES_PASSWORD: ci-only-password
+  POSTGRES_HOST: 127.0.0.1
+  POSTGRES_PORT: 5432
+  VIEWER_PIN_HASH: 'pbkdf2_sha256$1000000$ISWGm2iaWYDO60zg6cKsch$aa1cqy5nqDB6mUqSjp+IdmKSbF0ANciYXAprUkgNVbQ='
+  VIEWER_PIN_VERSION: 1
+  VIEWER_RATE_LIMIT_SECRET: ci-only-synthetic-rate-limit-secret
+  TRUST_CLOUDFLARE_IP_HEADER: "false"
+  # Synthetic private-artifact root for the host-side checks. A literal
+  # path, because the `runner` context is not available in job-level env.
+  # The test suite repoints this per test; Compose sets its own
+  # in-container path and mounts a named volume there.
+  SOURCE_ARTIFACT_ROOT: /tmp/dashkoda-ci-source-artifacts
+  # Synthetic PIN used only by the browser smoke suite. The real viewer PIN
+  # is never present in this repository or in any workflow.
+  DASHKODA_E2E_PIN: "4071"
+
+# The three jobs are independent and run in parallel. None consumes an artifact
+# another produces: the container jobs build their own images from the
+# Dockerfile, which builds the frontend in its own stage, so nothing waits on
+# the host build. GitHub reports each failure separately.
 jobs:
-  test-and-build:
+  # Clean-host dependency installation, the static quality gates, clean
+  # PostgreSQL migrations and the full host test suite.
+  quality-and-host-tests:
+    name: Quality and host tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:18.4-bookworm@sha256:1961f96e6029a02c3812d7cb329a3b03a3ac2bb067058dec17b0f5596aca9296
@@ -27,29 +67,6 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
-
-    env:
-      COMPOSE_PROJECT_NAME: dashkoda_ci
-      DJANGO_SETTINGS_MODULE: config.settings.test
-      DJANGO_SECRET_KEY: ci-only-secret-with-sufficient-length-not-for-production
-      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1,dash.orgusaar.ee
-      POSTGRES_DB: dashkoda
-      POSTGRES_USER: dashkoda
-      POSTGRES_PASSWORD: ci-only-password
-      POSTGRES_HOST: 127.0.0.1
-      POSTGRES_PORT: 5432
-      VIEWER_PIN_HASH: 'pbkdf2_sha256$1000000$ISWGm2iaWYDO60zg6cKsch$aa1cqy5nqDB6mUqSjp+IdmKSbF0ANciYXAprUkgNVbQ='
-      VIEWER_PIN_VERSION: 1
-      VIEWER_RATE_LIMIT_SECRET: ci-only-synthetic-rate-limit-secret
-      TRUST_CLOUDFLARE_IP_HEADER: "false"
-      # Synthetic private-artifact root for the host-side checks. A literal
-      # path, because the `runner` context is not available in job-level env.
-      # The test suite repoints this per test; Compose sets its own
-      # in-container path and mounts a named volume there.
-      SOURCE_ARTIFACT_ROOT: /tmp/dashkoda-ci-source-artifacts
-      # Synthetic PIN used only by the browser smoke suite. The real viewer PIN
-      # is never present in this repository or in any workflow.
-      DASHKODA_E2E_PIN: "4071"
 
     steps:
       - name: Check out repository
@@ -104,6 +121,18 @@ jobs:
 
       - name: Collect static files
         run: uv run python manage.py collectstatic --noinput
+
+  # Production-shape verification: the images, what the runtime image contains,
+  # Compose networking, the in-container suite, health and route smoke tests,
+  # the startup-log gate and volume persistence.
+  container-integration:
+    name: Container integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
 
       - name: Validate Compose configuration
         env:
@@ -212,23 +241,55 @@ jobs:
           docker compose -f compose.yaml -f compose.dev.yaml down
           docker volume inspect "${volume_name}"
 
-      - name: Install Playwright browser
-        run: npx playwright install --with-deps chromium
+      - name: Clean up Compose runtime
+        if: always()
+        run: docker compose -f compose.yaml -f compose.dev.yaml down --volumes --remove-orphans
 
-      - name: Run browser smoke suite against Compose
-        env:
-          # The browser drives the app over plain HTTP on loopback, so this run
-          # uses the development settings module. The production-settings smoke
-          # test above is unchanged and still covers that configuration.
-          DJANGO_SETTINGS_MODULE: config.settings.local
-          DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
-          # Hash of DASHKODA_E2E_PIN. Synthetic, CI only.
-          VIEWER_PIN_HASH: 'pbkdf2_sha256$1000000$jYAv7kifpcaiJWnHfcU12G$JoqiC9PRhkZ7tqjTvFdSH5cVbTvCTZMWMhUkg63QYIs='
+  # Browser acceptance against the Compose development runtime, at every
+  # configured viewport.
+  browser-e2e:
+    name: Browser end-to-end
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # The browser drives the app over plain HTTP on loopback, so this run
+      # uses the development settings module. The production-settings smoke
+      # test in `container-integration` is unchanged and still covers that
+      # configuration.
+      DJANGO_SETTINGS_MODULE: config.settings.local
+      DJANGO_ALLOWED_HOSTS: localhost,127.0.0.1
+      # Hash of DASHKODA_E2E_PIN. Synthetic, CI only.
+      VIEWER_PIN_HASH: 'pbkdf2_sha256$1000000$jYAv7kifpcaiJWnHfcU12G$JoqiC9PRhkZ7tqjTvFdSH5cVbTvCTZMWMhUkg63QYIs='
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked frontend dependencies
+        run: npm ci
+
+      - name: Build development runtime
+        run: |
+          cp .env.example .env
+          docker compose -f compose.yaml -f compose.dev.yaml build
+
+      - name: Start the Compose development runtime
         run: |
           docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py migrate
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py collectstatic --noinput
-          npm run e2e
+
+      - name: Install Playwright browser
+        run: npx playwright install --with-deps chromium
+
+      - name: Run browser smoke suite against Compose
+        run: npm run e2e
 
       - name: Upload browser smoke artifacts
         if: always()
