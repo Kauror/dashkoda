@@ -16,6 +16,8 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.event_programme.models import EventProgrammeSnapshot, EventStatus, SyncResult
@@ -411,6 +413,31 @@ def test_the_upcoming_preview_skips_what_has_already_finished(programme):
     upcoming = get_upcoming_programme_events(programme, limit=10)
 
     assert codes(upcoming) == ["8007", "8005"], "the ongoing event first, then the future one"
+
+
+def test_the_filter_option_queries_collapse_in_the_database(programme):
+    """Each option list is one row per value, not one row per event.
+
+    The model orders by start date, name and id. A `DISTINCT` query that inherited
+    that ordering would have those three columns appended to its select list —
+    Django does it silently — and would then return every event row, leaving the
+    collapsing to Python. The option lists would still look right, which is
+    exactly why this needs asserting rather than eyeballing.
+    """
+    with CaptureQueriesContext(connection) as captured:
+        get_event_programme_filter_options(programme)
+
+    distinct_selects = [
+        query["sql"].split(" FROM ")[0]
+        for query in captured.captured_queries
+        if "DISTINCT" in query["sql"]
+    ]
+
+    assert distinct_selects, "the options are read with DISTINCT queries"
+    for select_list in distinct_selects:
+        assert "start_date" not in select_list, select_list
+        assert "event_name" not in select_list, select_list
+        assert "event_id" not in select_list, select_list
 
 
 def test_the_filter_options_are_derived_and_not_hard_coded(programme):

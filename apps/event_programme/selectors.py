@@ -211,6 +211,12 @@ def get_event_programme_filter_options(
     One small query per dimension rather than one distinct query over every
     combination: the cross product of tag, type, month and status approaches the
     row count, so asking for it would be slower than asking seven questions.
+
+    Every query below sets its **own** ordering, and that is load-bearing rather
+    than tidiness. The model orders by start date, name and id; a `DISTINCT` query
+    that inherited that ordering would have those three columns appended to its
+    select list — Django does it silently — and would then return one row per
+    event instead of one per value. The database, not Python, does the collapsing.
     """
     if snapshot is None:
         return FilterOptions()
@@ -230,6 +236,7 @@ def get_event_programme_filter_options(
     months: dict[str, str] = {}
     for key, label in (
         rows.exclude(event_month_key="")
+        .order_by("event_month_key", "event_month_label")
         .values_list("event_month_key", "event_month_label")
         .distinct()
     ):
@@ -263,7 +270,10 @@ def _labelled_options(rows, key_field: str, label_field: str) -> tuple[Option, .
     """
     seen: dict[str, str] = {}
     for key, label in (
-        rows.exclude(**{key_field: ""}).values_list(key_field, label_field).distinct()
+        rows.exclude(**{key_field: ""})
+        .order_by(key_field, label_field)
+        .values_list(key_field, label_field)
+        .distinct()
     ):
         seen.setdefault(key, label or key)
     return tuple(
@@ -274,7 +284,9 @@ def _labelled_options(rows, key_field: str, label_field: str) -> tuple[Option, .
 
 def _choice_options(rows, field: str, choices) -> tuple[Option, ...]:
     """Distinct values of a controlled vocabulary, in the model's own order."""
-    present = set(rows.exclude(**{field: ""}).values_list(field, flat=True).distinct())
+    present = set(
+        rows.exclude(**{field: ""}).order_by(field).values_list(field, flat=True).distinct()
+    )
     return tuple(
         Option(value=choice.value, label=choice.label)
         for choice in choices
