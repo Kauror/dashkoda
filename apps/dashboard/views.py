@@ -6,17 +6,9 @@ from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
 
-from .freshness import current_freshness
+from .freshness import current_freshness, freshness_from
 from .navigation import NAVIGATION
 from .overview import build_overview
-
-
-def _shell_context(active_nav: str) -> dict:
-    return {
-        "navigation": NAVIGATION,
-        "active_nav": active_nav,
-        "freshness": current_freshness(),
-    }
 
 
 @require_GET
@@ -27,12 +19,18 @@ def overview(request):
     four wired feeds plus the internal board report contribute where they have
     data; every other part of the page says plainly that it has no source yet.
     Nothing here reaches outside PostgreSQL.
+
+    The shell freshness row is derived from the same four summaries the page
+    content uses, so each summary is read exactly once per request.
     """
     legal_work = get_legal_work_summary()
     membership = get_membership_summary()
     news = get_news_summary()
     events = get_event_summary()
-    context = _shell_context("overview") | {
+    context = {
+        "navigation": NAVIGATION,
+        "active_nav": "overview",
+        "freshness": freshness_from((legal_work, membership, news, events)),
         "legal_work": legal_work,
         "membership": membership,
         "news": news,

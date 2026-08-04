@@ -319,3 +319,47 @@ def test_an_unconnected_source_contributes_no_zero(viewer):
     assert "uusi teemasid" not in page
     assert "sündmusi järgmise" not in page
     assert "sündmusi eelmise" not in page
+
+
+def test_the_overview_reads_each_feed_summary_exactly_once(viewer, monkeypatch):
+    """The shell freshness row is derived from the summaries the page content
+    already loaded. Regression: the view used to call `current_freshness()`,
+    which fetched all four summaries a second time — two extra queries per
+    module on every landing-page render."""
+    from collections import Counter
+
+    from apps.dashboard import freshness, views
+
+    calls: Counter[str] = Counter()
+
+    def counting(name, real):
+        def wrapper():
+            calls[name] += 1
+            return real()
+
+        return wrapper
+
+    originals = {
+        "get_legal_work_summary": views.get_legal_work_summary,
+        "get_membership_summary": views.get_membership_summary,
+        "get_news_summary": views.get_news_summary,
+        "get_event_summary": views.get_event_summary,
+    }
+    wrappers = {name: counting(name, real) for name, real in originals.items()}
+    for name, wrapper in wrappers.items():
+        monkeypatch.setattr(views, name, wrapper)
+    # Guard the other path too: if the view regressed to `current_freshness()`,
+    # the same summaries would be read again through `_SUMMARIES`.
+    monkeypatch.setattr(freshness, "_SUMMARIES", tuple(wrappers.values()))
+
+    response = viewer.get(reverse("home"))
+
+    assert response.status_code == 200
+    assert calls == Counter(
+        {
+            "get_legal_work_summary": 1,
+            "get_membership_summary": 1,
+            "get_news_summary": 1,
+            "get_event_summary": 1,
+        }
+    )
