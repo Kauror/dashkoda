@@ -19,8 +19,16 @@ drawer. Context: navigation, active_nav.
     </ul>
   </nav>
 
-  <form method="post" action="{% url 'viewer-logout' %}" class="border-t border-border pt-4">
-    {% csrf_token %}
-    <button type="submit" class="dk-button dk-button-secondary w-full">Logi välja</button>
-  </form>
+  <div class="border-t border-border pt-4">
+    <form method="post" action="{% url 'viewer-logout' %}">
+      {% csrf_token %}
+      <button type="submit" class="dk-button dk-button-secondary w-full">Logi välja</button>
+    </form>
+    {% if build_version %}
+      <p class="mt-3 text-center">
+        <span class="dk-version"
+              {% if build_commit %}title="Ehitatud koodist {{ build_commit }}"{% endif %}>{{ build_version }}</span>
+      </p>
+    {% endif %}
+  </div>
 </div>

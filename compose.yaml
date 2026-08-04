@@ -4,6 +4,13 @@ services:
       context: .
       dockerfile: Dockerfile
       target: runtime
+      # Build identity for the sidebar stamp. Both are optional; unset simply
+      # means the image carries no version. Supply them on the build command:
+      #   BUILD_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ) \
+      #   GIT_COMMIT=$(git rev-parse --short HEAD) docker compose build web
+      args:
+        BUILD_TIME: ${BUILD_TIME:-}
+        GIT_COMMIT: ${GIT_COMMIT:-}
     environment:
       DJANGO_SETTINGS_MODULE: config.settings.production
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:?DJANGO_SECRET_KEY is required}

@@ -282,6 +282,13 @@
     @apply text-micro text-text-muted;
   }
 
+  /* The build stamp under the sign-out button. Bordered rather than bare so it
+     reads as an identifier to be quoted back, not as a stray timestamp. */
+  .dk-version {
+    @apply inline-block rounded-md border border-border px-2 py-0.5 text-micro
+      tabular-nums text-text-muted;
+  }
+
   .dk-callout {
     @apply flex flex-col gap-1 rounded-lg border border-border border-l-2
       bg-surface px-4 py-3 text-sm shadow-card;

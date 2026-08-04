@@ -105,6 +105,15 @@ COPY --from=builder --chown=dashkoda:dashkoda /app/static /app/static
 COPY --from=builder --chown=dashkoda:dashkoda /app/manage.py /app/manage.py
 COPY --from=builder --chown=dashkoda:dashkoda /app/staticfiles /app/staticfiles
 
+# Build identity, shown at the foot of the sidebar. Both are optional: an image
+# built without them simply carries no stamp. They come after the copies above
+# so that a changed stamp rebuilds only this layer and never invalidates the
+# dependency or asset caches.
+ARG BUILD_TIME=""
+ARG GIT_COMMIT=""
+ENV DASHKODA_BUILD_TIME=${BUILD_TIME} \
+    DASHKODA_COMMIT=${GIT_COMMIT}
+
 USER dashkoda
 EXPOSE 8000
 
