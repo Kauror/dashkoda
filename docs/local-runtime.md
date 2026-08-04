@@ -179,9 +179,12 @@ docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py 
 docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py sync_koda_public --source all --json
 ```
 
-The results appear at `http://127.0.0.1:8000/liikmeskond/`, `/uudised/` and
-`/sundmused/`, and on the overview. Each source runs independently, so exit code
-`2` means at least one source failed while another published. See
+The member count and the news feed appear at
+`http://127.0.0.1:8000/liikmeskond/` and `/uudised/`, and on the overview. The
+public events calendar has no page of its own: `/sundmused/` renders the
+Excel-backed event programme, and the public calendar is named there as a
+secondary connection. Each source runs independently, so exit code `2` means at
+least one source failed while another published. See
 [koda-public-feeds.md](koda-public-feeds.md).
 
 ## Internal membership history

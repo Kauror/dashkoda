@@ -32,6 +32,32 @@ Deliberately **not** used: the homepage membership counter, `#yearly`,
 `#overall`, `/et/uudised/rss.xml` (a second, malformed RSS document), any events
 RSS feed, the shop page, Drupal administration and any authenticated endpoint.
 
+## The events calendar is a supplementary source
+
+The dashboard's event figures and its event history come from the canonical Excel
+programme in `apps.event_programme` — see
+[event-programme-feed.md](event-programme-feed.md). This calendar feed is
+supplementary and answers a narrower question: what has the Chamber announced
+publicly and not yet held.
+
+It therefore no longer produces:
+
+- a historical count, a current-year total, a tag, month or type total, or a
+  past-event total;
+- an event identity the dashboard reads as canonical;
+- a public link for a programme event.
+
+It keeps collecting on its own schedule and keeps its own immutable snapshots.
+`apps.events` has no route: `/sundmused/` is the programme's page, and this feed
+is named there as a secondary connection with its own state and its own count of
+publicly announced upcoming events. The two are never added, never merged and
+never presented as one unlabelled total.
+
+`count_started_in_past_window` was removed with the page that used it. It
+reconstructed a past-event count by scanning every archived snapshot, because the
+collector drops an event once it has finished; the workbook retains what actually
+happened and answers that directly.
+
 ## What "Liikmeid kokku" means
 
 **The number of member profiles published in the public Koda.ee member
