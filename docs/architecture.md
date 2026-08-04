@@ -107,8 +107,15 @@ The future monolith will separate shared infrastructure from business modules:
   no member record: the aggregate is all it stores.
 - `news` owns the imported news snapshots and items, their selectors, the
   Uudised page, the RSS collector and its feed state.
-- `events` owns the imported event snapshots and items, their selectors, the
-  Sündmused page, the calendar collector and its feed state.
+- `event_programme` owns the Chamber's authoritative event programme: the
+  canonical Excel workbook parser and importer, the immutable programme
+  snapshots and rows, their selectors and filters, the Sündmused page, and the
+  OneDrive feed state. It is the source of truth for every event figure on the
+  dashboard, including the whole available history.
+- `events` owns the imported public-calendar snapshots and items, their
+  selectors, the calendar collector and its feed state. It is **supplementary**:
+  it has no route, it produces no dashboard total and it never overrides an
+  event-programme field. The Sündmused page names it as a secondary connection.
 - `visibility` owns the manually observed audience sizes — the two newsletter
   lists and their overlap, and the four social follower counts — their metric
   registry, selectors, staff entry workflow, the Nähtavus page, the overview's
@@ -258,8 +265,11 @@ and the internal board-report history count different things; see
 - `sync_oigusloome_public` and `import_oigusloome` commands
 - the Õigusloome page and the overview's legal-work summary
 - `membership`, `news` and `events` apps reading three public Koda.ee sources,
-  with the `sync_koda_public` command and the Liikmeskond, Uudised and Sündmused
-  pages
+  with the `sync_koda_public` command and the Liikmeskond and Uudised pages
+- `event_programme` app: the canonical Excel event programme, its
+  `sync_event_programme` collector, the filtered and paginated Sündmused page,
+  and the workbook-backed event figures on the overview and in the shell
+  freshness row
 - board-briefing overview: a four-indicator strip, approaching opinion
   deadlines, one fixed activity window, module cards for all four connected
   feeds, and named `Ühendamata` slots for everything that has no source

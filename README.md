@@ -15,10 +15,18 @@ imports a prepared Excel workbook from OneDrive and renders it at
 `/oigusloome/`.
 
 Three public Koda.ee sources follow: the size of the public member directory,
-the news RSS feed and the events calendar, at `/liikmeskond/`, `/uudised/` and
-`/sundmused/`. All three are anonymous, read-only and collected once each
-morning; no raw response is retained. See
+the news RSS feed and the events calendar, at `/liikmeskond/` and `/uudised/`.
+All three are anonymous, read-only and collected once each morning; no raw
+response is retained. See
 [docs/koda-public-feeds.md](docs/koda-public-feeds.md).
+
+`/sundmused/` is the **Chamber's own event programme**, imported from a prepared
+Excel export: the whole available event history with real dates, tags, types,
+delivery modes and the public links the workbook validated. It is the source of
+truth for every event figure on the dashboard. The public events calendar keeps
+collecting alongside it as a separate, supplementary feed for publicly announced
+upcoming events, and never overrides it. See
+[docs/event-programme-feed.md](docs/event-programme-feed.md).
 
 The communication-channel figures — the two newsletter lists and the Facebook,
 LinkedIn, Instagram and YouTube follower counts — are **entered by hand** by a

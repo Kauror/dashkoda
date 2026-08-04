@@ -109,6 +109,28 @@ metadata only.
 **This schedule is not installed either.** See
 [koda-public-feeds.md](koda-public-feeds.md).
 
+The events calendar is now a **supplementary** source within this schedule. The
+dashboard's event figures and its event history come from the canonical Excel
+programme instead, so this job no longer feeds the Sündmused page or the
+overview's event cell.
+
+## What the event programme changes here
+
+The Excel event programme is the source of truth for the Sündmused page, the
+overview's event figures and the shell's event domain. It needs one environment
+variable, `EVENT_PROGRAMME_PUBLIC_URL`, holding the view-only sharing link — a
+bearer-style secret that stays in the server environment and reaches no log, audit
+summary, command output or database row. No new volume and no new container.
+
+One host schedule, at 07:00 `Europe/Tallinn` after the 06:30 workbook
+publication, from
+[`ops/unraid/sync_event_programme.sh.example`](../ops/unraid/sync_event_programme.sh.example).
+
+**Neither the variable nor the schedule is installed.** The full acceptance
+sequence — dry run, first import, unchanged re-run, count verification against
+`DASH_CONTROL`, page checks, and only then the schedule — is in
+[event-programme-feed.md](event-programme-feed.md).
+
 The known risk below now matters more: the pilot no longer holds only empty
 states, so Cloudflare Access in front of the tunnel should be settled before
 this is treated as a production service.
