@@ -18,7 +18,6 @@ from django.core.files import File
 from django.urls import reverse
 from django.utils.html import strip_tags
 
-from apps.events.collector import EventCollectionError
 from apps.events.sync import synchronize_events
 from apps.legal_work.bootstrap import ensure_legal_work_source
 from apps.legal_work.importer import import_artifact
@@ -26,6 +25,7 @@ from apps.membership.history_import import import_history_package
 from apps.membership.models import MembershipCountObservation
 from apps.membership.selectors import get_current_membership_observation
 from apps.membership.sync import synchronize_membership
+from apps.news.collector import NewsCollectionError
 from apps.news.sync import synchronize_news
 from apps.sources.services import register_artifact
 from tests.koda.conftest import (
@@ -263,15 +263,26 @@ def test_fee_collection_sits_with_the_counts_it_was_read_beside(viewer, imported
 # -- feeds --------------------------------------------------------------
 
 
-def test_news_and_events_reach_their_cards(viewer):
+def test_news_reaches_its_card(viewer):
     synchronize_news(collector=collector_returning(news_collection(3)))
-    synchronize_events(collector=collector_returning(event_collection(3)))
 
     page = body(viewer.get(reverse("home")))
 
     assert "Sünteetiline uudis" in page
-    assert "Sünteetiline sündmus" in page
-    assert "sündmusi järgmise 30 päeva jooksul" in page
+
+
+def test_the_public_event_calendar_reaches_no_card(viewer):
+    """It is collected, and it is not what the overview's event figures read.
+
+    The event cell and the event preview come from the canonical workbook
+    programme; `tests/dashboard/test_event_source_of_truth.py` covers that side.
+    """
+    synchronize_events(collector=collector_returning(event_collection(3)))
+
+    page = body(viewer.get(reverse("home")))
+
+    assert "Sünteetiline sündmus" not in page
+    assert "sündmusi järgmise 30 päeva jooksul" not in page
 
 
 def test_a_failed_check_is_still_disclosed_and_keeps_the_last_good_data(viewer):
@@ -280,15 +291,20 @@ def test_a_failed_check_is_still_disclosed_and_keeps_the_last_good_data(viewer):
     The connection strip at the foot of the page counts the stale sources, so a
     failed check is still stated where a reader can see it, and the last data
     that did arrive stays on the page rather than being withdrawn.
+
+    The news feed carries this now: the public event calendar is no longer one of
+    the four sources the shell row speaks for.
     """
-    synchronize_events(collector=collector_returning(event_collection(3)))
-    synchronize_events(collector=collector_raising(EventCollectionError("Sünteetiline viga.")))
+    synchronize_news(collector=collector_returning(news_collection(3)))
+    synchronize_news(collector=collector_raising(NewsCollectionError("Sünteetiline viga.")))
 
     page = text_of(viewer.get(reverse("home")))
 
     assert "Vananenud: 1" in page
     assert "Sünteetiline viga" not in page, "no exception detail may reach a viewer"
-    assert "Sünteetiline sündmus 0" in page, "the last good data must still be shown"
+    assert "Sünteetiline uudise pealkiri" in page or "Sünteetiline uudis" in page, (
+        "the last good data must still be shown"
+    )
 
 
 # -- what is not connected ----------------------------------------------

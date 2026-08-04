@@ -300,16 +300,27 @@ def test_the_news_page_lists_items(viewer):
     assert "https://www.koda.ee/et/uudised/synthetic-0" in body
 
 
-def test_the_events_page_lists_upcoming_events(viewer):
+def test_the_public_calendar_is_named_on_the_events_page_but_lists_nothing(viewer):
+    """`/sundmused/` is the workbook programme's page.
+
+    The public calendar is a secondary connection there: its state and its own
+    count of publicly announced upcoming events are stated, and none of its rows,
+    titles, locations or URLs reaches the page.
+    """
     synchronize_events(collector=collector_returning(event_collection(3)))
 
     body = viewer.get(reverse("events")).content.decode()
 
-    assert "Sünteetiline sündmus 0" in body
-    assert "Sünteetiline saal" in body
+    assert "Koda.ee avalik kalender" in body
+    assert "Avalikus kalendris eelseisvaid sündmusi lähikuul" in body
+    assert "Sünteetiline sündmus 0" not in body
+    assert "Sünteetiline saal" not in body
+    assert "https://www.koda.ee/et/sundmused/synthetic-0" not in body
 
 
-def test_the_overview_shows_all_three_sources(viewer):
+def test_the_overview_shows_the_two_public_sources_it_still_feeds(viewer):
+    """The member directory and the news feed. The public calendar feeds neither
+    an overview figure nor the overview's event preview any more."""
     synchronize_membership(collector=collector_returning(membership_collection(3395)))
     synchronize_news(collector=collector_returning(news_collection(3)))
     synchronize_events(collector=collector_returning(event_collection(3)))
@@ -318,7 +329,7 @@ def test_the_overview_shows_all_three_sources(viewer):
 
     assert "3395" in body
     assert "Sünteetiline uudis" in body
-    assert "Sünteetiline sündmus" in body
+    assert "Sünteetiline sündmus" not in body
 
 
 def test_a_failed_check_shows_previous_data_with_a_warning(viewer):
