@@ -190,6 +190,29 @@ def _legal_work_rows(today: dt.date) -> list[list]:
     return rows
 
 
+# An XLSX is a ZIP, and openpyxl stamps every member with the current time, so
+# two identical workbooks saved a second apart have different bytes. The
+# synchronisation deduplicates on the checksum of those bytes, so without a
+# fixed timestamp the seed would publish a fresh snapshot on every run. The
+# value is far in the future and obviously synthetic.
+FIXED_ZIP_TIMESTAMP = (2099, 1, 1, 0, 0, 0)
+
+
+def _freeze_zip_timestamps(path: Path) -> None:
+    """Rewrite the package so identical content produces identical bytes."""
+    import zipfile
+
+    with zipfile.ZipFile(path) as source:
+        members = [(info, source.read(info.filename)) for info in source.infolist()]
+
+    with zipfile.ZipFile(path, "w", zipfile.ZIP_DEFLATED) as target:
+        for info, payload in members:
+            frozen = zipfile.ZipInfo(info.filename, date_time=FIXED_ZIP_TIMESTAMP)
+            frozen.compress_type = zipfile.ZIP_DEFLATED
+            frozen.external_attr = info.external_attr
+            target.writestr(frozen, payload)
+
+
 def _write_legal_work_workbook(path: Path, today: dt.date) -> Path:
     """Write a workbook that satisfies the canonical contract exactly."""
     from openpyxl import Workbook
@@ -260,6 +283,7 @@ def _write_legal_work_workbook(path: Path, today: dt.date) -> Path:
     )
 
     workbook.save(path)
+    _freeze_zip_timestamps(path)
     return path
 
 

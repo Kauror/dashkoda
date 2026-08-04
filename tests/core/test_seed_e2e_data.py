@@ -188,6 +188,27 @@ def test_running_the_seed_twice_publishes_nothing_new():
     ) == counts
 
 
+def test_the_seeded_workbook_is_byte_identical_between_builds(tmp_path):
+    """Idempotency depends on this, and it is not free.
+
+    An XLSX is a ZIP, and openpyxl stamps every member with the current time,
+    so two identical workbooks saved a second apart differ in bytes. The
+    synchronisation deduplicates on the checksum of those bytes, so without
+    frozen timestamps the seed published a fresh snapshot on every run.
+    """
+    import datetime as dt
+    import hashlib
+
+    today = dt.date(2099, 6, 1)
+    first = seed_e2e_data._write_legal_work_workbook(tmp_path / "first.xlsx", today)
+    second = seed_e2e_data._write_legal_work_workbook(tmp_path / "second.xlsx", today)
+
+    assert (
+        hashlib.sha256(first.read_bytes()).hexdigest()
+        == hashlib.sha256(second.read_bytes()).hexdigest()
+    )
+
+
 def test_the_seed_is_deterministic_in_its_values():
     """No randomness: the same day must produce the same numbers, or a failing
     browser test could not be reproduced."""
