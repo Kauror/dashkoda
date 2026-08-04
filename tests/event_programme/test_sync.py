@@ -91,6 +91,58 @@ def test_identical_bytes_are_reported_unchanged(make_workbook):
     assert AuditEvent.objects.filter(action=AuditAction.EVENT_PROGRAMME_SYNC_UNCHANGED).exists()
 
 
+# -- what each timestamp means ------------------------------------------
+#
+# `last_checked_at`         the latest attempted check, successful or not
+# `last_successful_sync_at` the latest *successful* check, unchanged included
+# `last_changed_at`         the latest time different content was published
+#
+# The export is regenerated every morning but usually carries identical bytes,
+# so an unchanged result is the normal successful outcome, not a non-event.
+
+
+def test_an_unchanged_check_counts_as_a_successful_verification(make_workbook):
+    workbook = make_workbook()
+    synchronize_public_workbook(downloader=FakeDownloader(workbook))
+    after_import = feed_state()
+
+    synchronize_public_workbook(downloader=FakeDownloader(workbook))
+
+    state = feed_state()
+    assert state.last_result == SyncResult.UNCHANGED
+    assert state.last_checked_at > after_import.last_checked_at
+    assert state.last_successful_sync_at > after_import.last_successful_sync_at
+    # Nothing changed, so the content timestamp must stay where it was.
+    assert state.last_changed_at == after_import.last_changed_at
+
+
+def test_a_failure_moves_only_the_attempted_check(make_workbook):
+    synchronize_public_workbook(downloader=FakeDownloader(make_workbook()))
+    before = feed_state()
+
+    synchronize_public_workbook(
+        downloader=FakeDownloader(error=PublicDownloadError("Allalaadimine katkes."))
+    )
+
+    state = feed_state()
+    assert state.last_result == SyncResult.FAILED
+    assert state.last_checked_at > before.last_checked_at
+    assert state.last_successful_sync_at == before.last_successful_sync_at
+    assert state.last_changed_at == before.last_changed_at
+    assert state.current_snapshot_id == before.current_snapshot_id
+
+
+def test_a_source_that_never_succeeded_has_no_success_timestamps(make_workbook):
+    synchronize_public_workbook(
+        downloader=FakeDownloader(error=PublicDownloadError("Allalaadimine katkes."))
+    )
+
+    state = feed_state()
+    assert state.last_checked_at is not None
+    assert state.last_successful_sync_at is None
+    assert state.last_changed_at is None
+
+
 def test_changed_bytes_publish_a_new_snapshot_and_retire_the_old(make_workbook):
     synchronize_public_workbook(downloader=FakeDownloader(make_workbook()))
 

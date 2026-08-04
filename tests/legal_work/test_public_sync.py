@@ -385,6 +385,94 @@ def test_feed_state_after_an_unchanged_run(make_workbook):
     assert state.remote_etag == ""
 
 
+# -- what each timestamp means ------------------------------------------
+#
+# `last_checked_at`        the latest attempted check, successful or not
+# `last_successful_sync_at` the latest *successful* check, unchanged included
+# `last_changed_at`        the latest time different content was published
+#
+# An unchanged workbook is a successful verification, not a non-event: on most
+# mornings the workbook has not moved, so a route that only advanced the
+# success timestamp when content changed would report the feed as untouched for
+# weeks while it was in fact being verified daily.
+
+
+def test_an_unchanged_check_counts_as_a_successful_verification(make_workbook):
+    path = make_workbook()
+    synchronize_public_workbook(downloader=FakeDownloader(path))
+    after_import = feed_state()
+    first_success = after_import.last_successful_sync_at
+    first_change = after_import.last_changed_at
+
+    synchronize_public_workbook(downloader=FakeDownloader(path))
+
+    state = feed_state()
+    assert state.last_result == SyncResult.UNCHANGED
+    # The check happened, and it succeeded.
+    assert state.last_checked_at > after_import.last_checked_at
+    assert state.last_successful_sync_at > first_success
+    # But nothing changed, so the content timestamp must not move.
+    assert state.last_changed_at == first_change
+
+
+def test_a_changed_import_moves_both_success_and_change(make_workbook):
+    synchronize_public_workbook(downloader=FakeDownloader(make_workbook()))
+    first = feed_state()
+
+    changed = make_workbook(rows=[synthetic_row(record_id="SYN-NEW", source_row=2)])
+    synchronize_public_workbook(downloader=FakeDownloader(changed))
+
+    state = feed_state()
+    assert state.last_result == SyncResult.IMPORTED
+    assert state.last_successful_sync_at > first.last_successful_sync_at
+    assert state.last_changed_at > first.last_changed_at
+
+
+def test_a_failure_moves_only_the_attempted_check(make_workbook):
+    """A failed check must not look like a successful one."""
+    synchronize_public_workbook(downloader=FakeDownloader(make_workbook()))
+    before = feed_state()
+
+    synchronize_public_workbook(
+        downloader=FakeDownloader(error=PublicDownloadError("Allalaadimine katkes."))
+    )
+
+    state = feed_state()
+    assert state.last_result == SyncResult.FAILED
+    assert state.last_checked_at > before.last_checked_at
+    assert state.last_successful_sync_at == before.last_successful_sync_at
+    assert state.last_changed_at == before.last_changed_at
+    assert state.current_snapshot_id == before.current_snapshot_id
+
+
+def test_a_source_that_never_succeeded_has_no_success_timestamps(make_workbook):
+    synchronize_public_workbook(
+        downloader=FakeDownloader(error=PublicDownloadError("Allalaadimine katkes."))
+    )
+
+    state = feed_state()
+    assert state.last_result == SyncResult.FAILED
+    assert state.last_checked_at is not None
+    assert state.last_successful_sync_at is None
+    assert state.last_changed_at is None
+
+
+def test_a_dry_run_of_unchanged_bytes_records_nothing_but_the_check(make_workbook):
+    path = make_workbook()
+    synchronize_public_workbook(downloader=FakeDownloader(path))
+    before = feed_state()
+
+    synchronize_public_workbook(downloader=FakeDownloader(path), dry_run=True)
+
+    state = feed_state()
+    # Only the attempted check moves; a dry run never changes what the feed
+    # state claims about success.
+    assert state.last_checked_at > before.last_checked_at
+    assert state.last_result == before.last_result
+    assert state.last_successful_sync_at == before.last_successful_sync_at
+    assert state.last_changed_at == before.last_changed_at
+
+
 def test_feed_state_after_a_failure_keeps_the_previous_snapshot(make_workbook):
     synchronize_public_workbook(downloader=FakeDownloader(make_workbook()))
     published = LegalWorkSnapshot.objects.get()

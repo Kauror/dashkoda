@@ -160,6 +160,21 @@ A failure is never destructive. Whatever goes wrong, the previously published
 snapshot stays current and the dashboard keeps showing the last good data with
 an honest "last check failed" note.
 
+### What the feed-state timestamps mean
+
+An **unchanged run is a successful run**. The export is regenerated every
+morning but usually carries identical bytes, so `unchanged` is the normal
+healthy outcome rather than a non-event:
+
+| Field | Meaning | Imported | Unchanged | Failed |
+| --- | --- | --- | --- | --- |
+| `last_checked_at` | the latest attempted check, however it ended | moves | moves | moves |
+| `last_successful_sync_at` | the latest check that succeeded | moves | **moves** | unchanged |
+| `last_changed_at` | the latest time different content was published | moves | unchanged | unchanged |
+
+A failure moves only `last_checked_at`, so one bad morning never overwrites the
+record of the last good one. A dry run moves `last_checked_at` and nothing else.
+
 > `apps/event_programme/public_download.py` and
 > `apps/legal_work/public_download.py` are thin wrappers over one shared
 > hardened implementation in `apps/sources/public_download.py`. Each wrapper
