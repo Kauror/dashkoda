@@ -79,18 +79,33 @@ test("wide tables scroll inside their own container, not the page", async ({ pag
   await page.goto("/oigusloome/");
 
   const tables = page.locator("main table");
-  const count = await tables.count();
-  expect(count).toBeGreaterThan(0);
+  expect(await tables.count()).toBeGreaterThan(0);
 
-  // A table wider than the viewport is fine; a table that widens the document
-  // is not. Whatever scrolls must be an ancestor that opted into scrolling.
-  const escaping = await tables.evaluateAll((nodes) =>
-    nodes.filter((node) => {
-      const limit = document.documentElement.clientWidth;
-      return node.getBoundingClientRect().right > limit + 1;
-    }).length,
+  /*
+   * A table wider than the viewport is not a defect — that is what the
+   * scrolling wrapper is for, and asserting the table fits would be asserting
+   * an implementation accident. The invariant is narrower: a table that
+   * overflows must sit inside an ancestor that actually opted into scrolling,
+   * so the overflow is contained rather than pushed onto the document.
+   */
+  const unscrollable = await tables.evaluateAll((nodes) =>
+    nodes
+      .filter((node) => node.getBoundingClientRect().width > node.parentElement.clientWidth + 1)
+      .filter((node) => {
+        for (let element = node.parentElement; element; element = element.parentElement) {
+          const overflowX = getComputedStyle(element).overflowX;
+          if (overflowX === "auto" || overflowX === "scroll") {
+            return false;
+          }
+          if (element.tagName === "MAIN") {
+            break;
+          }
+        }
+        return true;
+      }).length,
   );
 
-  expect(escaping).toBe(0);
+  expect(unscrollable).toBe(0);
+  // And whatever the tables do, the document itself must not scroll sideways.
   await expectNoHorizontalOverflow(page);
 });
