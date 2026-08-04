@@ -6,7 +6,7 @@ from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
 
-from .freshness import current_freshness, freshness_from
+from .freshness import current_freshness
 from .navigation import NAVIGATION
 from .overview import build_overview
 
@@ -30,7 +30,7 @@ def overview(request):
     context = {
         "navigation": NAVIGATION,
         "active_nav": "overview",
-        "freshness": freshness_from((legal_work, membership, news, events)),
+        "freshness": current_freshness(legal_work, membership, news, events),
         "legal_work": legal_work,
         "membership": membership,
         "news": news,
@@ -51,6 +51,9 @@ def freshness_fragment(request):
 
     It is an ordinary protected route: the viewer middleware guards it, and
     without JavaScript the same control falls back to reloading the overview.
+
+    It has no page content to borrow a summary from, so it reads all four
+    itself — which is the whole job of this endpoint.
     """
     return render(
         request,

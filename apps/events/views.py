@@ -28,7 +28,7 @@ def events_overview(request):
         {
             "navigation": NAVIGATION,
             "active_nav": "events",
-            "freshness": current_freshness(),
+            "freshness": current_freshness(summary),
             "summary": summary,
             "items": get_upcoming_events(summary.snapshot, limit=DEFAULT_LIMIT),
             "near_term_count": count_upcoming_within(summary.snapshot)

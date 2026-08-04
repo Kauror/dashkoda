@@ -22,20 +22,25 @@ from datetime import datetime
 
 from django.utils import timezone
 
-from apps.events.selectors import get_event_summary
-from apps.legal_work.selectors import get_legal_work_summary
-from apps.membership.selectors import get_membership_summary
-from apps.news.selectors import get_news_summary
+from apps.events.selectors import EventSummary, get_event_summary
+from apps.legal_work.selectors import LegalWorkSummary, get_legal_work_summary
+from apps.membership.selectors import MembershipSummary, get_membership_summary
+from apps.news.selectors import NewsSummary, get_news_summary
 
 NO_SOURCE_MESSAGE = "Andmeallikas ei ole veel ühendatud."
 
-# The wired data modules, each read through its own summary selector. A module
+# The wired data modules, each paired with the selector that reads it. A module
 # joins the shell count by being added here, not by being guessed at.
-_SUMMARIES = (
-    get_legal_work_summary,
-    get_membership_summary,
-    get_news_summary,
-    get_event_summary,
+#
+# The summary type is what lets a caller hand back a summary it has already
+# loaded: a page passes what it read, and the type says which module it speaks
+# for. Matching by type rather than by position means a caller cannot
+# accidentally supply one module's summary in another's place.
+_SUMMARY_SOURCES = (
+    (LegalWorkSummary, get_legal_work_summary),
+    (MembershipSummary, get_membership_summary),
+    (NewsSummary, get_news_summary),
+    (EventSummary, get_event_summary),
 )
 
 
@@ -72,13 +77,17 @@ class FreshnessState:
         return base
 
 
-def freshness_from(summaries) -> FreshnessState:
-    """Count the connected and stale sources from already-loaded summaries.
+def current_freshness(*preloaded) -> FreshnessState:
+    """Reduce every wired module's summary to the one shell freshness row.
 
-    For a view that has just read the module summaries for its own content —
-    the overview reads all four — this avoids fetching every one of them a
-    second time. `summaries` must hold one summary per wired module, in any
-    order.
+    Each module costs two indexed single-row queries, so a page that has already
+    read a summary for its own content can hand it back rather than pay for it
+    twice: ``current_freshness(summary)``. Anything not supplied is read here,
+    so a caller can pass none, one or all four and the row means the same thing.
+
+    Nothing is cached, memoised or stashed on the request. The only way a
+    summary is reused is that a caller passes the object it already holds, which
+    keeps the data flow visible in the view rather than hidden behind a loader.
 
     Connected and stale are not restated here: `has_data` and
     `is_stale_after_failure` come from the summary the module's pages already
@@ -90,18 +99,14 @@ def freshness_from(summaries) -> FreshnessState:
     admin is current data, and a later failed collection makes it stale in
     exactly the way a synchronised source would be.
     """
-    summaries = list(summaries)
+    supplied = {type(summary): summary for summary in preloaded}
+    summaries = [
+        supplied[summary_class] if summary_class in supplied else read_summary()
+        for summary_class, read_summary in _SUMMARY_SOURCES
+    ]
     return FreshnessState(
         checked_at=timezone.localtime(),
         connected_sources=sum(1 for summary in summaries if summary.has_data),
-        total_sources=len(_SUMMARIES),
+        total_sources=len(_SUMMARY_SOURCES),
         stale_sources=sum(1 for summary in summaries if summary.is_stale_after_failure),
     )
-
-
-def current_freshness() -> FreshnessState:
-    """Read every wired module's summary and reduce it to the shell row.
-
-    Two indexed single-row queries per wired module.
-    """
-    return freshness_from(read_summary() for read_summary in _SUMMARIES)

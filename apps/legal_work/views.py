@@ -51,7 +51,10 @@ def legal_work_overview(request):
         {
             "navigation": NAVIGATION,
             "active_nav": "legislation",
-            "freshness": current_freshness(),
+            # The shell row speaks for all four wired modules; this page has
+            # already read one of them, so it hands that one back instead of
+            # paying for it twice.
+            "freshness": current_freshness(summary),
             "summary": summary,
             "open_items": get_open_items(snapshot),
             "sent_items": get_latest_sent_items(snapshot, limit=DEFAULT_RECENT_LIMIT),
