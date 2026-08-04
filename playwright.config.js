@@ -8,14 +8,41 @@ import { defineConfig, devices } from "@playwright/test";
  */
 const baseURL = process.env.DASHKODA_E2E_BASE_URL || "http://127.0.0.1:8000";
 
+/*
+ * Two mutually exclusive stages, selected by `DASHKODA_E2E_SEEDED`.
+ *
+ * The default stage runs `e2e/` against an empty database, where the point is
+ * that the dashboard shows honest empty states — `shell.spec.js` even asserts
+ * that no digit appears anywhere. The seeded stage runs `e2e/seeded/` after
+ * `manage.py seed_e2e_data` has published synthetic content, where the point is
+ * the opposite: real content, long enough to truncate and wrap.
+ *
+ * They cannot share a run, because each one's expectations are the other's
+ * failure. Selecting by directory keeps that separation impossible to get
+ * wrong by accident, and each stage writes its own report so both survive.
+ */
+const seeded = process.env.DASHKODA_E2E_SEEDED === "1";
+
 export default defineConfig({
-  testDir: "./e2e",
-  outputDir: "./test-results",
+  testDir: seeded ? "./e2e/seeded" : "./e2e",
+  testIgnore: seeded ? undefined : "**/seeded/**",
+  outputDir: seeded ? "./test-results-seeded" : "./test-results",
   fullyParallel: false,
   workers: 1,
   forbidOnly: Boolean(process.env.CI),
   retries: process.env.CI ? 1 : 0,
-  reporter: process.env.CI ? [["list"], ["html", { open: "never" }]] : "list",
+  reporter: process.env.CI
+    ? [
+        ["list"],
+        [
+          "html",
+          {
+            open: "never",
+            outputFolder: seeded ? "playwright-report-seeded" : "playwright-report",
+          },
+        ],
+      ]
+    : "list",
   use: {
     baseURL,
     trace: "retain-on-failure",
