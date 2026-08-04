@@ -314,11 +314,17 @@ def _record_unchanged(
         with transaction.atomic():
             state.last_result = SyncResult.UNCHANGED
             state.last_error_summary = ""
+            # An unchanged export is a successful verification: the link
+            # answered, the bytes arrived and they proved to be the ones already
+            # published. `last_changed_at` deliberately does not move, because
+            # nothing changed - that is the whole distinction between the two.
+            state.last_successful_sync_at = timezone.now()
             state.remote_size_bytes = download.size_bytes
             state.save(
                 update_fields=[
                     "last_result",
                     "last_error_summary",
+                    "last_successful_sync_at",
                     "remote_size_bytes",
                     "updated_at",
                 ]

@@ -264,6 +264,24 @@ this route has no trustworthy non-secret value for either, and the checksum
 belongs on the artifact. Storing a digest in an etag field would make both
 fields lie.
 
+The three timestamps answer three different questions, and an **unchanged run
+is a successful run**:
+
+| Field | Meaning | Imported | Unchanged | Failed |
+| --- | --- | --- | --- | --- |
+| `last_checked_at` | the latest attempted check, however it ended | moves | moves | moves |
+| `last_successful_sync_at` | the latest check that succeeded | moves | **moves** | unchanged |
+| `last_changed_at` | the latest time different content was published | moves | unchanged | unchanged |
+
+That distinction matters operationally: the workbook is regenerated every
+morning but usually carries identical bytes, so most days end in `unchanged`.
+Treating that as "no successful sync" would make a healthy feed read as
+untouched for weeks. A failure moves only `last_checked_at`, so the previous
+success is never overwritten by a bad morning, and the dashboard keeps showing
+the last good data with an honest "last check failed" note.
+
+A dry run moves `last_checked_at` and nothing else.
+
 ### Limitations of the public-link route
 
 - **Anonymous-link access can be revoked or forwarded.** Whoever holds the URL
