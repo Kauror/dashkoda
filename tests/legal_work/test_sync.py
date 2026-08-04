@@ -196,6 +196,21 @@ def test_a_dry_run_does_not_replace_published_data(make_workbook):
     assert LegalWorkSnapshot.objects.filter(is_current=True).count() == 1
 
 
+def test_a_dry_run_does_not_block_the_later_live_import(make_workbook):
+    """Regression: a dry run registers the workbook's artifact, and the live
+    run of the same bytes must reuse it. It used to try to register a second
+    artifact with the same checksum, fail the uniqueness rule and record the
+    run as FAILED — so a validated workbook could never be published."""
+    path = make_workbook()
+    synchronize(client=FakeGraphClient(path), dry_run=True)
+
+    outcome = synchronize(client=FakeGraphClient(path))
+
+    assert outcome.result == SyncResult.IMPORTED
+    assert LegalWorkSnapshot.objects.get().is_current is True
+    assert feed_state().last_result == SyncResult.IMPORTED
+
+
 def test_force_reimports_even_when_the_remote_looks_unchanged(make_workbook):
     path = make_workbook()
     client = FakeGraphClient(path)
