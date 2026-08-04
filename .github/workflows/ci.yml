@@ -288,7 +288,22 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install --with-deps chromium
 
-      - name: Run browser smoke suite against Compose
+      # Empty database first: this stage's whole point is that the dashboard
+      # invents nothing when no source is connected, and it asserts that no
+      # digit reaches the shell.
+      - name: Run browser smoke suite against an empty database
+        run: npm run e2e
+
+      - name: Publish synthetic content
+        run: |
+          docker compose -f compose.yaml -f compose.dev.yaml exec -T web \
+            python manage.py seed_e2e_data
+
+      # Same database, now populated. Separate stage rather than separate
+      # assertions, because each stage's expectations are the other's failure.
+      - name: Run browser suite against seeded content
+        env:
+          DASHKODA_E2E_SEEDED: "1"
         run: npm run e2e
 
       - name: Upload browser smoke artifacts
@@ -299,7 +314,9 @@ jobs:
           path: |
             screenshots/
             playwright-report/
+            playwright-report-seeded/
             test-results/
+            test-results-seeded/
           if-no-files-found: ignore
           retention-days: 7
 

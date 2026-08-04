@@ -15,7 +15,9 @@ node_modules/
 static/build/*
 !static/build/.gitkeep
 test-results/
+test-results-seeded/
 playwright-report/
+playwright-report-seeded/
 blob-report/
 screenshots/
 .env
