@@ -33,11 +33,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.formatting import GROUP_SEPARATOR, percentage, whole_euros
-from apps.events.selectors import (
+from apps.event_programme.selectors import (
     NEAR_TERM_DAYS,
-    count_started_in_past_window,
-    count_upcoming_within,
-    get_upcoming_events,
+    count_events_started_within,
+    count_events_starting_within,
+    get_upcoming_programme_events,
 )
 from apps.legal_work.selectors import (
     ACTIVITY_WINDOW_DAYS,
@@ -82,7 +82,10 @@ TREND_DAYS = 365
 SOURCE_PUBLIC_DIRECTORY = "Koda.ee liikmekataloog"
 SOURCE_INTERNAL_REPORT = "Sisemine liikmeskonna aruanne"
 SOURCE_LEGAL_WORKBOOK = "Õigusloome töövihik"
-SOURCE_EVENTS = "Koda.ee kalender"
+# The Chamber's own programme, not the public calendar. The board's event figures
+# come from the canonical Excel export, so the label has to name that and not the
+# website it used to be scraped from.
+SOURCE_EVENTS = "Sündmuste programm"
 SOURCE_NEWS = "Koda.ee uudisvoog"
 
 
@@ -253,8 +256,12 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
     change = get_membership_change_over(days=CHANGE_WINDOW_DAYS)
     received_recent = count_received_since(snapshot, window_start) if snapshot else None
     sent_recent = count_sent_since(snapshot, window_start) if snapshot else None
-    events_near_term = count_upcoming_within(events.snapshot) if events.has_data else None
-    events_last_month = count_started_in_past_window() if events.has_data else None
+    # Both windows are read from the one current workbook snapshot. The workbook
+    # retains what already happened, so the backward window is a straight count
+    # rather than an archaeology of older snapshots — and neither figure uses
+    # `source_year`, which is the annual sheet a row sat on and not a date.
+    events_near_term = count_events_starting_within(events.snapshot) if events.has_data else None
+    events_last_month = count_events_started_within(events.snapshot) if events.has_data else None
 
     return OverviewPage(
         kpis=_build_kpis(
@@ -283,7 +290,7 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
             tuple(get_latest_sent_items(snapshot, limit=PREVIEW_LIMIT)) if snapshot else ()
         ),
         events=events_connection,
-        upcoming_events=tuple(get_upcoming_events(events.snapshot, limit=PREVIEW_LIMIT)),
+        upcoming_events=tuple(get_upcoming_programme_events(events.snapshot, limit=PREVIEW_LIMIT)),
         news=news_connection,
         latest_news=tuple(get_latest_news(news.snapshot, limit=PREVIEW_LIMIT)),
         channels=build_channel_band(detail_url=reverse("visibility")),
@@ -345,7 +352,9 @@ def _build_kpis(
                 (events_near_term, f"sündmusi järgmise {NEAR_TERM_DAYS} päeva jooksul"),
                 (events_last_month, f"sündmusi eelmise {NEAR_TERM_DAYS} päeva jooksul"),
             ),
-            secondary=(f"Kalendris kokku {events.item_count}" if events.has_data else ""),
+            # The programme carries the whole available history, so this is the
+            # Chamber's own event record rather than "what the calendar lists".
+            secondary=(f"Programmis kokku {events.item_count}" if events.has_data else ""),
             as_of=events.observed_at,
         ),
     )

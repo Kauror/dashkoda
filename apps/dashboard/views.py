@@ -1,7 +1,7 @@
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
-from apps.events.selectors import get_event_summary
+from apps.event_programme.selectors import get_event_programme_summary
 from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
@@ -26,7 +26,10 @@ def overview(request):
     legal_work = get_legal_work_summary()
     membership = get_membership_summary()
     news = get_news_summary()
-    events = get_event_summary()
+    # The event figures come from the canonical workbook programme. The public
+    # Koda.ee calendar is collected separately and is named on the Sündmused
+    # page; it contributes no count here.
+    events = get_event_programme_summary()
     context = {
         "navigation": NAVIGATION,
         "active_nav": "overview",

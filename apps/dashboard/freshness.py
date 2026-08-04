@@ -1,7 +1,7 @@
 """Aggregate freshness state for the dashboard shell.
 
 Four data modules publish through their own feed states: legal work,
-membership, news and events. This module reduces those to one honest
+membership, news and the event programme. This module reduces those to one honest
 shell-level line — how many of the wired sources currently publish data,
 whether any of them is showing older data after a failed check, and when this
 was computed. It reads PostgreSQL only.
@@ -22,7 +22,10 @@ from datetime import datetime
 
 from django.utils import timezone
 
-from apps.events.selectors import EventSummary, get_event_summary
+from apps.event_programme.selectors import (
+    EventProgrammeSummary,
+    get_event_programme_summary,
+)
 from apps.legal_work.selectors import LegalWorkSummary, get_legal_work_summary
 from apps.membership.selectors import MembershipSummary, get_membership_summary
 from apps.news.selectors import NewsSummary, get_news_summary
@@ -32,6 +35,13 @@ NO_SOURCE_MESSAGE = "Andmeallikas ei ole veel ühendatud."
 # The wired data modules, each paired with the selector that reads it. A module
 # joins the shell count by being added here, not by being guessed at.
 #
+# There are four **business domains**, not four collectors. The event domain has
+# two feeds — the canonical workbook programme and the public Koda.ee calendar —
+# and the programme is the one this row speaks for. Adding the public calendar as
+# a fifth entry would tell a board member the dashboard covers five subjects when
+# it covers four, and would move the denominator for a reason that has nothing to
+# do with what is on the dashboard.
+#
 # The summary type is what lets a caller hand back a summary it has already
 # loaded: a page passes what it read, and the type says which module it speaks
 # for. Matching by type rather than by position means a caller cannot
@@ -40,7 +50,7 @@ _SUMMARY_SOURCES = (
     (LegalWorkSummary, get_legal_work_summary),
     (MembershipSummary, get_membership_summary),
     (NewsSummary, get_news_summary),
-    (EventSummary, get_event_summary),
+    (EventProgrammeSummary, get_event_programme_summary),
 )
 
 
