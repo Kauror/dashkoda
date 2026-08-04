@@ -11,7 +11,7 @@ Three things are deliberate:
 
 - **the application starts with neither setting present.** `GA4_PROPERTY_ID`
   and `GA4_CREDENTIALS_FILE` default to empty, exactly like the legal-work
-  Graph variables. Only the collection command requires them; tests, local
+  sharing URL. Only the collection command requires them; tests, local
   development and every page render use no credentials at all and make no
   request;
 - **no fake data is produced.** A stub returning plausible sessions would put a

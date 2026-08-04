@@ -158,8 +158,9 @@ def import_artifact(
     """Import one registered artifact.
 
     Without `workbook_path` the artifact's own stored private file is parsed,
-    which is the manual-import and Graph-sync behaviour. With `workbook_path` the
-    caller supplies the bytes it just downloaded into a temporary directory, and
+    which is what the manual `import_oigusloome` command does. With
+    `workbook_path` the caller supplies bytes it downloaded into a temporary
+    directory, which is what the scheduled public-link synchronisation does, and
     the artifact may then be a metadata-only external reference carrying nothing
     but the content identity. Both paths run this one parser: a workbook that
     validates one way validates the other.

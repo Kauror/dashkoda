@@ -1,11 +1,11 @@
 """Synchronise the legal-work workbook from a public read-only sharing link.
 
-This is the MVP collection route. It needs no Microsoft Entra application, no
-Graph credentials and no inbound endpoint: one outbound HTTPS download of a
-view-only sharing link, validated, imported through the existing importer, and
-published as an ordinary immutable snapshot.
+This is the feed's one recurring collection route. It needs no Microsoft Entra
+application, no client secret and no inbound endpoint: one outbound HTTPS
+download of a view-only sharing link, validated, imported through the existing
+importer, and published as an ordinary immutable snapshot.
 
-What is different from the Graph route is only *how the bytes arrive*:
+How the bytes arrive shapes three things:
 
 - the workbook is written to a temporary directory and deleted in every outcome,
   so no permanent copy is kept under ``SOURCE_ARTIFACT_ROOT``;
@@ -15,9 +15,11 @@ What is different from the Graph route is only *how the bytes arrive*:
   remote modification time to compare, so every run downloads and the digest
   decides.
 
-Everything after that is unchanged: the same parser, the same import registry,
-the same all-or-nothing publication, and the same guarantee that a failed run
-leaves the previously published snapshot exactly where it was.
+Everything after that is the shared path: the same parser, the same import
+registry, the same all-or-nothing publication, and the same guarantee that a
+failed run leaves the previously published snapshot exactly where it was. The
+manual ``import_oigusloome`` command reaches that path from a local file and is
+not a recurring route.
 
 The sharing URL is a bearer-style secret and appears nowhere in this module's
 output: not in the returned outcome, not in the feed state, not in an audit
@@ -96,9 +98,8 @@ def synchronize_public_workbook(
             download = fetch(download_path)
         except PublicUrlNotConfigured:
             # An operator's configuration mistake, not a synchronisation
-            # failure. It is reported by the command as plain text naming the
-            # missing variable, exactly as the Graph route does, rather than
-            # being recorded as if the remote had misbehaved.
+            # failure. The command reports it as plain text naming the missing
+            # variable rather than recording it as if the remote had misbehaved.
             raise
         except PublicDownloadError as error:
             return _fail(state, str(error), correlation_id=correlation_id, stage="download")
@@ -132,11 +133,10 @@ def synchronize_public_workbook(
                 correlation_id=correlation_id,
             )
         except Exception as error:
-            # Deliberately broad, for the same reason the Graph route is: this
-            # runs unattended every morning, and every failure — including an
-            # import-registry constraint violation — must be recorded and
-            # reported. The importer has already rolled back, so the previously
-            # published snapshot is intact.
+            # Deliberately broad: this runs unattended every morning, and every
+            # failure — including an import-registry constraint violation —
+            # must be recorded and reported. The importer has already rolled
+            # back, so the previously published snapshot is intact.
             message = f"{type(error).__name__}: {error}".replace("\n", " ")
             return _fail(state, message, correlation_id=correlation_id, stage="import")
 

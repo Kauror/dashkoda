@@ -1,7 +1,7 @@
 """The Õigusloome page.
 
-An ordinary protected page that reads PostgreSQL only. It never calls Microsoft
-Graph, never downloads or parses the workbook and never waits on OneDrive:
+An ordinary protected page that reads PostgreSQL only. It never contacts
+Microsoft, never downloads or parses the workbook and never waits on OneDrive:
 synchronisation is a separate scheduled command, so a slow or broken OneDrive
 can never make this page slow or broken.
 """
