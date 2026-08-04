@@ -223,6 +223,40 @@ Both need a Django superuser as well as the viewer PIN. The results appear at
 Use obviously synthetic values locally. **Never enter real Chamber follower
 counts into a development database**, and never commit one.
 
+## Filling a development database with synthetic content
+
+Empty states are what a fresh database shows, and for a long time they were the
+only thing the browser suite ever saw — which is how a 152-pixel horizontal
+overflow shipped while every viewport assertion passed. One command publishes
+content shaped to catch that:
+
+```bash
+docker compose exec -T web python manage.py seed_e2e_data
+```
+
+It publishes through the ordinary domain services — a real workbook through the
+real legal-work parser, the public feeds through their own synchronisation, the
+board-report history and the visibility figures through their manual publication
+services — so the result is a state the application could actually have reached.
+
+Every value is invented and obviously synthetic, every value is a fixed
+constant, and re-running publishes nothing new. The command **refuses to run
+under `config.settings.production`**: it is permitted only under
+`config.settings.local` and `config.settings.test`.
+
+To see the pages with that content in a browser, run the two browser stages the
+way CI does — the empty stage first, then the seed, then the seeded stage:
+
+```bash
+npm run e2e
+docker compose exec -T web python manage.py seed_e2e_data
+DASHKODA_E2E_SEEDED=1 npm run e2e
+```
+
+The two stages are mutually exclusive by design: the empty-state suite asserts
+that no digit reaches the shell, which is exactly what the seeded suite needs.
+`DASHKODA_E2E_SEEDED=1` selects `e2e/seeded/` and its own report directory.
+
 Google Analytics needs no local configuration. `GA4_PROPERTY_ID` and
 `GA4_CREDENTIALS_FILE` may stay unset: the application starts, every page
 renders and the whole test suite passes with neither, and only the scheduled
