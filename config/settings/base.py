@@ -113,12 +113,14 @@ SOURCE_ARTIFACT_ALLOWED_EXTENSIONS = frozenset(
 
 # Legal-work feed.
 #
-# Two collection routes exist. The public read-only sharing link is the MVP
-# route; Microsoft Graph remains available but is not required.
+# One recurring collection route: the public read-only sharing link. The
+# Microsoft Graph route was retired without ever completing live acceptance, so
+# no Entra application, client secret or drive/item identifier is configured
+# here any more.
 #
-# Both are intentionally optional and blank by default: the web application
-# must start, and CI must run, without any of them. Only the synchronisation
-# commands require configuration, and they fail with an explicit message naming
+# The sharing URL is intentionally optional and blank by default: the web
+# application must start, and CI must run, without it. Only the synchronisation
+# command requires configuration, and it fails with an explicit message naming
 # what is missing — never echoing the value.
 LEGAL_WORK_SOURCE_SLUG = "oigusloome-onedrive"
 
@@ -128,17 +130,6 @@ LEGAL_WORK_SOURCE_SLUG = "oigusloome-onedrive"
 # logs, the audit trail or the interface. Required only by
 # `sync_oigusloome_public`.
 OIGUSLOOME_PUBLIC_URL = os.environ.get("OIGUSLOOME_PUBLIC_URL", "")
-
-# Microsoft Graph, the optional alternative route. The sharing URL is never
-# Graph configuration: it is resolved once to a stable drive/item pair through
-# the one-time resolver command.
-MS_GRAPH_TENANT_ID = os.environ.get("MS_GRAPH_TENANT_ID", "")
-MS_GRAPH_CLIENT_ID = os.environ.get("MS_GRAPH_CLIENT_ID", "")
-MS_GRAPH_CLIENT_SECRET = os.environ.get("MS_GRAPH_CLIENT_SECRET", "")
-OIGUSLOOME_DRIVE_ID = os.environ.get("OIGUSLOOME_DRIVE_ID", "")
-OIGUSLOOME_ITEM_ID = os.environ.get("OIGUSLOOME_ITEM_ID", "")
-MS_GRAPH_TIMEOUT_SECONDS = 30
-MS_GRAPH_MAX_ATTEMPTS = 4
 LEGAL_WORK_MAX_DOWNLOAD_BYTES = SOURCE_ARTIFACT_MAX_BYTES
 
 # The Chamber's own event programme, prepared from the operational service-code

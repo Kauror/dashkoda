@@ -564,3 +564,40 @@ def test_an_overlapping_run_exits_three():
     with advisory_lock():
         with ThreadPoolExecutor(max_workers=1) as executor:
             assert executor.submit(run_locked_command).result() == EXIT_LOCKED
+
+
+@pytest.mark.django_db(transaction=True)
+def test_the_lock_is_refused_across_connections_and_released_afterwards():
+    """The guarantee has to hold between processes, not just inside one.
+
+    Exercises the lock primitive directly rather than through the command, so
+    the release half of the contract is covered too. It moved here when the
+    Graph route was retired; the guarantee it protects is the feed's, not that
+    route's.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    from django.db import close_old_connections
+
+    def try_to_lock():
+        close_old_connections()
+        try:
+            with advisory_lock():
+                return "acquired"
+        except SyncLocked:
+            return "refused"
+        finally:
+            close_old_connections()
+
+    with advisory_lock():
+        # A separate connection must not be able to take the same lock.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            assert executor.submit(try_to_lock).result() == "refused"
+
+    # Once released, the next run may take it.
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        assert executor.submit(try_to_lock).result() == "acquired"
+
+
+def test_the_locked_exit_code_is_distinct():
+    assert EXIT_LOCKED == 3

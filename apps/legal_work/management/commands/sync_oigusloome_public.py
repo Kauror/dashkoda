@@ -51,8 +51,8 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         as_json = options["as_json"]
         try:
-            # The same lock the Graph route takes, so the two can never import
-            # at the same time even if both were scheduled by mistake.
+            # The feed's own lock, so two overlapping invocations can never
+            # both import even when the job is scheduled twice by mistake.
             with advisory_lock():
                 outcome = synchronize_public_workbook(dry_run=options["dry_run"])
         except SyncLocked as error:

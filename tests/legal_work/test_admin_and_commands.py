@@ -119,11 +119,3 @@ def test_an_invalid_workbook_fails_the_command(make_workbook):
 
     with pytest.raises(CommandError, match="Vale andmestik"):
         call_command("import_oigusloome", "--file", str(broken))
-
-
-# -- share resolver -----------------------------------------------------
-
-
-def test_the_share_resolver_requires_an_identifier():
-    with pytest.raises(CommandError, match="--url"):
-        call_command("resolve_oigusloome_share")

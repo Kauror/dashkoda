@@ -1,7 +1,7 @@
 """Deterministic reader for the canonical legal-work workbook.
 
 This module knows the workbook contract and nothing about Django models, the
-import registry or Microsoft Graph. It either returns a fully validated
+import registry or how the file was fetched. It either returns a fully validated
 :class:`ParsedWorkbook` or raises :class:`WorkbookContractError`.
 
 The authoritative input is the Excel Table ``tbl_oigusloome`` on the ``DATA``

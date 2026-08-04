@@ -18,14 +18,3 @@ STORAGES["staticfiles"] = {  # noqa: F405
 # A safe default only. The autouse `private_artifact_root` fixture repoints this
 # at a per-test temporary directory, so nothing is left behind.
 SOURCE_ARTIFACT_ROOT = str(Path(tempfile.gettempdir()) / "dashkoda-test-source-artifacts")
-
-# Synthetic Graph configuration. No test ever reaches Microsoft: the collector
-# is always driven through a mocked transport, and these values exist only so
-# configuration loading can be exercised.
-MS_GRAPH_TENANT_ID = "synthetic-tenant"
-MS_GRAPH_CLIENT_ID = "synthetic-client"
-MS_GRAPH_CLIENT_SECRET = "synthetic-not-a-real-secret"
-OIGUSLOOME_DRIVE_ID = "synthetic-drive"
-OIGUSLOOME_ITEM_ID = "synthetic-item"
-MS_GRAPH_MAX_ATTEMPTS = 2
-MS_GRAPH_TIMEOUT_SECONDS = 1
