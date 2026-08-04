@@ -219,13 +219,13 @@ KODA_NEWS_MAX_FUTURE_DAYS = 2
 
 # Google Analytics 4.
 #
-# **Not connected.** No request is made, no Google SDK is installed and no
-# credential exists. These two settings are declared now so the shape of the
-# future configuration is reviewable and so ordinary startup provably does not
-# depend on them: both default to empty, the application starts and every page
-# renders without either, and the test suite sets neither.
+# Read only by the scheduled `sync_ga4` command, which collects one completed
+# day of aggregate website traffic. Both settings default to empty and ordinary
+# startup provably does not depend on them: the application starts, every page
+# renders without either, and the test suite sets neither. No page render ever
+# contacts Google.
 #
-# `GA4_CREDENTIALS_FILE` will point at a read-only service-account key mounted
+# `GA4_CREDENTIALS_FILE` points at a read-only service-account key mounted
 # into the deployment. That file is a credential: it belongs in the server
 # environment only and must never reach Git, PostgreSQL, a log line, an audit
 # summary or the interface. See `apps/visibility/ga4.py`.

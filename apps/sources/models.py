@@ -248,8 +248,10 @@ class SourceArtifact(models.Model):
 class ImportRun(models.Model):
     """Registry entry for one import attempt.
 
-    PR-05 provides the registry and its state machine only. No importer exists
-    yet, nothing is scheduled, and no domain record is ever written from here.
+    The registry owns content identity and the state machine only. The domain
+    importers — the workbook feeds, the public Koda.ee collectors, GA4 and
+    manual entry — write their own records inside their own transactions and
+    report the outcome here; no domain record is ever written from this app.
     """
 
     source = models.ForeignKey(

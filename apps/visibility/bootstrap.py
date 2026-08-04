@@ -9,9 +9,10 @@ what somebody actually read.
 The newsletter lists share one source because they genuinely come from one
 system, one login and one reading session.
 
-Every one of these is registered as `SourceType.MANUAL` with
+Every manual source is registered as `SourceType.MANUAL` with
 `UpdateFrequency.IRREGULAR`: nothing polls them, and claiming a cadence would
-be the first step towards a page saying "synchronised".
+be the first step towards a page saying "synchronised". The GA4 website-traffic
+source is `SourceType.WEBSITE`, the one source with an automated collector.
 
 `stale_after_days` is deliberately **not** set on the `DataSource` rows. That
 field drives the source-level staleness other modules use for a *feed*, and
@@ -50,9 +51,10 @@ SOURCE_DESCRIPTIONS = {
     SOURCE_INSTAGRAM: "Koja Instagrami konto jälgijate arv. " + _MANUAL_DESCRIPTION_SUFFIX,
     SOURCE_YOUTUBE: "Koja YouTube’i kanali tellijate arv. " + _MANUAL_DESCRIPTION_SUFFIX,
     SOURCE_GA4: (
-        "Koja kodulehe külastusstatistika Google Analytics 4-st. Allikas on "
-        "registreeritud, kuid **ei ole ühendatud**: ühtegi päringut ei tehta, ühtegi "
-        "mandaati ei ole ja ühtegi vaatlust ei ole avaldatud."
+        "Koja kodulehe külastusstatistika Google Analytics 4-st. Kogutakse "
+        "ajastatud käsuga sync_ga4 ainult kirjutuskaitstud teenusekonto kaudu; "
+        "salvestatakse üksnes päevased koondnäitajad, mitte ühtegi üksikut "
+        "külastajat."
     ),
 }
 
@@ -101,11 +103,10 @@ def ensure_youtube_source(*, actor=None, correlation_id=None):
 
 
 def ensure_ga4_source(*, actor=None, correlation_id=None):
-    """Register the GA4 source without connecting anything.
+    """Register the GA4 source.
 
-    Registering it early costs nothing and makes the unconnected state a fact in
-    the database rather than a gap. No artifact and no import run is created:
-    `build_import_run` would need a content identity, and there is no content.
+    Registration alone connects nothing: the website card claims a connection
+    only once `sync_ga4` has actually published an observation.
     """
     return _ensure(
         SOURCE_GA4, source_type=SourceType.WEBSITE, actor=actor, correlation_id=correlation_id

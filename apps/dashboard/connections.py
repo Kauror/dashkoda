@@ -108,5 +108,6 @@ def planned(label: str, *, promise: str = "", cadence: str = "") -> Connection:
 # member an integration exists where a person typed a number off a screen.
 # `apps.visibility.selectors.ReadingState` carries the honest wording instead.
 #
-# Website visits remain genuinely planned: Google Analytics is not connected,
-# nothing requests it, and that slot still says so.
+# Website visits have their own optional collector, the scheduled `sync_ga4`
+# command. The slot claims a connection only once an observation has actually
+# been published; until then it still says `Lisamisel`.

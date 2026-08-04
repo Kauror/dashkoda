@@ -101,11 +101,14 @@ These rules apply to the whole repository.
   supersedes the old one; it never rewrites history in place, and there is no
   delete action.
 - Communication-channel audience figures are **entered by hand and nothing
-  more**. Do not add a Smaily, Meta, LinkedIn, Instagram, YouTube or Google
-  Analytics client, credential, OAuth flow, scraper or schedule; do not store
-  post reach, impressions, engagement, opens, clicks or any individual
-  subscriber or follower. The fixed public profile URLs are display links, are
-  application configuration rather than form values, and are never fetched.
+  more**. Do not add a Smaily, Meta, LinkedIn, Instagram or YouTube client,
+  credential, OAuth flow, scraper or schedule; do not store post reach,
+  impressions, engagement, opens, clicks or any individual subscriber or
+  follower. The fixed public profile URLs are display links, are application
+  configuration rather than form values, and are never fetched. Website
+  traffic is the one automated exception: the scheduled `sync_ga4` command
+  reads aggregate daily figures through a read-only Google Analytics service
+  account, and no individual visitor is ever stored.
 - Manually entered data must never be worded as an automatic feed. Do not write
   `sünkroonitud`, `API-ga ühendatud` or `automaatselt uuendatud` beside a value
   a person typed, and do not add manual observations to `current_freshness()`

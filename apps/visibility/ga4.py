@@ -1,40 +1,27 @@
-"""The seam a Google Analytics collector will plug into. **Nothing here calls Google.**
+"""Google Analytics website traffic: configuration, contract and collector.
 
-This module contains no HTTP client, no Google SDK import, no credential
-handling and no collection of any kind — real or simulated. It exists so that
-the next pull request adds a *collector* rather than redesigning the schema, the
-publication path and the page at the same time.
+The only automated visibility source. :class:`Ga4ApiCollector` reads one
+completed reporting day from the GA4 Data API through a **read-only** service
+account; the scheduled ``sync_ga4`` management command is its only caller, and
+publication follows the path every other source uses — canonical JSON →
+SHA-256 → metadata-only ``SourceArtifact`` → ``ImportRun`` → an immutable
+``WebsiteTrafficObservation`` → audit event. No GA4 response body is retained.
 
 Three things are deliberate:
 
-- **the application starts with neither setting present.** `GA4_PROPERTY_ID` and
-  `GA4_CREDENTIALS_FILE` default to empty, exactly like the legal-work Graph
-  variables, and only a command that actually collects would require them. Tests
-  and local development use no credentials at all;
+- **the application starts with neither setting present.** `GA4_PROPERTY_ID`
+  and `GA4_CREDENTIALS_FILE` default to empty, exactly like the legal-work
+  Graph variables. Only the collection command requires them; tests, local
+  development and every page render use no credentials at all and make no
+  request;
 - **no fake data is produced.** A stub returning plausible sessions would put a
   number on the board's page that nobody measured, which is the one thing this
   dashboard must never do. Until a real observation exists, the website card
-  says `Lisamisel`;
-- **the normalisation contract is written down before the collector exists**, so
-  the collector's job is to satisfy a shape that has already been reviewed
-  rather than to invent one under deadline.
-
-## What the next pull request needs
-
-- **a GA4 property ID** — which property to report on;
-- **a read-only service account** — `analytics.readonly` and nothing wider, so
-  the credential cannot change anything even if it leaks;
-- **a secret-file mount** — the JSON key belongs in the deployment environment
-  only: never in Git, PostgreSQL, a log line, an audit summary or the interface;
-- **a reporting period definition** — GA4 reports a range, and which range the
-  board is being shown has to be a decision rather than a library default;
-- **a scheduled host command** — collection is never part of a web request;
-- **live acceptance** — no Google credential has ever existed in this project,
-  so nothing about this path has been exercised against the real API.
-
-Publication then follows the path every other source uses: canonical JSON →
-SHA-256 → metadata-only `SourceArtifact` → `ImportRun` → an immutable
-`WebsiteTrafficObservation` → audit event. No GA4 response body is retained.
+  says `Lisamisel` — configuration alone never claims a connection;
+- **the credential can only read.** The service-account scope is
+  ``analytics.readonly`` and nothing wider, so the key cannot change anything
+  even if it leaks. The key file belongs in the deployment environment only:
+  never in Git, PostgreSQL, a log line, an audit summary or the interface.
 """
 
 from __future__ import annotations
@@ -226,7 +213,7 @@ class Ga4ApiCollector:
 
 @runtime_checkable
 class Ga4Collector(Protocol):
-    """What a future collector must offer. No implementation exists.
+    """What a collector must offer; :class:`Ga4ApiCollector` is the real one.
 
     Deliberately narrow: one period in, one normalised reading out. A collector
     that also published would put the decision "does this replace the current

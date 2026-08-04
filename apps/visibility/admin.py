@@ -127,10 +127,10 @@ class VisibilityObservationAdmin(ReadOnlyAdmin):
 
 @admin.register(WebsiteTrafficObservation)
 class WebsiteTrafficObservationAdmin(ReadOnlyAdmin):
-    """Registered for completeness. **Nothing writes this yet.**
+    """Read-only view of the rows the scheduled `sync_ga4` command publishes.
 
-    Google Analytics is not connected: no request is made and no credential
-    exists, so this changelist is empty by design rather than by accident.
+    Empty until the deployment configures the collector and its first run
+    publishes an observation.
     """
 
     list_display = (
