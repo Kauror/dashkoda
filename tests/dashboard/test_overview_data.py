@@ -12,10 +12,12 @@ Koda.ee or touches the approved membership package.
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 import pytest
 from django.core.files import File
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import strip_tags
 
 from apps.events.sync import synchronize_events
@@ -188,6 +190,22 @@ def test_the_member_total_states_its_movement_over_the_stated_window(viewer):
     assert "-4" in strip
     assert "↓" in strip
     assert "viimase 30 päeva jooksul" in strip
+
+
+def test_the_kpi_strip_states_the_as_of_date_and_never_a_time(viewer):
+    """The board asked for the date alone under each headline figure.
+
+    The member count is stamped to the second and the legal figure carries a
+    plain date, so the strip used to render three different shapes side by side
+    — a full timestamp, a long-form date and a short one. Every cell now states
+    the same `d.m.Y` the rest of the dashboard uses, and no clock time at all.
+    """
+    synchronize_membership(collector=collector_returning(membership_collection(3400)))
+
+    strip = " ".join(strip_tags(kpi_strip(viewer.get(reverse("home")))).split())
+
+    assert f"Seisuga: {timezone.localdate():%d.%m.%Y}" in strip
+    assert not re.search(r"\d{1,2}:\d{2}", strip)
 
 
 def test_a_reading_with_no_baseline_that_old_shows_no_change(viewer):

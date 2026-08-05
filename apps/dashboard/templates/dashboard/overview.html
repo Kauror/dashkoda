@@ -50,7 +50,7 @@ None of them reached this file.
     {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" only %}
     <div class="dk-kpi-strip sm:grid-cols-1 lg:grid-cols-3 xl:grid-cols-3">
       {% for kpi in page.kpis %}
-        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary details=kpi.details meter_pct=kpi.meter_pct as_of=kpi.as_of flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary details=kpi.details meter_pct=kpi.meter_pct as_of=kpi.as_of|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
       {% endfor %}
     </div>
   </section>
