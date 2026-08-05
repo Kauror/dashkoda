@@ -11,6 +11,12 @@ from django.test import override_settings
 from apps.core.collapse_guard import collapse_reason, minimum_ratio
 
 
+@pytest.fixture(autouse=True)
+def guard_at_the_production_floor(settings):
+    """The suite disables the guard; these tests are the ones that need it on."""
+    settings.FEED_COLLAPSE_MIN_RATIO = 0.5
+
+
 def test_a_collapse_below_the_floor_is_refused():
     reason = collapse_reason(current_count=600, incoming_count=200, noun="kirjet")
 
