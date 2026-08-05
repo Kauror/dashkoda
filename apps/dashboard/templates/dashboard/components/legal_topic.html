@@ -1,0 +1,42 @@
+{% comment %}
+One legal-work topic as it appears in a card row.
+
+Context:
+  item – a LegalWorkItem, or anything exposing `.topic` and optionally
+         `.public_url`
+
+The topic is a **link when the record carries a public address and plain text
+otherwise**, which is the same contract the events card already keeps. It is one
+component rather than three copies because the Õigusloome card lists the same
+record under three tabs, and a rule about when a topic is clickable must not be
+able to hold in two of them and not the third.
+
+Nothing supplies `public_url` today, and the reason is worth stating so the next
+person does not go looking for a bug. `Tööd eelnõudega.xlsx` has no address
+column, and it is the legal department's own file — read-only to this
+application. A column on `LegalWorkItem` would not help on its own either:
+snapshot rows are rebuilt from scratch on every import, so a manually entered
+address would be erased by the next morning's sync. The address has to arrive
+*with the record*, which means the workbook gaining a column, or a second source
+keyed by `record_id`. When one does, every row here links with no change to this
+file.
+
+Whatever eventually writes the value must validate it — `apps.core.public_http`
+holds the predicate the other feeds use. An address is rendered here, not
+checked here: a template that has to decide whether an href is safe is a
+template that will one day decide wrong.
+
+`relative` is load-bearing, not decoration. The visually-hidden destination note
+is `position: absolute`, and an absolutely positioned box is only clipped by an
+ancestor's `overflow: hidden` when that ancestor is its containing block.
+Without a positioned anchor the note escapes `truncate`, sits at the
+*untruncated* title width, and drags the whole page's scroll area sideways —
+which stays invisible until a real topic is long enough to truncate.
+{% endcomment %}
+{% if item.public_url %}
+  <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.public_url }}" rel="noopener noreferrer">
+    {{ item.topic }}<span class="sr-only"> (avaneb uuel lehel)</span>
+  </a>
+{% else %}
+  <span class="min-w-0 flex-1 truncate text-sm text-text">{{ item.topic }}</span>
+{% endif %}

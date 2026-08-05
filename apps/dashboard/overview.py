@@ -39,16 +39,35 @@ from apps.event_programme.selectors import (
     count_events_starting_within,
     get_upcoming_programme_events,
 )
+from apps.legal_work.sections import (
+    SECTION_OPEN,
+    SECTION_RECEIVED,
+    SECTION_SENT,
+    anchor,
+)
 from apps.legal_work.selectors import (
     ACTIVITY_WINDOW_DAYS,
     count_received_since,
     count_sent_since,
     get_latest_sent_items,
+    get_newest_received_items,
     get_open_items_by_deadline,
 )
 from apps.membership.internal_selectors import (
     get_internal_membership_latest,
     get_internal_membership_trend,
+    get_internal_observation_span,
+)
+from apps.membership.ranges import (
+    CARD_CHOICES,
+    CARD_DEFAULT,
+    TrendRange,
+)
+from apps.membership.ranges import (
+    available as available_ranges,
+)
+from apps.membership.ranges import (
+    resolve as resolve_range,
 )
 from apps.membership.selectors import (
     CHANGE_WINDOW_DAYS,
@@ -74,10 +93,22 @@ from .sparkline import (
 )
 
 # How many rows each card previews before sending the reader to its own page.
-PREVIEW_LIMIT = 4
+#
+# One number per card rather than one shared default, because a grid row is as
+# tall as its tallest card: a card listing fewer rows than the one beside it
+# leaves space that is already being paid for. The cards are therefore tuned in
+# pairs, by the row they sit in.
+#
+# Row one — the Õigusloome card shows one list at a time behind three tabs, so
+# its rows cost a third of what an untabbed card's would, and it sits beside the
+# Liikmeskond card's three figures and its chart.
+LEGAL_PREVIEW_LIMIT = 7
 
-# How much history the two membership trends draw.
-TREND_DAYS = 365
+# Row two — two list cards of the same shape, kept level with each other. Five is
+# what the events card was asked for; the news card follows it so this row does
+# not gain the gap row one just lost.
+EVENTS_PREVIEW_LIMIT = 5
+NEWS_PREVIEW_LIMIT = 5
 
 SOURCE_PUBLIC_DIRECTORY = "Koda.ee liikmekataloog"
 SOURCE_INTERNAL_REPORT = "Sisemine liikmeskonna aruanne"
@@ -97,10 +128,16 @@ class KpiDetail:
     has no single number to promote, and promoting one anyway would read as the
     module's headline while the rest read as footnotes. Each row states its own
     period, because they are not all the same.
+
+    `url` is where the rows behind the count are listed. It is optional: a count
+    whose module has no section listing exactly those records stays plain text
+    rather than linking somewhere approximate, because a link that lands on a
+    different set of rows than the number describes is worse than no link.
     """
 
     label: str
     value: int | str
+    url: str = ""
 
 
 @dataclass(frozen=True)
@@ -196,6 +233,18 @@ class MembershipCard:
     change: MembershipChange
     paid_share_pct: Decimal | None = None
     chart: TrendChart | None = None
+    trend_range: TrendRange | None = None
+    trend_ranges: tuple[TrendRange, ...] = ()
+
+    @property
+    def has_range_choice(self) -> bool:
+        """Whether there is a choice worth offering.
+
+        One button is not a choice. A history too short to fill a second window
+        renders no control at all rather than a control that cannot change what
+        is drawn.
+        """
+        return len(self.trend_ranges) > 1
 
     @property
     def has_any_data(self) -> bool:
@@ -218,7 +267,13 @@ class OverviewPage:
     kpis: tuple[Kpi, ...]
     membership: MembershipCard
     legal_work: Connection
+    # The three Õigusloome lists, in the order the card's tabs offer them: what
+    # is in hand, what has just arrived, what has gone out. `Töös` leads because
+    # it is the only one of the three that is a state rather than an event — a
+    # board member opening the page asks what is on the table before asking what
+    # moved.
     legal_work_open: tuple
+    legal_work_received: tuple
     legal_work_sent: tuple
     events: Connection
     upcoming_events: tuple
@@ -227,13 +282,17 @@ class OverviewPage:
     channels: tuple[ChannelSlot, ...]
 
 
-def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
+def build_overview(*, legal_work, membership, news, events, trend_range_key=None) -> OverviewPage:
     """Read every connected module once and shape it for the page.
 
     The channel band is the one part assembled elsewhere: `apps.visibility` owns
     what those figures mean, how stale they are and how they must be worded, and
     restating any of that here would let the overview and the Nähtavus page drift
     apart about the same number.
+
+    `trend_range_key` is whatever arrived in the query string. It is never
+    trusted and never reaches a query: `apps.membership.ranges` maps it onto one
+    of a fixed set of windows, or onto the default.
     """
     today = timezone.localdate()
     window_start = today - timedelta(days=ACTIVITY_WINDOW_DAYS)
@@ -280,19 +339,28 @@ def build_overview(*, legal_work, membership, news, events) -> OverviewPage:
             change=change,
             internal_latest=internal_latest,
             internal_connection=internal_connection,
-            today=today,
+            trend_range_key=trend_range_key,
         ),
         legal_work=legal_connection,
         legal_work_open=(
-            tuple(get_open_items_by_deadline(snapshot, limit=PREVIEW_LIMIT)) if snapshot else ()
+            tuple(get_open_items_by_deadline(snapshot, limit=LEGAL_PREVIEW_LIMIT))
+            if snapshot
+            else ()
+        ),
+        legal_work_received=(
+            tuple(get_newest_received_items(snapshot, limit=LEGAL_PREVIEW_LIMIT))
+            if snapshot
+            else ()
         ),
         legal_work_sent=(
-            tuple(get_latest_sent_items(snapshot, limit=PREVIEW_LIMIT)) if snapshot else ()
+            tuple(get_latest_sent_items(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else ()
         ),
         events=events_connection,
-        upcoming_events=tuple(get_upcoming_programme_events(events.snapshot, limit=PREVIEW_LIMIT)),
+        upcoming_events=tuple(
+            get_upcoming_programme_events(events.snapshot, limit=EVENTS_PREVIEW_LIMIT)
+        ),
         news=news_connection,
-        latest_news=tuple(get_latest_news(news.snapshot, limit=PREVIEW_LIMIT)),
+        latest_news=tuple(get_latest_news(news.snapshot, limit=NEWS_PREVIEW_LIMIT)),
         channels=build_channel_band(detail_url=reverse("visibility")),
     )
 
@@ -316,7 +384,16 @@ def _build_kpis(
     separate strip of movements repeating the same numbers underneath. A module
     with several counts of equal weight lists them; only the member total has a
     single figure to lead with.
+
+    A count links to the section that lists the records behind it. Each of the
+    three Õigusloome counts has such a section and points at its own: `töös` at
+    Hetkel töös, `uusi` at Uusimad sisse tulnud, `välja läinud` at Viimati välja
+    läinud. The two Sündmused counts have no equivalent — the events page lists
+    the programme, not the two windows this strip counts — so they stay plain
+    text. A link that lands on a different set of rows than the number describes
+    is worse than no link.
     """
+    legal_page = reverse("legal-work")
     return (
         Kpi(
             label="Liikmeid kokku",
@@ -339,9 +416,21 @@ def _build_kpis(
             label="Õigusloome",
             connection=legal_connection,
             details=_counts(
-                (legal_work.open_count if legal_work.has_data else None, "teemasid töös"),
-                (received_recent, f"uusi teemasid {ACTIVITY_WINDOW_DAYS} päevaga"),
-                (sent_recent, f"välja läinud teemasid {ACTIVITY_WINDOW_DAYS} päevaga"),
+                (
+                    legal_work.open_count if legal_work.has_data else None,
+                    "teemasid töös",
+                    anchor(legal_page, SECTION_OPEN),
+                ),
+                (
+                    received_recent,
+                    f"uusi teemasid {ACTIVITY_WINDOW_DAYS} päevaga",
+                    anchor(legal_page, SECTION_RECEIVED),
+                ),
+                (
+                    sent_recent,
+                    f"välja läinud teemasid {ACTIVITY_WINDOW_DAYS} päevaga",
+                    anchor(legal_page, SECTION_SENT),
+                ),
             ),
             as_of=legal_work.reporting_date,
         ),
@@ -349,8 +438,8 @@ def _build_kpis(
             label="Sündmused",
             connection=events_connection,
             details=_counts(
-                (events_near_term, f"sündmusi järgmise {NEAR_TERM_DAYS} päeva jooksul"),
-                (events_last_month, f"sündmusi eelmise {NEAR_TERM_DAYS} päeva jooksul"),
+                (events_near_term, f"sündmusi järgmise {NEAR_TERM_DAYS} päeva jooksul", ""),
+                (events_last_month, f"sündmusi eelmise {NEAR_TERM_DAYS} päeva jooksul", ""),
             ),
             # No `secondary` line: `kpi_card` renders one only beside a hero
             # value, and this cell is details-only. The predecessor here passed
@@ -363,12 +452,20 @@ def _build_kpis(
 
 
 def _counts(*rows) -> tuple[KpiDetail, ...]:
-    """The rows whose count is known.
+    """The rows whose count is known, as `(value, label, url)`.
 
     A missing count contributes no row at all. A zero written where nothing was
     counted reads as "none happened", which is a measurement nobody made.
+
+    `url` is empty where the count has no section listing exactly the rows it
+    describes; it is spelled out on every row rather than defaulted, so adding a
+    count is a decision about where it points and not an omission.
     """
-    return tuple(KpiDetail(label=label, value=value) for value, label in rows if value is not None)
+    return tuple(
+        KpiDetail(label=label, value=value, url=url)
+        for value, label, url in rows
+        if value is not None
+    )
 
 
 def _build_fee_collection(internal_latest, connection) -> FeeCollection:
@@ -430,7 +527,7 @@ def _euros(amount: Decimal) -> str:
 
 
 def _build_membership_card(
-    *, change, internal_latest, internal_connection, today
+    *, change, internal_latest, internal_connection, trend_range_key
 ) -> MembershipCard:
     """The board report's own figures, and only two of them are charted.
 
@@ -448,16 +545,26 @@ def _build_membership_card(
 
     Fee collection is read off the same report as the two counts, so it sits with
     them rather than in a strip of unrelated headline figures.
+
+    The three figures above the chart are the **latest** report and do not move
+    with the range control. Narrowing the window changes how much history is
+    drawn; it does not change what the most recent report said, and a headline
+    figure that shifted when a reader asked for a longer line would be answering
+    a question nobody put.
     """
     total_series: tuple = ()
     paid_series: tuple = ()
     paid_share = None
     paid_value = None
     total_value = None
+    span = get_internal_observation_span()
+    offered = available_ranges(CARD_CHOICES, earliest=span.earliest, latest=span.latest)
+    trend_range = resolve_range(trend_range_key, available=offered, default=CARD_DEFAULT)
     if internal_latest is not None:
-        trend = get_internal_membership_trend(
-            date_from=today - timedelta(days=TREND_DAYS),
-        )
+        # Anchored to the newest observation rather than to today: a report that
+        # arrives late would otherwise shorten the window by however late it was
+        # and quietly drop its oldest point.
+        trend = get_internal_membership_trend(date_from=trend_range.start_from(span.latest))
         total_series = trend.series("total_members")
         paid_series = trend.series("paid_members")
         paid_share = internal_latest.paid_member_share_pct
@@ -496,6 +603,8 @@ def _build_membership_card(
                 _trend_source(internal, style="dashed"),
             )
         ),
+        trend_range=trend_range,
+        trend_ranges=offered,
     )
 
 

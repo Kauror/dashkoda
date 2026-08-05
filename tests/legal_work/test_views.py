@@ -5,6 +5,7 @@ import datetime as dt
 import pytest
 
 from apps.legal_work.models import SyncResult
+from apps.legal_work.sections import LINKED_SECTIONS
 from apps.legal_work.sync import get_feed_state
 
 pytestmark = pytest.mark.django_db
@@ -54,6 +55,27 @@ def test_with_data_the_page_shows_all_three_sections(
     assert "Uusimad sisse tulnud" in content
     assert "Andmete seis" in content
     assert "Sünteetiline avatud teema" in content
+
+
+def test_every_section_the_overview_links_to_exists_on_this_page(
+    client, authenticate_viewer, imported_snapshot
+):
+    """The overview's three Õigusloome counts link into this page by anchor.
+
+    The ids are named in `apps/legal_work/sections.py`, but the template still
+    writes its own `heading_id`, so nothing but this test stops the two drifting
+    apart — and a broken fragment fails silently in a browser, landing the reader
+    at the top of the page with no error anywhere.
+
+    The empty-state branches render the same headings, so this holds whether or
+    not a section has rows.
+    """
+    authenticate_viewer(client)
+
+    content = client.get(PAGE_URL).content.decode()
+
+    for section_id in LINKED_SECTIONS:
+        assert f'id="{section_id}"' in content, f"the overview links to #{section_id}"
 
 
 def test_the_page_states_the_data_reporting_date(client, authenticate_viewer, imported_snapshot):

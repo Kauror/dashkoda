@@ -95,4 +95,47 @@ Alpine.data("tabPair", () => ({
   },
 }));
 
+/*
+ * Three mutually exclusive panels inside one card.
+ *
+ * Not a generalisation of `tabPair` over an index, because the CSP build cannot
+ * pass one: a directive may name a property or a method and nothing else, so
+ * `select(2)` is not expressible. Three named methods is what the build allows,
+ * and spelling out the third pair of properties costs less than the indirection
+ * that would be needed to avoid it.
+ *
+ * Same progressive enhancement as `tabPair`: the tablist carries `x-cloak`, so
+ * before this runs there are no tabs and all three panels are visible, each
+ * under its own heading.
+ */
+Alpine.data("tabTrio", () => ({
+  firstSelected: true,
+  secondSelected: false,
+  thirdSelected: false,
+  firstTabClass: TAB_ACTIVE,
+  secondTabClass: TAB_BASE,
+  thirdTabClass: TAB_BASE,
+
+  select(index) {
+    this.firstSelected = index === 0;
+    this.secondSelected = index === 1;
+    this.thirdSelected = index === 2;
+    this.firstTabClass = this.firstSelected ? TAB_ACTIVE : TAB_BASE;
+    this.secondTabClass = this.secondSelected ? TAB_ACTIVE : TAB_BASE;
+    this.thirdTabClass = this.thirdSelected ? TAB_ACTIVE : TAB_BASE;
+  },
+
+  showFirst() {
+    this.select(0);
+  },
+
+  showSecond() {
+    this.select(1);
+  },
+
+  showThird() {
+    this.select(2);
+  },
+}));
+
 Alpine.start();

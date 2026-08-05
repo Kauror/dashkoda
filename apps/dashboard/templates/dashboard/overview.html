@@ -59,7 +59,7 @@ None of them reached this file.
   <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
 
     {# -------- Õigusloome -------- #}
-    <section aria-labelledby="section-legislation" class="dk-section flex flex-col" x-data="tabPair">
+    <section aria-labelledby="section-legislation" class="dk-section flex flex-col" x-data="tabTrio">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
         <h2 id="section-legislation" class="text-base font-semibold text-text">Õigusloome</h2>
         {% comment %}
@@ -75,47 +75,46 @@ None of them reached this file.
       {% if legal_work.has_data %}
         <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-2 sm:px-5">
           {% comment %}
+          Töös leads because it is the only one of the three that is a state
+          rather than an event: a board member opening the page asks what is on
+          the table before asking what moved. Arrivals then departures follows
+          the order a topic travels.
+
           The tablist stays hidden until Alpine has booted, so it is never a dead
-          control. Without JavaScript both panels below simply remain visible,
-          each under its own heading.
+          control. Without JavaScript all three panels below simply remain
+          visible, each under its own heading.
           {% endcomment %}
           <div x-cloak role="tablist" aria-label="Õigusloome nimekirjad" class="flex gap-1">
-            <button type="button"
-                    id="tab-sent"
-                    role="tab"
-                    aria-controls="panel-sent"
-                    x-on:click="showFirst"
-                    :aria-selected="firstSelected"
-                    :class="firstTabClass"
-                    class="dk-tab">Välja läinud</button>
             <button type="button"
                     id="tab-open"
                     role="tab"
                     aria-controls="panel-open"
+                    x-on:click="showFirst"
+                    :aria-selected="firstSelected"
+                    :class="firstTabClass"
+                    class="dk-tab">Töös</button>
+            <button type="button"
+                    id="tab-received"
+                    role="tab"
+                    aria-controls="panel-received"
                     x-on:click="showSecond"
                     :aria-selected="secondSelected"
                     :class="secondTabClass"
-                    class="dk-tab">Töös</button>
+                    class="dk-tab">Viimased sisse</button>
+            <button type="button"
+                    id="tab-sent"
+                    role="tab"
+                    aria-controls="panel-sent"
+                    x-on:click="showThird"
+                    :aria-selected="thirdSelected"
+                    :class="thirdTabClass"
+                    class="dk-tab">Välja läinud</button>
           </div>
           {% comment %}
           The three counts that used to sit here — in hand, arrived, sent — are
           now in the Õigusloome headline cell above, stated once with the period
-          each was measured over.
+          each was measured over, each linking to its own section of the page.
           {% endcomment %}
-        </div>
-
-        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="firstSelected" class="flex-1">
-          <h3 class="sr-only">Viimati välja läinud</h3>
-          <ul class="divide-y divide-border">
-            {% for item in page.legal_work_sent %}
-              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                <span class="min-w-0 truncate text-sm text-text">{{ item.topic }}</span>
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">välja {{ item.sent_date|date:"j.m.y" }}</span>
-              </li>
-            {% empty %}
-              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Välja läinud arvamusi ei ole selles hetkeseisus.</li>
-            {% endfor %}
-          </ul>
         </div>
 
         {% comment %}
@@ -123,12 +122,12 @@ None of them reached this file.
         leads. A record with no deadline trails the dated ones; it says so
         rather than borrowing a date it does not have.
         {% endcomment %}
-        <div id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="secondSelected" class="flex-1">
+        <div id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="firstSelected" class="flex-1">
           <h3 class="sr-only">Töös olevad teemad</h3>
           <ul class="divide-y divide-border">
             {% for item in page.legal_work_open %}
               <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                <span class="min-w-0 truncate text-sm text-text">{{ item.topic }}</span>
+                {% include "dashboard/components/legal_topic.html" with item=item only %}
                 {% if item.deadline_date %}
                   <span class="dk-meta flex-none whitespace-nowrap tabular-nums">tähtaeg {{ item.deadline_date|date:"j.m.y" }}</span>
                 {% else %}
@@ -137,6 +136,39 @@ None of them reached this file.
               </li>
             {% empty %}
               <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Töös olevaid teemasid ei ole selles hetkeseisus.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        {% comment %}
+        Newest arrival first. A received date in the future is a known workbook
+        problem and the selector leaves those out, so nothing sits permanently at
+        the top of this list on the strength of a wrong date.
+        {% endcomment %}
+        <div id="panel-received" role="tabpanel" aria-labelledby="tab-received" x-show="secondSelected" class="flex-1">
+          <h3 class="sr-only">Viimased sisse tulnud</h3>
+          <ul class="divide-y divide-border">
+            {% for item in page.legal_work_received %}
+              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
+                {% include "dashboard/components/legal_topic.html" with item=item only %}
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">sisse {{ item.received_date|date:"j.m.y" }}</span>
+              </li>
+            {% empty %}
+              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Sisse tulnud teemasid ei ole selles hetkeseisus.</li>
+            {% endfor %}
+          </ul>
+        </div>
+
+        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="thirdSelected" class="flex-1">
+          <h3 class="sr-only">Viimati välja läinud</h3>
+          <ul class="divide-y divide-border">
+            {% for item in page.legal_work_sent %}
+              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
+                {% include "dashboard/components/legal_topic.html" with item=item only %}
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">välja {{ item.sent_date|date:"j.m.y" }}</span>
+              </li>
+            {% empty %}
+              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Välja läinud arvamusi ei ole selles hetkeseisus.</li>
             {% endfor %}
           </ul>
         </div>
@@ -228,6 +260,33 @@ None of them reached this file.
               <p class="dk-meta">{{ page.membership.fee.as_of|date:"j.m.y" }}</p>
             </div>
           </div>
+
+          {% comment %}
+          How much history the two lines draw. A plain GET form, the same idiom
+          as the Liikmeskond page's own control and built from the same
+          vocabulary in `apps/membership/ranges.py`, so the two pages cannot end
+          up naming the same window two ways.
+
+          Only windows the history can actually fill are offered, and a history
+          that fills only one of them renders no control at all — two buttons
+          drawing the identical line would read as one of them being broken.
+
+          The action carries `#section-membership`, which a GET submission keeps,
+          so choosing a range returns the reader to this card instead of to the
+          top of the page.
+          {% endcomment %}
+          {% if page.membership.has_range_choice %}
+            <form method="get" action="{% url 'home' %}#section-membership" class="flex flex-wrap items-center gap-2">
+              <span class="dk-meta">Vahemik:</span>
+              {% for option in page.membership.trend_ranges %}
+                {% if option.key == page.membership.trend_range.key %}
+                  <span class="dk-badge dk-badge-brand" aria-current="true">{{ option.label }}</span>
+                {% else %}
+                  <button type="submit" name="vahemik" value="{{ option.key }}" class="dk-button dk-button-secondary">{{ option.label }}</button>
+                {% endif %}
+              {% endfor %}
+            </form>
+          {% endif %}
 
           {% if page.membership.chart %}
             {% include "dashboard/components/trend_chart.html" with chart=page.membership.chart only %}

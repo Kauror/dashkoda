@@ -201,6 +201,27 @@
     @apply font-medium text-brand underline-offset-2 hover:text-brand-hover hover:underline;
   }
 
+  /* A link inside a figure whose number is the point.
+
+     The three counts in the Õigusloome headline cell each lead to the section
+     listing their rows, but they are labels under a figure and `dk-link` made
+     the cell three blue lines competing with the counts and with the card's own
+     "Vaata õigusloomet".
+
+     The cue is a faint dotted underline rather than colour: a link distinguished
+     only by a hover state is invisible to a reader who never hovers and on a
+     touch screen, and one distinguished only by hue is invisible to a reader who
+     cannot separate the hues. Hover promotes it to the ordinary link colour with
+     a solid rule, so the affordance is confirmed rather than introduced.
+
+     The rule is `border-strong`, not `border`. At `--color-border` on the card
+     surface the dotted line is very nearly invisible, which would collapse this
+     back into a link with no cue at all until it is hovered. */
+  .dk-link-quiet {
+    @apply text-text-secondary underline decoration-border-strong decoration-dotted underline-offset-4
+      hover:text-brand-hover hover:decoration-brand-hover hover:decoration-solid;
+  }
+
   .dk-card {
     @apply rounded-lg border border-border bg-surface shadow-card;
   }

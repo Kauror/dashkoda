@@ -126,6 +126,7 @@ context contract in a leading `{% comment %}` block.
 | `planned_module` | truthful "nothing collects this at all" |
 | `error_state` | announced failure, no technical detail |
 | `list_row` | compact row, link only when a destination exists |
+| `legal_topic` | one legal-work topic, a link only once a source gives the record an address |
 | `table_wrapper` | scroll container, column spec, empty fallback |
 | `skeleton` | genuine loading only, never missing data |
 | `callout` | one short note with a thin accent edge |
@@ -133,6 +134,28 @@ context contract in a leading `{% comment %}` block.
 | `sparkline_figure` | one server-drawn miniature trend, with the same alternatives |
 | `trend_chart` | two or more dated series on one pair of axes, solid and dashed, with the same alternatives |
 | `channel_card` | one communication channel: a value, its provenance, or a truthful reason it has neither |
+
+`kpi_card`'s detail rows link their label when the count has a section listing
+exactly its rows, and they wear `dk-link-quiet` rather than the ordinary
+`dk-link`. These are labels under a figure: three of the ordinary blue rule in
+one small cell competes with the counts the cell exists to show, and with the
+card's own "Vaata …" link. The quiet variant carries a faint dotted underline
+that promotes to the ordinary link colour and a solid rule on hover, so the
+affordance is **confirmed** on hover rather than introduced by it. That matters
+twice over — a link distinguished only by a hover state does not exist on a touch
+screen, and one distinguished only by hue does not exist for a reader who cannot
+separate the hues.
+
+`legal_topic` exists because the Õigusloome card lists the same kind of record
+under three tabs — Töös, Viimased sisse, Välja läinud — and a rule about when a
+topic is clickable must not be able to hold in two of them and not the third.
+Nothing supplies an address today: `Tööd eelnõudega.xlsx` has no such column and
+is read-only to this application, and a column on `LegalWorkItem` would not help
+on its own, because snapshot rows are rebuilt on every import and a manually
+entered address would be erased by the next sync. The address has to arrive with
+the record. Whatever eventually writes it validates it — `apps.core.public_http`
+holds the predicate the other feeds use — because a template that decides
+whether an href is safe is a template that will one day decide wrong.
 
 `kpi_card` accepts `label`, `value`, `unit`, `change`, `change_direction`,
 `comparison_period`, `secondary`, `meter_pct`, `status`, `status_label`,
@@ -220,6 +243,32 @@ drawing is stretched to the card width with `preserveAspectRatio="none"` and
 that would stretch any glyph inside it. They are hidden below `sm`, where twelve
 month names cannot fit a phone-width card; the stated range and the tables
 carry the same window in words.
+
+Every observation is **hoverable, with no JavaScript**. Three attribute-only
+decisions carry that, and each of them is what it is because of the stretched
+viewBox or the Content Security Policy:
+
+- the hit target is a full-height strip per observation date, drawn **first** so
+  its hover fill sits behind the lines rather than over them. Everything drawn
+  after it carries `pointer-events="none"`, so the strip is what a pointer meets
+  anywhere in its column. A reader aims at a month, not at a dot;
+- the reading is an SVG `<title>`, shown by the browser as its own tooltip. One
+  strip names **every** line that reported that day, because the card is read as
+  one reading — the total, the paid count, and the gap between them. A tooltip
+  per line would make that two hovers and a memory. A line with nothing on that
+  date contributes no phrase and never a zero;
+- a dot is a **zero-length path with a round linecap**, which SVG defines as
+  drawing a circle of the stroke width. A `<circle>` would be squashed into an
+  ellipse by `preserveAspectRatio="none"`; a stroke marked
+  `vector-effect="non-scaling-stroke"` is measured in screen pixels and stays
+  round at any card width.
+
+A tooltip is a pointer affordance and reaches neither a keyboard nor a touch
+screen, which is exactly why the data table below is not optional.
+
+Geometry inside an attribute is written with `stringformat`, never
+`floatformat`. The dashboard renders in Estonian, `floatformat` is localised,
+and `12,34` in a `points` or `d` attribute is not one coordinate — it is two.
 
 `sparkline_figure` exists so the overview does not have to load the ECharts
 bundle to draw a card-sized line. It keeps `chart_figure`'s contract: the text

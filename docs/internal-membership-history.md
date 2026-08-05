@@ -195,6 +195,7 @@ and returns `None` — never `0` — for anything absent.
 
 ```text
 get_internal_membership_latest()
+get_internal_observation_span()
 get_internal_membership_observations(date_from, date_to, metric)
 get_internal_membership_trend(date_from, date_to)
 get_paid_membership_trend(...)
@@ -335,6 +336,58 @@ reader.
 
 A chart is not rendered at all when it has nothing to draw, and the chart bundle
 is loaded only on pages that draw one.
+
+### How much history a trend draws
+
+The overview card and the Liikmeskond page both offer a range control, and both
+read their windows from `apps/membership/ranges.py` — one vocabulary, so the same
+window cannot be named two ways on two pages. It submits as `?vahemik=` and is a
+plain GET form: no JavaScript, and the control works with the bundle blocked.
+
+| Key | Window | Card | Page |
+| --- | --- | --- | --- |
+| `6` | 6 kuud | ● | ● |
+| `12` | 12 kuud | ● (avaneb) | ● |
+| `24` | 2 aastat | ● | ● |
+| `36` | 3 aastat | ● | ● |
+| `60` | 5 aastat | | ● (avaneb) |
+| `koik` | Kogu ajalugu | | ● |
+
+Three rules make a window honest, and none of them lives in a view:
+
+- **the window is measured from the newest observation, not from today.** The
+  board report arrives when it arrives; anchoring to today would let a report
+  four days late shorten every window by four days and drop its oldest point;
+- **a window the history cannot fill is not offered.** Windows are offered from
+  shortest upward, stopping at the first one that reaches past the oldest
+  observation — that one draws the whole history, and anything longer would draw
+  the identical line under a different name. A history that fills only one window
+  renders no control at all, because one button is not a choice;
+- **an unknown key is not an error.** A stale bookmark falls back to the page's
+  default, and if the history cannot fill that either, to the longest window it
+  can. The control cannot be used to ask for an arbitrary or unbounded query.
+
+The card stops at three years because it draws a polyline at card width. The
+long windows belong to the page, which draws the same data across the full page.
+
+The three figures above the card's chart are the **latest** report and do not
+move with the control. Narrowing the window changes how much history is drawn;
+it does not change what the most recent report said.
+
+### There is no monthly departure series
+
+`MembershipMonthlyNewMemberValue` is the only per-month table and it counts
+**joins**. Departures exist at observation granularity only: `removed_members_ytd`
+(cumulative from 1 January), `suspended_members`, and the per-observation
+breakdowns by size band and by reason.
+
+A per-month departure figure could be differenced out of consecutive
+`removed_members_ytd` values inside one calendar year. It is deliberately not,
+and this is the reasoning rather than an omission: the value resets each January,
+so January is never derivable; a month with no report yields nothing; and where
+two months are missing, all the movement is attributed to the later one. None of
+those three numbers was ever reported, and the quality policy above does not
+allow one to be drawn as though it were.
 
 Viewer-facing quality copy stays at the level of `Ajalooline sisemine aruanne`,
 `Osad ajaloolised punktid on vastuolude tõttu graafikult välja jäetud` and

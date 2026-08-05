@@ -29,6 +29,8 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
+from apps.core.formatting import short_date
+
 # The drawing box. A wide, short viewBox scaled with `preserveAspectRatio="none"`
 # lets one set of coordinates serve every card width.
 VIEWBOX_WIDTH = 100
@@ -133,6 +135,21 @@ class TrendSource:
 
 
 @dataclass(frozen=True)
+class TrendMarker:
+    """Where one observation sits on one line.
+
+    The polyline already carries these coordinates, but only as a run of numbers
+    inside one attribute. A marker is the same point addressable on its own, so
+    the drawing can put something at it.
+    """
+
+    x: float
+    y: float
+    when: date
+    value: float
+
+
+@dataclass(frozen=True)
 class TrendLine:
     """One drawn series: its polyline, its name and the points behind it."""
 
@@ -143,10 +160,33 @@ class TrendLine:
     observations: tuple[tuple[date, float], ...]
     minimum: float
     maximum: float
+    markers: tuple[TrendMarker, ...] = ()
 
     @property
     def point_count(self) -> int:
         return len(self.observations)
+
+
+@dataclass(frozen=True)
+class TrendBand:
+    """One observation date as a full-height strip, and what was read that day.
+
+    The strip is what a pointer actually meets. A dot on a line is a few pixels
+    wide and demands aim; the strip claims the whole column around its date, so
+    the reading appears when a reader is anywhere near the month they are
+    looking at.
+
+    `readout` names **every** line that has a value on this date, because the
+    card exists to be read as one reading — the total, the paid count and the
+    gap between them — and a tooltip per line would make the reader hover twice
+    and hold the first number in their head. A line with nothing on this date
+    contributes no phrase rather than a zero.
+    """
+
+    x: float
+    width: float
+    when: date
+    readout: str
 
 
 @dataclass(frozen=True)
@@ -167,6 +207,7 @@ class TrendChart:
     maximum: float
     start: date
     end: date
+    bands: tuple[TrendBand, ...] = ()
 
     @property
     def month_count(self) -> int:
@@ -219,22 +260,24 @@ def build_trend_chart(sources: Sequence[TrendSource]) -> TrendChart | None:
 
     lines = []
     for source, points in plotted:
-        coordinates = []
+        markers = []
         for when, value in points:
             x = ((when - start).days / span_days) * VIEWBOX_WIDTH
             # A flat set of values sits on the centre line rather than being
             # scaled to the top, which would dramatise noise that is not there.
             offset = 0.5 if value_span == 0 else (value - minimum) / value_span
-            coordinates.append((x, CHART_HEIGHT - VERTICAL_PADDING - (offset * usable_height)))
+            y = CHART_HEIGHT - VERTICAL_PADDING - (offset * usable_height)
+            markers.append(TrendMarker(x=x, y=y, when=when, value=value))
         lines.append(
             TrendLine(
                 label=source.label,
                 style=source.style,
                 source=source.source,
-                points=" ".join(f"{x:.2f},{y:.2f}" for x, y in coordinates),
+                points=" ".join(f"{marker.x:.2f},{marker.y:.2f}" for marker in markers),
                 observations=points,
                 minimum=min(value for _when, value in points),
                 maximum=max(value for _when, value in points),
+                markers=tuple(markers),
             )
         )
 
@@ -245,7 +288,64 @@ def build_trend_chart(sources: Sequence[TrendSource]) -> TrendChart | None:
         maximum=maximum,
         start=start,
         end=end,
+        bands=_bands(tuple(lines), start=start, span_days=span_days),
     )
+
+
+def _bands(lines: tuple[TrendLine, ...], *, start: date, span_days: int) -> tuple[TrendBand, ...]:
+    """One full-height strip per observation date, carrying that day's reading.
+
+    A strip runs from halfway back to the previous date to halfway on to the
+    next, so every position in the drawing belongs to whichever observation is
+    nearest to it and no gap between strips can swallow a pointer. The first and
+    last strips extend to the edges of the box for the same reason.
+
+    Dates come from **all** lines together. Two lines usually report on the same
+    day and produce one strip, but a date only one of them has still gets its
+    own, and its reading names only the line that has it.
+    """
+    by_date: dict[date, list[tuple[str, float]]] = {}
+    for line in lines:
+        for marker in line.markers:
+            by_date.setdefault(marker.when, []).append((line.label, marker.value))
+
+    dates = sorted(by_date)
+    positions = [((when - start).days / span_days) * VIEWBOX_WIDTH for when in dates]
+    # Midpoints between neighbouring observations, with the ends of the box
+    # closing the first and last strip.
+    edges = [0.0]
+    edges.extend((left + right) / 2 for left, right in zip(positions, positions[1:], strict=False))
+    edges.append(float(VIEWBOX_WIDTH))
+
+    return tuple(
+        TrendBand(
+            x=edges[index],
+            width=edges[index + 1] - edges[index],
+            when=when,
+            readout=_readout(when, by_date[when]),
+        )
+        for index, when in enumerate(dates)
+    )
+
+
+def _readout(when: date, readings: Sequence[tuple[str, float]]) -> str:
+    """One observation as a single line of text.
+
+    Built here rather than in the template because it is read from an SVG
+    `<title>`, which holds text and not markup: a template loop would put its
+    own newlines and indentation inside the tooltip. The date is written the way
+    every viewer template writes one, through `apps.core.formatting`.
+    """
+    parts = [short_date(when)]
+    parts.extend(f"{label} {_readable(value)}" for label, value in readings)
+    return " · ".join(parts)
+
+
+def _readable(value: float) -> str:
+    """A charted value as a reader sees it: no trailing `.0`, decimal comma."""
+    if value == int(value):
+        return str(int(value))
+    return f"{value:.1f}".replace(".", ",")
 
 
 def _observations(series: Sequence[Point]) -> tuple[tuple[date, float], ...]:

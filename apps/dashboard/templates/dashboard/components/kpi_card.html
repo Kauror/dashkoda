@@ -17,7 +17,15 @@ explicit "no verified data" state rather than to a guess):
                       `details` instead.
   details           – supporting counts, each `.label` beside its `.value`; used
                       where a module has several figures of equal weight and one
-                      of them promoted to a hero number would misstate the rest
+                      of them promoted to a hero number would misstate the rest.
+                      A row with a `.url` links its label to the section that
+                      lists the records behind the count; one without stays plain
+                      text, because a count whose module has no section listing
+                      exactly those rows must not link somewhere approximate.
+                      The link wears `dk-link-quiet`, not `dk-link`: these are
+                      labels under a figure, and three of the ordinary blue rule
+                      in one small cell competes with the counts the cell exists
+                      to show
   meter_pct         – 0–100; draws a proportion bar beneath the value
   status            – neutral | brand | success | warning | danger | info
   status_label      – text for the status badge
@@ -83,7 +91,19 @@ proportion may only be drawn as geometry. Colour comes from Tailwind `fill-*`.
     <dl class="flex flex-col gap-1">
       {% for detail in details %}
         <div class="flex items-baseline justify-between gap-3">
-          <dt class="min-w-0 text-sm text-text-secondary">{{ detail.label }}</dt>
+          {% comment %}
+          The label carries the link, not the whole row: a `<dl>` may group a
+          `<dt>` and its `<dd>` in a `<div>` and in nothing else, so there is no
+          valid element to wrap both in. The count stays beside its link rather
+          than inside it.
+          {% endcomment %}
+          <dt class="min-w-0 text-sm text-text-secondary">
+            {% if detail.url %}
+              <a href="{{ detail.url }}" class="dk-link-quiet">{{ detail.label }}</a>
+            {% else %}
+              {{ detail.label }}
+            {% endif %}
+          </dt>
           <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.value }}</dd>
         </div>
       {% endfor %}

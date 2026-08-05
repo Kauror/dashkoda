@@ -266,6 +266,92 @@ def _points(line):
     return [tuple(float(part) for part in pair.split(",")) for pair in line.points.split(" ")]
 
 
+# -- the hoverable observations -----------------------------------------
+
+
+def test_every_drawn_point_is_addressable_on_its_own():
+    """The polyline carries these coordinates as a run of numbers inside one
+    attribute. A marker is the same point the drawing can put a dot at."""
+    chart = build_trend_chart(public_and_internal())
+
+    for line in chart.lines:
+        # The polyline rounds to two places on its way into the attribute, so
+        # the comparison is to that precision and not to the float behind it.
+        drawn = [value for marker in line.markers for value in (marker.x, marker.y)]
+        written = [value for point in _points(line) for value in point]
+        assert drawn == pytest.approx(written, abs=0.01)
+        assert [marker.when for marker in line.markers] == [
+            when for when, _value in line.observations
+        ]
+
+
+def test_one_band_per_observation_date_covers_the_whole_drawing():
+    """A gap between two bands would be a place where hovering says nothing."""
+    chart = build_trend_chart(public_and_internal())
+
+    assert len(chart.bands) == 4
+    assert chart.bands[0].x == 0.0
+    assert chart.bands[-1].x + chart.bands[-1].width == pytest.approx(VIEWBOX_WIDTH)
+    for left, right in zip(chart.bands, chart.bands[1:], strict=False):
+        assert left.x + left.width == pytest.approx(right.x)
+
+
+def test_a_band_reads_out_every_line_that_reported_that_day():
+    """The card is read as one reading — the total, the paid count and the gap
+    between them. A tooltip per line would make that two hovers and a memory."""
+    chart = build_trend_chart(public_and_internal())
+
+    assert chart.bands[0].readout == "1.08.25 · Liikmeid kokku 3300 · Tasunud liikmeid 2600"
+    assert chart.bands[-1].readout == "1.11.25 · Liikmeid kokku 3412 · Tasunud liikmeid 2798"
+
+
+def test_a_line_with_nothing_on_a_date_contributes_no_phrase_and_no_zero():
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Mõlemal päeval",
+                style="solid",
+                source="Sünteetiline",
+                series=((DAY, 10), (DAY + dt.timedelta(days=1), 20)),
+            ),
+            TrendSource(
+                label="Ainult hiljem",
+                style="dashed",
+                source="Sünteetiline",
+                series=((DAY + dt.timedelta(days=1), 30), (DAY + dt.timedelta(days=2), 40)),
+            ),
+        )
+    )
+
+    first, second, third = chart.bands
+    assert first.readout == "1.01.26 · Mõlemal päeval 10"
+    assert second.readout == "2.01.26 · Mõlemal päeval 20 · Ainult hiljem 30"
+    assert third.readout == "3.01.26 · Ainult hiljem 40"
+    # The absent line is not named with a zero beside it, and not named at all.
+    assert "Ainult hiljem" not in first.readout
+    assert "Mõlemal päeval" not in third.readout
+
+
+def test_two_observations_split_the_box_between_them():
+    """Every position in the drawing belongs to whichever observation is
+    nearest, so no pointer can land between two bands."""
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Kaks",
+                style="solid",
+                source="Sünteetiline",
+                series=series(10, 20),
+            ),
+        )
+    )
+
+    assert [band.width for band in chart.bands] == [
+        pytest.approx(VIEWBOX_WIDTH / 2),
+        pytest.approx(VIEWBOX_WIDTH / 2),
+    ]
+
+
 def test_the_meter_clamps_its_rectangle_without_hiding_the_number():
     assert meter_width(78) == 78.0
     assert meter_width(Decimal("42.5")) == 42.5

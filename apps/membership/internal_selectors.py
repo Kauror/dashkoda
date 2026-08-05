@@ -56,9 +56,9 @@ TREND_METRICS: tuple[str, ...] = (
     "suspended_members",
 )
 
-# The default window on the trend charts. Fourteen years of irregular
-# observations is unreadable at once; the full range stays one click away.
-DEFAULT_TREND_YEARS = 5
+# The windows the trend charts offer, and which one each page opens on, live in
+# `ranges.py` — the overview card and the Liikmeskond page both read them, and a
+# constant here would be one of two answers to the same question.
 
 # How many complete years the monthly chart shows beside the current one.
 DEFAULT_MONTHLY_HISTORY_YEARS = 3
@@ -178,6 +178,38 @@ class InternalTrend:
             for point in self.points
             if point.value(field) is not None
         )
+
+
+@dataclass(frozen=True)
+class ObservationSpan:
+    """The oldest and newest dates the internal history covers.
+
+    Both are `None` when nothing has been imported. A caller uses this to decide
+    which trend windows it may offer, so it must not be answered with today's
+    date when there is no history — an empty source would then appear to have a
+    span of zero days rather than no span at all.
+    """
+
+    earliest: date | None
+    latest: date | None
+
+    @property
+    def has_history(self) -> bool:
+        return self.earliest is not None and self.latest is not None
+
+
+def get_internal_observation_span() -> ObservationSpan:
+    """How far the preferred observations reach, in one aggregate query.
+
+    `get_internal_membership_quality_summary()` returns the same two dates, but
+    it counts five other things on the way. The overview needs the span alone,
+    on the page every viewer loads first.
+    """
+    span = _preferred_queryset().aggregate(
+        earliest=Min("observation_date"),
+        latest=Max("observation_date"),
+    )
+    return ObservationSpan(earliest=span["earliest"], latest=span["latest"])
 
 
 def get_internal_membership_latest() -> ObservationPoint | None:

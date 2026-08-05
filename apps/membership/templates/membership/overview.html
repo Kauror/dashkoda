@@ -84,16 +84,24 @@ No individual member is listed anywhere, because neither dataset stores one.
       {% include "dashboard/components/section_header.html" with title="Ajaloolised trendid" heading_id="section-trends" only %}
       <div class="dk-section-body flex flex-col gap-8">
 
-        <form method="get" class="flex flex-wrap items-center gap-3 text-sm">
-          <span class="text-text-secondary">Vahemik:</span>
-          {% if range_key == range_recent %}
-            <span class="dk-badge dk-badge-brand">Viimased {{ trend_years }} aastat</span>
-            <button type="submit" name="vahemik" value="{{ range_all }}" class="dk-button dk-button-secondary">Kogu ajalugu</button>
-          {% else %}
-            <button type="submit" name="vahemik" value="{{ range_recent }}" class="dk-button dk-button-secondary">Viimased {{ trend_years }} aastat</button>
-            <span class="dk-badge dk-badge-brand">Kogu ajalugu</span>
-          {% endif %}
-        </form>
+        {% comment %}
+        The windows come from `apps/membership/ranges.py`, which the overview
+        card reads too, so the same window is never named two ways on two pages.
+        Only windows this history can fill are offered; when it can fill just
+        one, no control is rendered at all.
+        {% endcomment %}
+        {% if has_range_choice %}
+          <form method="get" class="flex flex-wrap items-center gap-3 text-sm">
+            <span class="text-text-secondary">Vahemik:</span>
+            {% for option in trend_ranges %}
+              {% if option.key == trend_range.key %}
+                <span class="dk-badge dk-badge-brand" aria-current="true">{{ option.label }}</span>
+              {% else %}
+                <button type="submit" name="vahemik" value="{{ option.key }}" class="dk-button dk-button-secondary">{{ option.label }}</button>
+              {% endif %}
+            {% endfor %}
+          </form>
+        {% endif %}
 
         {% for chart in charts %}
           {% include "dashboard/components/chart_figure.html" with chart=chart only %}

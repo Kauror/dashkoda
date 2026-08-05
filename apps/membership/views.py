@@ -32,7 +32,6 @@ from .charts import (
 )
 from .internal_selectors import (
     DEFAULT_MONTHLY_HISTORY_YEARS,
-    DEFAULT_TREND_YEARS,
     get_fee_collection_trend,
     get_internal_membership_latest,
     get_internal_membership_quality_summary,
@@ -41,20 +40,10 @@ from .internal_selectors import (
     get_monthly_new_members,
     get_removal_reasons,
 )
+from .ranges import PAGE_CHOICES, PAGE_DEFAULT, QUERY_PARAM
+from .ranges import available as available_ranges
+from .ranges import resolve as resolve_range
 from .selectors import get_membership_summary
-
-# Only these two windows are offered, so the range control cannot be used to ask
-# for an unbounded or arbitrary query.
-RANGE_RECENT = "recent"
-RANGE_ALL = "all"
-ALLOWED_RANGES = (RANGE_RECENT, RANGE_ALL)
-
-
-def _trend_start(range_key: str, latest_date: date | None) -> date | None:
-    """The default window is the recent years; the full history is one click."""
-    if range_key == RANGE_ALL or latest_date is None:
-        return None
-    return latest_date.replace(year=latest_date.year - DEFAULT_TREND_YEARS)
 
 
 @require_GET
@@ -63,12 +52,22 @@ def membership_overview(request):
     latest = get_internal_membership_latest()
     quality = get_internal_membership_quality_summary()
 
-    range_key = request.GET.get("vahemik", RANGE_RECENT)
-    if range_key not in ALLOWED_RANGES:
-        range_key = RANGE_RECENT
+    # The offered windows come from `ranges.py`, which the overview card also
+    # reads, so the two pages describe the same window with the same words. A
+    # window the history cannot fill is not offered, and an unrecognised key
+    # falls back to the default rather than raising — the control cannot be used
+    # to ask for an unbounded or arbitrary query.
+    offered_ranges = available_ranges(
+        PAGE_CHOICES,
+        earliest=quality.earliest_observation_date,
+        latest=quality.latest_observation_date,
+    )
+    trend_range = resolve_range(
+        request.GET.get(QUERY_PARAM), available=offered_ranges, default=PAGE_DEFAULT
+    )
 
     trend = get_internal_membership_trend(
-        date_from=_trend_start(range_key, quality.latest_observation_date)
+        date_from=trend_range.start_from(quality.latest_observation_date)
     )
 
     charts = []
@@ -109,10 +108,11 @@ def membership_overview(request):
             # Charts are only built when they have something to draw, so the
             # template renders no empty figures.
             "charts": charts,
-            "range_key": range_key,
-            "range_recent": RANGE_RECENT,
-            "range_all": RANGE_ALL,
-            "trend_years": DEFAULT_TREND_YEARS,
+            "trend_range": trend_range,
+            "trend_ranges": offered_ranges,
+            # One button is not a choice: a history too short to fill a second
+            # window renders no control rather than one that changes nothing.
+            "has_range_choice": len(offered_ranges) > 1,
         },
     )
 

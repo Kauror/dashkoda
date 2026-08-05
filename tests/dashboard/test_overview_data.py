@@ -161,6 +161,81 @@ def test_the_open_count_and_activity_come_from_the_snapshot(viewer, legal_work_s
     assert "Sünteetiline kiireloomuline teema" in body(response)
 
 
+def test_the_card_offers_three_lists_with_work_in_hand_leading(viewer, legal_work_snapshot):
+    """Töös, Viimased sisse, Välja läinud — in that order, Töös selected.
+
+    Töös leads because it is the only one of the three that is a state rather
+    than an event: a board member opening the page asks what is on the table
+    before asking what moved. Arrivals then departures follows the order a topic
+    travels through the Chamber.
+    """
+    card = section(viewer.get(reverse("home")), "section-legislation")
+    tabs = [card.index(f'id="tab-{name}"') for name in ("open", "received", "sent")]
+
+    assert tabs == sorted(tabs), "the tabs read in the order a topic travels"
+    # The panel bound to the first tab is the one Alpine shows on load.
+    assert (
+        'id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="firstSelected"' in card
+    )
+    # All three lists have rows, and each states its own kind of date.
+    assert "tähtaeg" in card
+    assert "sisse" in card
+    assert "välja" in card
+
+
+def test_each_card_lists_enough_rows_to_stand_level_with_its_neighbour():
+    """A grid row is as tall as its tallest card, so the two cards in a row are
+    tuned together: a card listing fewer rows than the one beside it leaves
+    space that is already being paid for.
+
+    Pinned as limits rather than as rendered row counts because the synthetic
+    fixtures hold fewer records than any of these numbers.
+    """
+    from apps.dashboard.overview import (
+        EVENTS_PREVIEW_LIMIT,
+        LEGAL_PREVIEW_LIMIT,
+        NEWS_PREVIEW_LIMIT,
+    )
+
+    # Row one: three tabs, so each row costs a third of an untabbed card's.
+    assert LEGAL_PREVIEW_LIMIT == 7
+    # Row two: two cards of the same shape, kept level with each other.
+    assert EVENTS_PREVIEW_LIMIT == NEWS_PREVIEW_LIMIT == 5
+
+
+def test_a_topic_in_the_card_is_plain_text_until_a_source_gives_it_an_address(
+    viewer, legal_work_snapshot
+):
+    """No legal record has a public URL: the workbook has no address column and
+    is read-only to this application. The rows say so by not being links."""
+    card = section(viewer.get(reverse("home")), "section-legislation")
+    lists = card.split('class="divide-y divide-border"', 1)[1]
+
+    assert "Sünteetiline kiireloomuline teema" in lists
+    assert "<a " not in lists, "a topic must not link to nowhere"
+
+
+def test_each_legal_count_links_to_the_section_that_lists_its_rows(viewer, legal_work_snapshot):
+    """Three counts, three destinations, and none of them shared.
+
+    The board reads a count and wants the rows behind it. Pointing all three at
+    the top of the Õigusloome page would make the link a page link wearing a
+    count's label; each one lands on the section that lists exactly what it
+    counted. `tests/legal_work/test_views.py` holds the page to those anchors.
+    """
+    page_url = reverse("legal-work")
+    strip = kpi_strip(viewer.get(reverse("home")))
+
+    assert f'href="{page_url}#section-open" class="dk-link-quiet">teemasid töös</a>' in strip
+    assert f'href="{page_url}#section-received" class="dk-link-quiet">uusi teemasid' in strip
+    assert f'href="{page_url}#section-sent" class="dk-link-quiet">välja läinud teemasid' in strip
+    # Three links in the whole strip and no more. The Sündmused counts stay
+    # plain: that page lists the programme, not the two windows this strip
+    # counts, and a link landing on a different set of rows than the number
+    # describes is worse than no link.
+    assert strip.count("dk-link-quiet") == 3
+
+
 def test_the_overview_no_longer_carries_a_deadline_section(viewer, legal_work_snapshot):
     """The board asked for the attention block to go.
 
@@ -290,6 +365,53 @@ def test_fee_collection_sits_with_the_counts_it_was_read_beside(viewer, imported
     assert "Liikmemaksude laekumine" not in strip_tags(kpi_strip(response))
     # The euros behind the percentage, grouped and in the report's own currency.
     assert "€" in card
+
+
+def test_the_trend_offers_only_the_windows_this_history_can_fill(viewer, imported_internal_history):
+    """The synthetic package spans a year and five days.
+
+    Six and twelve months sit inside that; two years is the first window that
+    covers all of it and is offered for exactly that reason. Three years would
+    draw the identical line under a different name, which reads as a button that
+    did nothing.
+    """
+    card = section(viewer.get(reverse("home")), "section-membership")
+
+    assert "6 kuud" in card
+    assert "12 kuud" in card
+    assert "2 aastat" in card
+    assert "3 aastat" not in card
+
+
+def test_a_narrower_window_draws_less_without_moving_the_latest_figures(
+    viewer, imported_internal_history
+):
+    """The range control changes how much history is drawn and nothing else.
+
+    A headline figure that shifted when a reader asked for a shorter line would
+    be answering a question nobody put: the three figures above the chart are
+    the most recent report either way.
+    """
+    wide = section(viewer.get(reverse("home"), {"vahemik": "24"}), "section-membership")
+    narrow = section(viewer.get(reverse("home"), {"vahemik": "6"}), "section-membership")
+
+    # Two observations a year apart: the wide window draws both, and the short
+    # one is left with a single point, which is not a trend and is not drawn.
+    assert wide.count("<rect") == 2
+    assert "Trendi kuvamiseks on vaja vähemalt kahte vaatlust." in narrow
+    assert "<rect" not in narrow
+    # Both still state the same report, on the same date.
+    assert "15.01.25" in wide
+    assert "15.01.25" in narrow
+
+
+def test_an_unknown_range_renders_the_default_rather_than_failing(
+    viewer, imported_internal_history
+):
+    response = viewer.get(reverse("home"), {"vahemik": "'; DROP TABLE"})
+
+    assert response.status_code == 200
+    assert "DROP TABLE" not in body(response)
 
 
 # -- feeds --------------------------------------------------------------

@@ -12,6 +12,7 @@ is about to write one.
 
 from __future__ import annotations
 
+from datetime import date, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 # Estonian groups thousands with a non-breaking space, as Django's own `et`
@@ -39,6 +40,21 @@ def whole_euros(amount: Decimal | int | None) -> str:
         return ""
     whole = Decimal(amount).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
     return group_thousands(whole)
+
+
+def short_date(day: date | datetime | None) -> str:
+    """A date as the viewer-facing templates write one: `4.06.26`.
+
+    The same form as Django's `j.m.y`, which every viewer template now uses.
+    Written out here because a string built in Python — an SVG tooltip, an aria
+    label, a chart summary — cannot go through a template filter, and two
+    definitions of "the short date" would drift the moment one of them changed.
+    """
+    if day is None:
+        return ""
+    if isinstance(day, datetime):
+        day = day.date()
+    return f"{day.day}.{day.month:02d}.{day.year % 100:02d}"
 
 
 def percentage(value: Decimal | int | None, *, places: int = 2) -> Decimal | None:

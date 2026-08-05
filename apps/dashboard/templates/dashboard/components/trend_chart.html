@@ -30,6 +30,26 @@ The same contract as `chart_figure` applies to the alternative: the table is
 reader, one table per line, each naming its own source. The two are never merged
 into one table on a shared date column, because they are two sources that report
 on their own days and a blank cell would read as a missing measurement.
+
+Hovering a month shows what was read that month, and does it with no JavaScript
+at all. Three attribute-only decisions carry that:
+
+  - the hit target is a full-height strip per observation date, painted **first**
+    so its hover fill sits behind the lines rather than over them. Everything
+    drawn after it carries `pointer-events="none"`, so the strip is what a
+    pointer meets anywhere in its column — a reader aims at a month, not at a
+    dot;
+  - the reading is an SVG `<title>`, which the browser shows as its own tooltip.
+    No script, no positioned element, no stylesheet rule;
+  - a dot is a **zero-length path with a round linecap**, which SVG defines as
+    drawing a circle of the stroke width. A `<circle>` would be squashed into an
+    ellipse by `preserveAspectRatio="none"`; a stroke marked
+    `vector-effect="non-scaling-stroke"` is measured in screen pixels and stays
+    round at any card width.
+
+The tooltip is a pointer affordance and does not reach a keyboard or a touch
+screen. That is why the table below is not optional: it is the same numbers, in
+the document, for every reader.
 {% endcomment %}
 <figure class="flex min-w-0 flex-col gap-2">
   <svg viewBox="0 0 100 40"
@@ -37,6 +57,21 @@ on their own days and a blank cell would read as a missing measurement.
        class="h-24 w-full"
        role="img"
        aria-label="{% for line in chart.lines %}{{ line.label }} ({% if line.style == 'dashed' %}katkendjoon{% else %}pidevjoon{% endif %}): {{ line.point_count }} vaatlust, väikseim {{ line.minimum|stringformat:'g' }}, suurim {{ line.maximum|stringformat:'g' }}. {% endfor %}Ühine ajatelg {{ chart.range_label }}. Täpsed väärtused on allpool tabelis.">
+    {% comment %}
+    Geometry is written with `stringformat`, not `floatformat`: this project
+    renders in Estonian, `floatformat` is localised, and `12,34` in a `points`
+    or `d` attribute is not a coordinate.
+    {% endcomment %}
+    {% for band in chart.bands %}
+      <rect x="{{ band.x|stringformat:'.2f' }}"
+            y="0"
+            width="{{ band.width|stringformat:'.2f' }}"
+            height="40"
+            pointer-events="all"
+            class="fill-transparent hover:fill-elevated">
+        <title>{{ band.readout }}</title>
+      </rect>
+    {% endfor %}
     {% for line in chart.lines %}
       {% if line.style == "dashed" %}
         <polyline points="{{ line.points }}"
@@ -45,14 +80,34 @@ on their own days and a blank cell would read as a missing measurement.
                   stroke-dasharray="4 3"
                   stroke-linecap="round"
                   vector-effect="non-scaling-stroke"
+                  pointer-events="none"
                   class="stroke-success"/>
+        {% for marker in line.markers %}
+          <path d="M{{ marker.x|stringformat:'.2f' }},{{ marker.y|stringformat:'.2f' }}l0,0"
+                fill="none"
+                stroke-width="5"
+                stroke-linecap="round"
+                vector-effect="non-scaling-stroke"
+                pointer-events="none"
+                class="stroke-success"/>
+        {% endfor %}
       {% else %}
         <polyline points="{{ line.points }}"
                   fill="none"
                   stroke-width="1.5"
                   stroke-linecap="round"
                   vector-effect="non-scaling-stroke"
+                  pointer-events="none"
                   class="stroke-brand"/>
+        {% for marker in line.markers %}
+          <path d="M{{ marker.x|stringformat:'.2f' }},{{ marker.y|stringformat:'.2f' }}l0,0"
+                fill="none"
+                stroke-width="5"
+                stroke-linecap="round"
+                vector-effect="non-scaling-stroke"
+                pointer-events="none"
+                class="stroke-brand"/>
+        {% endfor %}
       {% endif %}
     {% endfor %}
   </svg>

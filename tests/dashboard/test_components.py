@@ -126,6 +126,69 @@ def test_kpi_card_ignores_a_secondary_line_on_a_details_only_cell():
     assert "Nähtamatu tugiliin" not in html
 
 
+def test_kpi_card_links_a_detail_row_that_has_somewhere_to_go():
+    """The label carries the link; the count stays beside it.
+
+    A `<dl>` may group a `<dt>` and its `<dd>` in a `<div>` and in nothing else,
+    so there is no valid element to make the whole row one link.
+    """
+    html = render(
+        "kpi_card",
+        {
+            "label": "Näidisnäitaja",
+            "details": [
+                {"label": "teemasid töös", "value": 17, "url": "/oigusloome/#section-open"},
+                {"label": "ilma sihtkohata", "value": 4},
+            ],
+        },
+    )
+
+    # `dk-link-quiet`, not `dk-link`: these are labels under a figure, and the
+    # cue is a dotted rule rather than colour, so the link survives a reader who
+    # never hovers and one who cannot separate the hues.
+    assert '<a href="/oigusloome/#section-open" class="dk-link-quiet">teemasid töös</a>' in html
+    # A count with no section listing exactly those rows stays plain text rather
+    # than linking somewhere approximate.
+    assert html.count("<a ") == 1
+    assert "ilma sihtkohata" in html
+    assert "17" in html
+    assert "4" in html
+
+
+def test_legal_topic_is_plain_text_while_no_record_carries_an_address():
+    """The state today, pinned so it is a decision and not a silent gap.
+
+    `Tööd eelnõudega.xlsx` has no address column and is read-only to this
+    application, so no legal record has a public URL. The row renders as text
+    rather than as a link to nowhere.
+    """
+    html = render("legal_topic", {"item": {"topic": "Reisijate pakett"}})
+
+    assert "Reisijate pakett" in html
+    assert "<a " not in html
+
+
+def test_legal_topic_links_the_moment_a_record_carries_an_address():
+    """The other half of the contract, so the day a source supplies an address
+    the card needs no change and this test is what says so."""
+    html = render(
+        "legal_topic",
+        {
+            "item": {
+                "topic": "Reisijate pakett",
+                "public_url": "https://www.koda.ee/et/arvamus",
+            }
+        },
+    )
+
+    assert 'href="https://www.koda.ee/et/arvamus"' in html
+    assert 'rel="noopener noreferrer"' in html
+    # The destination is announced to a screen reader, not only implied by
+    # colour, and `relative` anchors that note inside the truncation.
+    assert "avaneb uuel lehel" in html
+    assert "relative" in html
+
+
 def test_kpi_card_marks_a_falling_value_in_text_as_well_as_colour():
     html = render(
         "kpi_card",
@@ -356,6 +419,51 @@ def test_trend_chart_draws_both_series_and_tells_them_apart_without_colour():
     assert html.count("<table") == 2
     assert "3412" in html
     assert "2798" in html
+
+
+def test_trend_chart_makes_every_observation_hoverable_without_a_script():
+    from datetime import date
+
+    from apps.dashboard.sparkline import TrendSource, build_trend_chart
+
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Liikmeid kokku",
+                style="solid",
+                source="Sünteetiline aruanne · kord kuus",
+                series=((date(2025, 11, 1), 3300), (date(2026, 1, 1), 3412)),
+            ),
+            TrendSource(
+                label="Tasunud liikmeid",
+                style="dashed",
+                source="Sünteetiline aruanne · kord kuus",
+                series=((date(2025, 11, 1), 2600), (date(2026, 1, 1), 2798)),
+            ),
+        )
+    )
+
+    html = render("trend_chart", {"chart": chart})
+
+    # One dot per observation per line, drawn as a zero-length path with a round
+    # cap: a <circle> would be squashed into an ellipse by the stretched viewBox.
+    assert html.count('l0,0"') == 4
+    assert html.count('vector-effect="non-scaling-stroke"') == 6
+    # One hit strip per date, each reading out the whole observation.
+    assert html.count("<rect") == 2
+    assert "<title>1.11.25 · Liikmeid kokku 3300 · Tasunud liikmeid 2600</title>" in html
+    assert "<title>1.01.26 · Liikmeid kokku 3412 · Tasunud liikmeid 2798</title>" in html
+    # The strip is what the pointer meets; everything drawn over it steps aside.
+    assert html.count('pointer-events="none"') == 6
+    assert html.count('pointer-events="all"') == 2
+    # No script, no inline style: the tooltip is the browser's own, from <title>.
+    assert "<script" not in html
+    assert 'style="' not in html
+    # Coordinates are written by `stringformat`, which is not localised. Django's
+    # `floatformat` renders in Estonian, and `12,34` in a `d` attribute is not a
+    # coordinate — it is two of them.
+    assert '<path d="M0.00,' in html
+    assert '<rect x="0.00"' in html
 
 
 def test_sparkline_figure_draws_nothing_when_one_point_cannot_show_a_trend():
