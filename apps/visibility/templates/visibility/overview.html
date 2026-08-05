@@ -80,7 +80,7 @@ Four things are deliberate and should stay that way:
                     {% if reading.has_data %}{{ reading.value }}{% else %}Andmed puuduvad{% endif %}
                   </td>
                   <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">
-                    {% if reading.as_of %}{{ reading.as_of|date:"d.m.Y" }}{% else %}—{% endif %}
+                    {% if reading.as_of %}{{ reading.as_of|date:"j.m.y" }}{% else %}—{% endif %}
                   </td>
                   <td class="border-b border-border px-3 py-1.5 text-text-secondary">
                     {% if reading.has_data %}{{ reading.method_label }}{% else %}—{% endif %}
@@ -127,7 +127,7 @@ Four things are deliberate and should stay that way:
               <span class="text-sm text-text-secondary">{{ trend.reading.unit }}</span>
             </p>
             <p class="dk-meta">
-              Seisuga {{ trend.reading.as_of|date:"d.m.Y" }} · {{ trend.reading.method_label }}
+              Seisuga {{ trend.reading.as_of|date:"j.m.y" }} · {{ trend.reading.method_label }}
               {% if trend.reading.is_stale %} · Vajab uuendamist{% endif %}
             </p>
             {% if trend.reading.change is not None %}
@@ -179,7 +179,7 @@ Four things are deliberate and should stay that way:
                   <tbody>
                     {% for when, amount in trend.series %}
                       <tr>
-                        <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ when|date:"d.m.Y" }}</th>
+                        <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ when|date:"j.m.y" }}</th>
                         <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">{{ amount }}</td>
                       </tr>
                     {% endfor %}
@@ -229,7 +229,7 @@ Four things are deliberate and should stay that way:
           <tbody>
             {% for observation in page.history %}
               <tr>
-                <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium whitespace-nowrap text-text">{{ observation.observation_date|date:"d.m.Y" }}</th>
+                <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium whitespace-nowrap text-text">{{ observation.observation_date|date:"j.m.y" }}</th>
                 <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ observation.get_metric_display }}</td>
                 <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">{{ observation.value }}</td>
                 <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ observation.get_collection_method_display }}</td>

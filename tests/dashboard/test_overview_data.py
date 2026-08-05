@@ -206,7 +206,8 @@ def test_every_as_of_row_states_one_date_and_never_a_time(viewer, legal_work_sna
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
 
     page = text_of(viewer.get(reverse("home")))
-    today = f"{timezone.localdate():%d.%m.%Y}"
+    today = timezone.localdate()
+    today_text = f"{today.day}.{today:%m.%y}"
 
     stated = re.findall(r"[Ss]eisuga:?\s+(\S+)", page)
     assert stated, "the overview states no as-of date at all"
@@ -215,9 +216,9 @@ def test_every_as_of_row_states_one_date_and_never_a_time(viewer, legal_work_sna
         # yet, so it names no date rather than inventing one.
         if value == "—":
             continue
-        assert re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", value), f"not a plain date: {value!r}"
+        assert re.fullmatch(r"\d{1,2}\.\d{2}\.\d{2}", value), f"not a plain date: {value!r}"
 
-    assert today in stated
+    assert today_text in stated
     assert not re.search(r"[Ss]eisuga:?\s+\S+\s+\d{1,2}:\d{2}", page)
 
 

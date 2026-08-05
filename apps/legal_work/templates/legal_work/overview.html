@@ -37,10 +37,10 @@ current snapshot the page renders the documented empty states instead.
   <section aria-labelledby="section-figures" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" only %}
     <div class="dk-kpi-strip">
-      {% include "dashboard/components/kpi_card.html" with label="Hetkel töös" value=open_count as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Kirjeid kokku" value=total_count as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Sisse tulnud" value=received_recent comparison_period="viimase kuu jooksul" as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Välja läinud" value=sent_recent comparison_period="viimase kuu jooksul" as_of=summary.reporting_date|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Hetkel töös" value=open_count as_of=summary.reporting_date|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Kirjeid kokku" value=total_count as_of=summary.reporting_date|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Sisse tulnud" value=received_recent comparison_period="viimase kuu jooksul" as_of=summary.reporting_date|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Välja läinud" value=sent_recent comparison_period="viimase kuu jooksul" as_of=summary.reporting_date|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
     </div>
   </section>
 
@@ -53,7 +53,7 @@ current snapshot the page renders the documented empty states instead.
           <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
             <span class="flex-none text-micro font-semibold tracking-wide uppercase {% if deadline.variant == 'danger' %}text-danger{% elif deadline.variant == 'warning' %}text-warning{% else %}text-info{% endif %}">{{ deadline.remaining_label }}</span>
             <span class="min-w-0 flex-1 text-sm text-text">{{ deadline.item.topic }}</span>
-            <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ deadline.item.deadline_date|date:'Y-m-d' }}">{{ deadline.item.deadline_date|date:"d.m.Y" }}</time>
+            <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ deadline.item.deadline_date|date:'Y-m-d' }}">{{ deadline.item.deadline_date|date:"j.m.y" }}</time>
           </li>
         {% endfor %}
       </ul>
@@ -83,10 +83,10 @@ current snapshot the page renders the documented empty states instead.
                 <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.act_type|default:"—" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
-                  {% if item.received_date %}{{ item.received_date|date:"d.m.Y" }}{% else %}—{% endif %}
+                  {% if item.received_date %}{{ item.received_date|date:"j.m.y" }}{% else %}—{% endif %}
                 </td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
-                  {% if item.deadline_date %}{{ item.deadline_date|date:"d.m.Y" }}{% else %}—{% endif %}
+                  {% if item.deadline_date %}{{ item.deadline_date|date:"j.m.y" }}{% else %}—{% endif %}
                 </td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.next_step|default:"—" }}</td>
@@ -123,7 +123,7 @@ current snapshot the page renders the documented empty states instead.
             {% for item in sent_items %}
               <tr>
                 <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.sent_date|date:"d.m.Y" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.sent_date|date:"j.m.y" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.recipient|default:"—" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
                 {% comment %}
@@ -165,10 +165,10 @@ current snapshot the page renders the documented empty states instead.
             {% for item in received_items %}
               <tr>
                 <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.received_date|date:"d.m.Y" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.received_date|date:"j.m.y" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.act_type|default:"—" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
-                  {% if item.deadline_date %}{{ item.deadline_date|date:"d.m.Y" }}{% else %}—{% endif %}
+                  {% if item.deadline_date %}{{ item.deadline_date|date:"j.m.y" }}{% else %}—{% endif %}
                 </td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
               </tr>

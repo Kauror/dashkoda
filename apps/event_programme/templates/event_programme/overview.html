@@ -42,7 +42,7 @@ inspected in the read-only admin.
       {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Töövihiku sündmuste programmi kokkuvõte." only %}
       <div class="dk-kpi-strip">
         {% for figure in page.figures %}
-          {% include "dashboard/components/kpi_card.html" with label=figure.label value=figure.value comparison_period=figure.note as_of=summary.observed_at|date:"d.m.Y" flush=True only %}
+          {% include "dashboard/components/kpi_card.html" with label=figure.label value=figure.value comparison_period=figure.note as_of=summary.observed_at|date:"j.m.y" flush=True only %}
         {% endfor %}
       </div>
     </section>
@@ -202,9 +202,9 @@ inspected in the read-only admin.
                 <tr>
                   <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
                     {% if item.start_date %}
-                      <time datetime="{{ item.start_date|date:'Y-m-d' }}">{{ item.start_date|date:"d.m.Y" }}</time>
+                      <time datetime="{{ item.start_date|date:'Y-m-d' }}">{{ item.start_date|date:"j.m.y" }}</time>
                       {% if item.end_date and item.end_date != item.start_date %}
-                        – <time datetime="{{ item.end_date|date:'Y-m-d' }}">{{ item.end_date|date:"d.m.Y" }}</time>
+                        – <time datetime="{{ item.end_date|date:'Y-m-d' }}">{{ item.end_date|date:"j.m.y" }}</time>
                       {% endif %}
                     {% else %}
                       <span class="text-text-muted">Kuupäev teadmata</span>

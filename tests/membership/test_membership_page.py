@@ -74,7 +74,7 @@ def test_internal_section_shows_after_import(viewer_client, public_observation, 
     body = _page(viewer_client)
 
     assert "Sisemine liikmeskonna aruanne" in body
-    assert "15.01.2025" in body
+    assert "15.01.25" in body
     assert "3300" in body
 
 
