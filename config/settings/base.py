@@ -221,6 +221,41 @@ KODA_SUMMARY_MAX_LENGTH = 400
 # date, so the item is refused rather than allowed to pin itself to the top.
 KODA_NEWS_MAX_FUTURE_DAYS = 2
 
+# Koda.ee "Hetkel käsil" current-topic catalogue.
+#
+# A fourth public, anonymous, read-only Koda.ee endpoint, collected only by the
+# scheduled `sync_legal_current_topics` command. It exists to enrich the
+# legal-work records with a public address; it is not a dashboard metric, has no
+# viewer page and is deliberately absent from `current_freshness()`.
+#
+# One fixed endpoint and nothing else. There is no `--url` option, no form and
+# no per-run setting: the listing address below and the detail pages it links to
+# are the entire collection boundary.
+KODA_CURRENT_TOPICS_SOURCE_SLUG = "koda-public-current-topics"
+KODA_CURRENT_TOPICS_URL = "https://www.koda.ee/et/meie-moju/hetkel-kasil"
+
+# Every collected detail page must sit under this path. The archive below shares
+# the prefix and is excluded by exact match, because it is a listing of finished
+# consultations and this phase collects only what is currently open.
+KODA_CURRENT_TOPICS_PATH_PREFIX = "/et/meie-moju/hetkel-kasil/"
+KODA_CURRENT_TOPICS_ARCHIVE_PATH = "/et/meie-moju/hetkel-kasil/arhiiv"
+
+# The listing is paginated: `?page=N`, eight cards a page, and today it runs to
+# two pages. Following the pager is not optional — stopping at the first page
+# silently drops the tail of the catalogue.
+KODA_CURRENT_TOPICS_MAX_PAGES = 5
+# A conservative ceiling on the whole catalogue. A listing beyond this is
+# refused rather than truncated: a page that suddenly presents ten times its
+# usual size is a site or parsing change, and publishing an arbitrary prefix of
+# it would quietly lose records.
+KODA_CURRENT_TOPICS_MAX_ITEMS = 50
+KODA_CURRENT_TOPICS_MAX_BYTES = 4 * 1024 * 1024
+
+# Detail-page prose ceiling. Long enough that the formal act name, the affected
+# parties and the substantive changes all survive into the matcher, short enough
+# that no article is reproduced.
+KODA_CURRENT_TOPICS_BODY_MAX_LENGTH = 6000
+
 # Google Analytics 4.
 #
 # Read only by the scheduled `sync_ga4` command, which collects one completed

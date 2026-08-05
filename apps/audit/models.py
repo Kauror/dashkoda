@@ -122,6 +122,35 @@ class AuditAction(models.TextChoices):
         "event_programme.sync_failed",
         "Sündmuste programmi sünkroonimine ebaõnnestus",
     )
+    # The public Koda.ee "Hetkel käsil" catalogue, collected to enrich the
+    # legal-work records. A separate source from the workbook feed above, so it
+    # gets its own actions: a failure here says nothing about the workbook.
+    CURRENT_TOPIC_SNAPSHOT_IMPORTED = (
+        "legal_work.current_topic_snapshot_imported",
+        "Hetkel käsil hetkeseis imporditud",
+    )
+    CURRENT_TOPIC_SYNC_UNCHANGED = (
+        "legal_work.current_topic_sync_unchanged",
+        "Hetkel käsil: muutusteta",
+    )
+    CURRENT_TOPIC_SYNC_FAILED = (
+        "legal_work.current_topic_sync_failed",
+        "Hetkel käsil sünkroonimine ebaõnnestus",
+    )
+    # Derived match results. Generated rather than collected, and shadow-only:
+    # no viewer page reads them in this phase.
+    CURRENT_TOPIC_MATCH_GENERATED = (
+        "legal_work.current_topic_match_generated",
+        "Õigusloome sobitamine arvutatud",
+    )
+    CURRENT_TOPIC_MATCH_UNCHANGED = (
+        "legal_work.current_topic_match_unchanged",
+        "Õigusloome sobitamine: muutusteta",
+    )
+    CURRENT_TOPIC_MATCH_FAILED = (
+        "legal_work.current_topic_match_failed",
+        "Õigusloome sobitamine ebaõnnestus",
+    )
     # Manually observed audience sizes. A batch event describes one submission;
     # the per-observation events describe what that submission did to each
     # metric, which is what makes a correction auditable on its own.
