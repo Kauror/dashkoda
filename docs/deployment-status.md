@@ -240,6 +240,30 @@ repository**, and none was entered during development.
 
 **No server, Cloudflare, DNS, tunnel or schedule change.**
 
+## What the current-topic matching changes here
+
+**Nothing, deliberately.** No environment variable, no volume, no container, no
+schedule and no server-side change.
+
+The Koda.ee `Hetkel käsil` collector and the deterministic matcher are
+implemented and tested, but the feature is **shadow-only and unscheduled**. Both
+commands exist and can be run by hand; neither is installed on the host, and no
+`ops/unraid/` template is added for them. The pipeline needs no credential — the
+listing is an anonymous, read-only public endpoint on the existing Koda.ee host
+allowlist — and it retains no file: the artifact is metadata only.
+
+Nothing it produces is visible to a viewer. `/oigusloome/` and the overview are
+unchanged, no `public_url` is supplied to the shared `legal_topic` component, and
+the global freshness denominator is still four. A failure of either command
+cannot affect the legal workbook synchronisation, the current legal snapshot or
+the three existing public feeds.
+
+The intended future schedule is a UTC cron pair running collection after the
+workbook synchronisation and matching after that. **It is not installed**, and it
+will not be until the production shadow acceptance in
+[legal-current-topic-matching.md](legal-current-topic-matching.md) has been run
+and its results accepted.
+
 ## What PR-05 changed here
 
 Nothing operationally. PR-05 adds the source, artifact, import-registry and
