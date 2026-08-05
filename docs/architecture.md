@@ -194,6 +194,27 @@ Each runs under its own advisory lock and transaction, so one failing source
 never blocks another and a failed source keeps its previous good data. See
 [koda-public-feeds.md](koda-public-feeds.md).
 
+### The current-topic catalogue, and enrichment as a separate concern
+
+A fourth Koda.ee source collects the public `Hetkel käsil` listing and the
+detail pages it links to. It is not a dashboard metric and has no viewer page:
+it exists to enrich legal-work records with a public address, and it is
+deliberately **absent from `current_freshness()`**, whose denominator still
+counts the four modules a viewer actually reads.
+
+A deterministic matcher — no model, no embedding, no external service — proposes
+which open legal record corresponds to which catalogue entry, and writes its
+decisions to their own immutable snapshot. Enrichment is kept structurally
+separate from the enriched data: an imported `LegalWorkItem` is rebuilt from the
+workbook on every synchronisation, so a match result stored on one would be
+erased overnight. The results therefore reference the exact rows they describe
+rather than annotating them, and the relations carry no reverse accessor, so a
+selector cannot decorate viewer data with them by accident.
+
+The whole pipeline is **shadow-only in this stage**: the decisions are inspected
+in the read-only admin while the thresholds are calibrated, and no link reaches a
+viewer. See [legal-current-topic-matching.md](legal-current-topic-matching.md).
+
 ### Data that is not collected at all
 
 The Chamber's internal board-report membership history has no remote source to
@@ -280,12 +301,24 @@ and the internal board-report history count different things; see
   page and the six-slot channel band
 - `/admin/data-entry/`, one staff-only index of every manual-entry workflow
 - Unraid script templates for 07:00 and 07:05 `Europe/Tallinn` schedules
+- the Koda.ee `Hetkel käsil` current-topic catalogue, a deterministic matcher
+  over the current legal snapshot's open records, immutable match snapshots and
+  their read-only admin — **shadow-only and unscheduled**; see the next section
 
 ## Not implemented yet
 
 There is no Unraid override, Cloudflare or DNS configuration, backup or restore
 automation, rollback tooling, staging environment, membership domain model,
 chart or demo data in this repository.
+
+Automatic legal-topic links are **implemented in code but not exposed**. The
+current-topic collector, the deterministic matcher, the match snapshots and their
+read-only admin all exist and are tested; what does not exist is any path from a
+match decision to a viewer. No `public_url` is supplied, `/oigusloome/` and the
+overview are unchanged, the shared `legal_topic` component is untouched, and
+neither command is scheduled. The feature stays in shadow mode until production
+evaluation shows the proposals are safe to publish — see
+[legal-current-topic-matching.md](legal-current-topic-matching.md).
 
 Arvamused, Finantsid, Fookusteemad and Projektid are inert navigation entries,
 because no source is connected for any of them.
