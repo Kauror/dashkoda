@@ -93,27 +93,61 @@ def test_no_new_model_offers_an_approve_or_override_action(model, rf, superuser)
     )
 
 
-def test_the_admin_requires_staff(client, matched):
-    url = reverse("admin:legal_work_legalcurrenttopicmatch_changelist")
+@pytest.fixture
+def staff_client(client, superuser, authenticate_viewer):
+    """A client past *both* gates: the viewer PIN and staff login.
 
-    response = client.get(url)
+    `/admin/` sits behind viewer access as well as Django admin authentication,
+    so a test that passed only one of them would pass for the wrong reason.
+    """
+    authenticate_viewer(client)
+    client.force_login(superuser)
+    return client
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        "admin:legal_work_legalcurrenttopicmatch_changelist",
+        "admin:legal_work_currenttopicitem_changelist",
+        "admin:legal_work_legalcurrenttopicmatchsnapshot_changelist",
+        "admin:legal_work_currenttopicsnapshot_changelist",
+    ],
+)
+def test_an_anonymous_visitor_is_turned_away_at_the_viewer_gate(client, matched, route):
+    response = client.get(reverse(route))
+
+    assert response.status_code == 302
+    assert "/sisene/" in response["Location"]
+
+
+@pytest.mark.parametrize(
+    "route",
+    [
+        "admin:legal_work_legalcurrenttopicmatch_changelist",
+        "admin:legal_work_currenttopicitem_changelist",
+        "admin:legal_work_legalcurrenttopicmatchsnapshot_changelist",
+        "admin:legal_work_currenttopicsnapshot_changelist",
+    ],
+)
+def test_a_viewer_without_a_staff_login_is_turned_away(client, authenticate_viewer, matched, route):
+    authenticate_viewer(client)
+
+    response = client.get(reverse(route))
 
     assert response.status_code == 302
     assert "/admin/login/" in response["Location"]
 
 
-def test_staff_can_inspect_the_match_list(client, superuser, matched):
-    client.force_login(superuser)
-
-    response = client.get(reverse("admin:legal_work_legalcurrenttopicmatch_changelist"))
+def test_staff_can_inspect_the_match_list(staff_client, matched):
+    response = staff_client.get(reverse("admin:legal_work_legalcurrenttopicmatch_changelist"))
 
     assert response.status_code == 200
+    assert matched.matcher_version.encode() in response.content
 
 
-def test_staff_can_inspect_the_catalogue_list(client, superuser, matched):
-    client.force_login(superuser)
-
-    response = client.get(reverse("admin:legal_work_currenttopicitem_changelist"))
+def test_staff_can_inspect_the_catalogue_list(staff_client, matched):
+    response = staff_client.get(reverse("admin:legal_work_currenttopicitem_changelist"))
 
     assert response.status_code == 200
 

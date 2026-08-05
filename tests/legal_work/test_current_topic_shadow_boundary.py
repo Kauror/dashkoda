@@ -9,6 +9,8 @@ wrong. So they are asserted here, from the outside, against the rendered page.
 
 from __future__ import annotations
 
+import re
+
 import pytest
 from django.template.loader import render_to_string
 
@@ -51,6 +53,23 @@ def shadow_run(imported_snapshot, publish_current_topics):
     return LegalCurrentTopicMatchSnapshot.objects.get(is_current=True)
 
 
+# Two values change on every render regardless of the data: the shell's
+# freshness row stamps the moment of rendering to the microsecond, and each POST
+# form carries a fresh CSRF token. Both are neutralised so that **everything
+# else** — every date, count, topic and attribute — is compared exactly.
+#
+# The clock pattern requires a fractional second, which the render stamp has and
+# a reporting date does not, so the page's real dates stay under comparison.
+_RENDER_CLOCK = re.compile(r'<time datetime="[^"]*\.\d+[^"]*">[^<]*</time>')
+_CSRF_TOKEN = re.compile(r'name="csrfmiddlewaretoken" value="[^"]*"')
+
+
+def stable(markup: str) -> str:
+    """The page with only its per-render noise neutralised."""
+    markup = _RENDER_CLOCK.sub('<time datetime="STAMP">STAMP</time>', markup)
+    return _CSRF_TOKEN.sub('name="csrfmiddlewaretoken" value="TOKEN"', markup)
+
+
 def render_legal_page(client, authenticate_viewer):
     authenticate_viewer(client)
     response = client.get(LEGAL_URL)
@@ -70,7 +89,7 @@ def test_the_legal_page_renders_identically_before_and_after_a_match_run(
     run_current_topic_matching()
     after = render_legal_page(client, authenticate_viewer)
 
-    assert after == before
+    assert stable(after) == stable(before)
 
 
 def test_no_koda_topic_address_reaches_the_legal_page(client, authenticate_viewer, shadow_run):
@@ -92,13 +111,13 @@ def test_the_overview_is_unchanged_by_a_match_run(
     client, authenticate_viewer, imported_snapshot, publish_current_topics
 ):
     authenticate_viewer(client)
-    before = client.get("/").content
+    before = client.get("/").content.decode("utf-8")
 
     publish_current_topics(catalogue("alpha", "beeta"))
     run_current_topic_matching()
-    after = client.get("/").content
+    after = client.get("/").content.decode("utf-8")
 
-    assert after == before
+    assert stable(after) == stable(before)
 
 
 def test_a_match_run_produced_decisions_so_the_assertions_above_mean_something(shadow_run):
