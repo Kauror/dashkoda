@@ -192,20 +192,29 @@ def test_the_member_total_states_its_movement_over_the_stated_window(viewer):
     assert "viimase 30 päeva jooksul" in strip
 
 
-def test_the_kpi_strip_states_the_as_of_date_and_never_a_time(viewer):
-    """The board asked for the date alone under each headline figure.
+def test_every_as_of_row_states_one_date_and_never_a_time(viewer, legal_work_snapshot):
+    """One date shape under every figure, and no clock time in any of them.
 
-    The member count is stamped to the second and the legal figure carries a
-    plain date, so the strip used to render three different shapes side by side
-    — a full timestamp, a long-form date and a short one. Every cell now states
-    the same `d.m.Y` the rest of the dashboard uses, and no clock time at all.
+    The strip used to render three shapes side by side — a full timestamp for the
+    member count, a long-form date for the legal figure, another timestamp for
+    events — because it was the one caller passing `as_of` to the card
+    unformatted, so each cell rendered whatever its own value type produced.
+
+    A date here describes the data. When a collector happened to run is a
+    different fact and lives in "Viimati kontrollitud", which keeps its time.
     """
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
 
-    strip = " ".join(strip_tags(kpi_strip(viewer.get(reverse("home")))).split())
+    page = text_of(viewer.get(reverse("home")))
+    today = f"{timezone.localdate():%d.%m.%Y}"
 
-    assert f"Seisuga: {timezone.localdate():%d.%m.%Y}" in strip
-    assert not re.search(r"\d{1,2}:\d{2}", strip)
+    stated = re.findall(r"[Ss]eisuga:?\s+(\S+)", page)
+    assert stated, "the overview states no as-of date at all"
+    for value in stated:
+        assert re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", value), f"not a plain date: {value!r}"
+
+    assert today in stated
+    assert not re.search(r"[Ss]eisuga:?\s+\S+\s+\d{1,2}:\d{2}", page)
 
 
 def test_a_reading_with_no_baseline_that_old_shows_no_change(viewer):

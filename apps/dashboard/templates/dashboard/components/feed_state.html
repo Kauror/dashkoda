@@ -20,7 +20,7 @@ No exception text, no URL and no response body ever appears here.
     {% if summary.has_data %}
       <p class="text-sm text-text-secondary">
         {{ observed_label|default:"Andmed seisuga" }}
-        <time datetime="{{ summary.observed_at|date:'c' }}">{{ summary.observed_at|date:"d.m.Y H:i" }}</time>
+        <time datetime="{{ summary.observed_at|date:'c' }}">{{ summary.observed_at|date:"d.m.Y" }}</time>
       </p>
     {% else %}
       <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
