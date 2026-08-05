@@ -85,12 +85,12 @@ accessible new-tab pattern.
         </a>
       </p>
     {% endif %}
-    {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"d.m.Y" only %}
+    {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"j.m.y" only %}
   {% elif slot.details %}
     {% if slot.secondary %}<p class="dk-meta">{{ slot.secondary }}</p>{% endif %}
-    {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"d.m.Y" only %}
+    {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"j.m.y" only %}
   {% elif slot.secondary %}
     <p class="text-sm text-text-secondary">{{ slot.secondary }}</p>
-    {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"d.m.Y" only %}
+    {% include "dashboard/components/freshness_row.html" with as_of=slot.as_of|date:"j.m.y" only %}
   {% endif %}
 </article>

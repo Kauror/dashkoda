@@ -59,7 +59,7 @@ a single dot on it.
           <tbody>
             {% for when, amount in figure.series %}
               <tr>
-                <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ when|date:"d.m.Y" }}</th>
+                <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ when|date:"j.m.y" }}</th>
                 <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">{{ amount|default_if_none:"–" }}</td>
               </tr>
             {% endfor %}

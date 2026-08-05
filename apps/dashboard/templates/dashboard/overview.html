@@ -50,7 +50,7 @@ None of them reached this file.
     {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" only %}
     <div class="dk-kpi-strip sm:grid-cols-1 lg:grid-cols-3 xl:grid-cols-3">
       {% for kpi in page.kpis %}
-        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary details=kpi.details meter_pct=kpi.meter_pct as_of=kpi.as_of|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary details=kpi.details meter_pct=kpi.meter_pct as_of=kpi.as_of|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
       {% endfor %}
     </div>
   </section>
@@ -110,7 +110,7 @@ None of them reached this file.
             {% for item in page.legal_work_sent %}
               <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
                 <span class="min-w-0 truncate text-sm text-text">{{ item.topic }}</span>
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">välja {{ item.sent_date|date:"d.m.Y" }}</span>
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">välja {{ item.sent_date|date:"j.m.y" }}</span>
               </li>
             {% empty %}
               <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Välja läinud arvamusi ei ole selles hetkeseisus.</li>
@@ -130,7 +130,7 @@ None of them reached this file.
               <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
                 <span class="min-w-0 truncate text-sm text-text">{{ item.topic }}</span>
                 {% if item.deadline_date %}
-                  <span class="dk-meta flex-none whitespace-nowrap tabular-nums">tähtaeg {{ item.deadline_date|date:"d.m.Y" }}</span>
+                  <span class="dk-meta flex-none whitespace-nowrap tabular-nums">tähtaeg {{ item.deadline_date|date:"j.m.y" }}</span>
                 {% else %}
                   <span class="dk-meta flex-none whitespace-nowrap">tähtajata</span>
                 {% endif %}
@@ -142,7 +142,7 @@ None of them reached this file.
         </div>
 
         <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with as_of=legal_work.reporting_date|date:"d.m.Y" only %}
+          {% include "dashboard/components/freshness_row.html" with as_of=legal_work.reporting_date|date:"j.m.y" only %}
         </div>
       {% else %}
         <div class="dk-section-body">
@@ -196,7 +196,7 @@ None of them reached this file.
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.internal_total.as_of|date:"d.m.Y" }}</p>
+              <p class="dk-meta">{{ page.membership.internal_total.as_of|date:"j.m.y" }}</p>
             </div>
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">{{ page.membership.internal.label }}</h3>
@@ -210,7 +210,7 @@ None of them reached this file.
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.internal.as_of|date:"d.m.Y" }}</p>
+              <p class="dk-meta">{{ page.membership.internal.as_of|date:"j.m.y" }}</p>
             </div>
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">Liikmemaksude laekumine</h3>
@@ -225,7 +225,7 @@ None of them reached this file.
               {% if page.membership.fee.amounts %}
                 <p class="text-sm tabular-nums text-text-secondary">{{ page.membership.fee.amounts }}</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.fee.as_of|date:"d.m.Y" }}</p>
+              <p class="dk-meta">{{ page.membership.fee.as_of|date:"j.m.y" }}</p>
             </div>
           </div>
 
@@ -252,7 +252,7 @@ None of them reached this file.
         <ul class="flex-1 divide-y divide-border">
           {% for item in page.upcoming_events %}
             <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-              <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.start_date|date:'Y-m-d' }}">{{ item.start_date|date:"d.m.Y" }}</time>
+              <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.start_date|date:'Y-m-d' }}">{{ item.start_date|date:"j.m.y" }}</time>
               {% comment %}
               The title is a link only when the workbook supplied a validated
               public page for this event, and plain text otherwise. Nothing here
@@ -280,7 +280,7 @@ None of them reached this file.
           {% endfor %}
         </ul>
         <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with as_of=events.observed_at|date:"d.m.Y" only %}
+          {% include "dashboard/components/freshness_row.html" with as_of=events.observed_at|date:"j.m.y" only %}
         </div>
       {% else %}
         <div class="dk-section-body">
@@ -307,7 +307,7 @@ None of them reached this file.
         <ul class="flex-1 divide-y divide-border">
           {% for item in page.latest_news %}
             <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-              <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"d.m.Y" }}</time>
+              <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"j.m.y" }}</time>
               {% comment %}
               `relative` is load-bearing, not decoration. The visually-hidden
               destination note below is `position: absolute`, and an absolutely
@@ -327,7 +327,7 @@ None of them reached this file.
           {% endfor %}
         </ul>
         <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with as_of=news.observed_at|date:"d.m.Y" only %}
+          {% include "dashboard/components/freshness_row.html" with as_of=news.observed_at|date:"j.m.y" only %}
         </div>
       {% else %}
         <div class="dk-section-body">

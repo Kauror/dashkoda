@@ -102,7 +102,7 @@ on their own days and a blank cell would read as a missing measurement.
             <tbody>
               {% for when, amount in line.observations %}
                 <tr>
-                  <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ when|date:"d.m.Y" }}</th>
+                  <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">{{ when|date:"j.m.y" }}</th>
                   <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">{{ amount|floatformat:"0" }}</td>
                 </tr>
               {% endfor %}

@@ -48,7 +48,7 @@ No individual member is listed anywhere, because neither dataset stores one.
             {% if internal_latest.is_year_precision %}
               {{ internal_latest.observation_date|date:"Y" }}. aasta
             {% else %}
-              {{ internal_latest.observation_date|date:"d.m.Y" }}
+              {{ internal_latest.observation_date|date:"j.m.y" }}
             {% endif %}
           </strong>.
         </p>

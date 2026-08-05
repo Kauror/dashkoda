@@ -306,7 +306,7 @@ def test_sparkline_figure_draws_a_line_and_keeps_the_table_beside_it():
     assert 'style="' not in html
     # The table is not a fallback; it stays in the document beside the drawing.
     assert "<table" in html
-    assert "01.02.2025" in html
+    assert "1.02.25" in html
     assert "Sünteetiline testallikas · iga päev" in html
 
 

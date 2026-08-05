@@ -31,8 +31,8 @@ system has no established accessible new-tab pattern.
   <section aria-labelledby="section-figures" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Uudisvoo hetkeseisu kokkuvõte." only %}
     <div class="dk-kpi-strip sm:grid-cols-2 xl:grid-cols-2">
-      {% include "dashboard/components/kpi_card.html" with label="Avaldatud viimase kuu jooksul" value=recent_count as_of=summary.observed_at|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Uudiseid voos" value=total_count as_of=summary.observed_at|date:"d.m.Y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Avaldatud viimase kuu jooksul" value=recent_count as_of=summary.observed_at|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+      {% include "dashboard/components/kpi_card.html" with label="Uudiseid voos" value=total_count as_of=summary.observed_at|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
     </div>
   </section>
 
@@ -43,7 +43,7 @@ system has no established accessible new-tab pattern.
         {% for item in items %}
           <li class="flex flex-col gap-1 px-4 py-3 sm:px-5">
             <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <time class="dk-meta whitespace-nowrap" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"d.m.Y" }}</time>
+              <time class="dk-meta whitespace-nowrap" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"j.m.y" }}</time>
               {% if item.category %}
                 {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
               {% endif %}

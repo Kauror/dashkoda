@@ -20,7 +20,7 @@ No exception text, no Microsoft identifier and no file path ever appears here.
     {% if summary.has_data %}
       <p class="text-sm text-text-secondary">
         Andmed seisuga
-        <time datetime="{{ summary.reporting_date|date:'c' }}">{{ summary.reporting_date|date:"d.m.Y" }}</time>
+        <time datetime="{{ summary.reporting_date|date:'c' }}">{{ summary.reporting_date|date:"j.m.y" }}</time>
       </p>
     {% else %}
       <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
@@ -33,7 +33,7 @@ No exception text, no Microsoft identifier and no file path ever appears here.
         <dt class="text-text-muted">Viimane edukas sünkroonimine:</dt>
         <dd class="text-text-secondary">
           {% if summary.last_successful_sync_at %}
-            <time datetime="{{ summary.last_successful_sync_at|date:'c' }}">{{ summary.last_successful_sync_at|date:"d.m.Y H:i" }}</time>
+            <time datetime="{{ summary.last_successful_sync_at|date:'c' }}">{{ summary.last_successful_sync_at|date:"j.m.y H:i" }}</time>
           {% else %}—{% endif %}
         </dd>
       </div>
@@ -41,14 +41,14 @@ No exception text, no Microsoft identifier and no file path ever appears here.
         <dt class="text-text-muted">Viimati kontrollitud:</dt>
         <dd class="text-text-secondary">
           {% if summary.last_checked_at %}
-            <time datetime="{{ summary.last_checked_at|date:'c' }}">{{ summary.last_checked_at|date:"d.m.Y H:i" }}</time>
+            <time datetime="{{ summary.last_checked_at|date:'c' }}">{{ summary.last_checked_at|date:"j.m.y H:i" }}</time>
           {% else %}—{% endif %}
         </dd>
       </div>
       <div class="flex items-center gap-1.5">
         <dt class="text-text-muted">Töövihik loodud:</dt>
         <dd class="text-text-secondary">
-          <time datetime="{{ summary.generated_at|date:'c' }}">{{ summary.generated_at|date:"d.m.Y H:i" }}</time>
+          <time datetime="{{ summary.generated_at|date:'c' }}">{{ summary.generated_at|date:"j.m.y H:i" }}</time>
         </dd>
       </div>
     </dl>
