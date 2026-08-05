@@ -27,6 +27,14 @@ class Command(BaseCommand):
             action="store_true",
             help="Validate everything without publishing a snapshot.",
         )
+        parser.add_argument(
+            "--allow-collapse",
+            action="store_true",
+            help=(
+                "Publish even when the workbook holds far fewer records than the "
+                "snapshot now on the dashboard."
+            ),
+        )
 
     def handle(self, *args, **options):
         path = Path(options["file"]).expanduser()
@@ -51,7 +59,11 @@ class Command(BaseCommand):
                 )
 
         try:
-            result = import_artifact(artifact, dry_run=options["dry_run"])
+            result = import_artifact(
+                artifact,
+                dry_run=options["dry_run"],
+                allow_collapse=options["allow_collapse"],
+            )
         except LegalWorkImportError as error:
             raise CommandError(str(error)) from error
 

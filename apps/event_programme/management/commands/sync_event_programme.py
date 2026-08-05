@@ -51,6 +51,15 @@ class Command(BaseCommand):
             help="Download and validate without publishing a snapshot.",
         )
         parser.add_argument(
+            "--allow-collapse",
+            action="store_true",
+            help=(
+                "Publish even when the workbook holds far fewer events than the "
+                "snapshot now on the dashboard. Use once, deliberately, when the "
+                "programme has genuinely shrunk."
+            ),
+        )
+        parser.add_argument(
             "--json",
             action="store_true",
             dest="as_json",
@@ -61,7 +70,10 @@ class Command(BaseCommand):
         as_json = options["as_json"]
         try:
             with advisory_lock():
-                outcome = synchronize_public_workbook(dry_run=options["dry_run"])
+                outcome = synchronize_public_workbook(
+                    dry_run=options["dry_run"],
+                    allow_collapse=options["allow_collapse"],
+                )
         except SyncLocked as error:
             self._emit(
                 as_json,

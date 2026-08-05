@@ -334,6 +334,29 @@ On any failure the previous snapshot stays current, the feed state records
 the import run is closed as failed. The dashboard keeps showing the last good
 data together with an explicit "last check failed" note.
 
+## A collapsed workbook is refused
+
+This feed is where the failure actually happened. A convention change in the
+source `NR` column made every 2025 and 2026 record fail to produce a canonical
+id, and the export that reached the dashboard held only the 2024 rows. Nothing
+was broken in a way anything could see: the workbook was valid, internally
+consistent and much smaller, and it was accepted.
+
+The import now compares itself with what is already published. When the incoming
+record count falls below `FEED_COLLAPSE_MIN_RATIO` (default `0.5`) of the
+snapshot currently on the dashboard, it **fails and publishes nothing**, leaving
+the previous snapshot in place. Growth is never blocked, a first import is never
+blocked, and an ordinary shrink above the floor publishes normally.
+
+When the dataset has genuinely shrunk, answer the question once:
+
+```bash
+python manage.py sync_oigusloome_public --allow-collapse
+```
+
+`import_oigusloome` takes the same flag. A dry run performs the same check, so it
+reports the refusal instead of passing and failing later.
+
 ## Data freshness in the interface
 
 Four distinct states, because "the page loaded today" is not a claim about the

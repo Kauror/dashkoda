@@ -185,6 +185,36 @@ say", never "no date": the event still happened, still counts, and still
 appears — with `event_status` `date_unknown` and an empty year, month and
 quarter rather than an invented one.
 
+## A collapsed workbook is refused
+
+A workbook can be perfectly valid and still be wrong. If the generator stops
+matching most of its source rows, what arrives is a well-formed export holding a
+fraction of the events — no error, no warning, just a much emptier programme. The
+contract checks above all pass, because the file genuinely is consistent with
+itself.
+
+So the import also compares itself with what is already published. When the
+incoming event count falls below `FEED_COLLAPSE_MIN_RATIO` (default `0.5`) of the
+snapshot currently on the dashboard, the import **fails and publishes nothing**;
+the previous snapshot stays exactly where it was and the failure is disclosed in
+the usual way. The refusal names both counts.
+
+The comparison is one-directional and deliberately narrow:
+
+- growth is never blocked, however large;
+- a first import is never blocked, because there is nothing to compare with;
+- an ordinary shrink above the floor publishes normally.
+
+It is a question, not a ceiling. When the programme has genuinely shrunk, answer
+it once:
+
+```bash
+python manage.py sync_event_programme --allow-collapse
+```
+
+A dry run performs the same check, so `--dry-run` tells you whether the real
+import would be accepted rather than passing quietly and failing later.
+
 ## Data model
 
 | Model | Holds |

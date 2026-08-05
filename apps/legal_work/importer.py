@@ -20,6 +20,7 @@ from django.utils import timezone
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.core.collapse_guard import collapse_reason
 from apps.sources.models import ImportRun, SourceArtifact
 from apps.sources.services import (
     build_import_run,
@@ -89,6 +90,15 @@ def _require_supplied_workbook(workbook_path: Path | str) -> Path:
     return path
 
 
+def _published_record_count(artifact: SourceArtifact) -> int | None:
+    """The record count of the snapshot on the dashboard now, or None if there is none."""
+    return (
+        LegalWorkSnapshot.objects.filter(source=artifact.source, is_current=True)
+        .values_list("total_record_count", flat=True)
+        .first()
+    )
+
+
 def _build_snapshot(
     *,
     artifact: SourceArtifact,
@@ -152,6 +162,7 @@ def import_artifact(
     *,
     workbook_path: Path | str | None = None,
     dry_run: bool = True,
+    allow_collapse: bool = False,
     actor=None,
     correlation_id: uuid.UUID | None = None,
 ) -> ImportResult:
@@ -187,6 +198,17 @@ def import_artifact(
 
     try:
         parsed = parse_workbook(path)
+
+        # Checked before the dry-run branch as well: a dry run exists to find out
+        # whether the real import would be accepted, so it must ask this too.
+        refusal = collapse_reason(
+            current_count=_published_record_count(artifact),
+            incoming_count=len(parsed.rows),
+            noun="kirjet",
+            allow_collapse=allow_collapse,
+        )
+        if refusal is not None:
+            raise LegalWorkImportError(refusal)
 
         if dry_run:
             complete_import_run(

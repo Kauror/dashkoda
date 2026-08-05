@@ -155,6 +155,7 @@ def record_failure(state: EventProgrammeFeedState, message: str, *, correlation_
 def synchronize_public_workbook(
     *,
     dry_run: bool = False,
+    allow_collapse: bool = False,
     actor=None,
     downloader=None,
 ) -> SyncOutcome:
@@ -218,6 +219,7 @@ def synchronize_public_workbook(
                 artifact,
                 workbook_path=download.path,
                 dry_run=dry_run,
+                allow_collapse=allow_collapse,
                 actor=actor,
                 correlation_id=correlation_id,
             )
