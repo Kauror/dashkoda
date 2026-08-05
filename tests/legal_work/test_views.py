@@ -62,7 +62,8 @@ def test_the_page_states_the_data_reporting_date(client, authenticate_viewer, im
     content = client.get(PAGE_URL).content.decode()
 
     assert "Andmed seisuga" in content
-    assert imported_snapshot.reporting_date.strftime("%d.%m.%Y") in content
+    stated = imported_snapshot.reporting_date
+    assert f"{stated.day}.{stated:%m.%y}" in content
 
 
 def test_a_failed_check_is_disclosed_while_old_data_is_shown(
@@ -167,7 +168,8 @@ def test_overview_shows_real_legal_work_data_once_imported(
     assert "Õigusloome" in content
     assert "teemasid töös" in content
     assert "Vaata õigusloomet" in content
-    assert imported_snapshot.reporting_date.strftime("%d.%m.%Y") in content
+    stated = imported_snapshot.reporting_date
+    assert f"{stated.day}.{stated:%m.%y}" in content
 
 
 def test_overview_discloses_a_failed_sync_alongside_old_data(
@@ -205,4 +207,4 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
 
     assert reporting_date != dt.date.today()
     assert "Seisuga" in content
-    assert reporting_date.strftime("%d.%m.%Y") in content
+    assert f"{reporting_date.day}.{reporting_date:%m.%y}" in content
