@@ -63,6 +63,34 @@ def imported_snapshot(make_workbook, register_workbook):
 
 
 @pytest.fixture
+def current_topics_source(db):
+    from apps.legal_work.bootstrap import ensure_current_topics_source
+
+    return ensure_current_topics_source()
+
+
+@pytest.fixture
+def publish_current_topics(current_topics_source, monkeypatch):
+    """Publish a synthetic current-topic catalogue through the real sync path.
+
+    Goes through `synchronize_current_topics` rather than writing rows directly,
+    so every test that needs a catalogue also proves the publication path still
+    produces one: the artifact, the import run and the `is_current` flag are all
+    real.
+    """
+    from apps.legal_work.current_topic_sync import synchronize_current_topics
+    from apps.legal_work.current_topics import collect_current_topics
+
+    from .current_topic_factory import FakeSite
+
+    def publish(site: FakeSite, *, dry_run: bool = False):
+        monkeypatch.setattr("apps.legal_work.current_topics.fetch", site)
+        return synchronize_current_topics(dry_run=dry_run, collector=collect_current_topics)
+
+    return publish
+
+
+@pytest.fixture
 def frozen_today(monkeypatch):
     """Pin `timezone.localdate` so future-date rules are deterministic."""
 
