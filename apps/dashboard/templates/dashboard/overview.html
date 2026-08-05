@@ -280,7 +280,7 @@ None of them reached this file.
           {% endfor %}
         </ul>
         <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with as_of=events.observed_at|date:"d.m.Y H:i" only %}
+          {% include "dashboard/components/freshness_row.html" with as_of=events.observed_at|date:"d.m.Y" only %}
         </div>
       {% else %}
         <div class="dk-section-body">
@@ -327,7 +327,7 @@ None of them reached this file.
           {% endfor %}
         </ul>
         <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with as_of=news.observed_at|date:"d.m.Y H:i" only %}
+          {% include "dashboard/components/freshness_row.html" with as_of=news.observed_at|date:"d.m.Y" only %}
         </div>
       {% else %}
         <div class="dk-section-body">
