@@ -15,13 +15,25 @@ from .workbook_factory import synthetic_row
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def guard_at_the_production_floor(settings):
+    """The suite disables the guard; these tests are the ones that need it on."""
+    settings.FEED_COLLAPSE_MIN_RATIO = 0.5
+
+
 def _current():
     return LegalWorkSnapshot.objects.filter(is_current=True).first()
 
 
 def _rows(count: int) -> list:
+    # `source_row` has to be distinct as well as `source_nr`: the contract rejects
+    # a repeated (source_year, source_row) pair, and every row here shares 2099.
     return [
-        synthetic_row(record_id=f"OIG-2099-{index + 1:04d}", source_nr=index + 1)
+        synthetic_row(
+            record_id=f"OIG-2099-{index + 1:04d}",
+            source_nr=index + 1,
+            source_row=index + 2,
+        )
         for index in range(count)
     ]
 

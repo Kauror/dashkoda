@@ -18,3 +18,13 @@ STORAGES["staticfiles"] = {  # noqa: F405
 # A safe default only. The autouse `private_artifact_root` fixture repoints this
 # at a per-test temporary directory, so nothing is left behind.
 SOURCE_ARTIFACT_ROOT = str(Path(tempfile.gettempdir()) / "dashkoda-test-source-artifacts")
+
+# The collapse guard is inert in the suite by default. Fixtures publish whatever
+# set of rows a test needs to describe -- nine events, then three, then one --
+# and a guard comparing each publication with the last would be arguing with
+# almost every one of them about something they are not testing.
+#
+# The guard's own tests raise this back to a real floor through the `settings`
+# fixture, so the rule is still exercised; it is simply not imposed on tests
+# that are about something else.
+FEED_COLLAPSE_MIN_RATIO = 0

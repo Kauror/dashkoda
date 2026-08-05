@@ -14,6 +14,12 @@ from .conftest import FakeDownloader, synthetic_programme
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture(autouse=True)
+def guard_at_the_production_floor(settings):
+    """The suite disables the guard; these tests are the ones that need it on."""
+    settings.FEED_COLLAPSE_MIN_RATIO = 0.5
+
+
 def _current():
     return EventProgrammeSnapshot.objects.filter(is_current=True).first()
 
