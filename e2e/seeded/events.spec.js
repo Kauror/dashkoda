@@ -75,8 +75,16 @@ test("year filtering narrows the table and states the period", async ({ page }) 
 
   const dates = await page.locator("main table tbody tr td:first-child").allInnerTexts();
   expect(dates.length).toBeGreaterThan(0);
+  /*
+   * The filter option carries a four-digit year; the cell writes the short
+   * `j.m.y` date, so its year is two digits. Anchored to the end of the string
+   * rather than searched for anywhere in it: `23` is also a plausible day, and
+   * `toContain("23")` would pass happily on `23.05.24` — a different year
+   * entirely, which is precisely what this test exists to catch.
+   */
+  const shortYear = new RegExp(`\\.${oldest.slice(-2)}$`);
   for (const cell of dates) {
-    expect(cell).toContain(oldest);
+    expect(cell.trim()).toMatch(shortYear);
   }
 });
 
