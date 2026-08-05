@@ -211,6 +211,10 @@ def test_every_as_of_row_states_one_date_and_never_a_time(viewer, legal_work_sna
     stated = re.findall(r"[Ss]eisuga:?\s+(\S+)", page)
     assert stated, "the overview states no as-of date at all"
     for value in stated:
+        # An em dash is the documented empty state: this figure has no source
+        # yet, so it names no date rather than inventing one.
+        if value == "—":
+            continue
         assert re.fullmatch(r"\d{2}\.\d{2}\.\d{4}", value), f"not a plain date: {value!r}"
 
     assert today in stated
