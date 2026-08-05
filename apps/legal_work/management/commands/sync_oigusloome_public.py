@@ -42,6 +42,15 @@ class Command(BaseCommand):
             help="Download and validate without publishing a snapshot.",
         )
         parser.add_argument(
+            "--allow-collapse",
+            action="store_true",
+            help=(
+                "Publish even when the workbook holds far fewer records than the "
+                "snapshot now on the dashboard. Use once, deliberately, when the "
+                "dataset has genuinely shrunk."
+            ),
+        )
+        parser.add_argument(
             "--json",
             action="store_true",
             dest="as_json",
@@ -54,7 +63,10 @@ class Command(BaseCommand):
             # The feed's own lock, so two overlapping invocations can never
             # both import even when the job is scheduled twice by mistake.
             with advisory_lock():
-                outcome = synchronize_public_workbook(dry_run=options["dry_run"])
+                outcome = synchronize_public_workbook(
+                    dry_run=options["dry_run"],
+                    allow_collapse=options["allow_collapse"],
+                )
         except SyncLocked as error:
             self._emit(
                 as_json,

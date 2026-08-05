@@ -144,6 +144,18 @@ EVENT_PROGRAMME_SOURCE_SLUG = "sundmuste-programm-onedrive"
 EVENT_PROGRAMME_PUBLIC_URL = os.environ.get("EVENT_PROGRAMME_PUBLIC_URL", "")
 EVENT_PROGRAMME_MAX_DOWNLOAD_BYTES = SOURCE_ARTIFACT_MAX_BYTES
 
+# A workbook feed refuses an import whose row count collapses against the
+# snapshot currently on the dashboard: below this fraction of the current count,
+# the import fails and the last good data stays published. A generator that
+# silently stops producing most of its records is the failure this catches -- it
+# has happened, and the smaller dataset was accepted without complaint because
+# nothing compared it with what came before.
+#
+# Growth is never blocked, and neither is a first import. An intended shrink is
+# published by passing `--allow-collapse` once; the guard is a question, not a
+# ceiling.
+FEED_COLLAPSE_MIN_RATIO = 0.5
+
 # Public Koda.ee feeds.
 #
 # Three anonymous, read-only public endpoints. No credential exists for any of

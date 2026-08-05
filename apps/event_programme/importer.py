@@ -20,6 +20,7 @@ from django.utils import timezone
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.core.collapse_guard import collapse_reason
 from apps.sources.models import ImportRun, SourceArtifact
 from apps.sources.services import (
     build_import_run,
@@ -95,6 +96,16 @@ def _aware(value):
     return value
 
 
+def _published_event_count(artifact: SourceArtifact) -> int | None:
+    """The event count of the snapshot on the dashboard now, or None if there is none."""
+    current = (
+        EventProgrammeSnapshot.objects.filter(source=artifact.source, is_current=True)
+        .values_list("canonical_event_count", flat=True)
+        .first()
+    )
+    return current
+
+
 def _build_snapshot(
     *,
     artifact: SourceArtifact,
@@ -156,6 +167,7 @@ def import_artifact(
     *,
     workbook_path: Path | str | None = None,
     dry_run: bool = True,
+    allow_collapse: bool = False,
     actor=None,
     correlation_id: uuid.UUID | None = None,
 ) -> ImportResult:
@@ -189,6 +201,17 @@ def import_artifact(
 
     try:
         parsed = parse_workbook(path)
+
+        # Checked before the dry-run branch as well: a dry run exists to find out
+        # whether the real import would be accepted, so it must ask this too.
+        refusal = collapse_reason(
+            current_count=_published_event_count(artifact),
+            incoming_count=len(parsed.rows),
+            noun="sündmust",
+            allow_collapse=allow_collapse,
+        )
+        if refusal is not None:
+            raise EventProgrammeImportError(refusal)
 
         if dry_run:
             complete_import_run(
