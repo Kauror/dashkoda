@@ -7,6 +7,22 @@ import leaves the previous current snapshot exactly as it was.
 This app deliberately holds no responsible-lawyer field, no member-feedback
 counts and no relation to opinion documents. Those are out of scope and are not
 modelled "just in case": an absent column cannot leak.
+
+Three datasets live here, and the boundary between them matters:
+
+- the **imported workbook** (`LegalWorkSnapshot`, `LegalWorkItem`) — the
+  canonical legal-work feed, unchanged by anything below it;
+- the **public current-topic catalogue** (`CurrentTopicSnapshot`,
+  `CurrentTopicItem`) — the Koda.ee `Hetkel käsil` listing, collected on its
+  own schedule under its own source;
+- the **derived match results** (`LegalCurrentTopicMatchSnapshot`,
+  `LegalCurrentTopicMatch`) — what a deterministic matcher proposed about the
+  first two, in shadow mode.
+
+Nothing written by the second or third ever reaches a `LegalWorkItem`. The
+workbook rows are rebuilt from scratch on every import, so a match result stored
+on one would be erased by the next morning's sync; that is not a limitation
+worked around here, it is the reason the results live in their own snapshot.
 """
 
 from django.db import models
@@ -16,6 +32,15 @@ from apps.sources.models import DataSource
 
 # The workbook uses `;` between codes; the importer normalises them into a list.
 MAX_ERROR_SUMMARY_LENGTH = 500
+
+# Bounds on stored public-page text. A URL longer than this is not a canonical
+# Koda.ee address, and the two text limits keep a listing summary and an article
+# body from growing without a ceiling.
+MAX_CANONICAL_URL_LENGTH = 500
+MAX_TOPIC_TITLE_LENGTH = 500
+MAX_LISTING_SUMMARY_LENGTH = 1000
+MAX_BODY_TEXT_LENGTH = 8000
+MAX_ORGANIZATION_LENGTH = 200
 
 
 class SnapshotImmutable(RuntimeError):
@@ -291,3 +316,385 @@ class LegalWorkFeedState(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.slug}: {self.get_last_result_display()}"
+
+
+# --------------------------------------------------------------------------
+# The public Koda.ee "Hetkel käsil" catalogue.
+#
+# A separate source with a separate schedule, published exactly like the other
+# public feeds: one complete immutable snapshot per changed collection, one
+# current snapshot, a failure keeping the previous one. Nothing here is a
+# dashboard metric and nothing here has a viewer page.
+#
+# What is *not* modelled is as deliberate as what is. There is no field for raw
+# HTML, no attachment, no PDF, no opinion document and no archive entry: this
+# phase collects the current listing and the detail pages it links to, and a
+# column that cannot exist cannot be filled in by a later shortcut.
+# --------------------------------------------------------------------------
+
+
+class CurrentTopicSnapshot(models.Model):
+    """One complete collection of the public current-topic listing."""
+
+    source = models.ForeignKey(
+        DataSource,
+        on_delete=models.PROTECT,
+        related_name="current_topic_snapshots",
+        verbose_name="Andmeallikas",
+    )
+    artifact = models.ForeignKey(
+        "sources.SourceArtifact",
+        on_delete=models.PROTECT,
+        related_name="current_topic_snapshots",
+        verbose_name="Algfail",
+    )
+    import_run = models.OneToOneField(
+        "sources.ImportRun",
+        on_delete=models.PROTECT,
+        related_name="current_topic_snapshot",
+        verbose_name="Impordikäivitus",
+    )
+    observed_at = models.DateTimeField(verbose_name="Kogutud")
+    item_count = models.PositiveIntegerField(default=0, verbose_name="Teemasid")
+    is_current = models.BooleanField(default=False, verbose_name="Kehtiv")
+
+    MUTABLE_FIELDS = frozenset({"is_current"})
+
+    class Meta:
+        ordering = ("-observed_at", "-id")
+        verbose_name = "Koda.ee hetkel käsil hetkeseis"
+        verbose_name_plural = "Koda.ee hetkel käsil hetkeseisud"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source"],
+                condition=Q(is_current=True),
+                name="currenttopic_one_current_snapshot_per_source",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Hetkel käsil {self.observed_at:%d.%m.%Y} ({self.item_count})"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
+                raise SnapshotImmutable(
+                    "A collected current-topic snapshot may only change its is_current flag."
+                )
+        return super().save(*args, **kwargs)
+
+
+class CurrentTopicItem(models.Model):
+    """One `Hetkel käsil` entry, reduced to normalised plain text.
+
+    `published_date` comes from the **detail** page, which prints a full
+    `dd.mm.yyyy`. The listing card carries only a day and an abbreviated month
+    with no year at all, so reading the date there would mean inferring a year
+    on every row; the listing supplies ordering and nothing else.
+    """
+
+    snapshot = models.ForeignKey(
+        CurrentTopicSnapshot,
+        on_delete=models.CASCADE,
+        related_name="items",
+        verbose_name="Hetkeseis",
+    )
+    content_key = models.CharField(max_length=64, verbose_name="Sisu võti")
+    canonical_url = models.URLField(max_length=MAX_CANONICAL_URL_LENGTH, verbose_name="Aadress")
+    title = models.CharField(max_length=MAX_TOPIC_TITLE_LENGTH, verbose_name="Pealkiri")
+    listing_summary = models.TextField(blank=True, verbose_name="Loendi kokkuvõte")
+    body_text = models.TextField(blank=True, verbose_name="Lehe tekst")
+    published_date = models.DateField(null=True, blank=True, verbose_name="Avaldatud")
+    # Absent whenever the page does not state one unambiguously. A missing
+    # deadline is a valid page, not a rejected one.
+    feedback_deadline = models.DateField(null=True, blank=True, verbose_name="Tagasiside tähtaeg")
+    named_organization = models.CharField(
+        max_length=MAX_ORGANIZATION_LENGTH,
+        blank=True,
+        verbose_name="Nimetatud asutus",
+    )
+    source_order = models.PositiveSmallIntegerField(verbose_name="Järjekord")
+
+    class Meta:
+        ordering = ("snapshot", "source_order")
+        verbose_name = "Koda.ee hetkel käsil teema"
+        verbose_name_plural = "Koda.ee hetkel käsil teemad"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snapshot", "content_key"],
+                name="currenttopicitem_unique_key_per_snapshot",
+            ),
+            models.UniqueConstraint(
+                fields=["snapshot", "canonical_url"],
+                name="currenttopicitem_unique_url_per_snapshot",
+            ),
+            models.UniqueConstraint(
+                fields=["snapshot", "source_order"],
+                name="currenttopicitem_unique_order_per_snapshot",
+            ),
+            models.CheckConstraint(
+                condition=~Q(title=""),
+                name="currenttopicitem_title_required",
+            ),
+            models.CheckConstraint(
+                condition=~Q(canonical_url=""),
+                name="currenttopicitem_url_required",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return self.title
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise SnapshotImmutable("A collected current-topic row cannot be changed.")
+        return super().save(*args, **kwargs)
+
+
+class CurrentTopicFeedState(models.Model):
+    """What the last current-topic collection found.
+
+    No `etag` and no `last_modified`: the listing is server-rendered HTML with
+    no useful validator, exactly as the events calendar already documents. The
+    canonical checksum over the normalised fields is what decides whether
+    anything changed, so storing validators that would always be empty would
+    only suggest a conditional request that never happens.
+    """
+
+    source = models.OneToOneField(
+        DataSource,
+        on_delete=models.PROTECT,
+        related_name="current_topic_feed_state",
+        verbose_name="Andmeallikas",
+    )
+    last_checked_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Viimati kontrollitud"
+    )
+    last_successful_sync_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Viimane edukas sünkroonimine"
+    )
+    last_changed_at = models.DateTimeField(null=True, blank=True, verbose_name="Viimati muutunud")
+    last_result = models.CharField(
+        max_length=16,
+        choices=SyncResult,
+        default=SyncResult.NEVER_RUN,
+        verbose_name="Viimane tulemus",
+    )
+    last_error_summary = models.CharField(
+        max_length=MAX_ERROR_SUMMARY_LENGTH,
+        blank=True,
+        verbose_name="Viimane veateade",
+        help_text="Puhastatud ja lühendatud. Ei sisalda lehe sisu ega aadresse.",
+    )
+    current_snapshot = models.ForeignKey(
+        CurrentTopicSnapshot,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Kehtiv hetkeseis",
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Muudetud")
+
+    class Meta:
+        verbose_name = "Hetkel käsil andmevoo olek"
+        verbose_name_plural = "Hetkel käsil andmevoo olekud"
+
+    def __str__(self) -> str:
+        return f"{self.source.slug}: {self.get_last_result_display()}"
+
+
+# --------------------------------------------------------------------------
+# Derived match results. Shadow mode.
+#
+# These rows are **computed, not collected**: nothing was downloaded and no file
+# exists, so there is no source, no artifact and no import run here. The
+# identity of a match run is exactly the three things that determine its output
+# — the legal snapshot read, the catalogue read, and the matcher version — and
+# that triple is a unique constraint rather than a fabricated checksum.
+#
+# Nothing in this section is read by a viewer page in this phase.
+# --------------------------------------------------------------------------
+
+
+class MatchDecision(models.TextChoices):
+    MATCHED = "matched", "Seotud"
+    AMBIGUOUS = "ambiguous", "Ebaselge"
+    UNMATCHED = "unmatched", "Sidumata"
+
+
+class LegalCurrentTopicMatchSnapshot(models.Model):
+    """One complete matcher run over one legal snapshot and one catalogue.
+
+    Both inputs cascade: a derived result about a snapshot that no longer exists
+    is not evidence of anything, so it goes with it rather than protecting the
+    snapshot into immortality.
+    """
+
+    legal_snapshot = models.ForeignKey(
+        LegalWorkSnapshot,
+        on_delete=models.CASCADE,
+        related_name="current_topic_match_snapshots",
+        verbose_name="Õigusloome hetkeseis",
+    )
+    current_topic_snapshot = models.ForeignKey(
+        CurrentTopicSnapshot,
+        on_delete=models.CASCADE,
+        related_name="match_snapshots",
+        verbose_name="Hetkel käsil hetkeseis",
+    )
+    matcher_version = models.CharField(max_length=32, verbose_name="Sobitaja versioon")
+    generated_at = models.DateTimeField(auto_now_add=True, verbose_name="Arvutatud")
+    legal_item_count = models.PositiveIntegerField(default=0, verbose_name="Avatud kirjeid")
+    matched_count = models.PositiveIntegerField(default=0, verbose_name="Seotud")
+    ambiguous_count = models.PositiveIntegerField(default=0, verbose_name="Ebaselgeid")
+    unmatched_count = models.PositiveIntegerField(default=0, verbose_name="Sidumata")
+    is_current = models.BooleanField(default=False, verbose_name="Kehtiv")
+
+    MUTABLE_FIELDS = frozenset({"is_current"})
+
+    class Meta:
+        ordering = ("-generated_at", "-id")
+        verbose_name = "Õigusloome sobitamise hetkeseis"
+        verbose_name_plural = "Õigusloome sobitamise hetkeseisud"
+        constraints = [
+            # The whole input identity. Re-running the same matcher over the
+            # same two snapshots cannot produce a second row, which is what
+            # makes "unchanged" a single `exists()` rather than a checksum.
+            models.UniqueConstraint(
+                fields=["legal_snapshot", "current_topic_snapshot", "matcher_version"],
+                name="legalmatchsnapshot_unique_inputs",
+            ),
+            # Exactly one current match snapshot exists at a time, globally.
+            # Unique over a constant expression restricted to the current rows:
+            # a second one cannot be written even if a service forgets to retire
+            # the first.
+            models.UniqueConstraint(
+                models.F("is_current"),
+                condition=Q(is_current=True),
+                name="legalmatchsnapshot_one_current",
+            ),
+            models.CheckConstraint(
+                condition=Q(matched_count__lte=F("legal_item_count")),
+                name="legalmatchsnapshot_matched_within_total",
+            ),
+            models.CheckConstraint(
+                condition=Q(ambiguous_count__lte=F("legal_item_count")),
+                name="legalmatchsnapshot_ambiguous_within_total",
+            ),
+            models.CheckConstraint(
+                condition=Q(unmatched_count__lte=F("legal_item_count")),
+                name="legalmatchsnapshot_unmatched_within_total",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Sobitamine {self.matcher_version} ({self.legal_item_count})"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
+                raise SnapshotImmutable(
+                    "A generated match snapshot may only change its is_current flag."
+                )
+        return super().save(*args, **kwargs)
+
+
+class LegalCurrentTopicMatch(models.Model):
+    """What the matcher decided about one open legal record.
+
+    `best_candidate` is retained for `ambiguous` and `unmatched` rows too, and
+    that is the point of shadow mode: the candidate a run *rejected*, with the
+    score and the evidence that rejected it, is what the threshold calibration
+    is actually made of. Only a `matched` decision requires one.
+
+    Both relations use `related_name="+"`. A reverse accessor from
+    `LegalWorkItem` would be the first step towards a selector decorating
+    workbook rows with match URLs, and this phase must not reach the viewer.
+    """
+
+    snapshot = models.ForeignKey(
+        LegalCurrentTopicMatchSnapshot,
+        on_delete=models.CASCADE,
+        related_name="matches",
+        verbose_name="Sobitamise hetkeseis",
+    )
+    legal_item = models.ForeignKey(
+        LegalWorkItem,
+        on_delete=models.CASCADE,
+        related_name="+",
+        verbose_name="Õigusloome kirje",
+    )
+    best_candidate = models.ForeignKey(
+        CurrentTopicItem,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Parim kandidaat",
+    )
+    decision = models.CharField(
+        max_length=16,
+        choices=MatchDecision,
+        db_index=True,
+        verbose_name="Otsus",
+    )
+    # Documented scale: 0.00–100.00. Stored as a decimal rather than a float so
+    # a threshold comparison means the same thing in PostgreSQL, in Python and
+    # in a test.
+    score = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Skoor")
+    runner_up_score = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        verbose_name="Teise koha skoor",
+        help_text="0 kui teist kandidaati ei olnud.",
+    )
+    score_margin = models.DecimalField(max_digits=5, decimal_places=2, verbose_name="Vahe")
+    candidate_count = models.PositiveSmallIntegerField(default=0, verbose_name="Kandidaate")
+    evidence_codes = models.JSONField(default=list, blank=True, verbose_name="Tõendikoodid")
+
+    class Meta:
+        ordering = ("-score", "legal_item_id")
+        verbose_name = "Õigusloome sobitamise tulemus"
+        verbose_name_plural = "Õigusloome sobitamise tulemused"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snapshot", "legal_item"],
+                name="legalmatch_one_decision_per_item",
+            ),
+            models.CheckConstraint(
+                condition=Q(score__gte=0, score__lte=100),
+                name="legalmatch_score_within_scale",
+            ),
+            models.CheckConstraint(
+                condition=Q(runner_up_score__gte=0, runner_up_score__lte=100),
+                name="legalmatch_runner_up_within_scale",
+            ),
+            models.CheckConstraint(
+                condition=Q(score__gte=F("runner_up_score")),
+                name="legalmatch_runner_up_not_above_score",
+            ),
+            models.CheckConstraint(
+                condition=Q(score_margin=F("score") - F("runner_up_score")),
+                name="legalmatch_margin_is_score_difference",
+            ),
+            # A proposed link must name what it proposes.
+            models.CheckConstraint(
+                condition=~Q(decision=MatchDecision.MATCHED) | Q(best_candidate__isnull=False),
+                name="legalmatch_matched_requires_candidate",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["snapshot", "decision"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.legal_item_id}: {self.get_decision_display()}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise SnapshotImmutable("A generated match row cannot be changed.")
+        return super().save(*args, **kwargs)
