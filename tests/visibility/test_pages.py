@@ -75,7 +75,7 @@ def test_a_published_value_replaces_the_empty_slot(submit, viewer_client, today)
     page = body(viewer_client.get(reverse("home")))
 
     assert "4200" in page
-    assert today.strftime("%d.%m.%Y") in page
+    assert f"{today.day}.{today:%m.%y}" in page
 
 
 def test_a_published_value_is_labelled_as_manually_collected(submit, viewer_client):
@@ -270,7 +270,7 @@ def test_the_page_shows_the_latest_value_for_each_channel(submit, viewer_client,
 
     for value in ("4200", "2500", "700", "60"):
         assert value in page
-    assert today.strftime("%d.%m.%Y") in page
+    assert f"{today.day}.{today:%m.%y}" in page
 
 
 def test_the_page_states_the_newsletter_definition(viewer_client):
