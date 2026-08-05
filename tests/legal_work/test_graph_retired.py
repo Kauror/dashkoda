@@ -134,12 +134,35 @@ def test_msal_cannot_be_imported():
 # -- exactly one recurring route ----------------------------------------
 
 
-def test_only_one_recurring_legal_work_collection_command_exists():
-    """A second recurring route is what created the drift in the first place.
+def test_only_one_recurring_workbook_collection_command_exists():
+    """A second recurring route *to the workbook* is what created the drift.
 
     `import_oigusloome` is deliberately not counted: it reads a local path an
     operator supplies by hand and is not scheduled.
+
+    The current-topic commands are counted separately below. They collect a
+    different source and publish different models; the rule this test protects
+    is that the **workbook** has exactly one scheduled route, not that the app
+    owns exactly one command.
     """
+    workbook_commands = {
+        name
+        for name, app in get_commands().items()
+        if app == "apps.legal_work" and "oigusloome" in name
+    }
+
+    assert workbook_commands == {"sync_oigusloome_public", "import_oigusloome"}
+
+
+def test_the_app_owns_exactly_the_commands_it_is_supposed_to():
+    """Named in full, so a new scheduled route cannot appear unnoticed."""
     legal_work_commands = {name for name, app in get_commands().items() if app == "apps.legal_work"}
 
-    assert legal_work_commands == {"sync_oigusloome_public", "import_oigusloome"}
+    assert legal_work_commands == {
+        "sync_oigusloome_public",
+        "import_oigusloome",
+        # The public Koda.ee current-topic catalogue and the shadow matcher.
+        # Neither is scheduled in this phase; both exist and can be run by hand.
+        "sync_legal_current_topics",
+        "match_legal_current_topics",
+    }
