@@ -40,8 +40,9 @@ These rules apply to the whole repository.
   managed separately from the DashKoda Compose stack.
 - Never commit a tunnel token, Cloudflare credential, production environment value or
   server path holding real data.
-- Backup, restore, rollback and the operations runbook are not done; do not describe the
-  operations milestone as complete.
+- The operations milestone is not complete; do not describe it as such. Nightly backup
+  and a restore drill into a throwaway database are done and verified; a restore over
+  the production database and rollback tooling are not.
 - Keep original source files out of PostgreSQL, out of Git and off every served path;
   the only way to fetch one is the permission-guarded staff download.
 - Write audit events only through `apps.audit.services.record_event`; never update or

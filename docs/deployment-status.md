@@ -37,16 +37,22 @@ contains placeholders only.
 The earlier deployment is a **sequencing deviation**. It does not mean the
 planned operations milestone (PR-09) is complete. Still outstanding:
 
-- a tested restore procedure;
+- a rehearsed restore **over the production database**;
 - rollback tooling;
 - Unraid deployment configuration held in this repository;
-- the full operations runbook.
+- failure alerting for the legal feed.
 
-A nightly database backup **is** installed on the pilot host: a dump at 02:30
-UTC that the script verifies before keeping and that prunes only its own nightly
-archives. It was created by an administrator on the server, so this repository
-neither holds it nor tests it, and nothing here yet describes how to restore
-from it. A backup nobody has restored does not complete the milestone.
+Two of these have since moved. A nightly database backup is installed on the
+pilot host — a dump at 02:30 UTC that the script verifies before keeping and
+that prunes only its own nightly archives — and on 2026-08-05 an archive was
+restored into a throwaway database and checked: 39 tables, one current snapshot
+per feed, and every declared count equal to what the tables actually held. It
+took 103 seconds. [operations-runbook.md](operations-runbook.md) records the
+procedure and the numbers.
+
+That proves the archives are usable. It does not prove a recovery: nobody has
+restored over the live database, and there is still no rehearsed way back to a
+previous release. A backup you can read is not yet a recovery you can perform.
 
 Until the rest exists, the deployment should be treated as a pilot rather than
 as a hardened production service.
