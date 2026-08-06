@@ -1,4 +1,9 @@
-# Automatic Koda.ee links on legal-work topics
+# Automatic Koda.ee links on legal-work topics — the current listing
+
+> This document covers the **current** `Hetkel käsil` listing: its collector, its
+> matcher and its thresholds. The archive fallback, the consultation-eligibility
+> rule and the precedence between the two sources are in
+> [legal-consultation-links.md](legal-consultation-links.md).
 
 A legal-work topic on `/oigusloome/` is a **link to its Koda.ee consultation
 page** when a deterministic matcher decided, automatically, that the two are the

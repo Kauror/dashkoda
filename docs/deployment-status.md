@@ -274,6 +274,29 @@ global freshness denominator stays four; the catalogue is not a fifth source.
 See [legal-current-topic-matching.md](legal-current-topic-matching.md) for the
 acceptance steps.
 
+## What the archive fallback changes here
+
+**No environment variable, no volume, no container and no server-side change**,
+and no credential: the archive is another anonymous public endpoint on the
+existing Koda.ee host allowlist, retaining no file.
+
+Two additional jobs, intended at 07:25 and 07:40 `Europe/Tallinn`, from
+[`ops/unraid/sync_legal_archived_topics.sh.example`](../ops/unraid/sync_legal_archived_topics.sh.example)
+and
+[`ops/unraid/match_legal_archived_topics.sh.example`](../ops/unraid/match_legal_archived_topics.sh.example).
+On the pilot host each is installed as the UTC pair described above.
+
+**The initial backfill is run by hand before the schedules are enabled.** The
+archive holds about eleven hundred entries across a decade; the first pass reads
+its whole 143-page index plus a year of detail pages, over several bounded runs
+using `--full --max-detail-pages N`, until the output reports
+`"backfill_complete": true`. `--full` never goes into the daily job.
+
+An archive failure cannot affect the legal workbook sync, the current-listing
+catalogue or matcher, the event programme or the public feeds: separate source,
+separate advisory lock, separate transaction. The global freshness denominator
+stays four — the archive is not a fifth source.
+
 ## What PR-05 changed here
 
 Nothing operationally. PR-05 adds the source, artifact, import-registry and

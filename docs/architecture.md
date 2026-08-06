@@ -212,7 +212,14 @@ rather than annotating them, and the relations carry no reverse accessor, so a
 selector cannot decorate viewer data with them by accident.
 
 A `matched` decision becomes a **link on the topic title** on `/oigusloome/` and
-on the overview card; `ambiguous` and `unmatched` stay plain text. The address is
+on the overview card; `ambiguous` and `unmatched` stay plain text. A **second**
+catalogue collects the `Hetkel käsil` archive and supplies a fallback link once a
+consultation has closed but the legal matter has not — the address is unchanged,
+so the link continues rather than reappearing. The two are separate feeds with
+separate matchers, corpora and thresholds, because a word rare among seven live
+consultations is unremarkable among a decade of them. A consultation link is
+offered only while the workbook says the matter is open and no opinion has been
+sent; see [legal-consultation-links.md](legal-consultation-links.md). The address is
 resolved at read time, in one bounded query per page, and only when the current
 match snapshot was computed from exactly the legal snapshot and catalogue being
 displayed — a stale match is never applied. See
@@ -305,9 +312,12 @@ and the internal board-report history count different things; see
 - `/admin/data-entry/`, one staff-only index of every manual-entry workflow
 - Unraid script templates for 07:00 and 07:05 `Europe/Tallinn` schedules
 - the Koda.ee `Hetkel käsil` current-topic catalogue, a deterministic matcher
-  over the current legal snapshot's open records, immutable match snapshots,
-  their read-only admin, and the automatic topic links those matches produce on
-  the Õigusloome page and the overview card
+  over the current legal snapshot's consultation-eligible records, immutable
+  match snapshots, their read-only admin, and the automatic topic links those
+  matches produce on the Õigusloome page and the overview card
+- the `Hetkel käsil` **archive** as a fallback source for the same links, with
+  its own bounded and resumable backfill, its own matcher and thresholds, and a
+  strict current-listing-first precedence
 
 ## Not implemented yet
 
@@ -315,12 +325,12 @@ There is no Unraid override, Cloudflare or DNS configuration, backup or restore
 automation, rollback tooling, staging environment, membership domain model,
 chart or demo data in this repository.
 
-Automatic legal-topic links cover **only the current `Hetkel käsil` listing**.
-`Meie arvamus`, opinion PDFs, attached draft legislation and the `Hetkel käsil`
-archive are not collected and are not modelled, so a consultation that closes
-loses its link at the next match run rather than moving to an archived address.
-Neither of the two commands is scheduled by this repository; the intended times
-are documented and the Unraid template is an example, not an installation.
+Automatic legal-topic links cover the current `Hetkel käsil` listing and its
+archive. `Meie arvamus`, opinion PDFs, news items and attached draft legislation
+are not collected and are not modelled, so a record whose opinion has been sent
+has no resource to link to and deliberately renders as plain text. None of the
+four commands is scheduled by this repository; the intended times are documented
+and the Unraid templates are examples, not installations.
 
 Arvamused, Finantsid, Fookusteemad and Projektid are inert navigation entries,
 because no source is connected for any of them.
