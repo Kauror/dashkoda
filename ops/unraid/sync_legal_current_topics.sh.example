@@ -1,8 +1,11 @@
 #!/bin/bash
 #
-# DashKoda Koda.ee "Hetkel käsil" enrichment: collect the current catalogue,
-# then match it against the current legal-work snapshot. A `matched` decision is
-# what makes a topic on /oigusloome/ a link to its Koda.ee consultation page.
+# DashKoda Koda.ee "Hetkel käsil" catalogue collection.
+#
+# This is step one of two. `match_legal_current_topics.sh.example` is step two
+# and is scheduled separately five minutes later, so each keeps its own lock,
+# its own log and its own exit code. A collection that fails therefore leaves a
+# readable failure of its own rather than being buried inside a combined job.
 #
 # Intended for the Unraid host's own scheduler. Copy this file, set the
 # deployment directory, make it executable, and schedule it. This repository
@@ -21,11 +24,11 @@
 #
 #   15 7 * * *
 #
-# Fifteen minutes after the legal-work workbook job at 07:00, because this
-# script's second step matches against whatever legal snapshot is current when
-# it runs. Matching before the workbook has been collected is not wrong — it
-# simply produces yesterday's answer and has to be re-run — so the offset exists
-# to make the ordinary case the useful one.
+# After the 07:00 workbook job and the other public feeds, because matching
+# scores against whatever legal snapshot is current when it runs. Collecting
+# before the workbook has been refreshed is not wrong — it simply produces an
+# answer about yesterday's records — so the offset makes the ordinary case the
+# useful one.
 #
 # Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn.
 # Estonia observes daylight saving, so a host left on UTC runs this an hour
@@ -34,22 +37,25 @@
 #   timedatectl                      # look for "Time zone: Europe/Tallinn"
 #   date +'%Z %z %H:%M'              # expect EET +0200 in winter, EEST +0300 in summer
 #
-# Both steps take their own PostgreSQL advisory locks, distinct from each other
-# and from the workbook synchronisation, so this script can never block or be
-# blocked by the legal-work job. The flock below is host-side defence in depth
-# against two copies of this script overlapping.
+# A host that cannot express Europe/Tallinn installs this as a pair of UTC
+# entries with an hour guard in the wrapper; see docs/deployment-status.md.
+#
+# This job takes its own PostgreSQL advisory lock, distinct from the matcher's
+# and from the workbook synchronisation's, so it can neither block nor be
+# blocked by them. The flock below is host-side defence in depth against two
+# copies of this script overlapping.
 #
 # **A failure here cannot affect the legal-work data.** The workbook feed is a
-# separate source with its own state row; if collection or matching fails, the
-# previously published catalogue and match snapshot both stay exactly where they
-# were, /oigusloome/ keeps rendering, and topics whose links no longer satisfy
-# the current-snapshot rules simply render as plain text again.
+# separate source with its own state row. If collection fails, the previously
+# published catalogue stays exactly where it was, /oigusloome/ keeps rendering,
+# and topics whose links no longer satisfy the current-snapshot rules simply
+# return to plain text.
 #
 # Expected exit codes:
 #
-#   0  collection and matching both imported or were unchanged
-#   1  collection failed, or matching failed
-#   3  a lock was already held, so a previous run is still in progress
+#   0  imported, or unchanged
+#   1  collection failed; the previous catalogue is still published
+#   3  the lock was already held, so a previous run is still in progress
 
 set -euo pipefail
 
@@ -64,40 +70,20 @@ fi
 
 cd "${DEPLOYMENT_DIRECTORY}"
 
-# Named explicitly, and the host override added only when the deployment
-# actually has one. Bare `docker compose` would pick up whatever override files
-# happen to sit in the directory, which is fine until one appears that this
-# schedule was never tested against.
+# Both Compose files are named explicitly when the deployment has a host
+# override. Bare `docker compose` would recreate `web` without the host's bind
+# mounts on a stack that was created from both.
 COMPOSE_FILES=(-f compose.yaml)
 if [ -f compose.unraid.yaml ]; then
   COMPOSE_FILES+=(-f compose.unraid.yaml)
 fi
 
-# Two commands run in sequence, so the lock is taken on a file descriptor held
-# for the whole script rather than wrapped around a single command the way the
-# one-step jobs do it. The lock is released when the script exits.
-exec 9>/tmp/dashkoda-legal-current-topics.lock
-if ! flock --nonblock 9; then
-  echo "Another run is still in progress; skipping." >&2
-  exit 3
-fi
-
 # Targets the Compose service by name rather than a generated container name,
 # so a recreated container does not silently break the schedule.
 #
-# `--json` on both: the output is aggregate counts, snapshot ids and the matcher
-# version, and never a topic, a candidate title, a URL or any page text. A
-# scheduler log is not a place where the source's content belongs.
-run() {
-  docker compose "${COMPOSE_FILES[@]}" exec -T web python manage.py "$@"
-}
-
-# Step one. `set -e` stops the script here if collection fails, so matching is
-# attempted only when the catalogue actually refreshed: matching against a
-# catalogue that failed to refresh would publish a snapshot claiming to describe
-# data the run never read.
-run sync_legal_current_topics --json
-
-# Step two. Identical inputs and matcher version report `unchanged` and
-# recompute nothing, so running this daily is cheap.
-run match_legal_current_topics --json
+# `--json` emits one line of aggregate counts and identifiers: never a topic, a
+# candidate title, a URL or any page text. A scheduler log is not a place where
+# the source's content belongs.
+exec flock --nonblock /tmp/dashkoda-sync-legal-current-topics.lock \
+  docker compose "${COMPOSE_FILES[@]}" exec -T web \
+    python manage.py sync_legal_current_topics --json
