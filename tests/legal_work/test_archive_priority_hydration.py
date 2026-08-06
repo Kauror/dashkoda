@@ -69,14 +69,24 @@ def archive_with_old_candidate(*, recent_pages: int = 2) -> FakeSite:
     pages: dict[str, str] = {}
     last = recent_pages
     for page in range(recent_pages):
+        # Deliberately share no discriminating word with the workbook record:
+        # the point of the fixture is that only the *old* page is a candidate,
+        # so a budget of one has exactly one right answer.
         cards = [
-            archive_card(f"recent-{page}-{i}", f"Hiljutine teema {page}-{i}") for i in range(2)
+            archive_card(
+                f"recent-{page}-{i}",
+                f"Kalanduskvootide jaotamise kord {page}-{i}",
+                summary="Regionaalministeerium muutis kalanduskvootide jaotamist.",
+            )
+            for i in range(2)
         ]
         key = ARCHIVE_PATH if page == 0 else f"{ARCHIVE_PATH}?page={page}"
         pages[key] = archive_listing(*cards, current=page, last=last)
         for i in range(2):
             pages[f"{DETAIL_PREFIX}recent-{page}-{i}"] = dated_detail(
-                f"Hiljutine teema {page}-{i}", RECENT, body="Hiljutine sisu."
+                f"Kalanduskvootide jaotamise kord {page}-{i}",
+                RECENT,
+                body="Kalanduskvootide jaotamise korra muutmine.",
             )
     pages[f"{ARCHIVE_PATH}?page={last}"] = archive_listing(
         archive_card(OLD_SLUG, OLD_TITLE, summary=OLD_SUMMARY), current=last, last=last
@@ -238,7 +248,7 @@ def test_one_page_shortlisted_by_several_records_costs_one_request(current_publi
 
     urls = shortlist_archive_urls(entries, records)
 
-    assert len(urls) <= 1
+    assert len(urls) <= 1  # one page, one request, however many records wanted it
 
 
 def test_priority_candidates_beyond_the_budget_resume_on_a_later_run(

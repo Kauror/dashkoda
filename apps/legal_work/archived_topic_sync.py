@@ -410,7 +410,7 @@ def _carry_forward_details(entries, previous_items) -> dict[str, ArchiveDetail]:
     return carried
 
 
-def _priority_candidate_urls(entries) -> set[str]:
+def _priority_candidate_urls(entries) -> dict[str, int]:
     """Archive pages a currently eligible record might depend on, at any age.
 
     Reads the exact current legal snapshot and the exact current-topic match
@@ -428,14 +428,21 @@ def _priority_candidate_urls(entries) -> set[str]:
 
     legal_snapshot = LegalWorkSnapshot.objects.filter(is_current=True).first()
     if legal_snapshot is None:
-        return set()
+        return {}
     current_match = LegalCurrentTopicMatchSnapshot.objects.filter(
         is_current=True, legal_snapshot=legal_snapshot
     ).first()
+    if current_match is None:
+        # Without knowing what the current listing already answered, every
+        # eligible record would look like it needs the archive -- including the
+        # ones the current matcher is about to answer, which would spend the
+        # budget on pages no link will ever use. Skipping is the safe reading,
+        # and the run still does its background window.
+        return {}
 
     records = eligible_records_needing_a_link(legal_snapshot, current_match)
     if not records:
-        return set()
+        return {}
     return shortlist_archive_urls(entries, records)
 
 
@@ -464,10 +471,14 @@ def _hydrate_within_budget(entries, details, *, budget, session, dry_run, priori
     # Never-read candidates come before previously-failed ones: a page nobody
     # has looked at is more likely to yield a link than one that already
     # refused, and the failed set is retried with whatever remains.
-    def priority_rank(url: str) -> tuple[int, int]:
+    def priority_rank(url: str) -> tuple[int, int, int]:
         detail = details.get(url)
         failed = detail is not None and detail.status == DetailStatus.FAILED
-        return (1 if failed else 0, by_url[url].source_order)
+        # Never-read before previously-failed; then strongest overlap; then the
+        # archive's own order as a deterministic tie-break. A run allowed one
+        # request therefore spends it on the most promising candidate rather
+        # than on whichever happens to sit earliest in the archive.
+        return (1 if failed else 0, -priority_urls[url], by_url[url].source_order)
 
     ordered_priority = sorted((url for url in priority_urls if url in by_url), key=priority_rank)
     for url in ordered_priority:

@@ -31,7 +31,7 @@ MAX_SHORTLIST_PER_RECORD = 12
 MIN_SHARED_SIGNIFICANT_TOKENS = 1
 
 
-def shortlist_archive_urls(entries, legal_items=None) -> set[str]:
+def shortlist_archive_urls(entries, legal_items=None) -> dict[str, int]:
     """URLs worth hydrating first, given who still needs a link.
 
     Searches the **entire** archive index — every year of it. Consultation
@@ -48,14 +48,19 @@ def shortlist_archive_urls(entries, legal_items=None) -> set[str]:
     words they share with the record, ties broken by the archive's own order, so
     two runs over the same inputs shortlist the same pages.
 
+    Returns `url -> strength`, the best overlap any single record achieved with
+    that page. Hydration spends its budget in that order, so a run allowed one
+    request spends it on the most promising candidate rather than on whichever
+    happens to sit earliest in the archive.
+
     With no legal records supplied — a backfill before any matching has run —
-    this returns an empty set and hydration falls back to recent-window
-    coverage, which is the right default for a fresh install.
+    this returns nothing and hydration falls back to recent-window coverage,
+    which is the right default for a fresh install.
     """
     if not legal_items:
-        return set()
+        return {}
 
-    wanted: set[str] = set()
+    wanted: dict[str, int] = {}
     # Tokenised once per entry rather than once per (record, entry) pair: the
     # index runs to a thousand entries and the eligible population to dozens.
     entry_tokens = [
@@ -72,7 +77,10 @@ def shortlist_archive_urls(entries, legal_items=None) -> set[str]:
             if shared >= MIN_SHARED_SIGNIFICANT_TOKENS:
                 scored.append((-shared, entry.source_order, entry.canonical_url))
         scored.sort()
-        wanted.update(url for _, _, url in scored[:MAX_SHORTLIST_PER_RECORD])
+        for negative_shared, _order, url in scored[:MAX_SHORTLIST_PER_RECORD]:
+            strength = -negative_shared
+            if strength > wanted.get(url, 0):
+                wanted[url] = strength
     return wanted
 
 
