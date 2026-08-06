@@ -175,13 +175,20 @@ def test_resolution_costs_one_query_regardless_of_how_many_records(
 
 
 @pytest.mark.django_db
-def test_resolving_several_collections_together_still_costs_one_query(
+def test_resolving_several_collections_together_costs_two_queries(
     published, django_assert_num_queries
 ):
+    """One query per source, not one per collection and never one per row.
+
+    Two rather than one since the archive became a fallback: the current
+    listing is asked first, then the archive about whatever is left. The number
+    that matters is that it does not grow with the number of records or with
+    the number of lists they are drawn into.
+    """
     items = list(LegalWorkItem.objects.filter(snapshot=published))
     assert len(items) > 1
 
-    with django_assert_num_queries(1):
+    with django_assert_num_queries(2):
         resolve_links_for(items, items[:1], items[1:])
 
 

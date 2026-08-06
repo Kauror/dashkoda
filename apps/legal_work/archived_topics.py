@@ -221,8 +221,16 @@ def collect_archive_index(
             summary = to_plain_text(card["summary"], limit=MAX_LISTING_SUMMARY_LENGTH)
             key = content_key_for(absolute)
 
-            signature = _listing_signature(title, summary)
-            if key not in known_keys or known_signatures.get(key) != signature:
+            # "Known" means seen before; "unchanged" additionally means its
+            # listing metadata still hashes the same. A key we know but hold no
+            # signature for counts as unchanged — the absence of a stored hash
+            # is not evidence of an edit, and treating it as one would stop the
+            # incremental walk from ever stopping.
+            signature = listing_signature(title, summary)
+            known_signature = known_signatures.get(key)
+            if key not in known_keys or (
+                known_signature is not None and known_signature != signature
+            ):
                 page_all_known = False
 
             entries.append(
@@ -276,7 +284,8 @@ def collect_archive_index(
     )
 
 
-def _listing_signature(title: str, summary: str) -> str:
+def listing_signature(title: str, summary: str) -> str:
+    """A stable hash of the listing metadata, used to spot an edited entry."""
     return hashlib.sha256(f"{title}\x1f{summary}".encode()).hexdigest()[:32]
 
 
