@@ -75,8 +75,9 @@ An entry's real date is knowable only from its detail page. Therefore:
 - `published_date` stays null on an index-only row. Inferring a year across a
   decade from a day and a month would be a guess, and a guessed date feeds the
   matcher's chronology contradictions.
-- Hydration cannot be targeted by date before it happens, so it walks
-  newest-first and stops once the window closes.
+- Hydration cannot be targeted by date before it happens. The *background* pass
+  therefore walks newest-first and stops once the window closes; the priority
+  pass ignores age entirely, because it selects by which record needs the page.
 - An **index-only entry can never be matched.** It has an editorial headline and
   nothing to date, weigh or contradict. A check constraint refuses to call a row
   hydrated when it carries no text, the matcher excludes unhydrated rows from
