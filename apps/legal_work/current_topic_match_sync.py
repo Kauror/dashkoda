@@ -29,6 +29,7 @@ from django.db import transaction
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 
+from .consultation import consultation_eligible_items
 from .current_topic_matching import MATCHER_VERSION, match_all
 from .models import (
     CurrentTopicItem,
@@ -115,11 +116,14 @@ def _run(*, dry_run: bool, actor, correlation_id) -> MatchOutcomeReport:
     if existing is not None:
         return _unchanged(existing, dry_run=dry_run, correlation_id=correlation_id)
 
-    # Only open records take part. A closed matter has been answered and sent;
-    # enriching it with a live consultation link is a different question and is
-    # outside this phase.
+    # Only consultation-eligible records take part: open, and with no opinion
+    # yet sent. The rule is `apps.legal_work.consultation`'s, not this module's,
+    # because the archive matcher and the viewer resolver must agree with it
+    # exactly or a record could be linked by one path and not another.
     legal_items = list(
-        LegalWorkItem.objects.filter(snapshot=legal_snapshot, is_open=True).order_by("pk")
+        consultation_eligible_items(
+            LegalWorkItem.objects.filter(snapshot=legal_snapshot)
+        ).order_by("pk")
     )
     candidate_items = list(
         CurrentTopicItem.objects.filter(snapshot=topic_snapshot).order_by("source_order")

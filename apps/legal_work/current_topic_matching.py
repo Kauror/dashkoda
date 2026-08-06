@@ -54,7 +54,13 @@ from .text_normalisation import (
 # threshold, a contradiction rule, the normaliser — changes this string, so an
 # old snapshot's numbers keep meaning what they meant when they were written and
 # a re-run under new rules publishes a new snapshot rather than overwriting one.
-MATCHER_VERSION = f"1.0-norm{NORMALISER_VERSION}"
+# 1.1 changed *which records are considered*, not how any of them is scored:
+# a record whose opinion has already been sent is no longer offered a
+# consultation link. Every weight and threshold below is byte-for-byte what 1.0
+# used, so the two versions' scores are directly comparable — what differs is
+# the population. The bump exists because an old snapshot's counts would
+# otherwise silently mean something different from a new one's.
+MATCHER_VERSION = f"1.1-norm{NORMALISER_VERSION}"
 
 # ---------------------------------------------------------------------------
 # Weights. Named constants in this module, deliberately not settings and not
