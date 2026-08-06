@@ -194,6 +194,44 @@ def test_a_dry_run_publishes_nothing(opinion_roots, opinion_source):
     assert not OpinionCatalogueSnapshot.objects.exists()
 
 
+def test_a_dry_run_reports_what_a_live_run_would_do(opinion_roots, opinion_source):
+    """A dry run exists to answer "what would happen?".
+
+    Reporting `unchanged` while 34 documents sat unprocessed told an operator
+    there was nothing to do — the opposite of the truth, and the one question
+    the flag is for.
+    """
+    source, _ = opinion_roots
+    bootstrap(source, letters(5))
+
+    report = synchronize_opinion_documents(dry_run=True, max_documents=2)
+
+    assert report.result == RESULT_PARTIAL
+    assert report.pending_entries == 5
+    assert report.dry_run is True
+
+
+def test_a_dry_run_over_a_published_catalogue_still_reports_unchanged(
+    opinion_roots, opinion_source
+):
+    source, _ = opinion_roots
+    bootstrap(source, letters(2))
+    synchronize_opinion_documents()
+
+    assert synchronize_opinion_documents(dry_run=True).result == RESULT_UNCHANGED
+
+
+def test_a_dry_run_claims_no_blob_work(opinion_roots, opinion_source):
+    """It stores nothing, so it has neither created nor reused a blob."""
+    source, _ = opinion_roots
+    bootstrap(source, letters(3))
+
+    report = synchronize_opinion_documents(dry_run=True)
+
+    assert report.unique_blobs == 0
+    assert report.reused_blobs == 0
+
+
 def test_a_dry_run_writes_no_managed_blob(opinion_roots, opinion_source):
     source, _ = opinion_roots
     bootstrap(source, letters(2))
