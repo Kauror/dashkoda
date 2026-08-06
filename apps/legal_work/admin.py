@@ -537,4 +537,4 @@ class LegalArchivedTopicMatchAdmin(ReadOnlyAdmin):
 # The private opinion-document catalogue. Registered from its own module for the
 # same reason its models live in one: this file already carries three datasets.
 # Importing the module is what performs the registration.
-from . import opinion_admin  # noqa: E402,F401  (imported for its side effect)
+from . import opinion_admin, opinion_match_admin  # noqa: E402,F401  (side-effect imports)
