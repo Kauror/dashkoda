@@ -121,9 +121,9 @@ def _run(*, dry_run: bool, actor, correlation_id) -> MatchOutcomeReport:
     # because the archive matcher and the viewer resolver must agree with it
     # exactly or a record could be linked by one path and not another.
     legal_items = list(
-        consultation_eligible_items(
-            LegalWorkItem.objects.filter(snapshot=legal_snapshot)
-        ).order_by("pk")
+        consultation_eligible_items(LegalWorkItem.objects.filter(snapshot=legal_snapshot)).order_by(
+            "pk"
+        )
     )
     candidate_items = list(
         CurrentTopicItem.objects.filter(snapshot=topic_snapshot).order_by("source_order")
