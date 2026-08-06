@@ -151,6 +151,24 @@ def plain_renderings(markup: str, topic: str) -> int:
     return len(re.findall(pattern, markup))
 
 
+def _replacement_rows():
+    """A different workbook, so the import is a genuinely new snapshot."""
+    import datetime as dt
+
+    from .workbook_factory import synthetic_row
+
+    today = dt.date.today()
+    return [
+        synthetic_row(
+            record_id="SYN-NEXT",
+            topic="Sünteetiline järgmise hetkeseisu teema",
+            received_date=today - dt.timedelta(days=2),
+            is_open=True,
+            source_row=2,
+        )
+    ]
+
+
 # -- what a viewer sees -----------------------------------------------------
 
 
@@ -183,14 +201,16 @@ def test_an_unmatched_record_stays_plain_text(viewer, open_item, candidate, publ
     assert open_item.topic in markup
 
 
-def test_a_matched_decision_with_no_candidate_cannot_link(viewer, open_item, published):
-    """The constraint forbids this pairing; the read path refuses it anyway."""
-    force_decision(open_item, decision=MatchDecision.MATCHED, candidate=None)
+def test_a_matched_decision_can_never_exist_without_a_candidate(open_item, published):
+    """A link with nothing to point at cannot be stored in the first place.
 
-    markup = page(viewer)
+    The read path refuses `best_candidate=None` as well, but that is the second
+    line of defence: the check constraint means the row never reaches it.
+    """
+    from django.db import IntegrityError, transaction
 
-    assert "meie-moju/hetkel-kasil" not in markup
-    assert open_item.topic in markup
+    with pytest.raises(IntegrityError), transaction.atomic():
+        force_decision(open_item, decision=MatchDecision.MATCHED, candidate=None)
 
 
 def test_without_any_match_snapshot_every_topic_is_plain_text(
@@ -223,8 +243,10 @@ def test_a_match_from_an_older_legal_snapshot_is_never_applied(
     force_decision(open_item, decision=MatchDecision.MATCHED, candidate=candidate)
     assert links_to(page(viewer), candidate.canonical_url) >= 1
 
-    # A new legal snapshot: the match snapshot now describes retired rows.
-    import_artifact(register_workbook(make_workbook()), dry_run=False)
+    # A new legal snapshot: the match snapshot now describes retired rows. The
+    # rows must differ from the published ones, because an identical workbook is
+    # the same content and the artifact registry rejects it as already imported.
+    import_artifact(register_workbook(make_workbook(rows=_replacement_rows())), dry_run=False)
 
     markup = page(viewer)
 
