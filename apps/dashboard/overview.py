@@ -53,6 +53,7 @@ from apps.legal_work.selectors import (
     get_newest_received_items,
     get_open_items_by_deadline,
 )
+from apps.legal_work.topic_links import present_topics, resolve_links_for
 from apps.membership.internal_selectors import (
     get_internal_membership_latest,
     get_internal_membership_trend,
@@ -272,6 +273,10 @@ class OverviewPage:
     # it is the only one of the three that is a state rather than an event — a
     # board member opening the page asks what is on the table before asking what
     # moved.
+    #
+    # These hold `LegalTopicPresentation`, not `LegalWorkItem`: the imported row
+    # plus whatever public address the read path resolved for it. The row itself
+    # is reached through `.item` and is never modified.
     legal_work_open: tuple
     legal_work_received: tuple
     legal_work_sent: tuple
@@ -299,6 +304,29 @@ def build_overview(*, legal_work, membership, news, events, trend_range_key=None
     snapshot = legal_work.snapshot
 
     legal_connection = from_summary(legal_work, label=SOURCE_LEGAL_WORKBOOK)
+
+    # The card's three tabs list the same records the Õigusloome page lists, and
+    # a record often appears in more than one tab. All three are read first and
+    # their links resolved together in one query, so the same record cannot be
+    # clickable under `Töös` and plain text under `Sisse tulnud`.
+    #
+    # The `if snapshot` guards stay: the selectors fall back to reading the
+    # current snapshot themselves when handed `None`, which would be three
+    # pointless queries on a page that already knows there is nothing published.
+    legal_open_items = (
+        list(get_open_items_by_deadline(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else []
+    )
+    legal_received_items = (
+        list(get_newest_received_items(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else []
+    )
+    legal_sent_items = (
+        list(get_latest_sent_items(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else []
+    )
+    legal_links = resolve_links_for(legal_open_items, legal_received_items, legal_sent_items)
+    legal_open = present_topics(legal_open_items, legal_links)
+    legal_received = present_topics(legal_received_items, legal_links)
+    legal_sent = present_topics(legal_sent_items, legal_links)
+
     public_connection = from_summary(
         membership, label=SOURCE_PUBLIC_DIRECTORY, cadence=CADENCE_DAILY
     )
@@ -342,19 +370,9 @@ def build_overview(*, legal_work, membership, news, events, trend_range_key=None
             trend_range_key=trend_range_key,
         ),
         legal_work=legal_connection,
-        legal_work_open=(
-            tuple(get_open_items_by_deadline(snapshot, limit=LEGAL_PREVIEW_LIMIT))
-            if snapshot
-            else ()
-        ),
-        legal_work_received=(
-            tuple(get_newest_received_items(snapshot, limit=LEGAL_PREVIEW_LIMIT))
-            if snapshot
-            else ()
-        ),
-        legal_work_sent=(
-            tuple(get_latest_sent_items(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else ()
-        ),
+        legal_work_open=legal_open,
+        legal_work_received=legal_received,
+        legal_work_sent=legal_sent,
         events=events_connection,
         upcoming_events=tuple(
             get_upcoming_programme_events(events.snapshot, limit=EVENTS_PREVIEW_LIMIT)

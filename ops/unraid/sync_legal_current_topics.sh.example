@@ -1,0 +1,103 @@
+#!/bin/bash
+#
+# DashKoda Koda.ee "Hetkel käsil" enrichment: collect the current catalogue,
+# then match it against the current legal-work snapshot. A `matched` decision is
+# what makes a topic on /oigusloome/ a link to its Koda.ee consultation page.
+#
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
+#
+#   cp sync_legal_current_topics.sh.example \
+#     /boot/config/plugins/user.scripts/sync_legal_current_topics.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_legal_current_topics.sh
+#
+# Run it by hand once before scheduling it, and check the exit code:
+#
+#   DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#     /boot/config/plugins/user.scripts/sync_legal_current_topics.sh; echo "exit=$?"
+#
+# Intended schedule — 07:15 every day, Europe/Tallinn:
+#
+#   15 7 * * *
+#
+# Fifteen minutes after the legal-work workbook job at 07:00, because this
+# script's second step matches against whatever legal snapshot is current when
+# it runs. Matching before the workbook has been collected is not wrong — it
+# simply produces yesterday's answer and has to be re-run — so the offset exists
+# to make the ordinary case the useful one.
+#
+# Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn.
+# Estonia observes daylight saving, so a host left on UTC runs this an hour
+# early or late depending on the season:
+#
+#   timedatectl                      # look for "Time zone: Europe/Tallinn"
+#   date +'%Z %z %H:%M'              # expect EET +0200 in winter, EEST +0300 in summer
+#
+# Both steps take their own PostgreSQL advisory locks, distinct from each other
+# and from the workbook synchronisation, so this script can never block or be
+# blocked by the legal-work job. The flock below is host-side defence in depth
+# against two copies of this script overlapping.
+#
+# **A failure here cannot affect the legal-work data.** The workbook feed is a
+# separate source with its own state row; if collection or matching fails, the
+# previously published catalogue and match snapshot both stay exactly where they
+# were, /oigusloome/ keeps rendering, and topics whose links no longer satisfy
+# the current-snapshot rules simply render as plain text again.
+#
+# Expected exit codes:
+#
+#   0  collection and matching both imported or were unchanged
+#   1  collection failed, or matching failed
+#   3  a lock was already held, so a previous run is still in progress
+
+set -euo pipefail
+
+# Set this in the User Scripts environment, or edit the fallback below.
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+
+if [ ! -d "${DEPLOYMENT_DIRECTORY}" ]; then
+  echo "Deployment directory not found: ${DEPLOYMENT_DIRECTORY}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Named explicitly, and the host override added only when the deployment
+# actually has one. Bare `docker compose` would pick up whatever override files
+# happen to sit in the directory, which is fine until one appears that this
+# schedule was never tested against.
+COMPOSE_FILES=(-f compose.yaml)
+if [ -f compose.unraid.yaml ]; then
+  COMPOSE_FILES+=(-f compose.unraid.yaml)
+fi
+
+# Two commands run in sequence, so the lock is taken on a file descriptor held
+# for the whole script rather than wrapped around a single command the way the
+# one-step jobs do it. The lock is released when the script exits.
+exec 9>/tmp/dashkoda-legal-current-topics.lock
+if ! flock --nonblock 9; then
+  echo "Another run is still in progress; skipping." >&2
+  exit 3
+fi
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+#
+# `--json` on both: the output is aggregate counts, snapshot ids and the matcher
+# version, and never a topic, a candidate title, a URL or any page text. A
+# scheduler log is not a place where the source's content belongs.
+run() {
+  docker compose "${COMPOSE_FILES[@]}" exec -T web python manage.py "$@"
+}
+
+# Step one. `set -e` stops the script here if collection fails, so matching is
+# attempted only when the catalogue actually refreshed: matching against a
+# catalogue that failed to refresh would publish a snapshot claiming to describe
+# data the run never read.
+run sync_legal_current_topics --json
+
+# Step two. Identical inputs and matcher version report `unchanged` and
+# recompute nothing, so running this daily is cheap.
+run match_legal_current_topics --json

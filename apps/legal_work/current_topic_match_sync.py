@@ -12,7 +12,10 @@ transaction. A run that fails verification writes nothing and leaves the
 previous match snapshot current, exactly as a failed collection leaves the
 previous catalogue published.
 
-Shadow-only. A `matched` decision published here changes no viewer page.
+A `matched` decision published here is what makes a topic clickable on the
+Õigusloome page. It reaches a viewer only through
+:mod:`apps.legal_work.topic_links`, which re-checks that this snapshot is still
+the current one for both of its inputs before offering any address.
 """
 
 from __future__ import annotations

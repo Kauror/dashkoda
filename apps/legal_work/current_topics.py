@@ -30,8 +30,9 @@ normalised plain text and validated URLs.
 Unlike the events calendar, one unreachable detail page **fails the whole run**.
 A calendar with a missing event is still a calendar; a catalogue with a hole
 would make the matcher report `unmatched` for a legal record whose page merely
-happened to time out, and a wrong shadow result is worse than yesterday's
-correct one. The previous catalogue stays published instead.
+happened to time out — and, once matching runs, drop a link the reader had
+yesterday. A wrong answer is worse than yesterday's correct one, so the previous
+catalogue stays published instead.
 """
 
 from __future__ import annotations

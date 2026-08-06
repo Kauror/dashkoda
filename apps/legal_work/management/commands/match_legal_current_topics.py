@@ -1,8 +1,9 @@
-"""Scheduled shadow matching of open legal records against the catalogue.
+"""Scheduled matching of open legal records against the current catalogue.
 
-Reads PostgreSQL only. Nothing here contacts Koda.ee, and nothing here changes
-what a viewer sees: the decisions are written to their own immutable snapshot
-and inspected in the admin while the thresholds are calibrated.
+Reads PostgreSQL only; nothing here contacts Koda.ee. The decisions are written
+to their own immutable snapshot, and the Õigusloome page turns the `matched`
+ones into links the next time it renders. Nothing is written back onto an
+imported legal row.
 
 The run identity is the exact legal snapshot, the exact catalogue snapshot and
 the matcher version. Running it twice over unchanged inputs recomputes nothing

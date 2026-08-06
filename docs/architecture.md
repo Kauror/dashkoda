@@ -211,9 +211,12 @@ erased overnight. The results therefore reference the exact rows they describe
 rather than annotating them, and the relations carry no reverse accessor, so a
 selector cannot decorate viewer data with them by accident.
 
-The whole pipeline is **shadow-only in this stage**: the decisions are inspected
-in the read-only admin while the thresholds are calibrated, and no link reaches a
-viewer. See [legal-current-topic-matching.md](legal-current-topic-matching.md).
+A `matched` decision becomes a **link on the topic title** on `/oigusloome/` and
+on the overview card; `ambiguous` and `unmatched` stay plain text. The address is
+resolved at read time, in one bounded query per page, and only when the current
+match snapshot was computed from exactly the legal snapshot and catalogue being
+displayed — a stale match is never applied. See
+[legal-current-topic-matching.md](legal-current-topic-matching.md).
 
 ### Data that is not collected at all
 
@@ -302,8 +305,9 @@ and the internal board-report history count different things; see
 - `/admin/data-entry/`, one staff-only index of every manual-entry workflow
 - Unraid script templates for 07:00 and 07:05 `Europe/Tallinn` schedules
 - the Koda.ee `Hetkel käsil` current-topic catalogue, a deterministic matcher
-  over the current legal snapshot's open records, immutable match snapshots and
-  their read-only admin — **shadow-only and unscheduled**; see the next section
+  over the current legal snapshot's open records, immutable match snapshots,
+  their read-only admin, and the automatic topic links those matches produce on
+  the Õigusloome page and the overview card
 
 ## Not implemented yet
 
@@ -311,14 +315,12 @@ There is no Unraid override, Cloudflare or DNS configuration, backup or restore
 automation, rollback tooling, staging environment, membership domain model,
 chart or demo data in this repository.
 
-Automatic legal-topic links are **implemented in code but not exposed**. The
-current-topic collector, the deterministic matcher, the match snapshots and their
-read-only admin all exist and are tested; what does not exist is any path from a
-match decision to a viewer. No `public_url` is supplied, `/oigusloome/` and the
-overview are unchanged, the shared `legal_topic` component is untouched, and
-neither command is scheduled. The feature stays in shadow mode until production
-evaluation shows the proposals are safe to publish — see
-[legal-current-topic-matching.md](legal-current-topic-matching.md).
+Automatic legal-topic links cover **only the current `Hetkel käsil` listing**.
+`Meie arvamus`, opinion PDFs, attached draft legislation and the `Hetkel käsil`
+archive are not collected and are not modelled, so a consultation that closes
+loses its link at the next match run rather than moving to an archived address.
+Neither of the two commands is scheduled by this repository; the intended times
+are documented and the Unraid template is an example, not an installation.
 
 Arvamused, Finantsid, Fookusteemad and Projektid are inert navigation entries,
 because no source is connected for any of them.

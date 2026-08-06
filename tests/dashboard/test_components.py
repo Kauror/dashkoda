@@ -155,12 +155,14 @@ def test_kpi_card_links_a_detail_row_that_has_somewhere_to_go():
     assert "4" in html
 
 
-def test_legal_topic_is_plain_text_while_no_record_carries_an_address():
-    """The state today, pinned so it is a decision and not a silent gap.
+def test_legal_topic_is_plain_text_without_an_address():
+    """Half the contract: no address, no anchor.
 
-    `Tööd eelnõudega.xlsx` has no address column and is read-only to this
-    application, so no legal record has a public URL. The row renders as text
-    rather than as a link to nowhere.
+    Most legal records have none. `Tööd eelnõudega.xlsx` carries no address
+    column and is read-only to this application, so an address exists only when
+    the automatic current-topic matcher resolved one — see
+    `apps.legal_work.topic_links`. Everything else renders as text rather than
+    as a link to nowhere.
     """
     html = render("legal_topic", {"item": {"topic": "Reisijate pakett"}})
 
@@ -168,9 +170,12 @@ def test_legal_topic_is_plain_text_while_no_record_carries_an_address():
     assert "<a " not in html
 
 
-def test_legal_topic_links_the_moment_a_record_carries_an_address():
-    """The other half of the contract, so the day a source supplies an address
-    the card needs no change and this test is what says so."""
+def test_legal_topic_links_when_a_record_carries_an_address():
+    """The other half: the component renders whatever address it is handed.
+
+    It decides nothing about matching. Which records get an address, and under
+    what snapshot rules, is `apps.legal_work.topic_links`' business.
+    """
     html = render(
         "legal_topic",
         {
