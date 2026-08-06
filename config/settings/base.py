@@ -309,6 +309,58 @@ KODA_ARCHIVE_KNOWN_PAGES_BEFORE_STOP = 2
 
 KODA_ARCHIVE_BODY_MAX_LENGTH = 6000
 
+# --------------------------------------------------------------------------
+# Chamber opinion documents
+# --------------------------------------------------------------------------
+#
+# The Chamber's outgoing opinion letters, as PDFs. Unlike every other feed
+# these are **private**: they are read from a fixed directory on the host, not
+# from a URL, and they are never served from a public path. The two roots below
+# are the only places the catalogue ever reads from or writes to.
+#
+# `SOURCE_ROOT` is evidence and is mounted read-only in production. It may hold
+# the bootstrap ZIP, loose PDFs, or year folders of PDFs.
+#
+# `STORE_ROOT` is the managed store DashKoda owns: content-addressed immutable
+# blobs, written atomically and never overwritten. A source file disappearing
+# never removes a managed blob.
+#
+# There is deliberately no path or URL option on any command. Both roots are
+# configuration, so no operator or viewer input can steer a read or a write.
+LEGAL_OPINION_SOURCE_SLUG = "chamber-opinion-documents"
+LEGAL_OPINION_SOURCE_ROOT = os.environ.get("LEGAL_OPINION_SOURCE_ROOT", "/data/opinions/source")
+LEGAL_OPINION_STORE_ROOT = os.environ.get("LEGAL_OPINION_STORE_ROOT", "/data/opinions/store")
+LEGAL_OPINION_BOOTSTRAP_ZIP_NAME = os.environ.get(
+    "LEGAL_OPINION_BOOTSTRAP_ZIP_NAME", "Opinions.zip"
+)
+
+# Caps. The observed bootstrap catalogue is 759 PDFs, max 1.77 MB and 58 pages,
+# so these sit far above real documents while still refusing anything absurd.
+LEGAL_OPINION_MAX_PDF_BYTES = 32 * 1024 * 1024
+LEGAL_OPINION_MAX_PAGES = 400
+LEGAL_OPINION_MAX_SOURCE_ENTRIES = 20000
+LEGAL_OPINION_MAX_ZIP_RATIO = 200.0
+
+# Bounded resumable build. Validation, copying and extraction of one document
+# are independent, so a run does a slice and the next run continues. The
+# snapshot is published only once every manifest entry has a terminal state.
+LEGAL_OPINION_MAX_DOCUMENTS_PER_RUN = 250
+
+# Stored text. Enough for matching and later staff search, bounded so one
+# 58-page document cannot dominate the table.
+LEGAL_OPINION_TEXT_MAX_LENGTH = 40000
+LEGAL_OPINION_FIRST_PAGE_MAX_LENGTH = 8000
+
+# `needs_ocr` signals. A document with no extractable text, or implausibly
+# little for its page count, is recorded as needing OCR and excluded from
+# matching. It is never OCR'd automatically and never rendered to images.
+LEGAL_OPINION_MIN_CHARS_PER_PAGE = 120
+LEGAL_OPINION_MAX_REPLACEMENT_RATIO = 0.02
+
+# A recurring-source file is only read once it has stopped changing, so a
+# half-copied PDF is never hashed into the store.
+LEGAL_OPINION_MIN_STABLE_AGE_SECONDS = 60
+
 # Google Analytics 4.
 #
 # Read only by the scheduled `sync_ga4` command, which collects one completed

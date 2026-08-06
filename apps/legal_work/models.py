@@ -718,3 +718,16 @@ from .archive_models import (  # noqa: E402,F401  (placement is deliberate)
     LegalArchivedTopicMatch,
     LegalArchivedTopicMatchSnapshot,
 )
+
+# The private catalogue of the Chamber's own opinion documents, imported here
+# for the same reason and with the same placement rule.
+from .opinion_models import (  # noqa: E402,F401  (placement is deliberate)
+    CatalogueBuildState,
+    CatalogueResult,
+    OpinionCatalogueEntry,
+    OpinionCatalogueFeedState,
+    OpinionCatalogueSnapshot,
+    OpinionDocumentBlob,
+    OpinionDocumentExtraction,
+    SourceProvider,
+)
