@@ -1,0 +1,92 @@
+#!/bin/bash
+#
+# DashKoda archive consultation fallback, step one of two.
+# Collect the Koda.ee 'Hetkel kasil' archive index and hydrate a bounded slice of its detail pages.
+#
+# The archive is the fallback source of consultation links: once a page leaves
+# the current "Hetkel kasil" listing it is found here, keeping the same
+# canonical address. Records whose opinion has already been sent are excluded
+# by the consultation-eligibility rule and stay plain text.
+#
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
+#
+#   cp sync_legal_archived_topics.sh.example /boot/config/plugins/user.scripts/sync_legal_archived_topics.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_legal_archived_topics.sh
+#
+# Run it by hand once before scheduling it, and check the exit code:
+#
+#   DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda #     /boot/config/plugins/user.scripts/sync_legal_archived_topics.sh; echo "exit=$?"
+#
+# Intended schedule -- 07:25 every day, Europe/Tallinn:
+#
+#   25 7 * * *
+#
+# After the current-listing jobs at 07:15 and 07:20, because the archive matcher
+# defers to whatever the current matcher decided: it only considers records the
+# current listing could not answer.
+#
+# **Run the initial full backfill by hand before enabling this schedule.** The
+# archive holds about eleven hundred entries across a decade and the first pass
+# reads its whole index plus a year of detail pages, which takes several bounded
+# runs:
+#
+#   docker compose -f compose.yaml -f compose.unraid.yaml exec -T web #     python manage.py sync_legal_archived_topics --full --max-detail-pages 200 --json
+#
+# Repeat until the output reports "backfill_complete": true. Never put --full
+# into the daily schedule: it walks all 143 listing pages every time.
+#
+# Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn.
+# Estonia observes daylight saving, so a host left on UTC runs this an hour
+# early or late depending on the season:
+#
+#   timedatectl                      # look for "Time zone: Europe/Tallinn"
+#   date +'%Z %z %H:%M'              # expect EET +0200 winter, EEST +0300 summer
+#
+# A host that cannot express Europe/Tallinn installs this as a pair of UTC
+# entries with an hour guard in the wrapper; see docs/deployment-status.md.
+#
+# This job takes its own PostgreSQL advisory lock, distinct from the other four
+# legal jobs', so none of them can block another. The flock below is host-side
+# defence in depth against two copies of this script overlapping.
+#
+# **A failure here cannot affect the legal-work data or the current-listing
+# links.** The archive is a separate source with its own state row; if this
+# fails, the previous archive snapshot stays published, /oigusloome/ keeps
+# rendering, current-listing links keep working, and records that depended on an
+# archive link fall back to plain text rather than to a stale one.
+#
+# Expected exit codes:
+#
+#   0  imported, or unchanged
+#   1  failed; the previous archive data is still published
+#   3  the lock was already held, so a previous run is still in progress
+
+set -euo pipefail
+
+# Set this in the User Scripts environment, or edit the fallback below.
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+
+if [ ! -d "${DEPLOYMENT_DIRECTORY}" ]; then
+  echo "Deployment directory not found: ${DEPLOYMENT_DIRECTORY}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Both Compose files are named explicitly when the deployment has a host
+# override. Bare 'docker compose' would recreate web without the host's bind
+# mounts on a stack that was created from both.
+COMPOSE_FILES=(-f compose.yaml)
+if [ -f compose.unraid.yaml ]; then
+  COMPOSE_FILES+=(-f compose.unraid.yaml)
+fi
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+#
+# --json emits one line of aggregate counts, snapshot identifiers and progress
+# flags: never a title, a summary, a URL or any page text.
+exec flock --nonblock /tmp/dashkoda-sync-legal-archived-topics.lock   docker compose "${COMPOSE_FILES[@]}" exec -T web     python manage.py sync_legal_archived_topics --json

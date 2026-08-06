@@ -91,6 +91,34 @@ def publish_current_topics(current_topics_source, monkeypatch):
 
 
 @pytest.fixture
+def archived_topics_source(db):
+    from apps.legal_work.archive_bootstrap import ensure_archive_source
+
+    return ensure_archive_source()
+
+
+@pytest.fixture
+def publish_archived_topics(archived_topics_source, monkeypatch, settings):
+    """Publish a synthetic archive catalogue through the real sync path.
+
+    Goes through `synchronize_archived_topics` rather than writing rows, so every
+    test that needs an archive also proves the publication path still produces
+    one — index, hydration, artifact, import run and `is_current` all real.
+    """
+    from apps.legal_work.archived_topic_sync import synchronize_archived_topics
+
+    settings.KODA_ARCHIVE_REQUEST_PAUSE_SECONDS = 0
+
+    def publish(site, *, dry_run=False, full=True, max_detail_pages=None):
+        monkeypatch.setattr("apps.legal_work.archived_topics.fetch", site)
+        return synchronize_archived_topics(
+            dry_run=dry_run, full=full, max_detail_pages=max_detail_pages
+        )
+
+    return publish
+
+
+@pytest.fixture
 def frozen_today(monkeypatch):
     """Pin `timezone.localdate` so future-date rules are deterministic."""
 
