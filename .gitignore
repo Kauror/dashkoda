@@ -27,3 +27,9 @@ screenshots/
 .vscode/
 Thumbs.db
 .DS_Store
+
+# Chamber opinion documents. The bootstrap archives and the PDFs themselves are
+# private correspondence: they live in the operator's input directory and in the
+# managed private store on the host, never in Git.
+Opinions*.zip
+*.pdf
