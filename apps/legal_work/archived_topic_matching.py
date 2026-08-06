@@ -112,10 +112,6 @@ ARCHIVE_AUTO_MATCH_SCORE = Decimal("72.00")
 ARCHIVE_PLAUSIBLE_SCORE = Decimal("48.00")
 ARCHIVE_MINIMUM_MARGIN = Decimal("18.00")
 
-# An archive candidate must also clear a floor of genuinely uncommon shared
-# words. Text similarity alone, over a corpus this size, is not enough to put a
-# link in front of a reader.
-ARCHIVE_MIN_UNIQUE_TOKEN_HITS = 1
 
 EVIDENCE_INDEX_ONLY = "index-only-candidate"
 EVIDENCE_ALSO_CURRENT = "present-in-current-catalogue"
@@ -268,10 +264,16 @@ def score_archive_pair(legal, candidate, *, idf, owners) -> ArchiveScoredCandida
         if shared and shared <= GENERIC_TOKENS:
             evidence.append(EVIDENCE_GENERIC_ONLY)
 
-    # The archive-specific floor: a link needs at least one genuinely uncommon
-    # word in common. Across two hundred consultations, agreeing only on
-    # ordinary legal vocabulary is not evidence of anything.
-    if unique_hits < ARCHIVE_MIN_UNIQUE_TOKEN_HITS and not shared_identifiers:
+    # The archive-specific floor: a link needs at least one genuinely
+    # discriminating word in common. Across two hundred consultations, agreeing
+    # only on ordinary legal vocabulary is not evidence of anything.
+    #
+    # Deliberately *not* keyed on archive-wide uniqueness. A token owned by
+    # exactly one entry is a strong positive signal and is weighted as one
+    # above — but requiring it here would block every pair the moment the
+    # archive holds two consultations about the same law, which it routinely
+    # does, since a law amended twice produces two entries sharing every noun.
+    if not shared_significant and not shared_identifiers:
         evidence.append(EVIDENCE_NO_RARE_OVERLAP)
 
     return ArchiveScoredCandidate(profile=candidate, score=score, evidence=evidence)
