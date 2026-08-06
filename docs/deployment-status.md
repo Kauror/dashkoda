@@ -252,12 +252,14 @@ link to its Koda.ee consultation page on `/oigusloome/` and on the overview card
 everything else stays plain text. The address is resolved at read time from
 PostgreSQL, so **no page render contacts Koda.ee**.
 
-**No schedule is installed by this repository.** The intended times are 07:15
-`Europe/Tallinn` for `sync_legal_current_topics` and 07:20 for
-`match_legal_current_topics`, both after the 07:00 workbook job, and
+The intended times are 07:15 `Europe/Tallinn` for `sync_legal_current_topics`
+and 07:20 for `match_legal_current_topics`, both after the 07:00 workbook job and
+the other public feeds. They are **two separate jobs**, each with its own
+wrapper, flock file and log, from
 [`ops/unraid/sync_legal_current_topics.sh.example`](../ops/unraid/sync_legal_current_topics.sh.example)
-is a template an administrator copies, edits and schedules. It runs the two in
-sequence and attempts matching only when collection succeeded.
+and
+[`ops/unraid/match_legal_current_topics.sh.example`](../ops/unraid/match_legal_current_topics.sh.example).
+On the pilot host each is installed as the UTC pair described above.
 
 A failure of either command cannot affect the legal workbook synchronisation,
 the current legal snapshot or the three existing public feeds: separate source,

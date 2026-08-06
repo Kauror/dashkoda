@@ -1,0 +1,92 @@
+#!/bin/bash
+#
+# DashKoda automatic matching of open legal-work records against the current
+# Koda.ee "Hetkel käsil" catalogue. A `matched` decision is what makes a topic
+# on /oigusloome/ a link to its consultation page.
+#
+# This is step two of two. `sync_legal_current_topics.sh.example` collects the
+# catalogue five minutes earlier under its own lock and its own log.
+#
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
+#
+#   cp match_legal_current_topics.sh.example \
+#     /boot/config/plugins/user.scripts/match_legal_current_topics.sh
+#   chmod +x /boot/config/plugins/user.scripts/match_legal_current_topics.sh
+#
+# Run it by hand once before scheduling it, and check the exit code:
+#
+#   DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#     /boot/config/plugins/user.scripts/match_legal_current_topics.sh; echo "exit=$?"
+#
+# Intended schedule — 07:20 every day, Europe/Tallinn:
+#
+#   20 7 * * *
+#
+# Five minutes after collection, which is ample for a catalogue of this size and
+# keeps the two jobs' logs readable separately. The gap is for legibility, not
+# for correctness: the two take different advisory locks and could safely
+# overlap, and a matcher that runs before a fresh catalogue exists simply scores
+# against the previous one and reports its result honestly.
+#
+# Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn.
+# Estonia observes daylight saving, so a host left on UTC runs this an hour
+# early or late depending on the season:
+#
+#   timedatectl                      # look for "Time zone: Europe/Tallinn"
+#   date +'%Z %z %H:%M'              # expect EET +0200 in winter, EEST +0300 in summer
+#
+# A host that cannot express Europe/Tallinn installs this as a pair of UTC
+# entries with an hour guard in the wrapper; see docs/deployment-status.md.
+#
+# **This job contacts nothing.** It reads PostgreSQL, scores the current legal
+# snapshot's open records against the current catalogue, and writes one
+# immutable match snapshot. It fails cleanly and changes nothing when there is
+# no current legal snapshot, no current catalogue snapshot, or the two are not
+# the ones a previous run already matched.
+#
+# Identical inputs and matcher version recompute nothing and report `unchanged`,
+# so running this daily is cheap.
+#
+# **A failure here cannot affect the legal-work data or the catalogue.** The
+# previous match snapshot stays current, no partial snapshot is published,
+# /oigusloome/ keeps rendering, and topics fall back to plain text rather than
+# showing a link computed against a different legal snapshot.
+#
+# Expected exit codes:
+#
+#   0  a new match snapshot was published, or the inputs were unchanged
+#   1  matching failed, or a required current snapshot was missing; the previous
+#      match snapshot is still published
+#   3  the lock was already held, so a previous run is still in progress
+
+set -euo pipefail
+
+# Set this in the User Scripts environment, or edit the fallback below.
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+
+if [ ! -d "${DEPLOYMENT_DIRECTORY}" ]; then
+  echo "Deployment directory not found: ${DEPLOYMENT_DIRECTORY}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Both Compose files are named explicitly when the deployment has a host
+# override. Bare `docker compose` would recreate `web` without the host's bind
+# mounts on a stack that was created from both.
+COMPOSE_FILES=(-f compose.yaml)
+if [ -f compose.unraid.yaml ]; then
+  COMPOSE_FILES+=(-f compose.unraid.yaml)
+fi
+
+# A distinct lock file from the collector's, so the two never wait on each other.
+#
+# `--json` emits one line of aggregate counts, snapshot identifiers and the
+# matcher version: never a legal topic, a candidate title, a URL, an evidence
+# code or any page text.
+exec flock --nonblock /tmp/dashkoda-match-legal-current-topics.lock \
+  docker compose "${COMPOSE_FILES[@]}" exec -T web \
+    python manage.py match_legal_current_topics --json

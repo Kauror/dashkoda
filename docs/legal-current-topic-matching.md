@@ -457,11 +457,20 @@ Both commands are idempotent: unchanged inputs recompute nothing.
 | 07:15 | `sync_legal_current_topics` |
 | 07:20 | `match_legal_current_topics` |
 
-`ops/unraid/sync_legal_current_topics.sh.example` is a template for the last two
-as one sequential wrapper: it runs collection and, only if that succeeds, runs
-matching. **This repository installs nothing.** A failure in this wrapper cannot
-affect the workbook synchronisation, which is a separate job on a separate
-source with a separate lock.
+Two **separate** wrappers, five minutes apart, each with its own flock file, its
+own PostgreSQL advisory lock, its own log and its own exit code:
+`ops/unraid/sync_legal_current_topics.sh.example` and
+`ops/unraid/match_legal_current_topics.sh.example`. A collection that fails
+therefore leaves a readable failure of its own instead of being buried inside a
+combined job.
+
+The gap is for legibility, not correctness. The two take different locks and
+could safely overlap; a matcher that runs before a fresh catalogue exists simply
+scores against the previous one and reports that honestly.
+
+**This repository installs nothing.** A failure in either cannot affect the
+workbook synchronisation, which is a separate job on a separate source with a
+separate lock.
 
 ## Audit actions
 
