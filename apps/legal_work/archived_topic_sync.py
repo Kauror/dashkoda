@@ -234,6 +234,7 @@ def synchronize_archived_topics(
             requested=requested,
             complete=complete,
             index_complete=index.reached_end,
+            priority_candidates=len(priority_urls),
         )
 
     collection = type("Collection", (), {"sha256": checksum, "size_bytes": size})()
@@ -619,7 +620,16 @@ def _verify_written(snapshot, *, expected: int) -> None:
 
 
 def _unchanged(
-    state, *, dry_run, correlation_id, counts, pages, requested, complete, index_complete
+    state,
+    *,
+    dry_run,
+    correlation_id,
+    counts,
+    pages,
+    requested,
+    complete,
+    index_complete,
+    priority_candidates,
 ):
     snapshot = state.current_snapshot
     if not dry_run:
@@ -642,6 +652,10 @@ def _unchanged(
         detailed_items=counts["hydrated"],
         pending_items=counts["pending"],
         failed_items=counts["failed"],
+        # Reported even when nothing changed: an operator asking "does anything
+        # still depend on a page I have not read?" must get the same answer
+        # whether or not this run happened to publish.
+        priority_candidate_count=priority_candidates,
         priority_detailed_count=counts["priority_hydrated"],
         priority_pending_count=counts["priority_pending"],
         priority_failed_count=counts["priority_failed"],
