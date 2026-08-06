@@ -429,3 +429,36 @@ def test_the_archive_snapshot_is_still_unique(current_published, archive_sync):
     archive_sync(archive_with_old_candidate(), max_detail_pages=5)
 
     assert ArchivedTopicSnapshot.objects.filter(is_current=True).count() == 1
+
+
+# -- daily runs after a finished backfill ------------------------------------
+
+
+def test_an_incremental_run_after_a_complete_backfill_reports_unchanged(
+    current_published, archive_sync
+):
+    """The shape of the daily job, and the one that used to crash.
+
+    An incremental walk stops after a couple of already-known pages and never
+    sets `reached_end`. Recomputing index completeness from that alone made the
+    run believe the index had regressed, fall through the unchanged guard, and
+    try to publish a second successful live import for identical content — which
+    the import registry refuses. Completeness now carries forward.
+    """
+    site = archive_with_old_candidate()
+    archive_sync(site, max_detail_pages=50)
+
+    incremental = archive_sync(site, full=False, max_detail_pages=50)
+
+    assert incremental.result == "unchanged"
+    assert incremental.index_complete is True
+    assert incremental.backfill_complete is True
+
+
+def test_repeated_incremental_runs_stay_unchanged(current_published, archive_sync):
+    site = archive_with_old_candidate()
+    archive_sync(site, max_detail_pages=50)
+
+    for _ in range(3):
+        report = archive_sync(site, full=False, max_detail_pages=50)
+        assert report.result == "unchanged"
