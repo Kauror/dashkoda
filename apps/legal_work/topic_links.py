@@ -5,10 +5,18 @@ click, and it is deliberately a **read path over already-published data**: it
 runs one bounded query against PostgreSQL, contacts nothing, and can be called
 during a page render because it does no more work than any other selector.
 
-The rule it enforces is exact-current-snapshot agreement. A link is offered only
-when the current match snapshot was computed from *the very rows being
-displayed* — the current legal snapshot and the current catalogue — and the
-decision for that record is `matched`. Every other situation renders plain text.
+Two sources feed it, in a fixed order. The **current** `Hetkel käsil` listing
+answers first; the **archive** answers only for records it could not. A
+consultation that is still open is a better destination than the same
+consultation filed away, and during the days a page is moving between the two it
+can briefly appear in both — so current wins and the archive is asked only about
+what is left.
+
+The rule both enforce is exact-current-snapshot agreement. A link is offered only
+when the match snapshot was computed from *the very rows being displayed* — and
+for the archive, additionally, from the very current-topic match run that
+decided the record needed a fallback at all. Every other situation renders plain
+text.
 
 That strictness is the point. The alternative failure is a link that points at
 last week's consultation because the workbook moved on overnight and matching
@@ -110,6 +118,73 @@ def resolve_topic_links(item_ids) -> dict[int, str]:
     return {item_id: url for item_id, url in rows.iterator() if is_publishable_topic_url(url)}
 
 
+def resolve_archive_links(item_ids) -> dict[int, str]:
+    """The fallback: addresses for records the current listing could not answer.
+
+    One further bounded query. Every condition that can be stated in SQL is,
+    including the three that catch staleness — the displayed row, the candidate
+    and the current-topic match run this snapshot deferred to must all still be
+    the current ones, and must be the *same* ones this row was computed from.
+
+    Two conditions are specific to the archive and both matter:
+
+    - the candidate must be **hydrated**. An index-only row has an editorial
+      headline and no body, and the matcher never scores one; refusing it again
+      here means a row that somehow slipped through still cannot be rendered.
+    - the record must not already have a current match. That is enforced when
+      the snapshot is built, and re-checked by the caller's precedence, but a
+      link is cheap to refuse and expensive to get wrong.
+    """
+    from .models import DetailStatus, LegalArchivedTopicMatch
+
+    ids = {int(item_id) for item_id in item_ids}
+    if not ids:
+        return {}
+
+    rows = LegalArchivedTopicMatch.objects.filter(
+        legal_item_id__in=ids,
+        decision=MatchDecision.MATCHED,
+        best_candidate__isnull=False,
+        # Only a fully read archive page may be offered to a reader.
+        best_candidate__detail_status=DetailStatus.HYDRATED,
+        best_candidate__is_present=True,
+        # All four snapshots current...
+        snapshot__is_current=True,
+        snapshot__legal_snapshot__is_current=True,
+        snapshot__archived_topic_snapshot__is_current=True,
+        snapshot__current_topic_match_snapshot__is_current=True,
+        # ...and all of them the ones this row was actually computed from.
+        legal_item__snapshot=F("snapshot__legal_snapshot"),
+        best_candidate__snapshot=F("snapshot__archived_topic_snapshot"),
+        snapshot__current_topic_match_snapshot__legal_snapshot=F("snapshot__legal_snapshot"),
+    ).values_list("legal_item_id", "best_candidate__canonical_url")
+
+    return {item_id: url for item_id, url in rows.iterator() if is_publishable_topic_url(url)}
+
+
+def resolve_consultation_links(item_ids) -> dict[int, str]:
+    """One address per record, current listing first and archive second.
+
+    The precedence is the whole point. A consultation that is still open on
+    Koda.ee is the better answer than the same consultation filed in the
+    archive, and while a page is transitioning it can briefly be in both — so
+    the current answer wins and the archive is only asked about what is left.
+
+    Two queries, whatever the page draws: one for the current matches, one for
+    the archive fallback over the records the first did not answer. A record
+    that neither can answer is simply absent, and renders as plain text.
+    """
+    ids = {int(item_id) for item_id in item_ids}
+    if not ids:
+        return {}
+
+    links = resolve_topic_links(ids)
+    remaining = ids - set(links)
+    if remaining:
+        links.update(resolve_archive_links(remaining))
+    return links
+
+
 @dataclass(frozen=True)
 class LegalTopicPresentation:
     """One legal-work record together with its resolved public address.
@@ -171,7 +246,7 @@ def resolve_links_for(*groups) -> dict[int, str]:
     for group in groups:
         for entry in group:
             ids.add(getattr(entry, "item", entry).pk)
-    return resolve_topic_links(ids)
+    return resolve_consultation_links(ids)
 
 
 def present_topics(items, links: dict[int, str]) -> tuple[LegalTopicPresentation, ...]:
