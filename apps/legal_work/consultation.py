@@ -33,6 +33,19 @@ from .models import SentStatus
 CONSULTATION_ELIGIBLE = Q(is_open=True) & ~Q(sent_status=SentStatus.SENT)
 
 
+def consultation_eligible_q(prefix: str = "") -> Q:
+    """The same rule, addressed through a relation.
+
+    The match tables reach their record as `legal_item`, so their queries need
+    `legal_item__is_open` rather than `is_open`. Building the `Q` from the one
+    definition keeps the read path's copy of the rule from drifting away from
+    the matchers' — which is the whole reason this module exists.
+    """
+    if not prefix:
+        return CONSULTATION_ELIGIBLE
+    return Q(**{f"{prefix}is_open": True}) & ~Q(**{f"{prefix}sent_status": SentStatus.SENT})
+
+
 def is_consultation_eligible(item) -> bool:
     """The same rule for a single in-memory row.
 

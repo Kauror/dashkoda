@@ -38,6 +38,7 @@ from django.db.models import F
 
 from apps.core.public_http import is_allowed_public_url
 
+from .consultation import consultation_eligible_q
 from .models import (
     MAX_CANONICAL_URL_LENGTH,
     LegalCurrentTopicMatch,
@@ -101,6 +102,11 @@ def resolve_topic_links(item_ids) -> dict[int, str]:
         return {}
 
     rows = LegalCurrentTopicMatch.objects.filter(
+        # The record must still be allowed a consultation link at all: open, and
+        # with no opinion sent. The matcher already refuses the rest, so this is
+        # defence in depth — but it is the check that means a stored decision
+        # can never outlive the state that justified it.
+        consultation_eligible_q("legal_item__"),
         legal_item_id__in=ids,
         # Only a high-confidence automatic decision is publishable. An ambiguous
         # front-runner is recorded for calibration and is never a link.
@@ -142,6 +148,7 @@ def resolve_archive_links(item_ids) -> dict[int, str]:
         return {}
 
     rows = LegalArchivedTopicMatch.objects.filter(
+        consultation_eligible_q("legal_item__"),
         legal_item_id__in=ids,
         decision=MatchDecision.MATCHED,
         best_candidate__isnull=False,
