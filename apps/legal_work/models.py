@@ -721,6 +721,16 @@ from .archive_models import (  # noqa: E402,F401  (placement is deliberate)
 
 # The private catalogue of the Chamber's own opinion documents, imported here
 # for the same reason and with the same placement rule.
+# Phase 2: durable legal-matter identity and the opinion matcher's output.
+from .opinion_match_models import (  # noqa: E402,F401  (placement is deliberate)
+    DocumentRole,
+    LegalMatter,
+    LegalMatterAlias,
+    LegalOpinionDecision,
+    LegalOpinionDocumentRelation,
+    LegalOpinionMatchSnapshot,
+    OpinionResource,
+)
 from .opinion_models import (  # noqa: E402,F401  (placement is deliberate)
     CatalogueBuildState,
     CatalogueResult,

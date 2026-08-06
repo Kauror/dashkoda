@@ -25,6 +25,8 @@ into one. Blobs carry a storage *key* derived from the digest; resolving it to a
 path happens in `opinion_storage`, under the store root, at read time.
 """
 
+import uuid
+
 from django.db import models
 from django.db.models import F, Q
 
@@ -84,6 +86,12 @@ class OpinionDocumentBlob(models.Model):
     where a blob lives without running code.
     """
 
+    # The opaque identifier a protected document URL carries. It belongs to the
+    # blob rather than to a catalogue entry because entries are snapshot-scoped:
+    # a document would get a new address every import, and a link printed today
+    # has to keep working. The digest cannot serve this purpose — it is
+    # guessable from the bytes and is deliberately never published.
+    public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
     sha256 = models.CharField(max_length=64, unique=True, verbose_name="SHA-256")
     storage_key = models.CharField(max_length=MAX_STORAGE_KEY_LENGTH, verbose_name="Hoiuvõti")
     byte_size = models.PositiveIntegerField(verbose_name="Suurus baitides")

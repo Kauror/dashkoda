@@ -35,6 +35,7 @@ from urllib.parse import urlsplit
 
 from django.conf import settings
 from django.db.models import F
+from django.urls import reverse
 
 from apps.core.public_http import is_allowed_public_url
 
@@ -45,6 +46,9 @@ from .models import (
     LegalWorkItem,
     MatchDecision,
 )
+from .opinion_eligibility import opinion_eligible_q
+from .opinion_match_models import LegalOpinionDocumentRelation
+from .opinion_pdf import ValidationStatus
 
 
 def is_publishable_topic_url(url: str) -> bool:
@@ -169,26 +173,76 @@ def resolve_archive_links(item_ids) -> dict[int, str]:
     return {item_id: url for item_id, url in rows.iterator() if is_publishable_topic_url(url)}
 
 
-def resolve_consultation_links(item_ids) -> dict[int, str]:
-    """One address per record, current listing first and archive second.
+def resolve_opinion_links(item_ids) -> dict[int, str]:
+    """The internal resource address for each sent record that has one.
 
-    The precedence is the whole point. A consultation that is still open on
-    Koda.ee is the better answer than the same consultation filed in the
-    archive, and while a page is transitioning it can briefly be in both — so
-    the current answer wins and the archive is only asked about what is left.
+    Every staleness condition is in the query rather than checked afterwards,
+    because a check that happens "later" is a check some future caller forgets.
+    The `F()` comparisons tie the decision to the exact legal snapshot the row
+    being displayed belongs to, and to the exact catalogue the document belongs
+    to, so a decision computed against yesterday's import cannot surface.
 
-    Two queries, whatever the page draws: one for the current matches, one for
-    the archive fallback over the records the first did not answer. A record
-    that neither can answer is simply absent, and renders as plain text.
+    A matter whose durable identity collided is excluded here rather than at
+    render time: an ambiguous identity must never become an address.
     """
     ids = {int(item_id) for item_id in item_ids}
     if not ids:
         return {}
 
-    links = resolve_topic_links(ids)
+    rows = (
+        LegalOpinionDocumentRelation.objects.filter(
+            is_primary=True,
+            decision__legal_item_id__in=ids,
+            decision__snapshot__is_current=True,
+            decision__decision=MatchDecision.MATCHED,
+            decision__legal_item__snapshot__is_current=True,
+            decision__snapshot__legal_snapshot_id=F("decision__legal_item__snapshot_id"),
+            decision__snapshot__opinion_catalogue_snapshot_id=F("entry__snapshot_id"),
+            entry__snapshot__is_current=True,
+            entry__blob__validation_status=ValidationStatus.VALID,
+            decision__matter__has_ambiguous_identity=False,
+        )
+        .filter(opinion_eligible_q("decision__legal_item__"))
+        .values_list("decision__legal_item_id", "decision__matter__resource__public_id")
+    )
+    return {
+        item_id: reverse("legal_work:opinion-resource", args=[public_id])
+        for item_id, public_id in rows
+        if public_id is not None
+    }
+
+
+def resolve_consultation_links(item_ids) -> dict[int, str]:
+    """One address per record, chosen by what the workbook says about it.
+
+    Two branches rather than one chain of fallbacks, because the choice is a
+    property of the record's own status:
+
+        sent            -> opinion resource when matched, else plain text
+        open and unsent -> current consultation, then archive, else plain text
+
+    A sent record must never fall through to a consultation. The consultation
+    page invites comment on a draft the Chamber has already answered, so showing
+    it beside an answered record tells a reader the opposite of the truth. The
+    two eligibility rules are mutually exclusive by construction — one requires
+    not-sent, the other requires sent — so the branches cannot both answer, and
+    a test asserts it.
+
+    Three queries whatever the page draws, and none of them per row.
+    """
+    ids = {int(item_id) for item_id in item_ids}
+    if not ids:
+        return {}
+
+    links = resolve_opinion_links(ids)
+
     remaining = ids - set(links)
     if remaining:
-        links.update(resolve_archive_links(remaining))
+        current = resolve_topic_links(remaining)
+        links.update(current)
+        still_unanswered = remaining - set(current)
+        if still_unanswered:
+            links.update(resolve_archive_links(still_unanswered))
     return links
 
 
