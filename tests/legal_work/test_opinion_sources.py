@@ -68,6 +68,38 @@ def test_a_hostile_archive_is_refused(opinion_roots, kind):
         BootstrapZipProvider().manifest()
 
 
+@pytest.mark.parametrize(
+    ("payload", "why"),
+    [
+        (b"this is not a zip file at all", "not an archive"),
+        (b"PK\x03\x04 truncated right after the signature", "truncated"),
+        (b"", "empty"),
+    ],
+)
+def test_an_unreadable_archive_is_refused_rather_than_crashing(opinion_roots, payload, why):
+    """`zipfile.BadZipFile` descends straight from `Exception`.
+
+    It is caught by neither `OSError` nor `ValueError`, so before this was
+    handled a corrupt archive ended the run in a traceback — taking the feed
+    state with it and leaving no record of what went wrong. A container that
+    cannot be read is the same answer as one that breaks a rule: refuse it, and
+    let the previous catalogue stand.
+    """
+    source, _ = opinion_roots
+    (source / "Opinions.zip").write_bytes(payload)
+
+    with pytest.raises(SourceRejected, match="could not be read"):
+        BootstrapZipProvider().manifest()
+
+
+def test_an_unreadable_archive_is_refused_when_reading_one_entry(opinion_roots):
+    source, _ = opinion_roots
+    (source / "Opinions.zip").write_bytes(b"not a zip")
+
+    with pytest.raises(SourceRejected):
+        BootstrapZipProvider().read("Opinions/a.pdf")
+
+
 def test_an_implausible_decompression_ratio_is_refused(opinion_roots, settings):
     source, _ = opinion_roots
     settings.LEGAL_OPINION_MAX_ZIP_RATIO = 10.0

@@ -168,4 +168,9 @@ def test_the_app_owns_exactly_the_commands_it_is_supposed_to():
         # consultation links, and its separately calibrated matcher.
         "sync_legal_archived_topics",
         "match_legal_archived_topics",
+        # The Chamber's own opinion documents: a private catalogue read from a
+        # fixed directory, and a read-only integrity check over its blob store.
+        # Neither is scheduled by this repository.
+        "sync_legal_opinion_documents",
+        "verify_legal_opinion_store",
     }

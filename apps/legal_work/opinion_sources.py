@@ -45,7 +45,29 @@ MAX_ENTRY_NAME_LENGTH = 400
 
 
 class SourceRejected(RuntimeError):
-    """Raised when a source container breaks a rule that makes it unsafe to read."""
+    """Raised when a source container breaks a rule that makes it unsafe to read.
+
+    Also raised when a container cannot be read *at all* — a truncated upload, a
+    file that is not really a ZIP, an unsupported compression method. Those are
+    the same answer as far as the catalogue is concerned: this source cannot be
+    trusted, so the previous catalogue stays the answer. Letting `BadZipFile`
+    escape instead would end the run in a traceback and take the feed state with
+    it.
+    """
+
+
+# Everything `zipfile` raises when a container is corrupt rather than merely
+# unusual. `BadZipFile` descends from `Exception` directly — not from `OSError`
+# or `ValueError` — so it has to be named explicitly or it escapes every
+# reasonable except clause.
+UNREADABLE_ARCHIVE = (
+    zipfile.BadZipFile,
+    zipfile.LargeZipFile,
+    NotImplementedError,
+    EOFError,
+    OSError,
+    ValueError,
+)
 
 
 @dataclass(frozen=True)
@@ -137,6 +159,14 @@ class BootstrapZipProvider:
         return self.path.is_file()
 
     def _entries(self) -> list[zipfile.ZipInfo]:
+        try:
+            return self._checked_entries()
+        except SourceRejected:
+            raise
+        except UNREADABLE_ARCHIVE as error:
+            raise SourceRejected("The bootstrap archive could not be read.") from error
+
+    def _checked_entries(self) -> list[zipfile.ZipInfo]:
         with zipfile.ZipFile(self.path) as archive:
             infos = archive.infolist()
 
@@ -181,31 +211,41 @@ class BootstrapZipProvider:
 
     def manifest(self) -> list[ManifestEntry]:
         entries: list[ManifestEntry] = []
-        with zipfile.ZipFile(self.path) as archive:
-            for order, info in enumerate(self._entries()):
-                payload = archive.read(info)
-                entries.append(
-                    ManifestEntry(
-                        provider=self.name,
-                        key=info.filename,
-                        filename=Path(info.filename.replace("\\", "/")).name,
-                        sha256=digest_bytes(payload),
-                        byte_size=len(payload),
-                        order=order,
+        try:
+            with zipfile.ZipFile(self.path) as archive:
+                for order, info in enumerate(self._entries()):
+                    payload = archive.read(info)
+                    entries.append(
+                        ManifestEntry(
+                            provider=self.name,
+                            key=info.filename,
+                            filename=Path(info.filename.replace("\\", "/")).name,
+                            sha256=digest_bytes(payload),
+                            byte_size=len(payload),
+                            order=order,
+                        )
                     )
-                )
+        except SourceRejected:
+            raise
+        except UNREADABLE_ARCHIVE as error:
+            raise SourceRejected("The bootstrap archive could not be read.") from error
         return entries
 
     def read(self, key: str) -> SourceEntry | None:
         _check_entry_name(key)
-        with zipfile.ZipFile(self.path) as archive:
-            try:
-                info = archive.getinfo(key)
-            except KeyError:
-                return None
-            if info.file_size > settings.LEGAL_OPINION_MAX_PDF_BYTES:
-                raise SourceRejected("An archive entry is larger than the contract allows.")
-            payload = archive.read(info)
+        try:
+            with zipfile.ZipFile(self.path) as archive:
+                try:
+                    info = archive.getinfo(key)
+                except KeyError:
+                    return None
+                if info.file_size > settings.LEGAL_OPINION_MAX_PDF_BYTES:
+                    raise SourceRejected("An archive entry is larger than the contract allows.")
+                payload = archive.read(info)
+        except SourceRejected:
+            raise
+        except UNREADABLE_ARCHIVE as error:
+            raise SourceRejected("The bootstrap archive could not be read.") from error
         return SourceEntry(
             provider=self.name,
             key=key,

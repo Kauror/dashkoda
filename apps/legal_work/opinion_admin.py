@@ -88,14 +88,27 @@ class OpinionDocumentBlobAdmin(ReadOnlyAdmin):
     # log line to its row. The full digest is never displayed.
     search_fields = ("sha256",)
 
+    # Withheld from every rendered page. `ReadOnlyAdmin` makes every model field
+    # readonly, and Django builds a change page from the form fields *plus* the
+    # readonly ones — so `exclude` alone does not suppress them and the full
+    # digest was rendering. `get_fields` is the only place that decides what a
+    # change page actually contains.
+    HIDDEN_FIELDS = frozenset({"sha256", "storage_key"})
+
     @admin.display(description="Räsi algus", ordering="sha256")
     def digest_prefix(self, obj):
         return obj.sha256[:12]
 
+    def get_fields(self, request, obj=None):
+        return [
+            field.name for field in self.model._meta.fields if field.name not in self.HIDDEN_FIELDS
+        ] + ["digest_prefix"]
+
+    def get_readonly_fields(self, request, obj=None):
+        return self.get_fields(request, obj)
+
     def get_exclude(self, request, obj=None):
-        # The storage key is a path into the private store. Nothing an admin
-        # page shows should make one easier to construct.
-        return ("storage_key", "sha256")
+        return tuple(sorted(self.HIDDEN_FIELDS))
 
 
 @admin.register(OpinionDocumentExtraction)
@@ -127,13 +140,20 @@ class OpinionDocumentExtractionAdmin(ReadOnlyAdmin):
     def text_excerpt(self, obj):
         return _excerpt(obj.text)
 
+    # The excerpts are the reviewable form. The full columns would put an entire
+    # private letter on one page, and `text_sha256` is a full digest.
+    HIDDEN_FIELDS = frozenset({"text", "first_page_text", "text_sha256"})
+
+    def get_fields(self, request, obj=None):
+        return [
+            field.name for field in self.model._meta.fields if field.name not in self.HIDDEN_FIELDS
+        ] + ["first_page_excerpt", "text_excerpt"]
+
     def get_readonly_fields(self, request, obj=None):
-        return [*super().get_readonly_fields(request, obj), "first_page_excerpt", "text_excerpt"]
+        return self.get_fields(request, obj)
 
     def get_exclude(self, request, obj=None):
-        # The excerpts above are the reviewable form. The full columns would
-        # put an entire private letter on one page.
-        return ("text", "first_page_text", "text_sha256")
+        return tuple(sorted(self.HIDDEN_FIELDS))
 
 
 class MatchableFilter(admin.SimpleListFilter):
@@ -229,17 +249,19 @@ class OpinionCatalogueEntryAdmin(ReadOnlyAdmin):
             extraction.their_reference or "—",
         )
 
-    def get_readonly_fields(self, request, obj=None):
+    # The source entry key is a path inside the inbox or the archive.
+    HIDDEN_FIELDS = frozenset({"source_entry_key"})
+
+    def get_fields(self, request, obj=None):
         return [
-            *super().get_readonly_fields(request, obj),
-            "first_page_excerpt",
-            "detected_fields",
-            "digest_prefix",
-        ]
+            field.name for field in self.model._meta.fields if field.name not in self.HIDDEN_FIELDS
+        ] + ["first_page_excerpt", "detected_fields", "digest_prefix"]
+
+    def get_readonly_fields(self, request, obj=None):
+        return self.get_fields(request, obj)
 
     def get_exclude(self, request, obj=None):
-        # The source entry key is a path inside the inbox or the archive.
-        return ("source_entry_key",)
+        return tuple(sorted(self.HIDDEN_FIELDS))
 
 
 @admin.register(OpinionCatalogueFeedState)
