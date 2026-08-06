@@ -188,6 +188,46 @@ class TestMatching:
         assert report.dry_run is True
         assert not LegalOpinionMatchSnapshot.objects.exists()
 
+    def test_a_dry_run_predicts_the_same_counts_a_live_run_produces(
+        self, opinion_roots, opinion_source, imported_snapshot
+    ):
+        """A dry run exists to say what a live run would do.
+
+        The competing-claim resolution is part of that decision, and leaving it
+        out of the preview made a dry run promise one more match than the live
+        run delivered — on the real pilot, 29 against 28.
+        """
+        source, _ = opinion_roots
+        items = list(LegalWorkItem.objects.filter(snapshot=imported_snapshot))
+        topic = "Maksukorralduse seaduse muutmise seaduse eelnõu 130 SE"
+        # Two records on the same instrument, sent a fortnight apart, with one
+        # letter between them: exactly the shape that produced the competing
+        # claim in the real catalogue.
+        for offset, item in enumerate(items[:2]):
+            LegalWorkItem.objects.filter(pk=item.pk).update(
+                topic=f"{topic} ({offset})",
+                sent_status=SentStatus.SENT,
+                sent_date=SENT + dt.timedelta(days=offset * 14),
+                received_date=dt.date(2026, 2, 1),
+                recipient="Rahandusministeerium",
+            )
+        LegalWorkItem.objects.filter(snapshot=imported_snapshot).exclude(
+            pk__in=[i.pk for i in items[:2]]
+        ).update(sent_status=SentStatus.PENDING, sent_date=None)
+        publish_catalogue(
+            source,
+            [letter(date=SENT, subject=f"Arvamus {topic} kohta")],
+        )
+
+        preview = run_opinion_matching(dry_run=True)
+        live = run_opinion_matching()
+
+        assert (preview.matched, preview.ambiguous, preview.unmatched) == (
+            live.matched,
+            live.ambiguous,
+            live.unmatched,
+        )
+
     def test_no_legal_row_is_mutated(self, matched_world):
         item, _report = matched_world
         before = LegalWorkItem.objects.get(pk=item.pk)
