@@ -214,9 +214,15 @@ def synchronize_archived_topics(
 
     checksum, size = checksum_for(entries, details)
     counts = _counts(entries, details, priority_urls=priority_urls)
-    complete = (
-        index.reached_end and counts["priority_pending"] == 0 and counts["recent_pending"] == 0
-    )
+    # Index completeness is a fact that persists. An incremental walk stops after
+    # a couple of already-known pages and so never sets `reached_end`, but it has
+    # not *disproved* anything: the index was complete and this run only looked
+    # at the front of it. Recomputing completeness from this run alone made every
+    # daily run after a finished backfill believe the index had regressed, fall
+    # through the unchanged guard, and try to publish a second successful live
+    # import for identical content — which the import registry correctly refuses.
+    index_complete = index.reached_end or bool(previous and previous.index_complete)
+    complete = index_complete and counts["priority_pending"] == 0 and counts["recent_pending"] == 0
 
     artifact, already_published = find_published_artifact(source, checksum, IMPORTER_NAME)
     # Identical content is only genuinely "unchanged" when there is no work
@@ -233,7 +239,7 @@ def synchronize_archived_topics(
             pages=index.pages_fetched,
             requested=requested,
             complete=complete,
-            index_complete=index.reached_end,
+            index_complete=index_complete,
             priority_candidates=len(priority_urls),
         )
 
@@ -271,7 +277,7 @@ def synchronize_archived_topics(
             priority_failed_count=counts["priority_failed"],
             recent_detailed_count=counts["recent_hydrated"],
             recent_pending_count=counts["recent_pending"],
-            index_complete=index.reached_end,
+            index_complete=index_complete,
             backfill_complete=complete,
             pages_fetched=index.pages_fetched,
             detail_requests=requested,
@@ -293,7 +299,7 @@ def synchronize_archived_topics(
                 priority_candidate_count=len(priority_urls),
                 priority_detailed_count=counts["priority_hydrated"],
                 priority_pending_count=counts["priority_pending"],
-                index_complete=index.reached_end,
+                index_complete=index_complete,
                 backfill_complete=complete,
             )
             snapshot.save()
