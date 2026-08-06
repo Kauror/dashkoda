@@ -19,10 +19,15 @@ Three datasets live here, and the boundary between them matters:
   `LegalCurrentTopicMatch`) — what a deterministic matcher proposed about the
   first two.
 
-Nothing written by the second or third ever reaches a `LegalWorkItem`. The
-workbook rows are rebuilt from scratch on every import, so a match result stored
-on one would be erased by the next morning's sync; that is not a limitation
-worked around here, it is the reason the results live in their own snapshot.
+A fourth and fifth dataset — the `Hetkel käsil` **archive** catalogue and its own
+match results — live in `archive_models.py` and are imported at the foot of this
+module. They are separated because this file already carries three datasets, not
+because they are different in kind.
+
+Nothing written by any of them ever reaches a `LegalWorkItem`. The workbook rows
+are rebuilt from scratch on every import, so a match result stored on one would
+be erased by the next morning's sync; that is not a limitation worked around
+here, it is the reason the results live in their own snapshots.
 """
 
 from django.db import models
@@ -699,3 +704,17 @@ class LegalCurrentTopicMatch(models.Model):
         if self.pk is not None and not self._state.adding:
             raise SnapshotImmutable("A generated match row cannot be changed.")
         return super().save(*args, **kwargs)
+
+
+# The archive catalogue and its matcher results. Imported here, at the foot, so
+# Django discovers them as ordinary `legal_work` models while the definitions
+# stay in their own module. The import is last because those models refer back
+# to the ones above.
+from .archive_models import (  # noqa: E402,F401  (placement is deliberate)
+    ArchivedTopicFeedState,
+    ArchivedTopicItem,
+    ArchivedTopicSnapshot,
+    DetailStatus,
+    LegalArchivedTopicMatch,
+    LegalArchivedTopicMatchSnapshot,
+)
