@@ -178,6 +178,26 @@ class AuditAction(models.TextChoices):
         "legal_work.archived_topic_match_failed",
         "Arhiivi sobitamine ebaõnnestus",
     )
+    # The Chamber's own opinion documents. Private correspondence rather than a
+    # public feed, so its summaries carry counts, snapshot ids and digest
+    # prefixes only — never a filename, a recipient, a subject, document text or
+    # a storage path.
+    OPINION_CATALOGUE_IMPORTED = (
+        "legal_work.opinion_catalogue_imported",
+        "Arvamuste kataloog imporditud",
+    )
+    OPINION_CATALOGUE_UNCHANGED = (
+        "legal_work.opinion_catalogue_unchanged",
+        "Arvamuste kataloog: muutusteta",
+    )
+    OPINION_CATALOGUE_FAILED = (
+        "legal_work.opinion_catalogue_failed",
+        "Arvamuste kataloogi ehitamine ebaõnnestus",
+    )
+    OPINION_DOCUMENT_QUARANTINED = (
+        "legal_work.opinion_document_quarantined",
+        "Arvamusdokument karantiini",
+    )
     # Manually observed audience sizes. A batch event describes one submission;
     # the per-observation events describe what that submission did to each
     # metric, which is what makes a correction auditable on its own.
