@@ -25,9 +25,14 @@ from django.utils.html import format_html
 from apps.core.admin import ReadOnlyAdmin
 
 from .models import (
+    ArchivedTopicFeedState,
+    ArchivedTopicItem,
+    ArchivedTopicSnapshot,
     CurrentTopicFeedState,
     CurrentTopicItem,
     CurrentTopicSnapshot,
+    LegalArchivedTopicMatch,
+    LegalArchivedTopicMatchSnapshot,
     LegalCurrentTopicMatch,
     LegalCurrentTopicMatchSnapshot,
     LegalWorkFeedState,
@@ -292,6 +297,233 @@ class LegalCurrentTopicMatchAdmin(ReadOnlyAdmin):
             return "—"
         url = obj.best_candidate.canonical_url
         return format_html('<a href="{}" rel="noopener noreferrer">{}</a>', url, url)
+
+    @admin.display(description="Tõendikoodid")
+    def evidence_summary(self, obj) -> str:
+        return ", ".join(obj.evidence_codes or []) or "—"
+
+    @admin.display(description="Sobitaja", ordering="snapshot__matcher_version")
+    def matcher_version(self, obj) -> str:
+        return obj.snapshot.matcher_version
+
+
+# --------------------------------------------------------------------------
+# The archive catalogue and its fallback matches.
+#
+# Read-only for the same reason the current ones are: linking is automatic, and
+# a button here would create a second, invisible source of truth. What this
+# admin adds over the current one is *backfill visibility* — an entry that has
+# not been read yet cannot be matched, and an operator needs to see that
+# directly rather than infer it from a missing link.
+# --------------------------------------------------------------------------
+
+
+@admin.register(ArchivedTopicSnapshot)
+class ArchivedTopicSnapshotAdmin(ReadOnlyAdmin):
+    list_display = (
+        "observed_at",
+        "is_current",
+        "item_count",
+        "detailed_item_count",
+        "pending_detail_count",
+        "failed_detail_count",
+        "pages_fetched",
+        "backfill_complete",
+    )
+    list_filter = ("is_current", "backfill_complete")
+    date_hierarchy = "observed_at"
+    ordering = ("-observed_at", "-id")
+    list_select_related = ("source", "artifact", "import_run")
+
+
+@admin.register(ArchivedTopicItem)
+class ArchivedTopicItemAdmin(ReadOnlyAdmin):
+    list_display = (
+        "canonical_url",
+        "title",
+        "detail_status",
+        "detail_title",
+        "published_date",
+        "feedback_deadline",
+        "named_organization",
+        "source_page",
+        "is_present",
+        "body_excerpt",
+        "detail_failure_code",
+        "snapshot",
+    )
+    list_filter = (
+        "snapshot__is_current",
+        "detail_status",
+        "is_present",
+        "named_organization",
+        "published_date",
+        "source_page",
+    )
+    search_fields = ("title", "detail_title", "listing_summary", "canonical_url")
+    ordering = ("snapshot", "source_order")
+    list_select_related = ("snapshot",)
+
+    @admin.display(description="Teksti algus")
+    def body_excerpt(self, obj) -> str:
+        text = obj.body_text or obj.listing_summary
+        if not text:
+            return "—"
+        return f"{text[:160]}…" if len(text) > 160 else text
+
+
+@admin.register(ArchivedTopicFeedState)
+class ArchivedTopicFeedStateAdmin(ReadOnlyAdmin):
+    list_display = (
+        "source",
+        "last_result",
+        "last_checked_at",
+        "last_successful_sync_at",
+        "last_changed_at",
+    )
+    list_filter = ("last_result",)
+    list_select_related = ("source", "current_snapshot")
+
+
+@admin.register(LegalArchivedTopicMatchSnapshot)
+class LegalArchivedTopicMatchSnapshotAdmin(ReadOnlyAdmin):
+    list_display = (
+        "generated_at",
+        "is_current",
+        "matcher_version",
+        "considered_item_count",
+        "matched_count",
+        "ambiguous_count",
+        "unmatched_count",
+        "legal_snapshot",
+        "archived_topic_snapshot",
+        "current_topic_match_snapshot",
+    )
+    list_filter = ("is_current", "matcher_version")
+    date_hierarchy = "generated_at"
+    ordering = ("-generated_at", "-id")
+    list_select_related = (
+        "legal_snapshot",
+        "archived_topic_snapshot",
+        "current_topic_match_snapshot",
+    )
+
+
+class ArchiveDetailStatusFilter(admin.SimpleListFilter):
+    """Whether the proposed candidate was actually read.
+
+    A candidate that is not hydrated can never become a link, so this separates
+    "the matcher had nothing to work with" from "the matcher was unconvinced".
+    """
+
+    title = "Kandidaadi lehe olek"
+    parameter_name = "candidate_detail"
+
+    def lookups(self, request, model_admin):
+        return [("hydrated", "Loetud"), ("pending", "Lugemata"), ("failed", "Ebaõnnestus")]
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if not value:
+            return queryset
+        return queryset.filter(best_candidate__detail_status=value)
+
+
+@admin.register(LegalArchivedTopicMatch)
+class LegalArchivedTopicMatchAdmin(ReadOnlyAdmin):
+    """One row per record the current listing could not answer.
+
+    `current_topic_decision` is here because the archive is a *fallback*: a
+    reviewer's first question about an archive match is what the current matcher
+    said, and having to open another changelist to find out is how the two end
+    up being compared wrongly.
+    """
+
+    list_display = (
+        "legal_record_id",
+        "legal_topic",
+        "legal_state",
+        "current_topic_decision",
+        "decision",
+        "score",
+        "runner_up_score",
+        "score_margin",
+        "candidate_count",
+        "candidate_title",
+        "candidate_link",
+        "candidate_status",
+        "evidence_summary",
+        "matcher_version",
+    )
+    list_filter = (
+        "decision",
+        ArchiveDetailStatusFilter,
+        "snapshot__is_current",
+        "snapshot__matcher_version",
+        "snapshot__legal_snapshot",
+        "snapshot__archived_topic_snapshot",
+        "snapshot__current_topic_match_snapshot",
+    )
+    search_fields = (
+        "legal_item__record_id",
+        "legal_item__topic",
+        "best_candidate__title",
+        "best_candidate__detail_title",
+        "best_candidate__canonical_url",
+    )
+    ordering = ("-score", "legal_item_id")
+    list_select_related = (
+        "snapshot",
+        "legal_item",
+        "best_candidate",
+        "snapshot__legal_snapshot",
+        "snapshot__archived_topic_snapshot",
+        "snapshot__current_topic_match_snapshot",
+    )
+
+    @admin.display(description="Kirje ID", ordering="legal_item__record_id")
+    def legal_record_id(self, obj) -> str:
+        return obj.legal_item.record_id
+
+    @admin.display(description="Õigusloome teema", ordering="legal_item__topic")
+    def legal_topic(self, obj) -> str:
+        topic = obj.legal_item.topic
+        return f"{topic[:110]}…" if len(topic) > 110 else topic
+
+    @admin.display(description="Kirje seis")
+    def legal_state(self, obj) -> str:
+        item = obj.legal_item
+        state = "avatud" if item.is_open else "suletud"
+        return f"{state} / {item.get_sent_status_display()}"
+
+    @admin.display(description="Hetkel käsil otsus")
+    def current_topic_decision(self, obj) -> str:
+        match = (
+            obj.snapshot.current_topic_match_snapshot.matches.filter(
+                legal_item_id=obj.legal_item_id
+            )
+            .only("decision")
+            .first()
+        )
+        return match.get_decision_display() if match else "—"
+
+    @admin.display(description="Kandidaat")
+    def candidate_title(self, obj) -> str:
+        if obj.best_candidate is None:
+            return "—"
+        title = obj.best_candidate.detail_title or obj.best_candidate.title
+        return f"{title[:110]}…" if len(title) > 110 else title
+
+    @admin.display(description="Kandidaadi aadress")
+    def candidate_link(self, obj):
+        if obj.best_candidate is None:
+            return "—"
+        url = obj.best_candidate.canonical_url
+        return format_html('<a href="{}" rel="noopener noreferrer">{}</a>', url, url)
+
+    @admin.display(description="Lehe olek")
+    def candidate_status(self, obj) -> str:
+        return obj.best_candidate.get_detail_status_display() if obj.best_candidate else "—"
 
     @admin.display(description="Tõendikoodid")
     def evidence_summary(self, obj) -> str:
