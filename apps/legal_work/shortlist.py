@@ -34,26 +34,43 @@ MIN_SHARED_SIGNIFICANT_TOKENS = 1
 def shortlist_archive_urls(entries, legal_items=None) -> set[str]:
     """URLs worth hydrating first, given who still needs a link.
 
-    With no legal records supplied — the ordinary backfill case before any
-    matching has run — this returns an empty set and hydration simply proceeds
-    newest-first, which is the right default for filling a fresh window.
+    Searches the **entire** archive index — every year of it. Consultation
+    eligibility is about a record's status, not about when its consultation ran,
+    so restricting the search by age would make an eligible record's link depend
+    on how long ago the Chamber was asked. That was a real defect and this is
+    where it is fixed.
+
+    Age cannot be used here in any case: archive listing cards carry no year, so
+    before hydration there is no date to filter on. The shortlist works from
+    title and summary alone, which is exactly what an unread entry offers.
+
+    Deterministic throughout: candidates are ranked by how many discriminating
+    words they share with the record, ties broken by the archive's own order, so
+    two runs over the same inputs shortlist the same pages.
+
+    With no legal records supplied — a backfill before any matching has run —
+    this returns an empty set and hydration falls back to recent-window
+    coverage, which is the right default for a fresh install.
     """
     if not legal_items:
         return set()
 
     wanted: set[str] = set()
+    # Tokenised once per entry rather than once per (record, entry) pair: the
+    # index runs to a thousand entries and the eligible population to dozens.
+    entry_tokens = [
+        (entry, significant_tokens(f"{entry.title} {entry.listing_summary}")) for entry in entries
+    ]
+
     for item in legal_items:
         record_tokens = significant_tokens(f"{item.topic} {item.act_type}")
         if not record_tokens:
             continue
         scored = []
-        for entry in entries:
-            entry_tokens = significant_tokens(f"{entry.title} {entry.listing_summary}")
-            shared = record_tokens & entry_tokens
-            if len(shared) >= MIN_SHARED_SIGNIFICANT_TOKENS:
-                # Deterministic: overlap first, then the archive's own order, so
-                # two runs over the same inputs shortlist the same entries.
-                scored.append((-len(shared), entry.source_order, entry.canonical_url))
+        for entry, tokens in entry_tokens:
+            shared = len(record_tokens & tokens)
+            if shared >= MIN_SHARED_SIGNIFICANT_TOKENS:
+                scored.append((-shared, entry.source_order, entry.canonical_url))
         scored.sort()
         wanted.update(url for _, _, url in scored[:MAX_SHORTLIST_PER_RECORD])
     return wanted

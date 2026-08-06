@@ -82,17 +82,72 @@ An entry's real date is knowable only from its detail page. Therefore:
   hydrated when it carries no text, the matcher excludes unhydrated rows from
   the corpus, and the viewer resolver refuses them again.
 
-### Hydration window
+### Two hydration priorities
 
-`KODA_ARCHIVE_HYDRATION_WINDOW_DAYS = 365`. Detail pages are read newest-first
-and hydration stops after `KODA_ARCHIVE_WINDOW_STOP_AFTER_OLDER = 8` consecutive
-entries published before the cutoff. One year reaches roughly archive page 20 —
-about 170 entries.
+The **complete listing index covers the whole archive**, every year. What
+hydration decides is only which detail pages are *read*, and it decides that in
+two independent priorities.
 
-**`backfill_complete` means the index is whole and everything inside the window
-has been read or has definitively failed.** It does not mean all 1140 were
-fetched. Widening the window is a settings change plus more bounded runs; no
-schema change.
+**Priority A — candidates for records that need a link, at any age.** Every
+consultation-eligible record in the current legal snapshot that the current
+matcher did not match is shortlisted against the entire index. Those pages are
+read first and **their age is irrelevant**.
+
+This matters because consultation eligibility is *status*-based — open, and no
+opinion sent — and says nothing about when the consultation ran. Gating
+hydration by age would make an eligible record's link depend on how long ago the
+Chamber was asked, which is not a rule anyone intended. An older consultation
+can therefore supply a link for as long as its legal record remains eligible.
+
+**Priority B — recent background coverage.** Whatever budget remains fills unread
+entries inside `KODA_ARCHIVE_HYDRATION_WINDOW_DAYS = 365`, newest first, stopping
+after `KODA_ARCHIVE_WINDOW_STOP_AFTER_OLDER = 8` consecutive older entries. It
+keeps the recent corpus complete for inspection, for rarity statistics and for
+legal records that have not arrived yet. **It never displaces Priority A.**
+
+Order within one run:
+
+1. shortlisted candidates for currently eligible records, any year;
+2. previously failed candidate pages, retried;
+3. newest unread entries inside the recent window;
+4. nothing else.
+
+A page shortlisted by five records is fetched once — the pass walks a
+deduplicated set.
+
+### Shortlisting
+
+`MAX_SHORTLIST_PER_RECORD = 12` candidates per record, ranked by how many
+discriminating words they share with it, with a floor of
+`MIN_SHARED_SIGNIFICANT_TOKENS = 1`. Ties break on the archive's own order, so
+two runs over the same inputs shortlist the same pages.
+
+The shortlist cannot use dates: archive listing cards carry no year, so before
+hydration there is nothing to filter on. It works from title and summary alone,
+which is exactly what an unread entry offers. **A shortlisted page is never
+matched from listing metadata** — it must still be hydrated and validated first.
+
+### What `backfill_complete` means
+
+Three things, all true at once:
+
+- the listing index is whole (`index_complete`);
+- **every priority candidate for the current eligible population is read or has
+  definitively failed**;
+- the recent background window is complete.
+
+It does **not** mean all ~1140 detail pages were fetched — full hydration of the
+historical archive is not required and is not attempted. It can legitimately
+return to false when a new legal snapshot introduces a record whose candidate has
+never been read, which is the state correctly reporting that there is work to do.
+
+A run whose priority candidates are still pending does **not** report
+`unchanged`, even when the listing itself has not moved: identical rows plus
+unfinished work is not "nothing to do".
+
+Progress is exposed as `priority_candidate_count`, `priority_detailed_count`,
+`priority_pending_count`, `priority_failed_count`, `recent_detailed_count`,
+`recent_pending_count`, `index_complete` and `backfill_complete`.
 
 ### Collection modes
 
@@ -100,6 +155,9 @@ schema change.
 | --- | --- | --- |
 | `--full` | every page | initial backfill, and to re-settle presence |
 | default | until `KODA_ARCHIVE_KNOWN_PAGES_BEFORE_STOP = 2` consecutive pages hold only known, unchanged entries | daily |
+
+Both modes build towards the complete index; `--full` re-walks every page in one
+run, the default relies on entries already known from previous runs.
 
 A day never archives sixteen consultations, so two pages is ample. An
 incremental run carries forward the presence and hydration of everything it did
@@ -297,10 +355,14 @@ and `--full` never goes into the daily job.
 
 - Thresholds are calibrated on synthetic data and live evaluation; they are
   revisited from what production produces, as a new matcher version.
-- The hydration window is one year. A legal record whose consultation closed
-  longer ago than that is indexed but not hydrated, so it cannot be matched.
 - Archive cards carry no year, so listing-only shortlisting is weak: the
-  prefilter works from title and summary alone.
+  prefilter works from title and summary alone, and Koda.ee headlines are
+  editorial questions. A record whose archive page shares no discriminating word
+  with its listing text is not shortlisted and so is not hydrated by priority;
+  the background window may still reach it if it is recent.
+- The recent background window is one year, so the *corpus* the archive matcher
+  computes rarity over is skewed towards recent consultations even though older
+  candidates are hydrated on demand.
 - `Meie arvamus`, opinion PDFs and news remain future work and are not modelled.
   A sent record therefore has no resource to link to and stays plain text.
 - A consultation that closes and is matched from the archive keeps the same URL,

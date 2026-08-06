@@ -51,11 +51,18 @@ class DetailStatus(models.TextChoices):
 class ArchivedTopicSnapshot(models.Model):
     """One published state of the archive index, plus whatever is hydrated.
 
-    `backfill_complete` is the honest answer to "is this whole?" — the listing
-    index covers every page, and every entry has either been read or has
-    definitively failed. Matching does not wait for it; a hydrated entry is
-    matchable the moment it exists, and completeness only tells an operator
-    whether the crawl still has work to do.
+    `backfill_complete` answers "is there work left that a link depends on?" —
+    the listing index covers every page, **every priority candidate for the
+    current eligible legal population is read or has definitively failed**, and
+    the recent background window is complete. It does **not** mean all eleven
+    hundred detail pages were fetched, and it can legitimately return to false
+    when a new legal snapshot introduces a record whose candidate has never been
+    read.
+
+    `index_complete` is the narrower claim that the listing walk reached the end.
+
+    Matching never waits for either: a hydrated entry is matchable the moment it
+    exists. These flags tell an operator whether the crawl still has work to do.
     """
 
     source = models.ForeignKey(
@@ -82,6 +89,19 @@ class ArchivedTopicSnapshot(models.Model):
     pending_detail_count = models.PositiveIntegerField(default=0, verbose_name="Lugemata lehti")
     failed_detail_count = models.PositiveIntegerField(default=0, verbose_name="Ebaõnnestunud lehti")
     pages_fetched = models.PositiveSmallIntegerField(default=0, verbose_name="Loetud loendilehti")
+    # How much of the work that a *link* depends on is done. A priority
+    # candidate is an archive page some currently eligible legal record might
+    # need, at any age; these three make that visible without reading the rows.
+    priority_candidate_count = models.PositiveIntegerField(
+        default=0, verbose_name="Prioriteetseid kandidaate"
+    )
+    priority_detailed_count = models.PositiveIntegerField(
+        default=0, verbose_name="Prioriteetseid loetud"
+    )
+    priority_pending_count = models.PositiveIntegerField(
+        default=0, verbose_name="Prioriteetseid lugemata"
+    )
+    index_complete = models.BooleanField(default=False, verbose_name="Indeks täielik")
     backfill_complete = models.BooleanField(default=False, verbose_name="Täielik")
     is_current = models.BooleanField(default=False, verbose_name="Kehtiv")
 

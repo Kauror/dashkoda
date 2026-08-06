@@ -6,18 +6,38 @@ is carried forward, so a run that reads sixty new detail pages publishes a
 snapshot with those sixty plus everything read before — the backfill accumulates
 across runs rather than restarting.
 
-Hydration order is deliberate, because the budget is finite:
+Hydration has **two independent priorities**, and the order between them is the
+whole point of this module.
 
-1. entries shortlisted as plausible candidates for a consultation-eligible legal
-   record that the current matcher did not already match — those are the ones a
-   link actually depends on;
-2. everything else newest-first, until the window closes.
+**Priority A — candidates for records that need a link, at any age.** Every
+consultation-eligible record in the current legal snapshot that the current
+matcher did not match is shortlisted against the *entire* archive index, all
+years. Those candidates are read first and their age is irrelevant.
 
-The window is what keeps this bounded. Archive cards carry no year, so hydration
-walks newest-first and stops once it has seen a page's worth of consecutive
-entries published before the cutoff. `backfill_complete` means the index is
-whole and everything **inside that window** has been read or has definitively
-failed — not that all eleven hundred were fetched.
+That is a correction of a real defect. Consultation eligibility is status-based —
+open, and no opinion sent — and it says nothing about how old the consultation
+was. An earlier version hydrated only the recent window, so a record whose
+consultation closed two years ago could never obtain a link no matter how
+obviously it matched: the right page stayed permanently unread. Age is now a
+*background* consideration, never a gate on a record that is eligible today.
+
+**Priority B — recent background coverage.** Whatever budget is left goes to
+unread entries inside the recent window, newest first. This keeps the archive
+corpus reasonably complete for inspection, for rarity statistics, and for legal
+records that have not arrived yet. It never displaces Priority A.
+
+The full order within one run:
+
+1. shortlisted candidates for currently eligible records, any year;
+2. previously failed candidate pages, retried;
+3. newest unread entries inside the recent window;
+4. nothing else.
+
+`backfill_complete` therefore means: the listing index is whole, **every priority
+candidate for the current eligible population is read or definitively failed**,
+and the recent window is complete. It does not mean all eleven hundred detail
+pages were fetched, and it can legitimately go back to false when a new legal
+snapshot introduces a record whose candidate has never been read.
 
 A failure leaves the previous snapshot current, exactly like every other feed.
 """
@@ -88,6 +108,13 @@ class ArchiveSyncReport:
     failed_items: int = 0
     new_items: int = 0
     changed_items: int = 0
+    priority_candidate_count: int = 0
+    priority_detailed_count: int = 0
+    priority_pending_count: int = 0
+    priority_failed_count: int = 0
+    recent_detailed_count: int = 0
+    recent_pending_count: int = 0
+    index_complete: bool = False
     backfill_complete: bool = False
     pages_fetched: int = 0
     detail_requests: int = 0
@@ -105,6 +132,13 @@ class ArchiveSyncReport:
             "failed_items": self.failed_items,
             "new_items": self.new_items,
             "changed_items": self.changed_items,
+            "priority_candidate_count": self.priority_candidate_count,
+            "priority_detailed_count": self.priority_detailed_count,
+            "priority_pending_count": self.priority_pending_count,
+            "priority_failed_count": self.priority_failed_count,
+            "recent_detailed_count": self.recent_detailed_count,
+            "recent_pending_count": self.recent_pending_count,
+            "index_complete": self.index_complete,
             "backfill_complete": self.backfill_complete,
             "pages_fetched": self.pages_fetched,
             "detail_requests": self.detail_requests,
@@ -161,19 +195,36 @@ def synchronize_archived_topics(
     details = _carry_forward_details(entries, previous_items)
     new_urls = [e.canonical_url for e in entries if e.canonical_url not in previous_items]
 
+    # Which archive pages a link currently depends on. Read before hydration,
+    # never written to: this is the one place the archive feed looks at legal
+    # data, and it looks only.
+    priority_urls = _priority_candidate_urls(entries)
+
     try:
         requested = _hydrate_within_budget(
-            entries, details, budget=budget, session=session, dry_run=dry_run
+            entries,
+            details,
+            budget=budget,
+            session=session,
+            dry_run=dry_run,
+            priority_urls=priority_urls,
         )
     except Exception as error:  # noqa: BLE001
         return _fail(state, describe_error(error), correlation_id)
 
     checksum, size = checksum_for(entries, details)
-    counts = _counts(entries, details)
-    complete = index.reached_end and counts["pending"] == 0
+    counts = _counts(entries, details, priority_urls=priority_urls)
+    complete = (
+        index.reached_end and counts["priority_pending"] == 0 and counts["recent_pending"] == 0
+    )
 
     artifact, already_published = find_published_artifact(source, checksum, IMPORTER_NAME)
-    if already_published:
+    # Identical content is only genuinely "unchanged" when there is no work
+    # left. A run that could not finish its priority candidates within the
+    # budget has produced the same rows as last time and is nonetheless not
+    # done, and reporting `unchanged` would tell an operator to stop re-running
+    # it exactly when re-running is what it needs.
+    if already_published and complete:
         return _unchanged(
             state,
             dry_run=dry_run,
@@ -182,6 +233,7 @@ def synchronize_archived_topics(
             pages=index.pages_fetched,
             requested=requested,
             complete=complete,
+            index_complete=index.reached_end,
         )
 
     collection = type("Collection", (), {"sha256": checksum, "size_bytes": size})()
@@ -212,6 +264,13 @@ def synchronize_archived_topics(
             pending_items=counts["pending"],
             failed_items=counts["failed"],
             new_items=len(new_urls),
+            priority_candidate_count=len(priority_urls),
+            priority_detailed_count=counts["priority_hydrated"],
+            priority_pending_count=counts["priority_pending"],
+            priority_failed_count=counts["priority_failed"],
+            recent_detailed_count=counts["recent_hydrated"],
+            recent_pending_count=counts["recent_pending"],
+            index_complete=index.reached_end,
             backfill_complete=complete,
             pages_fetched=index.pages_fetched,
             detail_requests=requested,
@@ -230,6 +289,10 @@ def synchronize_archived_topics(
                 pending_detail_count=counts["pending"],
                 failed_detail_count=counts["failed"],
                 pages_fetched=index.pages_fetched,
+                priority_candidate_count=len(priority_urls),
+                priority_detailed_count=counts["priority_hydrated"],
+                priority_pending_count=counts["priority_pending"],
+                index_complete=index.reached_end,
                 backfill_complete=complete,
             )
             snapshot.save()
@@ -253,6 +316,10 @@ def synchronize_archived_topics(
                     "pending": snapshot.pending_detail_count,
                     "failed": snapshot.failed_detail_count,
                     "pages_fetched": snapshot.pages_fetched,
+                    "priority_candidates": snapshot.priority_candidate_count,
+                    "priority_detailed": snapshot.priority_detailed_count,
+                    "priority_pending": snapshot.priority_pending_count,
+                    "index_complete": snapshot.index_complete,
                     "backfill_complete": snapshot.backfill_complete,
                 },
             )
@@ -279,6 +346,13 @@ def synchronize_archived_topics(
         pending_items=snapshot.pending_detail_count,
         failed_items=snapshot.failed_detail_count,
         new_items=len(new_urls),
+        priority_candidate_count=snapshot.priority_candidate_count,
+        priority_detailed_count=snapshot.priority_detailed_count,
+        priority_pending_count=snapshot.priority_pending_count,
+        priority_failed_count=counts["priority_failed"],
+        recent_detailed_count=counts["recent_hydrated"],
+        recent_pending_count=counts["recent_pending"],
+        index_complete=snapshot.index_complete,
         backfill_complete=snapshot.backfill_complete,
         pages_fetched=snapshot.pages_fetched,
         detail_requests=requested,
@@ -336,26 +410,86 @@ def _carry_forward_details(entries, previous_items) -> dict[str, ArchiveDetail]:
     return carried
 
 
-def _hydrate_within_budget(entries, details, *, budget, session, dry_run) -> int:
-    """Read detail pages in priority order until the budget or window closes."""
+def _priority_candidate_urls(entries) -> set[str]:
+    """Archive pages a currently eligible record might depend on, at any age.
+
+    Reads the exact current legal snapshot and the exact current-topic match
+    snapshot to decide who still needs a link, then shortlists across the
+    **whole** index — every year of it, because eligibility is about the
+    record's status and says nothing about when its consultation ran.
+
+    Both snapshots are read and never written. When either is missing the
+    archive feed still collects and still hydrates its recent window; it simply
+    has nobody to prioritise for, which the report states as a count of zero
+    rather than as an error.
+    """
+    from .models import LegalCurrentTopicMatchSnapshot, LegalWorkSnapshot
+    from .shortlist import eligible_records_needing_a_link
+
+    legal_snapshot = LegalWorkSnapshot.objects.filter(is_current=True).first()
+    if legal_snapshot is None:
+        return set()
+    current_match = LegalCurrentTopicMatchSnapshot.objects.filter(
+        is_current=True, legal_snapshot=legal_snapshot
+    ).first()
+
+    records = eligible_records_needing_a_link(legal_snapshot, current_match)
+    if not records:
+        return set()
+    return shortlist_archive_urls(entries, records)
+
+
+def _hydrate_within_budget(entries, details, *, budget, session, dry_run, priority_urls) -> int:
+    """Spend the run's detail budget, priority candidates first.
+
+    Two passes over one budget. The first reads shortlisted candidates for
+    records that need a link **regardless of their age** — that is the whole
+    correction, and it is why the recent-window rule appears only in the second
+    pass. The second fills whatever is left with recent entries, newest first,
+    stopping once the window closes.
+
+    A URL shortlisted by five different legal records is fetched once: the pass
+    walks a deduplicated set, so overlapping shortlists cost one request.
+    """
     from django.conf import settings
 
     if dry_run or budget <= 0:
         return 0
 
-    cutoff = hydration_cutoff()
-    priority = shortlist_archive_urls(entries)
-    order = sorted(
-        entries,
-        key=lambda e: (0 if e.canonical_url in priority else 1, e.source_order),
-    )
-
+    by_url = {entry.canonical_url: entry for entry in entries}
     requested = 0
-    older_run = 0
-    for entry in order:
+
+    # -- pass one: priority candidates, any year ---------------------------
+    #
+    # Never-read candidates come before previously-failed ones: a page nobody
+    # has looked at is more likely to yield a link than one that already
+    # refused, and the failed set is retried with whatever remains.
+    def priority_rank(url: str) -> tuple[int, int]:
+        detail = details.get(url)
+        failed = detail is not None and detail.status == DetailStatus.FAILED
+        return (1 if failed else 0, by_url[url].source_order)
+
+    ordered_priority = sorted((url for url in priority_urls if url in by_url), key=priority_rank)
+    for url in ordered_priority:
         if requested >= budget:
             break
-        existing = details.get(entry.canonical_url)
+        detail = details.get(url)
+        if detail is not None and detail.status == DetailStatus.HYDRATED:
+            continue
+        details[url] = hydrate_detail(url, session=session)
+        requested += 1
+
+    # -- pass two: recent background coverage ------------------------------
+    if requested >= budget:
+        return requested
+
+    cutoff = hydration_cutoff()
+    older_run = 0
+    for entry in sorted(entries, key=lambda e: e.source_order):
+        if requested >= budget:
+            break
+        url = entry.canonical_url
+        existing = details.get(url)
         if existing is not None and existing.status == DetailStatus.HYDRATED:
             # Already read: it still tells us whether the window has closed.
             if existing.published_date and existing.published_date < cutoff:
@@ -366,12 +500,12 @@ def _hydrate_within_budget(entries, details, *, budget, session, dry_run) -> int
                 older_run = 0
             continue
         if existing is not None and existing.status == DetailStatus.FAILED:
-            # Retried on a later run, but not ahead of never-read entries.
+            # Retried by the priority pass when it matters; not chased here.
             continue
 
-        detail = hydrate_detail(entry.canonical_url, session=session)
+        detail = hydrate_detail(url, session=session)
         requested += 1
-        details[entry.canonical_url] = detail
+        details[url] = detail
         if detail.published_date and detail.published_date < cutoff:
             older_run += 1
             if older_run >= settings.KODA_ARCHIVE_WINDOW_STOP_AFTER_OLDER:
@@ -381,17 +515,62 @@ def _hydrate_within_budget(entries, details, *, budget, session, dry_run) -> int
     return requested
 
 
-def _counts(entries, details) -> dict:
+def _recent_window_pending(entries, details) -> int:
+    """Unread entries the background pass would still like to read.
+
+    Counted the way the pass walks: newest first, stopping at the window. An
+    entry beyond the window is not pending — nothing intends to read it.
+    """
+    from django.conf import settings
+
+    cutoff = hydration_cutoff()
+    pending = older_run = 0
+    for entry in sorted(entries, key=lambda e: e.source_order):
+        detail = details.get(entry.canonical_url)
+        if detail is None:
+            pending += 1
+            continue
+        if detail.status == DetailStatus.FAILED:
+            continue
+        if detail.published_date and detail.published_date < cutoff:
+            older_run += 1
+            if older_run >= settings.KODA_ARCHIVE_WINDOW_STOP_AFTER_OLDER:
+                break
+        else:
+            older_run = 0
+    return pending
+
+
+def _counts(entries, details, *, priority_urls=frozenset()) -> dict:
+    """Hydration progress, split into the two priorities that produced it."""
     hydrated = failed = 0
+    priority_hydrated = priority_failed = 0
     for entry in entries:
         detail = details.get(entry.canonical_url)
         if detail is None:
             continue
+        is_priority = entry.canonical_url in priority_urls
         if detail.status == DetailStatus.HYDRATED:
             hydrated += 1
+            priority_hydrated += is_priority
         elif detail.status == DetailStatus.FAILED:
             failed += 1
-    return {"hydrated": hydrated, "failed": failed, "pending": len(entries) - hydrated - failed}
+            priority_failed += is_priority
+
+    # A priority candidate is pending only while it is neither read nor
+    # definitively failed; a recorded failure is a terminal state for this run
+    # and must not hold `backfill_complete` false for ever.
+    priority_pending = len(priority_urls) - priority_hydrated - priority_failed
+    return {
+        "hydrated": hydrated,
+        "failed": failed,
+        "pending": len(entries) - hydrated - failed,
+        "priority_hydrated": priority_hydrated,
+        "priority_failed": priority_failed,
+        "priority_pending": max(0, priority_pending),
+        "recent_hydrated": hydrated - priority_hydrated,
+        "recent_pending": _recent_window_pending(entries, details),
+    }
 
 
 def _row(snapshot, entry, detail):
@@ -428,7 +607,9 @@ def _verify_written(snapshot, *, expected: int) -> None:
         raise ArchiveCollectionError("Arhiivi hetkeseisu arvud ei vasta ridadele.")
 
 
-def _unchanged(state, *, dry_run, correlation_id, counts, pages, requested, complete):
+def _unchanged(
+    state, *, dry_run, correlation_id, counts, pages, requested, complete, index_complete
+):
     snapshot = state.current_snapshot
     if not dry_run:
         mark_unchanged(
@@ -443,13 +624,19 @@ def _unchanged(state, *, dry_run, correlation_id, counts, pages, requested, comp
         )
     return ArchiveSyncReport(
         result=FeedResult.UNCHANGED,
-        detail="Arhiiv ei ole muutunud.",
+        detail="Arhiiv ei ole muutunud ja lugemata prioriteetseid lehti ei ole.",
         dry_run=dry_run,
         snapshot_id=snapshot.pk if snapshot else None,
         indexed_items=snapshot.item_count if snapshot else 0,
         detailed_items=counts["hydrated"],
         pending_items=counts["pending"],
         failed_items=counts["failed"],
+        priority_detailed_count=counts["priority_hydrated"],
+        priority_pending_count=counts["priority_pending"],
+        priority_failed_count=counts["priority_failed"],
+        recent_detailed_count=counts["recent_hydrated"],
+        recent_pending_count=counts["recent_pending"],
+        index_complete=index_complete,
         backfill_complete=complete,
         pages_fetched=pages,
         detail_requests=requested,
