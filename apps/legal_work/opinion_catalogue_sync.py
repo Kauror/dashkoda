@@ -216,10 +216,13 @@ def synchronize_opinion_documents(
             )
         except (StorageError, BlobMismatch, SourceRejected, OSError) as error:
             return _fail(state, error, correlation_id)
-        if created:
-            report.unique_blobs += 1
-        else:
-            report.reused_blobs += 1
+        # A dry run stores nothing, so it has neither created nor reused a blob.
+        # Counting its no-ops as reuse made a dry run claim work it had not done.
+        if not dry_run:
+            if created:
+                report.unique_blobs += 1
+            else:
+                report.reused_blobs += 1
 
     remaining = _outstanding(manifest, known_blobs, known_extractions)
     report.processed_entries = len(manifest) - len(remaining)
@@ -228,10 +231,15 @@ def synchronize_opinion_documents(
 
     if dry_run:
         _mark_progress(state, checksum, len(manifest), report.processed_entries)
+        # Report the outcome a *live* run would reach. Leaving this at the
+        # initial `unchanged` told an operator with 34 unprocessed documents
+        # that there was nothing to do, which is the opposite of the truth and
+        # the one question a dry run exists to answer.
+        report.result = RESULT_PARTIAL if remaining else RESULT_IMPORTED
         report.detail = (
             f"Proovikäivitus: {len(manifest)} kirjet, "
             f"{report.processed_entries} valmis, {report.pending_entries} ootel. "
-            "Midagi ei avaldatud."
+            "Midagi ei avaldatud ega salvestatud."
         )
         return report
 
