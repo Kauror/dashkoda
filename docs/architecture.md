@@ -225,6 +225,39 @@ match snapshot was computed from exactly the legal snapshot and catalogue being
 displayed — a stale match is never applied. See
 [legal-current-topic-matching.md](legal-current-topic-matching.md).
 
+### The Chamber's own opinion documents
+
+A source unlike every other, and the first that is **private**. The Chamber's
+outgoing opinion letters arrive as PDFs in a directory on the host rather than
+from a URL, and they are never served from a public path.
+
+Two roots, both fixed configuration: a **read-only source inbox** the Chamber
+owns, and a **read-write managed store** DashKoda is answerable for. No command
+accepts a path or a URL, so nothing an operator, a viewer or a scheduled job
+supplies can steer a read or a write. The bootstrap archive is treated as
+untrusted and is read in place, never unpacked into the inbox.
+
+Documents are stored **content-addressed by their own SHA-256**, written
+temporary → `fsync` → verify → atomic rename. Identical bytes are stored once
+however many filenames they arrive under, a blob is never rewritten, and a
+source file disappearing removes neither the blob nor any historical row.
+PostgreSQL holds normalised text and metadata; it never holds a PDF, a
+filesystem path, or anything a viewer can turn into one.
+
+Validation refuses encryption and active content, and **decides from the parsed
+object model rather than from raw bytes** — measured against the real catalogue,
+a byte scan for `/JS` matches six documents whose object models contain nothing
+of the sort. Extraction is versioned, so improving the text layer produces new
+immutable rows and a later match can always name the exact reading it used.
+There is no OCR and no page rendering.
+
+The build is bounded and resumable: a slice per run, and a snapshot published
+only once every entry has a terminal state, so a partial backfill never becomes
+current. See [legal-opinion-documents.md](legal-opinion-documents.md).
+
+Phase 1 catalogues only. No legal topic links to a document, no resource page
+exists and no PDF is served; that is the next phase.
+
 ### Data that is not collected at all
 
 The Chamber's internal board-report membership history has no remote source to
@@ -318,6 +351,10 @@ and the internal board-report history count different things; see
 - the `Hetkel käsil` **archive** as a fallback source for the same links, with
   its own bounded and resumable backfill, its own matcher and thresholds, and a
   strict current-listing-first precedence
+- the private catalogue of the Chamber's own opinion documents: a read-only
+  source inbox, a content-addressed managed blob store, PDF validation,
+  versioned text extraction, deterministic classification, a bounded resumable
+  build and a read-only admin
 
 ## Not implemented yet
 
@@ -326,11 +363,13 @@ automation, rollback tooling, staging environment, membership domain model,
 chart or demo data in this repository.
 
 Automatic legal-topic links cover the current `Hetkel käsil` listing and its
-archive. `Meie arvamus`, opinion PDFs, news items and attached draft legislation
-are not collected and are not modelled, so a record whose opinion has been sent
-has no resource to link to and deliberately renders as plain text. None of the
-four commands is scheduled by this repository; the intended times are documented
-and the Unraid templates are examples, not installations.
+archive. Opinion documents are now catalogued but **not yet linked**: a record
+whose opinion has been sent still renders as plain text, because matching,
+resource pages and the protected PDF endpoint are the next phase. `Meie arvamus`
+pages, public opinion PDFs, news items and attached draft legislation are not
+collected and are not modelled. Neither opinion command is scheduled by this
+repository; the intended times are documented and the Unraid templates are
+examples, not installations.
 
 Arvamused, Finantsid, Fookusteemad and Projektid are inert navigation entries,
 because no source is connected for any of them.
