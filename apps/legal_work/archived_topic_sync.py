@@ -56,6 +56,7 @@ from .archived_topics import (
     collect_archive_index,
     hydrate_detail,
     hydration_cutoff,
+    listing_signature,
 )
 from .models import (
     ArchivedTopicFeedState,
@@ -140,7 +141,12 @@ def synchronize_archived_topics(
             session=session,
             full=full or previous is None,
             known_keys=frozenset(item.content_key for item in previous_items.values()),
-            known_signatures={},
+            # Recomputed from what was stored, so an edited listing title or
+            # summary counts as changed and keeps the walk going.
+            known_signatures={
+                item.content_key: listing_signature(item.title, item.listing_summary)
+                for item in previous_items.values()
+            },
         )
     except ArchiveCollectionError as error:
         return _fail(state, str(error), correlation_id)
