@@ -175,20 +175,24 @@ def test_resolution_costs_one_query_regardless_of_how_many_records(
 
 
 @pytest.mark.django_db
-def test_resolving_several_collections_together_costs_two_queries(
+def test_resolving_several_collections_together_costs_three_queries(
     published, django_assert_num_queries
 ):
     """One query per source, not one per collection and never one per row.
 
-    Two rather than one since the archive became a fallback: the current
-    listing is asked first, then the archive about whatever is left. The number
-    that matters is that it does not grow with the number of records or with
-    the number of lists they are drawn into.
+    Three now: the opinion branch is asked once about the sent records, then the
+    current listing, then the archive about whatever is left. It grew from one
+    to two when the archive became a fallback and from two to three when sent
+    records gained a resource of their own.
+
+    The number that matters is not three. It is that the count does not grow
+    with the number of records, or with the number of lists they are drawn
+    into — which the test below measures directly.
     """
     items = list(LegalWorkItem.objects.filter(snapshot=published))
     assert len(items) > 1
 
-    with django_assert_num_queries(2):
+    with django_assert_num_queries(3):
         resolve_links_for(items, items[:1], items[1:])
 
 
