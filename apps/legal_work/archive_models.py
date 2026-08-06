@@ -183,9 +183,7 @@ class ArchivedTopicItem(models.Model):
                 fields=["snapshot", "canonical_url"],
                 name="archivedtopicitem_unique_url_per_snapshot",
             ),
-            models.CheckConstraint(
-                condition=~Q(title=""), name="archivedtopicitem_title_required"
-            ),
+            models.CheckConstraint(condition=~Q(title=""), name="archivedtopicitem_title_required"),
             models.CheckConstraint(
                 condition=~Q(canonical_url=""), name="archivedtopicitem_url_required"
             ),

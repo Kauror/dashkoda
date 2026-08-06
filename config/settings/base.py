@@ -256,6 +256,59 @@ KODA_CURRENT_TOPICS_MAX_BYTES = 4 * 1024 * 1024
 # that no article is reproduced.
 KODA_CURRENT_TOPICS_BODY_MAX_LENGTH = 6000
 
+# The Koda.ee "Hetkel käsil" **archive**, used as a fallback source of
+# consultation links once a page has left the current listing.
+#
+# A consultation keeps its canonical URL when it moves from the current listing
+# into the archive — verified against the live site — so the fallback continues
+# an existing link rather than inventing a new one.
+KODA_ARCHIVE_SOURCE_SLUG = "koda-public-archived-topics"
+KODA_ARCHIVE_URL = "https://www.koda.ee/et/meie-moju/hetkel-kasil/arhiiv"
+
+# The archive runs to 143 pages of eight entries — about 1140 consultations
+# reaching back to 2016. The pager publishes its own last page, so the end is
+# read rather than probed; this cap is a guard against a pager that starts
+# lying, with generous headroom over the observed size.
+KODA_ARCHIVE_MAX_PAGES = 400
+KODA_ARCHIVE_MAX_ITEMS = 5000
+KODA_ARCHIVE_MAX_BYTES = 4 * 1024 * 1024
+
+# Pacing. The archive backfill is the only place DashKoda makes a long run of
+# requests to a third party, so it waits between them. Nothing about the
+# dashboard is time-critical, and this keeps a full index walk to a polite few
+# minutes.
+KODA_ARCHIVE_REQUEST_PAUSE_SECONDS = 0.5
+
+# **How far back detail pages are read.**
+#
+# The archive listing card carries a day and an abbreviated month and *no year* —
+# identically on the newest page and on the page from 2016 — so an entry's real
+# date is knowable only from its detail page. Reading all eleven hundred would be
+# a thousand requests for consultations no live legal record can still be about.
+#
+# So hydration walks newest-first and stops once it has seen a page's worth of
+# consecutive entries published before the window. One year reaches roughly
+# archive page 20, or about 170 entries.
+#
+# `backfill_complete` means "the index is whole and every entry *inside this
+# window* has been read or has definitively failed" — not that all 1140 were
+# fetched. Widening the window is a settings change plus more bounded runs; no
+# schema changes.
+KODA_ARCHIVE_HYDRATION_WINDOW_DAYS = 365
+KODA_ARCHIVE_WINDOW_STOP_AFTER_OLDER = 8
+
+# Detail requests one run may make. The operator raises it with
+# `--max-detail-pages` for the initial backfill; the daily job needs far less,
+# because only newly archived entries are unhydrated.
+KODA_ARCHIVE_MAX_DETAIL_PAGES_PER_RUN = 60
+
+# Daily incremental: stop after this many consecutive listing pages whose every
+# entry is already known and unchanged. Two pages is sixteen consultations, far
+# more than a day ever archives, and the `--full` mode still walks everything.
+KODA_ARCHIVE_KNOWN_PAGES_BEFORE_STOP = 2
+
+KODA_ARCHIVE_BODY_MAX_LENGTH = 6000
+
 # Google Analytics 4.
 #
 # Read only by the scheduled `sync_ga4` command, which collects one completed

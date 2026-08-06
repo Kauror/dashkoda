@@ -151,6 +151,33 @@ class AuditAction(models.TextChoices):
         "legal_work.current_topic_match_failed",
         "Õigusloome sobitamine ebaõnnestus",
     )
+    # The Koda.ee "Hetkel käsil" **archive**, collected as a fallback source of
+    # consultation links. Its own actions: an archive outage says nothing about
+    # the current catalogue, and the two must stay separable in the trail.
+    ARCHIVED_TOPIC_SNAPSHOT_IMPORTED = (
+        "legal_work.archived_topic_snapshot_imported",
+        "Arhiivi hetkeseis imporditud",
+    )
+    ARCHIVED_TOPIC_SYNC_UNCHANGED = (
+        "legal_work.archived_topic_sync_unchanged",
+        "Arhiiv: muutusteta",
+    )
+    ARCHIVED_TOPIC_SYNC_FAILED = (
+        "legal_work.archived_topic_sync_failed",
+        "Arhiivi sünkroonimine ebaõnnestus",
+    )
+    ARCHIVED_TOPIC_MATCH_GENERATED = (
+        "legal_work.archived_topic_match_generated",
+        "Arhiivi sobitamine arvutatud",
+    )
+    ARCHIVED_TOPIC_MATCH_UNCHANGED = (
+        "legal_work.archived_topic_match_unchanged",
+        "Arhiivi sobitamine: muutusteta",
+    )
+    ARCHIVED_TOPIC_MATCH_FAILED = (
+        "legal_work.archived_topic_match_failed",
+        "Arhiivi sobitamine ebaõnnestus",
+    )
     # Manually observed audience sizes. A batch event describes one submission;
     # the per-observation events describe what that submission did to each
     # metric, which is what makes a correction auditable on its own.
