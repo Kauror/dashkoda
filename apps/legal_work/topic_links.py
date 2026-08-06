@@ -206,7 +206,7 @@ def resolve_opinion_links(item_ids) -> dict[int, str]:
         .values_list("decision__legal_item_id", "decision__matter__resource__public_id")
     )
     return {
-        item_id: reverse("legal_work:opinion-resource", args=[public_id])
+        item_id: reverse("opinion-resource", args=[public_id])
         for item_id, public_id in rows
         if public_id is not None
     }

@@ -82,7 +82,7 @@ def score(
 
 def test_the_matcher_names_its_normaliser_and_extractor():
     """A stored decision must be able to say what produced it."""
-    assert MATCHER_VERSION.startswith("opinion-1.0-norm")
+    assert MATCHER_VERSION.startswith("opinion-1.1-norm")
     assert "-extract" in MATCHER_VERSION
 
 

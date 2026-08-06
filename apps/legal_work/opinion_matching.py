@@ -43,7 +43,7 @@ from .text_normalisation import (
     significant_tokens,
 )
 
-MATCHER_VERSION = f"opinion-1.0-norm{NORMALISER_VERSION}-extract{EXTRACTOR_VERSION}"
+MATCHER_VERSION = f"opinion-1.1-norm{NORMALISER_VERSION}-extract{EXTRACTOR_VERSION}"
 
 # --------------------------------------------------------------------------
 # Dates
@@ -102,6 +102,8 @@ CONTRADICTION_BEFORE_REQUEST = "document-precedes-request"
 CONTRADICTION_GENERIC_ONLY = "generic-vocabulary-only"
 CONTRADICTION_NOT_PRIMARY = "classification-cannot-lead"
 CONTRADICTION_UNREADABLE = "document-not-readable"
+# Another matter claimed the same letter with materially better date agreement.
+CONTRADICTION_COMPETING_CLAIM = "competing-primary-claim"
 
 
 @dataclass(frozen=True)

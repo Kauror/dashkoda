@@ -223,13 +223,23 @@ def test_the_store_is_not_the_artifact_area(opinion_roots, settings):
 
 
 @pytest.mark.django_db
-def test_phase_one_adds_no_viewer_route():
-    """Phase 1 catalogues documents; it does not serve or link to any."""
+def test_the_viewer_routes_accept_an_opaque_identifier_only():
+    """Phase 2 added both routes, and each takes a UUID converter.
+
+    Phase 1 asserted these routes did not exist at all. They do now, so the
+    property worth holding is the narrower one: neither will parse anything
+    that is not an opaque identifier, so a filename or a traversal attempt
+    cannot even reach a view.
+    """
+    import uuid
+
     from django.urls import NoReverseMatch
 
     for name in ("opinion-resource", "opinion-document"):
-        with pytest.raises(NoReverseMatch):
-            reverse(f"legal_work:{name}", args=["x"])
+        assert reverse(name, args=[uuid.uuid4()])
+        for hostile in ("../../etc/passwd", "some-file.pdf", "1"):
+            with pytest.raises(NoReverseMatch):
+                reverse(name, args=[hostile])
 
 
 # -- the admin is read-only -------------------------------------------------

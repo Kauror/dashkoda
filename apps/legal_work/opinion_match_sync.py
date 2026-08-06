@@ -43,12 +43,14 @@ from .opinion_match_models import (
     OpinionResource,
 )
 from .opinion_matching import (
+    CONTRADICTION_COMPETING_CLAIM,
     MATCHER_VERSION,
     MIN_MARGIN,
     THRESHOLD_AMBIGUOUS,
     THRESHOLD_MATCH,
     Candidate,
     build_rarity,
+    date_agreement,
     score_candidate,
 )
 from .opinion_models import OpinionCatalogueEntry, OpinionCatalogueSnapshot
@@ -302,6 +304,18 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
             relation_plan.append((len(decisions) - 1, [best, *extra] if best else []))
             _count(report, decision_value)
 
+        # One document may legitimately answer several matters — a joint letter
+        # covering two bills does exactly that. What is *not* legitimate is two
+        # records claiming the same letter as their primary when one claim is
+        # materially weaker: the real pilot produced a pair on the same bill
+        # where one record was sent the day after the letter and the other
+        # fifteen days later, and only the first can be the letter's subject.
+        #
+        # So a primary claim is kept only by the record whose date agreement is
+        # strongest; the rest become ambiguous and render as plain text. This is
+        # a general rule about competing claims, not a rule about these records.
+        _resolve_competing_primaries(decisions, relation_plan, report)
+
         LegalOpinionDecision.objects.bulk_create(decisions, batch_size=200)
 
         relations: list[LegalOpinionDocumentRelation] = []
@@ -375,6 +389,41 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
     return report
 
 
+def _resolve_competing_primaries(decisions, relation_plan, report) -> None:
+    """Demote every weaker claim when one document is claimed by several matters.
+
+    Strength is date agreement first — the signal this matcher is calibrated on —
+    then score. A tie leaves both ambiguous rather than picking arbitrarily.
+    """
+    claims: dict[int, list[int]] = {}
+    for index, scored_list in relation_plan:
+        if decisions[index].decision != MatchDecision.MATCHED or not scored_list:
+            continue
+        claims.setdefault(scored_list[0].candidate.entry_id, []).append(index)
+
+    for indexes in claims.values():
+        if len(indexes) < 2:
+            continue
+
+        def strength(index):
+            best = relation_plan[index][1][0]
+            gap = date_agreement(decisions[index].legal_item.sent_date, best.candidate)[1]
+            return (-(gap if gap is not None else 10**6), decisions[index].score)
+
+        ranked = sorted(indexes, key=strength, reverse=True)
+        top, second = strength(ranked[0]), strength(ranked[1])
+        losers = ranked[1:] if top != second else ranked
+
+        for index in losers:
+            decisions[index].decision = MatchDecision.AMBIGUOUS
+            decisions[index].contradiction_codes = sorted(
+                {*decisions[index].contradiction_codes, CONTRADICTION_COMPETING_CLAIM}
+            )
+            relation_plan[index] = (relation_plan[index][0], [])
+            report.matched -= 1
+            report.ambiguous += 1
+
+
 def _decide(item, candidates, rarity):
     """Score every candidate for one record and pick a decision.
 
@@ -398,9 +447,7 @@ def _decide(item, candidates, rarity):
     # the ones that may not — annexes, comparison tables — are exactly what
     # belongs beside the one that does, so they are scored and kept for
     # grouping rather than discarded.
-    leaders = sorted(
-        (s for s in usable if s.can_be_primary), key=lambda s: s.score, reverse=True
-    )
+    leaders = sorted((s for s in usable if s.can_be_primary), key=lambda s: s.score, reverse=True)
     companions = [s for s in usable if not s.can_be_primary]
 
     if not leaders:

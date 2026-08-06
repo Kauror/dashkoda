@@ -58,21 +58,34 @@ class TestEligibility:
 
         assert is_opinion_eligible(item)
 
-    def test_sent_without_a_date_is_excluded(self, imported_snapshot):
-        """The date is the strongest signal; without it a confident match is
-        not possible, and guessing is how a wrong link is made."""
-        item = LegalWorkItem.objects.filter(snapshot=imported_snapshot).first()
-        LegalWorkItem.objects.filter(pk=item.pk).update(sent_status=SentStatus.SENT, sent_date=None)
-        item.refresh_from_db()
+    def test_the_schema_itself_forbids_sent_without_a_date(self, imported_snapshot):
+        """The second half of the rule is defence over a database guarantee.
 
-        assert not is_opinion_eligible(item)
+        `legalworkitem_sent_date_matches_status` already makes `sent` and a
+        present `sent_date` equivalent, so the state cannot be written at all.
+        The eligibility expression restates it anyway, because a read path
+        should not depend on remembering which constraints exist.
+        """
+        from django.db.utils import IntegrityError
+
+        item = LegalWorkItem.objects.filter(snapshot=imported_snapshot).first()
+
+        with pytest.raises(IntegrityError):
+            LegalWorkItem.objects.filter(pk=item.pk).update(
+                sent_status=SentStatus.SENT, sent_date=None
+            )
+
+    def test_the_rule_excludes_a_dateless_sent_record_if_one_ever_existed(self):
+        """Checked against an unsaved row, since the schema refuses to store one."""
+        assert not is_opinion_eligible(LegalWorkItem(sent_status=SentStatus.SENT, sent_date=None))
 
     @pytest.mark.parametrize(
         "status", [SentStatus.PENDING, SentStatus.NOT_SENT, SentStatus.INVALID]
     )
     def test_an_unsent_status_is_excluded(self, imported_snapshot, status):
         item = LegalWorkItem.objects.filter(snapshot=imported_snapshot).first()
-        LegalWorkItem.objects.filter(pk=item.pk).update(sent_status=status, sent_date=SENT)
+        # The same constraint requires an unsent row to carry no date.
+        LegalWorkItem.objects.filter(pk=item.pk).update(sent_status=status, sent_date=None)
         item.refresh_from_db()
 
         assert not is_opinion_eligible(item)
@@ -286,7 +299,7 @@ def served_document(matched_world):
 
 class TestDocumentEndpoint:
     def test_an_anonymous_request_is_refused(self, client, served_document):
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         response = client.get(url)
 
@@ -297,7 +310,7 @@ class TestDocumentEndpoint:
         self, client, authenticate_viewer, served_document
     ):
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         response = client.get(url)
 
@@ -307,7 +320,7 @@ class TestDocumentEndpoint:
 
     def test_the_response_carries_safe_headers(self, client, authenticate_viewer, served_document):
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         response = client.get(url)
 
@@ -321,7 +334,7 @@ class TestDocumentEndpoint:
         from apps.legal_work.opinion_storage import store_root
 
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         response = client.get(url)
 
@@ -334,7 +347,7 @@ class TestDocumentEndpoint:
         import uuid
 
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-document", args=[uuid.uuid4()])
+        url = reverse("opinion-document", args=[uuid.uuid4()])
 
         assert client.get(url).status_code == 404
 
@@ -343,7 +356,7 @@ class TestDocumentEndpoint:
         OpinionDocumentBlob.objects.all().update(
             validation_status=ValidationStatus.QUARANTINED_ACTIVE_CONTENT
         )
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         assert client.get(url).status_code == 404
 
@@ -352,7 +365,7 @@ class TestDocumentEndpoint:
     ):
         authenticate_viewer(client)
         LegalOpinionMatchSnapshot.objects.filter(is_current=True).update(is_current=False)
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         assert client.get(url).status_code == 404
 
@@ -363,7 +376,7 @@ class TestDocumentEndpoint:
 
         authenticate_viewer(client)
         blob_path(served_document.entry.blob.sha256).unlink()
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         assert client.get(url).status_code == 404
 
@@ -372,7 +385,7 @@ class TestDocumentEndpoint:
         from django.urls import NoReverseMatch
 
         with pytest.raises(NoReverseMatch):
-            reverse("legal_work:opinion-document", args=["../../etc/passwd"])
+            reverse("opinion-document", args=["../../etc/passwd"])
 
     def test_the_disposition_filename_is_sanitised(
         self, client, authenticate_viewer, served_document
@@ -381,7 +394,7 @@ class TestDocumentEndpoint:
         OpinionCatalogueEntry.objects.filter(pk=served_document.entry_id).update(
             display_filename='../../evil"name.pdf'
         )
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         disposition = client.get(url)["Content-Disposition"]
 
@@ -400,7 +413,7 @@ class TestDocumentEndpoint:
         monkeypatch.setattr("apps.core.public_http.fetch", forbidden)
 
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-document", args=[served_document.entry.blob.public_id])
+        url = reverse("opinion-document", args=[served_document.entry.blob.public_id])
 
         assert client.get(url).status_code == 200
 
@@ -415,21 +428,21 @@ class TestResourcePage:
 
     def test_an_anonymous_request_is_refused(self, client, matched_world):
         item, _ = matched_world
-        url = reverse("legal_work:opinion-resource", args=[self._resource(item).public_id])
+        url = reverse("opinion-resource", args=[self._resource(item).public_id])
 
         assert client.get(url).status_code in (302, 403, 404)
 
     def test_an_authorised_request_renders(self, client, authenticate_viewer, matched_world):
         item, _ = matched_world
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-resource", args=[self._resource(item).public_id])
+        url = reverse("opinion-resource", args=[self._resource(item).public_id])
 
         assert client.get(url).status_code == 200
 
     def test_no_matching_internals_reach_the_page(self, client, authenticate_viewer, matched_world):
         item, _ = matched_world
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-resource", args=[self._resource(item).public_id])
+        url = reverse("opinion-resource", args=[self._resource(item).public_id])
 
         body = client.get(url).content.decode()
 
@@ -441,7 +454,7 @@ class TestResourcePage:
 
         item, _ = matched_world
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-resource", args=[self._resource(item).public_id])
+        url = reverse("opinion-resource", args=[self._resource(item).public_id])
 
         body = client.get(url).content.decode()
 
@@ -454,7 +467,7 @@ class TestResourcePage:
         import uuid
 
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-resource", args=[uuid.uuid4()])
+        url = reverse("opinion-resource", args=[uuid.uuid4()])
 
         assert client.get(url).status_code == 404
 
@@ -463,7 +476,7 @@ class TestResourcePage:
     ):
         item, _ = matched_world
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-resource", args=[self._resource(item).public_id])
+        url = reverse("opinion-resource", args=[self._resource(item).public_id])
         LegalMatter.objects.all().update(has_ambiguous_identity=True)
 
         assert client.get(url).status_code == 404
@@ -475,7 +488,7 @@ class TestResourcePage:
         item, _ = matched_world
         resource = self._resource(item)
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-resource", args=[resource.public_id])
+        url = reverse("opinion-resource", args=[resource.public_id])
 
         LegalWorkSnapshot.objects.filter(is_current=True).update(is_current=False)
 
@@ -496,6 +509,6 @@ class TestResourcePage:
 
         item, _ = matched_world
         authenticate_viewer(client)
-        url = reverse("legal_work:opinion-resource", args=[self._resource(item).public_id])
+        url = reverse("opinion-resource", args=[self._resource(item).public_id])
 
         assert client.get(url).status_code == 200
