@@ -173,4 +173,7 @@ def test_the_app_owns_exactly_the_commands_it_is_supposed_to():
         # Neither is scheduled by this repository.
         "sync_legal_opinion_documents",
         "verify_legal_opinion_store",
+        # The opinion matcher. Separately calibrated from both consultation
+        # matchers, and likewise not scheduled here.
+        "match_legal_opinion_documents",
     }
