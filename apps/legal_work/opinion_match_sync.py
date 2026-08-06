@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from decimal import Decimal
 
 from django.db import transaction
@@ -109,6 +109,16 @@ class MatchReport:
             "identity_collisions": self.identity_collisions,
             "matcher_version": self.matcher_version,
         }
+
+
+@dataclass
+class _Preview:
+    """What a dry run knows about one record: enough to resolve competition."""
+
+    legal_item: object
+    decision: str
+    score: Decimal = Decimal("0.00")
+    contradiction_codes: list = field(default_factory=list)
 
 
 def run_opinion_matching(*, dry_run: bool = False, actor=None) -> MatchReport:
@@ -250,10 +260,18 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
 
     if dry_run:
         # Score without writing anything, so an operator can see what a live run
-        # would decide before it publishes.
+        # would decide before it publishes — including the competing-claim
+        # resolution, which is part of that decision. Leaving it out made a dry
+        # run promise one more match than the live run would produce, which is
+        # the one thing a dry run must not do.
+        preview: list = []
+        preview_plan: list = []
         for item in items:
-            decision, _best, _runner, _relations = _decide(item, candidates, rarity)
+            decision, best, _runner, extra = _decide(item, candidates, rarity)
+            preview.append(_Preview(item, decision))
+            preview_plan.append((len(preview) - 1, [best, *extra] if best else []))
             _count(report, decision)
+        _resolve_competing_primaries(preview, preview_plan, report)
         report.detail = (
             f"Proovikäivitus: {len(items)} kirjet, {report.matched} seotud, "
             f"{report.ambiguous} ebaselget, {report.unmatched} sidumata. "
