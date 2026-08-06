@@ -8,10 +8,17 @@ are still present; the ordinary run starts at the newest page and stops after a
 couple of pages whose entries are all already known, which is what makes the
 daily job cost two requests instead of 143.
 
-Detail pages are read under a budget, newest-first, stopping once the
-configured window has closed. Repeated bounded runs accumulate — hydration from
-the previous snapshot is carried forward — so the initial backfill is resumable
-rather than one enormous crawl.
+Detail pages are read under a budget with **two priorities**. First, pages
+shortlisted as candidates for a consultation-eligible legal record the current
+matcher could not answer — those are read **regardless of age**, because
+eligibility is about a record's status and says nothing about when its
+consultation ran. Whatever budget is left then fills the recent background
+window, newest first.
+
+Repeated bounded runs accumulate — hydration from the previous snapshot is
+carried forward — so the initial backfill is resumable rather than one enormous
+crawl, and a run that could not finish its priority candidates does not report
+`unchanged`.
 
 There is deliberately **no `--url` option**. The archive address is fixed
 configuration on an exact host allowlist.
@@ -99,6 +106,9 @@ class Command(BaseCommand):
                 f"{report.detail} Indeksis: {report.indexed_items}, "
                 f"loetud: {report.detailed_items}, ootel: {report.pending_items}, "
                 f"vigaseid: {report.failed_items}. "
+                f"Prioriteetseid: {report.priority_candidate_count} "
+                f"(loetud {report.priority_detailed_count}, "
+                f"lugemata {report.priority_pending_count}). "
                 f"Täielik: {'jah' if report.backfill_complete else 'ei'}."
             )
         self._emit(as_json, payload, message, style=self.style.SUCCESS)
