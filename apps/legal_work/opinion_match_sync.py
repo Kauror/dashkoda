@@ -30,7 +30,7 @@ from apps.audit.services import record_event
 from apps.core.feed_sync import describe_error
 
 from .models import LegalWorkItem, LegalWorkSnapshot, MatchDecision
-from .opinion_classification import NEVER_PRIMARY, DocumentClassification
+from .opinion_classification import DocumentClassification
 from .opinion_eligibility import opinion_eligible_items
 from .opinion_identity import IDENTITY_VERSION, resolve_matter_key
 from .opinion_match_models import (
@@ -392,21 +392,26 @@ def _decide(item, candidates, rarity):
         )
         for candidate in candidates
     ]
-    viable = [s for s in scored if not s.blocked]
-    viable.sort(key=lambda s: s.score, reverse=True)
+    usable = [s for s in scored if not s.blocked]
 
-    if not viable:
+    # Two populations, deliberately. Only some documents may *lead* a topic, but
+    # the ones that may not — annexes, comparison tables — are exactly what
+    # belongs beside the one that does, so they are scored and kept for
+    # grouping rather than discarded.
+    leaders = sorted(
+        (s for s in usable if s.can_be_primary), key=lambda s: s.score, reverse=True
+    )
+    companions = [s for s in usable if not s.can_be_primary]
+
+    if not leaders:
         return MatchDecision.UNMATCHED, None, None, []
 
-    best = viable[0]
-    runner_up = viable[1] if len(viable) > 1 else None
-
-    if best.candidate.classification in NEVER_PRIMARY:
-        return MatchDecision.UNMATCHED, best, runner_up, []
+    best = leaders[0]
+    runner_up = leaders[1] if len(leaders) > 1 else None
 
     margin = best.score - (runner_up.score if runner_up else Decimal("0.00"))
     if best.score >= THRESHOLD_MATCH and margin >= MIN_MARGIN:
-        return MatchDecision.MATCHED, best, runner_up, _group(best, viable[1:])
+        return MatchDecision.MATCHED, best, runner_up, _group(best, leaders[1:] + companions)
     if best.score >= THRESHOLD_AMBIGUOUS:
         return MatchDecision.AMBIGUOUS, best, runner_up, []
     return MatchDecision.UNMATCHED, best, runner_up, []

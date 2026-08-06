@@ -202,10 +202,35 @@ def test_a_date_alone_does_not_match():
         DocumentClassification.UNKNOWN,
     ],
 )
-def test_a_document_that_cannot_lead_is_blocked_as_primary(classification):
+def test_a_document_that_cannot_lead_is_barred_from_being_primary(classification):
     result = score(candidate(classification=classification))
 
-    assert CONTRADICTION_NOT_PRIMARY in result.contradictions
+    assert CONTRADICTION_NOT_PRIMARY in result.primary_bars
+    assert result.can_be_primary is False
+
+
+@pytest.mark.parametrize(
+    "classification",
+    [DocumentClassification.ANNEX, DocumentClassification.SUPPORTING_DOCUMENT],
+)
+def test_a_document_that_cannot_lead_is_still_usable_as_a_companion(classification):
+    """The bar on leading is not a block on being considered.
+
+    Collapsing the two meant an annex was discarded before grouping ever saw
+    it, so an annex could never be attached to the letter it belongs with —
+    which is the one thing the product asks annexes to do.
+    """
+    result = score(candidate(classification=classification))
+
+    assert result.blocked is False
+    assert result.score > Decimal("0.00")
+
+
+def test_a_genuinely_unusable_document_is_blocked_not_merely_barred():
+    result = score(candidate(readable=False))
+
+    assert result.blocked is True
+    assert result.can_be_primary is False
 
 
 def test_a_joint_opinion_may_be_primary():
