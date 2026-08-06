@@ -297,6 +297,48 @@ catalogue or matcher, the event programme or the public feeds: separate source,
 separate advisory lock, separate transaction. The global freshness denominator
 stays four — the archive is not a fifth source.
 
+## What the opinion document catalogue changes here
+
+The first feed that needs **server-side storage**, and the first whose source is
+private rather than a public endpoint. Two host directories and two bind mounts:
+
+| | Host path | Container path | Mode |
+|---|---|---|---|
+| Source inbox | `/mnt/user/appdata/dashkoda/opinions/source` | `/data/opinions/source` | **read-only** |
+| Managed store | `/mnt/user/appdata/dashkoda/opinions/store` | `/data/opinions/store` | read-write |
+
+Both are bind mounts in `compose.unraid.yaml`, so **`compose.unraid.yaml` must be
+backed up before it is edited** and both Compose files must be used for every
+command, as for every other operation on this host. Adding them recreates `web`
+only; the database container and every named volume are untouched.
+
+No environment variable is required — both roots default correctly — and no
+credential exists, because there is nothing remote to authenticate to.
+
+**The managed store is not covered by the PostgreSQL backup and cannot be
+reconstructed from it**: the database holds text and metadata, not bytes. The
+store must be backed up alongside the database dump, and the bootstrap archive
+retained as the evidence the catalogue was derived from.
+
+The initial import is run by hand over several bounded runs using
+`--max-documents N` until the output stops reporting `"result": "partial"`. A
+partial build publishes nothing, so the pilot can be interrupted at any point
+without leaving a half-catalogue current.
+
+Neither `sync_legal_opinion_documents` nor `verify_legal_opinion_store` is
+scheduled. The intended sync time is 07:50 `Europe/Tallinn`, installed as the
+usual UTC pair — but **while the source is a static archive there is nothing for
+a daily sync to find**, so it is deliberately left uninstalled.
+
+A catalogue failure cannot affect any other feed: separate source, separate
+advisory lock, separate transaction, and a failure leaves the previous catalogue
+current. The global freshness denominator stays four — opinion documents are not
+a fifth dashboard source, and documents arrive irregularly, so a quiet week is an
+ordinary week rather than a stale feed.
+
+Phase 1 serves nothing. No viewer route, no resource page and no PDF endpoint
+exist yet, and no legal topic links to a document.
+
 ## What PR-05 changed here
 
 Nothing operationally. PR-05 adds the source, artifact, import-registry and
