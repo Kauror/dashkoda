@@ -128,3 +128,32 @@ def frozen_today(monkeypatch):
         monkeypatch.setattr(selectors.timezone, "localdate", lambda: value)
 
     return pin
+
+
+@pytest.fixture
+def opinion_roots(settings, tmp_path):
+    """Point the source and store roots at temporary directories.
+
+    Every opinion test runs against real filesystem behaviour — atomic renames,
+    resolution under a root, a genuine ZIP — rather than a mocked store, because
+    the properties being tested are filesystem properties.
+    """
+    source = tmp_path / "source"
+    store = tmp_path / "store"
+    source.mkdir()
+    store.mkdir()
+    settings.LEGAL_OPINION_SOURCE_ROOT = str(source)
+    settings.LEGAL_OPINION_STORE_ROOT = str(store)
+    settings.LEGAL_OPINION_BOOTSTRAP_ZIP_NAME = "Opinions.zip"
+    # A file is normally ignored until it has stopped changing; tests write and
+    # read in the same instant, so the wait is switched off except where the
+    # stability rule is what is under test.
+    settings.LEGAL_OPINION_MIN_STABLE_AGE_SECONDS = 0
+    return source, store
+
+
+@pytest.fixture
+def opinion_source(db):
+    from apps.legal_work.opinion_bootstrap import ensure_opinion_source
+
+    return ensure_opinion_source()
