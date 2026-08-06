@@ -355,6 +355,9 @@ and the internal board-report history count different things; see
   source inbox, a content-addressed managed blob store, PDF validation,
   versioned text extraction, deterministic classification, a bounded resumable
   build and a read-only admin
+- a durable legal-matter identity independent of the workbook's positional
+  identifiers, its own opinion matcher, internal resource pages and the one
+  authenticated route through which a private PDF can be read
 
 ## Not implemented yet
 
@@ -362,10 +365,13 @@ There is no Unraid override, Cloudflare or DNS configuration, backup or restore
 automation, rollback tooling, staging environment, membership domain model,
 chart or demo data in this repository.
 
-Automatic legal-topic links cover the current `Hetkel käsil` listing and its
-archive. Opinion documents are now catalogued but **not yet linked**: a record
-whose opinion has been sent still renders as plain text, because matching,
-resource pages and the protected PDF endpoint are the next phase. `Meie arvamus`
+Automatic legal-topic links cover the current `Hetkel käsil` listing, its
+archive, and — for records whose opinion has already gone out — an internal
+resource page carrying the letter that answered it. The two populations are
+disjoint by construction: a consultation link needs the record to be open and
+unanswered, an opinion link needs it sent and dated, so a sent record can never
+fall through to a consultation it has already replied to. See
+[legal-opinion-matching.md](legal-opinion-matching.md). `Meie arvamus`
 pages, public opinion PDFs, news items and attached draft legislation are not
 collected and are not modelled. Neither opinion command is scheduled by this
 repository; the intended times are documented and the Unraid templates are
