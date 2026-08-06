@@ -126,10 +126,23 @@ class Scored:
     score: Decimal
     evidence: list[str] = field(default_factory=list)
     contradictions: list[str] = field(default_factory=list)
+    primary_bars: list[str] = field(default_factory=list)
 
     @property
     def blocked(self) -> bool:
+        """Cannot be used at all — not as a primary, not as a companion."""
         return bool(self.contradictions)
+
+    @property
+    def can_be_primary(self) -> bool:
+        """Whether this document may *lead* a legal topic.
+
+        Deliberately separate from `blocked`. An annex cannot be the document a
+        topic links to, but it is exactly the kind of thing that belongs
+        *alongside* one — so it still has to be scored, or grouping could never
+        find it. Collapsing the two is how annexes silently disappear.
+        """
+        return not self.blocked and not self.primary_bars
 
 
 def date_agreement(sent: dt.date, candidate: Candidate) -> tuple[float, int | None, str | None]:
@@ -184,8 +197,9 @@ def score_candidate(
         result.contradictions.append(CONTRADICTION_UNREADABLE)
         return result
     if candidate.classification in NEVER_PRIMARY:
-        result.contradictions.append(CONTRADICTION_NOT_PRIMARY)
-        return result
+        # Recorded as a bar on leading, not as a block on being considered:
+        # this document may still be grouped with whichever letter does lead.
+        result.primary_bars.append(CONTRADICTION_NOT_PRIMARY)
 
     # -- dates ------------------------------------------------------------
     date_credit, gap, date_evidence = date_agreement(sent_date, candidate)
