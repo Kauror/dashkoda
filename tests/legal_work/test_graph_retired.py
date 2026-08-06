@@ -161,8 +161,11 @@ def test_the_app_owns_exactly_the_commands_it_is_supposed_to():
     assert legal_work_commands == {
         "sync_oigusloome_public",
         "import_oigusloome",
-        # The public Koda.ee current-topic catalogue and the shadow matcher.
-        # Neither is scheduled in this phase; both exist and can be run by hand.
+        # The public Koda.ee current-topic catalogue and its matcher.
         "sync_legal_current_topics",
         "match_legal_current_topics",
+        # The `Hetkel käsil` archive, collected as a fallback source of
+        # consultation links, and its separately calibrated matcher.
+        "sync_legal_archived_topics",
+        "match_legal_archived_topics",
     }
