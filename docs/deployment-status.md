@@ -339,6 +339,32 @@ ordinary week rather than a stale feed.
 Phase 1 serves nothing. No viewer route, no resource page and no PDF endpoint
 exist yet, and no legal topic links to a document.
 
+## What opinion matching changes here
+
+**No new environment variable, no new mount, no new volume and no credential.**
+Matching reads PostgreSQL and the managed store that the catalogue phase already
+mounts, and writes only its own tables.
+
+Two new authenticated routes exist — the resource page and the protected
+document endpoint — and both sit behind the ordinary viewer gate. The public
+allowlist is unchanged: `/sisene/`, `/health/live/`, `/health/ready/` and
+`/robots.txt`. The managed store gains no static, media or public route; the
+document view is the only way a private PDF reaches a browser.
+
+Migration `0006` is additive. It adds one field to the blob table, backfills an
+opaque identifier for every existing row in batches, then tightens it to unique
+— safe on a table that already holds documents, which the pilot's does.
+
+`match_legal_opinion_documents` is **not scheduled by this repository**. The
+intended time is 08:00 `Europe/Tallinn`, installed as the usual UTC pair, and
+only after production acceptance shows zero false primary links. It is the one
+opinion job worth scheduling while the source is a static archive: new legal
+workbook snapshots arrive daily and can require rematching against the same
+catalogue, whereas the catalogue itself has nothing new to find.
+
+A matching failure cannot affect any other feed, and leaves the previous match
+snapshot current. Global freshness stays four.
+
 ## What PR-05 changed here
 
 Nothing operationally. PR-05 adds the source, artifact, import-registry and
