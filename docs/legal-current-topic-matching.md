@@ -1,36 +1,37 @@
-# Automatic matching of legal-work records to Koda.ee current topics
+# Automatic Koda.ee links on legal-work topics
 
-**Status: implemented in code, shadow-only, and not scheduled.** Nothing in this
-document reaches a viewer. No link produced by this feature appears on
-`/oigusloome/`, on the overview, or anywhere else a viewer can see, and no
-schedule installs either command on the host. The feature exists so that its
-proposals can be measured against reality before anyone decides whether they are
-good enough to publish.
+A legal-work topic on `/oigusloome/` is a **link to its Koda.ee consultation
+page** when a deterministic matcher decided, automatically, that the two are the
+same thing. Every other topic is plain text.
+
+There is no manual approval, no manual link field, no override, no LLM and no
+embedding anywhere in this feature. A topic becomes clickable because the
+matcher classified it `matched`, and for no other reason.
 
 ```text
 public koda.ee "Hetkel käsil" listing (+ its pager)
   → detail pages linked from that listing, and nothing else
   → validate and normalise to plain text
-  → deterministic canonical JSON → SHA-256
-  → metadata-only SourceArtifact → ImportRun
+  → canonical JSON → SHA-256 → metadata-only artifact → ImportRun
   → immutable CurrentTopicSnapshot
                                     ↘
                                       deterministic matcher (no LLM)
                                     ↗
 current LegalWorkSnapshot, open records only
   → immutable LegalCurrentTopicMatchSnapshot
-  → read-only Django admin
-  ✗ no viewer page, no public_url, no fifth freshness source
+  → read-only admin (inspection)
+  → topic_links.resolve_topic_links()  ← one query, exact-snapshot rules
+  → /oigusloome/ and the overview card: a link, or plain text
 ```
 
-## Scope of this first phase
+Collection and matching happen only in scheduled commands. **A page render reads
+PostgreSQL and makes no outbound request of any kind.**
 
-Collected:
+## Scope
 
-- the listing at `https://www.koda.ee/et/meie-moju/hetkel-kasil`, including its
-  `?page=N` pager;
-- the detail pages linked from **teaser cards on that listing** whose canonical
-  path starts with `/et/meie-moju/hetkel-kasil/`.
+Collected: the listing at `https://www.koda.ee/et/meie-moju/hetkel-kasil`,
+including its `?page=N` pager, and the detail pages linked from teaser cards on
+it whose canonical path starts with `/et/meie-moju/hetkel-kasil/`.
 
 Deliberately **not** collected, and not modelled either — there is no table, no
 column and no placeholder for any of it:
@@ -41,8 +42,7 @@ column and no placeholder for any of it:
 - public PDFs, internal PDFs, attached draft legislation, ministry documents;
 - any non-Koda host, any user-supplied URL, any URL found outside a listing card.
 
-There is no manual mapping form, no override, no approval workflow, no OpenAI
-client, no embedding, no sentence transformer and no vector database.
+Opinions and PDFs remain **future work**. Nothing in this repository models them.
 
 ## Collection contract
 
@@ -67,20 +67,18 @@ authentication, bounded retries, explicit size caps and sanitized errors. No
 response body ever reaches a log, an audit summary or the database.
 
 There is **no `--url` option**, no form and no admin field through which anyone
-can introduce an address. Collection happens only in the scheduled command; a
-page render never performs a request.
+can introduce an address.
 
 Every candidate link must be HTTPS on an allowed host, sit under the path
 prefix, not be the listing itself, not be the archive, not repeat, and be within
 the URL length bound. A listing exceeding `KODA_CURRENT_TOPICS_MAX_ITEMS` is
-**rejected, not truncated**: publishing an arbitrary prefix of an unexpectedly
-large listing would silently lose records.
+**rejected, not truncated**.
 
-One unreachable detail page fails the **whole run**, unlike the events calendar,
-which skips one and keeps the rest. A calendar with a gap is still a calendar; a
-catalogue with a gap makes the matcher report `unmatched` for a legal record
-whose page merely timed out, and a wrong shadow result is worse than yesterday's
-correct one. The previous catalogue stays published.
+One unreachable detail page fails the **whole run**, unlike the events calendar
+which skips one and keeps the rest. A catalogue with a gap makes the matcher
+report `unmatched` for a record whose page merely timed out, and — now that
+matching reaches the interface — silently drops a link the reader had yesterday.
+The previous catalogue stays published instead.
 
 ### Three properties of the live markup that shape the parser
 
@@ -98,113 +96,68 @@ Verified against the site, not assumed:
    occurrence only.
 
 Parsing is depth-tracked with the standard library's `html.parser`, scoped to
-element subtrees rather than to string positions, so a link elsewhere on the
-page cannot be mistaken for a catalogue entry. **No HTML parsing dependency was
-added.**
+element subtrees rather than to string positions. **No HTML parsing dependency
+was added.**
 
 ## What is stored
 
-`CurrentTopicItem` retains normalised plain text and nothing else:
+`CurrentTopicItem` retains normalised plain text and nothing else: `content_key`,
+`canonical_url`, `title`, `listing_summary`, `body_text`, `published_date`,
+`feedback_deadline`, `named_organization`, `source_order`. Raw HTML is never
+stored; scripts, styles, navigation and markup are dropped during extraction.
 
-| Field | Source |
-| --- | --- |
-| `content_key` | SHA-256 prefix of the canonical URL path |
-| `canonical_url` | the validated absolute detail URL |
-| `title` | the detail page's `<h1>`, falling back to the card title |
-| `listing_summary` | the card's visible summary, else the page intro |
-| `body_text` | intro plus article text, bounded |
-| `published_date` | the detail page's `dd.mm.yyyy` |
-| `feedback_deadline` | extracted only when explicit and unambiguous |
-| `named_organization` | matched against a closed vocabulary |
-| `source_order` | listing position |
+**Deadline extraction** is anchored on `hiljemalt`, which is how every current
+page states it. Supported: `4. märtsiks`, `26. märtsiks`, `12. märtsil`,
+`9. märtsiks 2027`, `09.03.2027`. A missing year is taken from the publication
+date, rolling forward once when the deadline would otherwise precede it. Without
+a publication date, or when two deadlines on one page disagree, **no deadline is
+stored** — a deadline the matcher half-believes is worse than an absent one.
 
-Raw HTML is never stored. Scripts, styles, navigation and markup are dropped
-during extraction, not filtered afterwards.
+**Organisation extraction** uses a closed vocabulary of the ~20 bodies these
+pages name as the drafter, matched as lowercase stems so Estonian case endings
+are covered without a morphological analyser. An unknown organisation yields an
+empty value, never a guess.
 
-### Deadline extraction
-
-Anchored on `hiljemalt`, which is how every current page states it, so an
-unrelated commencement date in the prose is never read as the Chamber's own
-deadline. Supported forms: `4. märtsiks`, `26. märtsiks`, `12. märtsil`,
-`9. märtsiks 2027`, `09.03.2027`.
-
-When the year is absent it is taken from the publication date, rolling forward
-once when the deadline would otherwise fall before publication — which is how a
-December announcement names a January deadline. Without a publication date there
-is no calendar context and **no deadline is stored**. Two disagreeing deadlines
-on one page also store nothing: a deadline the matcher half-believes is worse
-than an absent one.
-
-A missing deadline is a valid page and never rejects it.
-
-### Organisation extraction
-
-A closed vocabulary of the ~20 bodies these pages name as the drafter, matched
-as lowercase stems so Estonian case endings ("Rahandusministeeriumis",
-"Kliimaministeeriumi") are covered without a morphological analyser. Longer
-names are tried first so "Majandus- ja kommunikatsiooniministeerium" is never
-shadowed by a shorter partial. An organisation outside the vocabulary yields an
-empty value; this field reports what the page said and never a guess.
-
-### Change detection
-
-The canonical checksum covers the **normalised fields the matcher consumes**,
-sorted by content key. Markup churn, a new build hash, whitespace changes and
-two reordered cards with unchanged content all produce the same checksum and are
-correctly reported as `unchanged`, publishing no new snapshot.
+**Change detection** hashes the normalised fields the matcher consumes, sorted
+by content key. Markup churn, build hashes and two reordered unchanged cards all
+produce the same checksum and publish no new snapshot.
 
 ## The matcher
 
-`apps/legal_work/current_topic_matching.py`. Ordinary deterministic code over
-the two normalised texts. No model, no embedding, no vector store, no external
-service, and no dependency added.
+`apps/legal_work/current_topic_matching.py`. Deterministic code over the two
+normalised texts. No model, no embedding, no vector store, no external service,
+and no dependency added.
 
-### Inputs
+Inputs: open records (`is_open=True`) in the **current** `LegalWorkSnapshot`, and
+every item in the **current** `CurrentTopicSnapshot`. Closed records are out of
+scope — a matter already answered and sent raises a different question from a
+live consultation.
 
-- open records (`is_open=True`) in the **current** `LegalWorkSnapshot`;
-- every item in the **current** `CurrentTopicSnapshot`.
+**Why the title is not the primary signal.** The workbook records the instrument
+— *"pakendiseaduse muutmise seaduse eelnõu"* — while Koda.ee publishes the
+invitation — *"Mida arvad plaanitavatest pakendiseaduse muudatustest?"*. Scoring
+title against title would systematically under-rate true pairs, so the legal
+topic is scored against title, listing summary and article text together.
 
-Closed records are outside this phase: a matter that has been answered and sent
-raises a different question from a live consultation link.
-
-### Why the title is not the primary signal
-
-The two sides name the same thing differently and always will. The workbook
-records the instrument — *"pakendiseaduse muutmise seaduse eelnõu"* — while
-Koda.ee publishes the invitation — *"Mida arvad plaanitavatest pakendiseaduse
-muudatustest?"*. Scoring title against title would systematically under-rate true
-pairs, so the legal topic is scored against the whole of what an entry says:
-title, listing summary and article text. The formal instrument is almost always
-named in the body even when the headline avoids it.
-
-### Why character n-grams matter as much as tokens
-
-Estonian inflects. `pakendiseadus` and `pakendiseaduse` share **no token** and
-share every 4-gram but one. The alternative is a morphological analyser, which
-would be one more thing this repository has to keep correct for no other reason.
+**Why character n-grams matter as much as tokens.** Estonian inflects.
+`pakendiseadus` and `pakendiseaduse` share no token and share every 4-gram but
+one.
 
 ### Normalisation
 
 `apps/legal_work/text_normalisation.py`, version `1.0`, folded into the matcher
 version so a change to any rule is visibly a different matcher.
 
-- NFC Unicode normalisation, then case folding;
-- Estonian quotation marks (`„ “ ”`) and dashes (`– — −`) folded to ASCII;
-- whitespace collapsed; tokens keep internal hyphens and ordinals;
-- **diacritics preserved** — stripping them would merge `ohutus` and `õhutus`;
-- editorial phrases removed as whole phrases: `mida arvad`, `anna teada`,
-  `jaga mõtteid`, `kas toetad`, `plaanitavad muudatused`, `eelnõu kohta` and
-  their variants — so `eelnõu kohta` disappears while `eelnõu` alone survives;
-- a short stop list of grammatical words and consultation vocabulary;
-- a separate `GENERIC_TOKENS` set (`seadus`, `eelnõu`, `määrus`, `muutmise`,
-  `ministeerium`, …) which is **damped, not removed**, and which defines the
-  `generic-overlap-only` contradiction;
-- acronyms read before case folding (`FATCA`, `OECD`, `CARF`);
-- identifiers matched narrowly: `123 SE`, `45 OE`, Riigi Teataja references. A
-  bare number is not an identifier — the pages write "eelnõu punktid 1, 2 ja 4",
-  which are paragraph references.
-
-Nothing here stems, lemmatises or calls a service.
+NFC normalisation then case folding; Estonian quotation marks (`„ “ ”`) and
+dashes (`– — −`) folded to ASCII; whitespace collapsed; **diacritics preserved**,
+because stripping them would merge `ohutus` and `õhutus`; editorial phrases
+removed as whole phrases (`mida arvad`, `anna teada`, `jaga mõtteid`, `kas
+toetad`, `plaanitavad muudatused`, `eelnõu kohta` and variants), so `eelnõu
+kohta` disappears while `eelnõu` alone survives; a short stop list; a separate
+`GENERIC_TOKENS` set which is **damped, not removed**; acronyms read before case
+folding; identifiers matched narrowly (`123 SE`, `45 OE`, Riigi Teataja
+references) because a bare number is not an identifier — the pages write "eelnõu
+punktid 1, 2 ja 4", which are paragraph references.
 
 ### Weighted signals
 
@@ -221,19 +174,14 @@ means the same thing in PostgreSQL, in Python and in a test.
 
 The last two signals only exist when **both sides** state the fact, so the
 applicable weights are **renormalised**. Without that, a record with no deadline
-could reach at most 88 and one with neither at most 80, and a single threshold
-would silently mean something stricter for exactly the sparse records this
-feature exists to enrich.
+could reach at most 88 and one with neither at most 80, and one threshold would
+silently mean something stricter for exactly the sparse records this feature
+exists to enrich.
 
 ### Evidence-only signals
 
-Recorded as codes, never weighted, because they fire rarely on the real pages
-and tuning weights on cases the matcher has not yet met would be guesswork.
-Shadow evaluation measures them first.
-
-- `identifier-match` / `identifier-conflict`
-- `acronym-match`
-- `date-proximate` — publication within 45 days of the record's receipt
+Recorded as codes, never weighted, because they fire rarely on the real pages:
+`identifier-match`, `identifier-conflict`, `acronym-match`, `date-proximate`.
 
 ### Contradictions
 
@@ -248,9 +196,9 @@ matters most.
 | `organization-conflict-unsupported` | the two name different bodies **and** share no discriminating token |
 | `generic-overlap-only` | the only words in common are generic legal vocabulary |
 
-A conflicting organisation alone does **not** block. The workbook's `recipient`
+A conflicting organisation alone does **not** block: the workbook's `recipient`
 records who the opinion is sent to, which is usually but not always who drafted
-the instrument, so it blocks only when nothing else supports the pair.
+the instrument.
 
 ### Thresholds and decisions
 
@@ -260,55 +208,152 @@ automatic match   score ≥ 62.00  and margin ≥ 12.00  and no blocking contrad
 plausible floor   score ≥ 38.00  and no blocking contradiction
 ```
 
-- **matched** — the best acceptable candidate clears the automatic threshold and
-  the margin over the next acceptable candidate.
-- **ambiguous** — at least one acceptable candidate exists but not all the
-  high-confidence conditions hold. A best candidate scoring above the automatic
-  threshold with too small a margin carries `narrow-margin`.
-- **unmatched** — no candidate is both plausible and unblocked. The rejected
-  front-runner is still recorded with its score and evidence, because that is
-  what threshold calibration is made of.
+- **matched** — clears the automatic threshold and the margin over the next
+  acceptable candidate. **This is the only decision that becomes a link.**
+- **ambiguous** — a plausible candidate exists but not every high-confidence
+  condition holds. Plain text.
+- **unmatched** — no candidate is both plausible and unblocked. Plain text. The
+  rejected front-runner is still recorded with its score and evidence, which is
+  what makes the admin useful for calibration.
 
-Every number on a row describes the same field: the acceptable candidates when
-there are any, and the rejected front-runner when there are none.
-`candidate_count` is the number of **plausible** candidates.
+These thresholds were chosen from synthetic tests written to resemble the real
+corpus, where true pairs score 65–98 and false pairs 12–19. They are revisited
+from what production produces; the read-only admin exists to make that
+inspectable, and a change ships as a new `MATCHER_VERSION`.
 
-**These thresholds are starting points chosen from synthetic tests, not
-validated truth.** They were selected so that, on synthetic pairs written to
-resemble the real corpus, true pairs score 65–98 and false pairs score 12–19.
-Real data will not be that clean.
+**The base rate is the real risk.** Nine catalogue entries face roughly thirty
+open records, so most open records genuinely have no match. A matcher scoring
+every record against its nearest of nine will find "the best of nine" every
+time, and the best of nine is usually wrong. The plausibility floor is the
+load-bearing threshold, and a run reporting mostly `unmatched` is correct rather
+than broken.
 
-### The base rate is the real risk
+## How a link reaches the page
 
-Nine catalogue entries face roughly thirty open legal records, so **most open
-records genuinely have no match**. A matcher scoring every record against its
-nearest of nine will find "the best of nine" every time, and the best of nine is
-usually wrong. The absolute plausibility floor is therefore the load-bearing
-threshold, and a first shadow run that reports mostly `unmatched` is the correct
-result rather than a broken one.
+`apps/legal_work/topic_links.py`. One bounded query per page, no matter how many
+rows are drawn.
 
-## Why `LegalWorkItem` is not modified
+### Exact eligibility
 
-Every import rebuilds a complete new snapshot from the workbook. A match result
-written onto an imported row would be erased by the next morning's
-synchronisation, so the results live in their own immutable snapshot keyed to the
-exact rows they describe. Both relations use `related_name="+"`, so no reverse
-accessor exists from a workbook row — the first step towards a selector
-decorating viewer data is closed off in the schema rather than in review.
+A viewer-facing link is offered only when **all** of these hold:
 
-The Excel contract is untouched. Nothing is ever written back to the workbook or
-to OneDrive.
+1. a current `LegalWorkSnapshot` exists;
+2. a current `CurrentTopicSnapshot` exists;
+3. a current `LegalCurrentTopicMatchSnapshot` exists;
+4. that match snapshot references **that exact** current legal snapshot;
+5. that match snapshot references **that exact** current-topic snapshot;
+6. the match row references the exact `LegalWorkItem` being displayed;
+7. the decision is exactly `matched`;
+8. `best_candidate` is present;
+9. the candidate belongs to the referenced current-topic snapshot;
+10. the candidate URL still passes the defensive URL validation below.
 
-## Why no LLM
+Conditions 1–9 are expressed **in the query itself**, including the two that
+catch staleness — the displayed row must belong to the same legal snapshot the
+match was computed from, and the candidate to the same catalogue snapshot, both
+written as `F()` comparisons. A stale pair can never be fetched, let alone
+rendered.
 
-For nine catalogue entries a deterministic matcher is reproducible, auditable
-from its stored evidence codes, free, offline, and correct in a way a model's
-output cannot be verified to be. Every score can be recomputed from the inputs
-and explained by the codes stored beside it. Before spending a model on the
-problem, the shadow evaluation below has to show that deterministic signals are
-not enough — and it has not been run yet.
+When any condition fails the topic renders as plain text. There is no fallback
+to an older snapshot, to the highest-scoring ambiguous candidate, to a
+title-derived URL guess, to another Koda.ee feed, or to anything entered by
+hand. **A stale match is no match. No link is preferable to a wrong link.**
 
-## Snapshots and last-good behaviour
+### Defensive URL validation
+
+The collector validates a URL before storing it; this validates it again before
+rendering it, which also covers a row written before a rule tightened. Required:
+HTTPS; hostname exactly `koda.ee` or `www.koda.ee`; path beginning
+`/et/meie-moju/hetkel-kasil/`; not the listing; not the archive; no username or
+password in the URL; within the stored length bound.
+
+Deliberately **no availability check**. Whether the page still responds is not
+knowable without a request, and a render never makes one. A stored URL that
+fails validation renders as plain text and raises nothing a viewer can see.
+
+### One resolution per page
+
+The Õigusloome page draws the same record in up to four lists — `Lähenevad
+tähtajad`, `Hetkel töös`, `Viimati välja läinud`, `Uusimad sisse tulnud` — and
+the overview card lists it under three tabs. Every collection is materialised
+first, the whole set of displayed ids is resolved in **one** query, and the
+resulting `legal_item_id → URL` mapping builds every presentation object on the
+page.
+
+That is what guarantees a record is linked in *every* list it appears in or in
+none of them. There is one lookup and one answer, not one lookup per list, so
+the two cannot disagree.
+
+### Presentation objects
+
+`LegalTopicPresentation` is a frozen dataclass holding the imported `item` and a
+resolved `public_url` that may be empty; `DeadlinePresentation` adds the urgency
+wording. **No model instance is mutated and no attribute is attached to one**, so
+a presentation decision can never be persisted by accident. Templates reach the
+imported row through `.item`; the shared `legal_topic` component reads only
+`.topic` and `.public_url` and knows nothing about matching, decisions, scores
+or snapshots.
+
+## Viewer behaviour
+
+On `/oigusloome/` and on the overview's Õigusloome card:
+
+| Decision | Rendering |
+| --- | --- |
+| `matched`, all eligibility rules satisfied | link to the Koda.ee page, with a visually-hidden "(avaneb uuel lehel)" note |
+| `ambiguous` | plain text |
+| `unmatched` | plain text |
+| no current match snapshot | plain text |
+| match belongs to an older legal snapshot | plain text |
+| candidate belongs to an older catalogue snapshot | plain text |
+| stored URL fails validation | plain text |
+
+Ordinary viewers never see a score, a runner-up score, a margin, a confidence, an
+evidence or contradiction code, the matcher version, the words matched/ambiguous/
+unmatched, or any collection or matching state. No matching badge and no
+data-quality warning is added to the viewer page.
+
+The catalogue is **not** a fifth global freshness source. The denominator stays
+four, counting the modules a viewer actually reads.
+
+## Current-only semantics
+
+This phase uses only the current `Hetkel käsil` catalogue, and the consequence is
+deliberate:
+
+- when a consultation closes, Koda.ee drops it from the listing;
+- the next collection publishes a catalogue without it;
+- after the next match run, that page can no longer supply a link;
+- the legal record stays visible on the page as **plain text**.
+
+DashKoda does not retain a page as an active link merely because it matched
+yesterday, does not carry a link forward by `record_id` — record ids are not
+assumed stable across legal snapshots — and does not collect the archive to
+paper over this. That is an accepted limitation of the first implementation.
+
+## Failure and last-good behaviour
+
+The Õigusloome page always renders.
+
+**Collection fails** — the previous catalogue snapshot and the previous match
+snapshot both stay in storage, legal data is untouched, and links appear only
+where the current match snapshot still satisfies the eligibility rules above.
+
+**The workbook moved to a newer legal snapshot but matching has not run yet** —
+current legal data is shown with plain-text topics. Yesterday's match rows are
+never applied to new legal items.
+
+**Matching fails** — the previous match snapshot stays current, no partial
+snapshot is published, and no stale link is shown against a different legal
+snapshot. Publication is verified before a single row is written and the whole
+publication is one transaction.
+
+A Koda.ee or matching failure cannot affect the legal workbook synchronisation,
+the current legal snapshot, global dashboard freshness or the three existing
+public Koda.ee feeds. Each runs under its own source, advisory lock, import run
+and transaction.
+
+## Snapshots
 
 | Model | Immutable except | Current |
 | --- | --- | --- |
@@ -320,22 +365,53 @@ not enough — and it has not been run yet.
 A match snapshot carries **no source, no artifact and no import run**: nothing
 was downloaded and no file exists. Its identity is exactly
 `(legal_snapshot, current_topic_snapshot, matcher_version)`, a unique constraint,
-which is what makes "identical inputs report unchanged" a single `exists()`
-rather than a checksum over fabricated bytes.
+which makes "identical inputs report unchanged" a single `exists()`.
 
-Before a single row is written the publication service verifies that every
-decision names a record in `snapshot.legal_snapshot`, every candidate belongs to
-`snapshot.current_topic_snapshot`, exactly one decision exists per open record,
-no record was left undecided, a `matched` decision names a candidate, every score
-is on scale, the runner-up does not exceed the winner, and the margin equals
-their difference. After writing, the declared counts are checked against the
-actual rows. Any failure aborts the transaction and leaves the previous match
-snapshot current.
+## Why `LegalWorkItem` is not modified
 
-A Koda.ee outage or a matcher failure cannot affect the legal workbook
-synchronisation, the current legal snapshot, `/oigusloome/`, global dashboard
-freshness or the three existing public Koda.ee feeds. Each runs under its own
-source, its own advisory lock, its own import run and its own transaction.
+Every import rebuilds a complete new snapshot from the workbook, so a match
+result written onto an imported row would be erased overnight. The results live
+in their own immutable snapshot keyed to the exact rows they describe, and the
+address is resolved at **read time**. Both match relations use
+`related_name="+"`, so no reverse accessor exists from a workbook row.
+
+`LegalWorkItem` has no `public_url`, no `current_topic_url`, no relation field,
+no editable mapping field, no score and no decision. The Excel contract, workbook
+generation, workbook validation, snapshot publication, the synchronisation
+commands, record ids and source rows are all unchanged, and nothing is ever
+written back to the workbook or to OneDrive.
+
+## Why no LLM
+
+For nine catalogue entries a deterministic matcher is reproducible, auditable
+from its stored evidence codes, free, offline, and correct in a way a model's
+output cannot be verified to be. Every score can be recomputed from the inputs
+and explained by the codes stored beside it.
+
+## Admin inspection
+
+Everything is registered through the project's `ReadOnlyAdmin`. There is **no
+add, change, delete, approve, reject, override, force-match, suppress or
+manual-URL action anywhere.** Adding one would turn an automatic feature into a
+data-entry one with a second, invisible source of truth.
+
+What the admin is for is *understanding* — why a link appeared, why an obvious
+pair did not, and what the evidence and margins looked like — so the weights and
+thresholds in `current_topic_matching.py` can be corrected in code, reviewed, and
+released as a new matcher version. **Staff inspection informs the matcher; it
+never overrides it.**
+
+`Koda.ee hetkel käsil teemad` shows title, canonical URL, publication date,
+feedback deadline, named organisation, a summary excerpt and the snapshot.
+
+`Õigusloome sobitamise tulemused` shows the legal record id and topic, the
+decision, score, runner-up score, margin, plausible-candidate count, the
+candidate's title and address, the evidence codes and the matcher version.
+Filters: decision, score band, evidence code, current snapshot, matcher version,
+legal snapshot and current-topic snapshot.
+
+A row visible in the admin is not proof that a viewer sees a link: the viewer
+path additionally insists both source snapshots are still current.
 
 ## Commands
 
@@ -347,10 +423,9 @@ python manage.py sync_legal_current_topics [--dry-run] [--json]
 python manage.py match_legal_current_topics [--dry-run] [--json]
 ```
 
-Exit codes, matching the repository's convention: `0` imported, unchanged or a
-successful dry run; `1` failed; `3` another run held the lock. Each command takes
-its own PostgreSQL advisory lock, distinct from each other and from the workbook
-synchronisation's.
+Exit codes: `0` imported, unchanged or a successful dry run; `1` failed; `3`
+another run held the lock. Each takes its own PostgreSQL advisory lock, distinct
+from each other and from the workbook synchronisation's.
 
 JSON output carries aggregates and identifiers only:
 
@@ -360,14 +435,33 @@ JSON output carries aggregates and identifiers only:
  "ambiguous_count": 3, "unmatched_count": 26, "matcher_version": "1.0-norm1.0"}
 ```
 
-No topic, no candidate title, no URL, no page text, no evidence text and no HTML
-ever appears in command output, in a log or in an audit summary.
+No topic, candidate title, URL, page text, evidence text or HTML ever appears in
+command output, in a log or in an audit summary.
 
-### Expected future schedule — not installed
+Both commands are idempotent: unchanged inputs recompute nothing.
 
-When shadow evaluation passes, the intended UTC cron pair is collection shortly
-after the workbook synchronisation, then matching after it. **Neither is
-installed by this pull request**, and nothing in this repository schedules them.
+### The automatic sequence
+
+1. the legal workbook synchronisation publishes a legal snapshot;
+2. `sync_legal_current_topics` publishes a catalogue snapshot;
+3. `match_legal_current_topics` publishes a match snapshot;
+4. viewer pages read the current results from PostgreSQL.
+
+**The viewer never runs either command and never contacts Koda.ee.**
+
+### Intended schedule — not installed
+
+| Time (Europe/Tallinn) | Command |
+| --- | --- |
+| 07:00 | `sync_oigusloome_public` |
+| 07:15 | `sync_legal_current_topics` |
+| 07:20 | `match_legal_current_topics` |
+
+`ops/unraid/sync_legal_current_topics.sh.example` is a template for the last two
+as one sequential wrapper: it runs collection and, only if that succeeds, runs
+matching. **This repository installs nothing.** A failure in this wrapper cannot
+affect the workbook synchronisation, which is a separate job on a separate
+source with a separate lock.
 
 ## Audit actions
 
@@ -381,91 +475,44 @@ installed by this pull request**, and nothing in this repository schedules them.
 | `legal_work.current_topic_match_failed` | the run failed |
 
 Summaries carry the source slug, snapshot ids, a checksum, counts and the
-matcher version. They never carry a title, topic text, a URL, page body or HTML.
-
-## Admin inspection
-
-Everything is registered through the project's `ReadOnlyAdmin`. There is **no
-add, change, delete, approve, reject or override action anywhere**, and that is
-the product rather than a precaution: this phase measures the matcher, it does
-not operate it. A manual mapping workflow is a different feature with different
-failure modes, and adding a button now would quietly turn a measurement exercise
-into a data-entry one.
-
-`Koda.ee hetkel käsil teemad` shows title, canonical URL, publication date,
-feedback deadline, named organisation, a summary excerpt and the snapshot.
-
-`Õigusloome sobitamise tulemused` shows the legal record id and topic, the
-decision, score, runner-up score, margin, plausible-candidate count, the
-candidate's title and address as an openable link, the evidence codes and the
-matcher version. Filters: decision, score band (high / mid / low), evidence code,
-current snapshot, matcher version, legal snapshot and current-topic snapshot.
-
-The candidate link is a staff inspection tool behind `/admin/`. It is not the
-viewer-facing link, and nothing on `/oigusloome/` reads this model.
-
-## Production shadow acceptance
-
-Run after this pull request is reviewed and merged, on the deployment, in this
-order.
-
-1. Collect the live catalogue and confirm what it found:
-
-   ```bash
-   docker compose exec web python manage.py sync_legal_current_topics --json
-   ```
-
-2. Run the matcher:
-
-   ```bash
-   docker compose exec web python manage.py match_legal_current_topics --json
-   ```
-
-3. Confirm both are idempotent — a second run of each must report `unchanged`
-   and must not create a second snapshot.
-
-4. In `/admin/`, open `Õigusloome sobitamise tulemused` filtered to the current
-   snapshot and inspect **every** row. The catalogue is small enough that no
-   sampling is needed.
-
-5. Record each row's real outcome externally as correct / incorrect / no-match.
-   Do not record it in DashKoda: there is no field for it, deliberately.
-
-6. Measure precision, recall, ambiguous rate, false-link rate and unmatched rate,
-   on the `matched` decisions specifically.
-
-7. Adjust the thresholds, weights, stop vocabulary and contradiction rules in
-   `current_topic_matching.py` and `text_normalisation.py`, bump
-   `MATCHER_VERSION`, and re-run. A version change publishes a new snapshot and
-   leaves the previous one intact for comparison.
-
-**The bar for exposing links to viewers is zero false links across a full
-inspected run, sustained over several catalogue refreshes.** A wrong link on a
-legal record is worse than no link: it sends a lawyer to the wrong consultation.
+matcher version — never a title, topic text, URL, page body or HTML.
 
 ## Known limitations
 
-- Thresholds are calibrated on synthetic data only. This is the whole reason the
-  feature is shadow-only.
+- Thresholds were calibrated on synthetic data. Production behaviour is
+  inspected in the admin and corrected in code as a new matcher version.
 - Nine entries make the idf corpus very small, so rarity weighting is coarse.
 - A record whose page names the instrument nowhere — neither headline, summary
   nor body — cannot be matched by text at all.
 - Identifier and acronym signals are unweighted because the current pages carry
-  almost none. If shadow evaluation shows they fire, they should be weighted.
-- The organisation vocabulary is a fixed list and will need updating when a
-  ministry is renamed.
+  almost none.
+- The organisation vocabulary is a fixed list needing an update when a ministry
+  is renamed.
 - Records with neither a deadline nor a named organisation are scored on three
   signals rather than five, so their scores are noisier even after
   renormalisation.
-- The archive is not collected, so a consultation that closes between two runs
-  simply leaves the catalogue.
+- **Current-only**: a consultation that closes loses its link at the next match
+  run, by design. Collecting the archive would change this and is out of scope.
+- Only `Hetkel käsil` is matched. `Meie arvamus`, opinion PDFs and other Koda.ee
+  sections are future work and are not modelled.
 
-## Next planned pull request
+## Deployment and acceptance
 
-Expose verified `matched` decisions to viewers: supply `public_url` from the
-current match snapshot for high-confidence decisions only, keep plain text for
-`ambiguous` and `unmatched`, reuse the existing `legal_topic` component
-unchanged, add last-good match behaviour, install the two schedules, and show
-enrichment status on the legal-work module only — **not** as a fifth global
-freshness source. That pull request depends entirely on the acceptance above
-passing.
+After review and merge, on the deployment:
+
+1. collect the live catalogue — `sync_legal_current_topics --json`;
+2. run the matcher — `match_legal_current_topics --json`;
+3. re-run both and confirm each reports `unchanged`;
+4. in `/admin/`, open `Õigusloome sobitamise tulemused` filtered to the current
+   snapshot and read every `matched` row — the catalogue is small enough that no
+   sampling is needed;
+5. open `/oigusloome/` and confirm the linked topics are the ones the admin
+   listed as `matched`, and that everything else is plain text;
+6. adjust weights or thresholds in code if a false link appears, bump
+   `MATCHER_VERSION`, and re-run. A version change publishes a new snapshot and
+   leaves the previous one intact for comparison;
+7. install the two schedules only once the output has been read at least once.
+
+A wrong link sends a lawyer to the wrong consultation, so a false `matched`
+decision is the failure to watch for and the reason the thresholds are
+deliberately conservative.

@@ -3,7 +3,14 @@
 An ordinary protected page that reads PostgreSQL only. It never contacts
 Microsoft, never downloads or parses the workbook and never waits on OneDrive:
 synchronisation is a separate scheduled command, so a slow or broken OneDrive
-can never make this page slow or broken.
+can never make this page slow or broken. The same holds for Koda.ee — the
+automatic topic links below are resolved from rows a scheduled command already
+published, and rendering this page makes no outbound request of any kind.
+
+Every collection on the page is materialised before links are resolved, so the
+whole page costs **one** link query no matter how many rows it draws, and a
+record appearing in two lists is answered once. That is what guarantees a topic
+cannot be a link in one section and plain text in another.
 """
 
 from datetime import timedelta
@@ -27,6 +34,7 @@ from .selectors import (
     get_open_items,
     get_upcoming_deadlines,
 )
+from .topic_links import present_deadlines, present_topics, resolve_links_for
 
 # Reserved by the design as a view under Õigusloome. Nothing selects or stores a
 # focus topic, so the page names it as unconnected rather than showing an empty
@@ -45,6 +53,16 @@ def legal_work_overview(request):
     summary = get_legal_work_summary()
     snapshot = summary.snapshot
     window_start = timezone.localdate() - timedelta(days=ACTIVITY_WINDOW_DAYS)
+
+    # Materialised first, because the link lookup needs to know every record the
+    # page will draw before it runs. A record listed both as in-work and as an
+    # approaching deadline is asked about once and answered once.
+    open_items = list(get_open_items(snapshot))
+    sent_items = list(get_latest_sent_items(snapshot, limit=DEFAULT_RECENT_LIMIT))
+    received_items = list(get_newest_received_items(snapshot, limit=DEFAULT_RECENT_LIMIT))
+    deadlines = get_upcoming_deadlines(snapshot) if snapshot else ()
+    links = resolve_links_for(open_items, sent_items, received_items, deadlines)
+
     return render(
         request,
         "legal_work/overview.html",
@@ -56,9 +74,9 @@ def legal_work_overview(request):
             # paying for it twice.
             "freshness": current_freshness(summary),
             "summary": summary,
-            "open_items": get_open_items(snapshot),
-            "sent_items": get_latest_sent_items(snapshot, limit=DEFAULT_RECENT_LIMIT),
-            "received_items": get_newest_received_items(snapshot, limit=DEFAULT_RECENT_LIMIT),
+            "open_items": present_topics(open_items, links),
+            "sent_items": present_topics(sent_items, links),
+            "received_items": present_topics(received_items, links),
             # Counters are `None` rather than `0` when no snapshot is published,
             # so an unconnected source never reads as a quiet month. The summary
             # itself reports 0 for an absent snapshot, which is the right answer
@@ -68,7 +86,7 @@ def legal_work_overview(request):
             "total_count": summary.total_count if summary.has_data else None,
             "received_recent": count_received_since(snapshot, window_start) if snapshot else None,
             "sent_recent": count_sent_since(snapshot, window_start) if snapshot else None,
-            "deadlines": get_upcoming_deadlines(snapshot) if snapshot else (),
+            "deadlines": present_deadlines(deadlines, links),
             "activity_window_days": ACTIVITY_WINDOW_DAYS,
             "focus_topics": FOCUS_TOPICS,
         },

@@ -23,11 +23,14 @@ for it.
 open legal records, so most open records genuinely have no match. A matcher
 scoring every record against its nearest of nine will find "the best of nine"
 every time, and the best of nine is usually wrong. The absolute plausibility
-floor is therefore the load-bearing threshold, and a first shadow run that
-reports mostly ``unmatched`` is the correct result rather than a broken one.
+floor is therefore the load-bearing threshold, and a run that reports mostly
+``unmatched`` is the correct result rather than a broken one.
 
-Everything below is shadow-only. Nothing here reaches a viewer page, and no
-value computed here is ever written back onto a :class:`LegalWorkItem`.
+A ``matched`` decision from this module becomes a link on the Õigusloome page,
+so the conservative side of every threshold is the side that refuses. What no
+decision here ever does is change a :class:`LegalWorkItem`: the address is
+resolved at read time by :mod:`apps.legal_work.topic_links` and the imported row
+stays exactly what the workbook said.
 """
 
 from __future__ import annotations
@@ -83,9 +86,10 @@ GENERIC_TOKEN_DAMPING = 0.25
 # ---------------------------------------------------------------------------
 # Thresholds, on the documented 0–100 scale.
 #
-# These are **starting points chosen from synthetic tests**, not validated
-# truth. Production shadow evaluation calibrates them, and the feature does not
-# reach a viewer until it has. See docs/legal-current-topic-matching.md.
+# Chosen from synthetic tests written to resemble the real corpus, where true
+# pairs land in the sixties and above and false pairs in the teens. They are
+# revisited from what production actually produces, and the read-only admin
+# exists to make that inspectable. See docs/legal-current-topic-matching.md.
 # ---------------------------------------------------------------------------
 
 AUTO_MATCH_SCORE = Decimal("62.00")
@@ -475,7 +479,7 @@ def score_pair(
 
     # Evidence that is recorded but never weighted. These fire rarely on the
     # real pages, so weighting them now would tune the matcher on cases it has
-    # not yet met; the codes make them measurable during shadow evaluation.
+    # not yet met; the codes make them measurable in the admin first.
     shared_identifiers = legal.identifiers & candidate.identifiers
     if shared_identifiers:
         evidence.append(EVIDENCE_IDENTIFIER_MATCH)

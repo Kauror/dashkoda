@@ -17,7 +17,7 @@ Three datasets live here, and the boundary between them matters:
   own schedule under its own source;
 - the **derived match results** (`LegalCurrentTopicMatchSnapshot`,
   `LegalCurrentTopicMatch`) — what a deterministic matcher proposed about the
-  first two, in shadow mode.
+  first two.
 
 Nothing written by the second or third ever reaches a `LegalWorkItem`. The
 workbook rows are rebuilt from scratch on every import, so a match result stored
@@ -506,7 +506,7 @@ class CurrentTopicFeedState(models.Model):
 
 
 # --------------------------------------------------------------------------
-# Derived match results. Shadow mode.
+# Derived match results.
 #
 # These rows are **computed, not collected**: nothing was downloaded and no file
 # exists, so there is no source, no artifact and no import run here. The
@@ -606,9 +606,10 @@ class LegalCurrentTopicMatch(models.Model):
     """What the matcher decided about one open legal record.
 
     `best_candidate` is retained for `ambiguous` and `unmatched` rows too, and
-    that is the point of shadow mode: the candidate a run *rejected*, with the
-    score and the evidence that rejected it, is what the threshold calibration
-    is actually made of. Only a `matched` decision requires one.
+    that is deliberate: the candidate a run *rejected*, with the score and the
+    evidence that rejected it, is what threshold calibration is made of. Only a
+    `matched` decision requires one, and only a `matched` decision is ever
+    offered to a viewer.
 
     Both relations use `related_name="+"`. A reverse accessor from
     `LegalWorkItem` would be the first step towards a selector decorating

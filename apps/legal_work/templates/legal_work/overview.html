@@ -52,8 +52,8 @@ current snapshot the page renders the documented empty states instead.
         {% for deadline in deadlines %}
           <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
             <span class="flex-none text-micro font-semibold tracking-wide uppercase {% if deadline.variant == 'danger' %}text-danger{% elif deadline.variant == 'warning' %}text-warning{% else %}text-info{% endif %}">{{ deadline.remaining_label }}</span>
-            <span class="min-w-0 flex-1 text-sm text-text">{{ deadline.item.topic }}</span>
-            <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ deadline.item.deadline_date|date:'Y-m-d' }}">{{ deadline.item.deadline_date|date:"j.m.y" }}</time>
+            {% include "dashboard/components/legal_topic.html" with item=deadline.topic class_name="min-w-0 flex-1 text-sm" only %}
+            <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ deadline.deadline_date|date:'Y-m-d' }}">{{ deadline.deadline_date|date:"j.m.y" }}</time>
           </li>
         {% endfor %}
       </ul>
@@ -78,18 +78,23 @@ current snapshot the page renders the documented empty states instead.
             </tr>
           </thead>
           <tbody>
-            {% for item in open_items %}
+            {% comment %}
+            `row` is a presentation object: the imported record plus whatever
+            public address the read path resolved for it. Every column but the
+            topic reads `row.item`, which is the imported row untouched.
+            {% endcomment %}
+            {% for row in open_items %}
               <tr>
-                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.act_type|default:"—" }}</td>
+                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.act_type|default:"—" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
-                  {% if item.received_date %}{{ item.received_date|date:"j.m.y" }}{% else %}—{% endif %}
+                  {% if row.item.received_date %}{{ row.item.received_date|date:"j.m.y" }}{% else %}—{% endif %}
                 </td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
-                  {% if item.deadline_date %}{{ item.deadline_date|date:"j.m.y" }}{% else %}—{% endif %}
+                  {% if row.item.deadline_date %}{{ row.item.deadline_date|date:"j.m.y" }}{% else %}—{% endif %}
                 </td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.next_step|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.next_step|default:"—" }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -120,19 +125,19 @@ current snapshot the page renders the documented empty states instead.
             </tr>
           </thead>
           <tbody>
-            {% for item in sent_items %}
+            {% for row in sent_items %}
               <tr>
-                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.sent_date|date:"j.m.y" }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.recipient|default:"—" }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
+                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ row.item.sent_date|date:"j.m.y" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.recipient|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
                 {% comment %}
                 `default_if_none`, not `default`: a reported 0 is a real answer —
                 nobody responded — and must stay distinguishable from a topic
                 where the question was never tracked, which is the em dash.
                 {% endcomment %}
-                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ item.feedback_member_count|default_if_none:"—" }}</td>
-                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ item.feedback_requested_member_count|default_if_none:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ row.item.feedback_member_count|default_if_none:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ row.item.feedback_requested_member_count|default_if_none:"—" }}</td>
               </tr>
             {% endfor %}
           </tbody>
@@ -162,15 +167,15 @@ current snapshot the page renders the documented empty states instead.
             </tr>
           </thead>
           <tbody>
-            {% for item in received_items %}
+            {% for row in received_items %}
               <tr>
-                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{{ item.topic }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ item.received_date|date:"j.m.y" }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.act_type|default:"—" }}</td>
+                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ row.item.received_date|date:"j.m.y" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.act_type|default:"—" }}</td>
                 <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
-                  {% if item.deadline_date %}{{ item.deadline_date|date:"j.m.y" }}{% else %}—{% endif %}
+                  {% if row.item.deadline_date %}{{ row.item.deadline_date|date:"j.m.y" }}{% else %}—{% endif %}
                 </td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.stage|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
               </tr>
             {% endfor %}
           </tbody>

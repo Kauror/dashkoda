@@ -5,12 +5,18 @@ importer and never edited by hand, so no add, change or delete action is
 offered. The feed state shows a sanitized diagnostic and never a secret.
 
 The current-topic catalogue and the match results are registered the same way,
-and for them read-only is the *product*, not a precaution. The matcher runs in
-shadow mode: staff read what it proposed, score it against reality outside the
-application and calibrate the thresholds in code. There is deliberately no
-approve, reject, override or link action, because a manual mapping workflow is
-a different feature with different failure modes, and adding a button now would
-quietly turn a measurement exercise into a data-entry one.
+and for them read-only is the *product*, not a precaution. Linking is fully
+automatic: a topic becomes clickable on the Õigusloome page because the
+deterministic matcher classified it `matched`, and for no other reason. There is
+no approve, reject, override, force-match, suppress or manual-URL action here,
+and adding one would turn an automatic feature into a data-entry one with a
+second, invisible source of truth.
+
+What this admin is for is *understanding* — why a link appeared, why an obvious
+pair did not, and what the evidence and margins looked like — so the weights and
+thresholds in `current_topic_matching.py` can be corrected in code, reviewed, and
+released as a new matcher version. Staff inspection informs the matcher; it
+never overrides it.
 """
 
 from django.contrib import admin
@@ -104,7 +110,7 @@ class DecisionScoreBandFilter(admin.SimpleListFilter):
 
     A free numeric range would invite filtering to two decimal places on a
     number whose thresholds are still provisional. Bands answer the question
-    that matters during shadow evaluation — how much of the field is near the
+    that matters when calibrating — how much of the field sits near the
     automatic-match line — and stay meaningful when that line moves.
     """
 
@@ -220,9 +226,11 @@ class LegalCurrentTopicMatchAdmin(ReadOnlyAdmin):
     """One row per open legal record, with everything needed to judge it.
 
     The candidate's address is rendered as a link so a reviewer can open the
-    page and decide whether the proposal is right. That is a staff inspection
-    tool behind `/admin/`; it is not the viewer-facing link, and nothing on
-    `/oigusloome/` reads this model.
+    page and check the proposal. It is the same address `/oigusloome/` offers
+    when the decision is `matched` — but it is reached here through this model,
+    while the viewer reaches it through `topic_links.resolve_topic_links`, which
+    additionally insists both source snapshots are still the current ones. A row
+    visible here is therefore not proof that a viewer sees a link today.
     """
 
     list_display = (

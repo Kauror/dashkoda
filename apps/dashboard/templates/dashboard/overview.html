@@ -125,11 +125,11 @@ None of them reached this file.
         <div id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="firstSelected" class="flex-1">
           <h3 class="sr-only">Töös olevad teemad</h3>
           <ul class="divide-y divide-border">
-            {% for item in page.legal_work_open %}
+            {% for row in page.legal_work_open %}
               <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                {% include "dashboard/components/legal_topic.html" with item=item only %}
-                {% if item.deadline_date %}
-                  <span class="dk-meta flex-none whitespace-nowrap tabular-nums">tähtaeg {{ item.deadline_date|date:"j.m.y" }}</span>
+                {% include "dashboard/components/legal_topic.html" with item=row only %}
+                {% if row.item.deadline_date %}
+                  <span class="dk-meta flex-none whitespace-nowrap tabular-nums">tähtaeg {{ row.item.deadline_date|date:"j.m.y" }}</span>
                 {% else %}
                   <span class="dk-meta flex-none whitespace-nowrap">tähtajata</span>
                 {% endif %}
@@ -148,10 +148,10 @@ None of them reached this file.
         <div id="panel-received" role="tabpanel" aria-labelledby="tab-received" x-show="secondSelected" class="flex-1">
           <h3 class="sr-only">Viimased sisse tulnud</h3>
           <ul class="divide-y divide-border">
-            {% for item in page.legal_work_received %}
+            {% for row in page.legal_work_received %}
               <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                {% include "dashboard/components/legal_topic.html" with item=item only %}
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">sisse {{ item.received_date|date:"j.m.y" }}</span>
+                {% include "dashboard/components/legal_topic.html" with item=row only %}
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">sisse {{ row.item.received_date|date:"j.m.y" }}</span>
               </li>
             {% empty %}
               <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Sisse tulnud teemasid ei ole selles hetkeseisus.</li>
@@ -162,10 +162,10 @@ None of them reached this file.
         <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="thirdSelected" class="flex-1">
           <h3 class="sr-only">Viimati välja läinud</h3>
           <ul class="divide-y divide-border">
-            {% for item in page.legal_work_sent %}
+            {% for row in page.legal_work_sent %}
               <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                {% include "dashboard/components/legal_topic.html" with item=item only %}
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">välja {{ item.sent_date|date:"j.m.y" }}</span>
+                {% include "dashboard/components/legal_topic.html" with item=row only %}
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">välja {{ row.item.sent_date|date:"j.m.y" }}</span>
               </li>
             {% empty %}
               <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Välja läinud arvamusi ei ole selles hetkeseisus.</li>

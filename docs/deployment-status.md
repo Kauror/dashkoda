@@ -242,27 +242,35 @@ repository**, and none was entered during development.
 
 ## What the current-topic matching changes here
 
-**Nothing, deliberately.** No environment variable, no volume, no container, no
-schedule and no server-side change.
+**No environment variable, no volume, no container and no server-side change.**
+The pipeline needs no credential — the Koda.ee listing is an anonymous,
+read-only public endpoint on the existing host allowlist — and it retains no
+file: the artifact is metadata only.
 
-The Koda.ee `Hetkel käsil` collector and the deterministic matcher are
-implemented and tested, but the feature is **shadow-only and unscheduled**. Both
-commands exist and can be run by hand; neither is installed on the host, and no
-`ops/unraid/` template is added for them. The pipeline needs no credential — the
-listing is an anonymous, read-only public endpoint on the existing Koda.ee host
-allowlist — and it retains no file: the artifact is metadata only.
+What it does change is the interface. A `matched` decision makes a legal topic a
+link to its Koda.ee consultation page on `/oigusloome/` and on the overview card;
+everything else stays plain text. The address is resolved at read time from
+PostgreSQL, so **no page render contacts Koda.ee**.
 
-Nothing it produces is visible to a viewer. `/oigusloome/` and the overview are
-unchanged, no `public_url` is supplied to the shared `legal_topic` component, and
-the global freshness denominator is still four. A failure of either command
-cannot affect the legal workbook synchronisation, the current legal snapshot or
-the three existing public feeds.
+**No schedule is installed by this repository.** The intended times are 07:15
+`Europe/Tallinn` for `sync_legal_current_topics` and 07:20 for
+`match_legal_current_topics`, both after the 07:00 workbook job, and
+[`ops/unraid/sync_legal_current_topics.sh.example`](../ops/unraid/sync_legal_current_topics.sh.example)
+is a template an administrator copies, edits and schedules. It runs the two in
+sequence and attempts matching only when collection succeeded.
 
-The intended future schedule is a UTC cron pair running collection after the
-workbook synchronisation and matching after that. **It is not installed**, and it
-will not be until the production shadow acceptance in
-[legal-current-topic-matching.md](legal-current-topic-matching.md) has been run
-and its results accepted.
+A failure of either command cannot affect the legal workbook synchronisation,
+the current legal snapshot or the three existing public feeds: separate source,
+separate advisory lock, separate transaction. When either fails, the previous
+catalogue and match snapshots stay in storage, `/oigusloome/` keeps rendering,
+and topics whose links no longer satisfy the current-snapshot rules simply return
+to plain text.
+
+Until both commands have been run on the deployment there is no catalogue and no
+match snapshot, so every topic renders as plain text exactly as before. The
+global freshness denominator stays four; the catalogue is not a fifth source.
+See [legal-current-topic-matching.md](legal-current-topic-matching.md) for the
+acceptance steps.
 
 ## What PR-05 changed here
 

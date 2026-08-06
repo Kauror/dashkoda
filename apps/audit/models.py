@@ -137,8 +137,8 @@ class AuditAction(models.TextChoices):
         "legal_work.current_topic_sync_failed",
         "Hetkel käsil sünkroonimine ebaõnnestus",
     )
-    # Derived match results. Generated rather than collected, and shadow-only:
-    # no viewer page reads them in this phase.
+    # Derived match results: generated rather than collected. A `matched`
+    # decision is what makes a legal topic clickable on the Õigusloome page.
     CURRENT_TOPIC_MATCH_GENERATED = (
         "legal_work.current_topic_match_generated",
         "Õigusloome sobitamine arvutatud",
