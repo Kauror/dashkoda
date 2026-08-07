@@ -30,31 +30,29 @@ summary and not in a log line.
 from __future__ import annotations
 
 import logging
-import tempfile
 import uuid
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from django.db import transaction
 from django.utils import timezone
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
-from apps.core.feed_sync import find_published_artifact
 from apps.core.feeds import FeedLocked
 from apps.core.feeds import advisory_lock as _advisory_lock
 from apps.core.feeds import advisory_lock_key as _advisory_lock_key
-from apps.sources.models import SourceArtifact
-from apps.sources.services import register_external_reference
+from apps.sources.workbook_sync import (
+    ATTEMPT_FAILED,
+    ATTEMPT_UNCHANGED,
+    WorkbookFeed,
+    attempt_workbook_sync,
+)
 
 from .bootstrap import ensure_event_programme_source
 from .importer import IMPORTER_NAME, import_artifact
 from .models import EventProgrammeFeedState, EventProgrammeSnapshot, SyncResult
 from .public_download import (
-    XLSX_MIME_TYPE,
     PublicDownload,
-    PublicDownloadError,
-    PublicUrlNotConfigured,
     download_public_workbook,
 )
 
@@ -70,6 +68,16 @@ ADVISORY_LOCK_NAMESPACE = "dashkoda.event_programme.sync_event_programme"
 # provenance without exposing the sharing URL - possession of that URL is
 # possession of the file.
 PUBLIC_EXTERNAL_REFERENCE = "onedrive-public:sundmuste-programm"
+
+#: What distinguishes this feed from the other workbook feed. Everything
+#: else about a public-workbook run is mechanical and lives in
+#: `apps.sources.workbook_sync`.
+WORKBOOK_FEED = WorkbookFeed(
+    importer_name=IMPORTER_NAME,
+    filename=WORKBOOK_FILENAME,
+    external_reference=PUBLIC_EXTERNAL_REFERENCE,
+    temp_prefix="dashkoda-event-programme-",
+)
 
 EXIT_OK = 0
 EXIT_FAILED = 1
@@ -171,61 +179,25 @@ def synchronize_public_workbook(
     state.last_checked_at = timezone.now()
     state.save(update_fields=["last_checked_at", "updated_at"])
 
-    fetch = downloader if downloader is not None else download_public_workbook
+    attempt = attempt_workbook_sync(
+        feed=WORKBOOK_FEED,
+        source=source,
+        fetch=downloader if downloader is not None else download_public_workbook,
+        import_artifact=import_artifact,
+        dry_run=dry_run,
+        allow_collapse=allow_collapse,
+        actor=actor,
+        correlation_id=correlation_id,
+    )
 
-    # One temporary directory for the whole run. `TemporaryDirectory` removes it
-    # on every exit path - success, unchanged, validation failure, download
-    # failure and unexpected exception alike - so the workbook never outlives
-    # the command.
-    with tempfile.TemporaryDirectory(prefix="dashkoda-event-programme-") as directory:
-        download_path = Path(directory) / WORKBOOK_FILENAME
-
-        try:
-            download = fetch(download_path)
-        except PublicUrlNotConfigured:
-            # An operator's configuration mistake, not a synchronisation
-            # failure. The command reports it as plain text naming the missing
-            # variable rather than recording it as if the remote misbehaved.
-            raise
-        except PublicDownloadError as error:
-            return _fail(state, str(error), correlation_id=correlation_id, stage="download")
-        except Exception as error:
-            # Anything else unexpected is recorded rather than allowed to escape
-            # as a traceback from a cron job. The message is the exception's own
-            # text; nothing the downloader raises contains the URL.
-            message = f"{type(error).__name__}: {error}".replace("\n", " ")
-            return _fail(state, message, correlation_id=correlation_id, stage="download")
-
-        artifact, already_published = find_published_artifact(
-            source, download.sha256, IMPORTER_NAME
+    if attempt.status == ATTEMPT_FAILED:
+        return _fail(state, attempt.message, correlation_id=correlation_id, stage=attempt.stage)
+    if attempt.status == ATTEMPT_UNCHANGED:
+        return _record_unchanged(
+            state, attempt.download, dry_run=dry_run, correlation_id=correlation_id
         )
-        if already_published:
-            return _record_unchanged(
-                state, download, dry_run=dry_run, correlation_id=correlation_id
-            )
 
-        try:
-            # A previous dry run or a previous failed run already registered
-            # this content. Reuse that artifact: the checksum is unique per
-            # source, so registering a second one is both impossible and wrong.
-            artifact = artifact or _register_metadata_only(
-                source, download, correlation_id=correlation_id, actor=actor
-            )
-            result = import_artifact(
-                artifact,
-                workbook_path=download.path,
-                dry_run=dry_run,
-                allow_collapse=allow_collapse,
-                actor=actor,
-                correlation_id=correlation_id,
-            )
-        except Exception as error:
-            # Deliberately broad: this runs unattended every morning, and every
-            # failure - including an import-registry constraint violation - must
-            # be recorded and reported. The importer has already rolled back, so
-            # the previously published snapshot is intact.
-            message = f"{type(error).__name__}: {error}".replace("\n", " ")
-            return _fail(state, message, correlation_id=correlation_id, stage="import")
+    download, result = attempt.download, attempt.result
 
     logger.info(
         "event_programme.sync completed rows=%s dry_run=%s size=%s",
@@ -254,32 +226,6 @@ def synchronize_public_workbook(
         export_refreshed_at=snapshot.export_refreshed_at.isoformat(),
         rows_imported=result.rows_added,
         warnings=result.import_run.warnings,
-    )
-
-
-def _register_metadata_only(
-    source,
-    download: PublicDownload,
-    *,
-    correlation_id,
-    actor=None,
-) -> SourceArtifact:
-    """Register what the content *was*, without keeping the file.
-
-    The checksum and size were computed here from the bytes that were actually
-    received, so they are as trustworthy as an upload's - and they are the whole
-    content identity the import registry needs.
-    """
-    return register_external_reference(
-        source=source,
-        external_reference=PUBLIC_EXTERNAL_REFERENCE,
-        original_name=WORKBOOK_FILENAME,
-        mime_type=XLSX_MIME_TYPE,
-        sha256=download.sha256,
-        size_bytes=download.size_bytes,
-        uploaded_by=actor,
-        actor=actor,
-        correlation_id=correlation_id,
     )
 
 
