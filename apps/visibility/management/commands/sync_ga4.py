@@ -22,33 +22,25 @@ Exit codes:
     3  another collection was already running
 """
 
-import json
 from datetime import date
 
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.core.feed_commands import FeedCommandOutputMixin
 from apps.core.feeds import FeedLocked, FeedResult, advisory_lock
-from apps.legal_work.sync import EXIT_FAILED, EXIT_LOCKED
+from apps.legal_work.sync import EXIT_FAILED
 from apps.visibility.ga4_sync import LOCK_NAME, synchronize_ga4
 
 
-class Command(BaseCommand):
+class Command(FeedCommandOutputMixin, BaseCommand):
     help = (
         "Collect the previous completed day of Google Analytics website traffic "
         "and publish it as an immutable observation."
     )
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Query and validate without publishing an observation.",
-        )
-        parser.add_argument(
-            "--json",
-            action="store_true",
-            dest="as_json",
-            help="Emit one structured JSON line instead of prose.",
+        self.add_output_arguments(
+            parser, dry_run_help="Query and validate without publishing an observation."
         )
         parser.add_argument(
             "--date",
@@ -68,20 +60,14 @@ class Command(BaseCommand):
             with advisory_lock(LOCK_NAME):
                 outcome = synchronize_ga4(dry_run=options["dry_run"], period=period)
         except FeedLocked as error:
-            self._emit(
-                as_json,
-                {"result": "locked", "detail": str(error)},
-                f"Vahele jäetud: {error}",
-                style=self.style.WARNING,
-            )
-            raise SystemExit(EXIT_LOCKED) from None
+            self.exit_locked(error, as_json=as_json)
 
         payload = self._payload(outcome)
         if outcome.result == FeedResult.FAILED:
-            self._emit(as_json, payload, outcome.detail, style=self.style.ERROR)
+            self.emit(as_json, payload, outcome.detail, style=self.style.ERROR)
             raise SystemExit(EXIT_FAILED)
 
-        self._emit(as_json, payload, outcome.detail, style=self.style.SUCCESS)
+        self.emit(as_json, payload, outcome.detail, style=self.style.SUCCESS)
 
     def _period(self, raw: str | None) -> date | None:
         if raw is None:
@@ -113,9 +99,3 @@ class Command(BaseCommand):
             "observation_id": outcome.extra.get("observation_id"),
             "figures_reported": outcome.extra.get("figures_reported"),
         }
-
-    def _emit(self, as_json: bool, payload: dict, message: str, *, style) -> None:
-        if as_json:
-            self.stdout.write(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-        else:
-            self.stdout.write(style(message))

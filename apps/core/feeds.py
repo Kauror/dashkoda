@@ -8,9 +8,17 @@ Everything domain-specific — what a valid record is, what gets published, what
 the dashboard shows — stays in the domain app. This module deliberately holds no
 model, no query and no business rule.
 
-The legal-work module keeps its own copy of the advisory-lock helper. It works,
-it is covered by its own tests, and collapsing the two to save a dozen lines
-would put a working feed at risk for no product gain.
+The advisory-lock helper here is the **only** one. `legal_work` and
+`event_programme` each carried a character-for-character copy; this file used to
+argue for keeping them, on the grounds that collapsing three implementations to
+save a dozen lines put working feeds at risk for no product gain. The measured
+answer was that all three derived the key identically — same hash, same eight
+bytes, same byte order, same signedness — so consolidating could not move a
+single production lock id. What the copies actually bought was three places for
+a future fix to be applied to two of.
+
+Each feed still owns its lock **name**, which is what keeps the feeds
+independent, and may still supply its own contention message.
 """
 
 from __future__ import annotations
@@ -89,7 +97,7 @@ def advisory_lock_key(name: str) -> int:
 
 
 @contextmanager
-def advisory_lock(name: str):
+def advisory_lock(name: str, *, locked_message: str | None = None):
     """Session-level advisory lock held for one source's whole run.
 
     Per source, not per command: a slow events crawl must not stop membership
@@ -99,13 +107,20 @@ def advisory_lock(name: str):
     Session level rather than transaction level, because collection happens
     outside any transaction and holding one open across HTTP calls would pin a
     connection.
+
+    `locked_message` exists because the contention message reaches a scheduler
+    log and the `detail` field of a command's locked JSON. The two feeds that
+    had their own copy of this helper also had their own wording, and a
+    consolidation is not behaviour-preserving if it quietly rewrites what an
+    operator reads. Unifying the wording is a decision worth taking on purpose,
+    separately from moving the code.
     """
     key = advisory_lock_key(name)
     with connection.cursor() as cursor:
         cursor.execute("SELECT pg_try_advisory_lock(%s)", [key])
         acquired = cursor.fetchone()[0]
     if not acquired:
-        raise FeedLocked(f"Allika {name} sünkroonimine juba käib.")
+        raise FeedLocked(locked_message or f"Allika {name} sünkroonimine juba käib.")
     try:
         yield
     finally:

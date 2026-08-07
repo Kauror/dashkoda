@@ -14,6 +14,7 @@ its own lock, its own import run and its own transaction.
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 
 from django.db import transaction
 from django.utils import timezone
@@ -64,6 +65,22 @@ def find_published_artifact(source, sha256: str, importer_name: str):
         dry_run=False,
     ).exists()
     return artifact, already_published
+
+
+@dataclass(frozen=True)
+class ContentIdentity:
+    """What `start_run` needs to register an artifact: a digest and a size.
+
+    Most collectors hand it a whole collection object that happens to carry
+    both. A collector that computed the digest itself has nothing else to pass,
+    and used to build an anonymous class inline —
+    `type("Collection", (), {...})()` — which named nothing, documented nothing
+    and would fail at the call site rather than at construction if the seam ever
+    wanted a third attribute.
+    """
+
+    sha256: str
+    size_bytes: int
 
 
 def start_run(

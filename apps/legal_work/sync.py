@@ -19,16 +19,21 @@ an honest "last check failed" note.
 
 from __future__ import annotations
 
-import hashlib
 import logging
-from contextlib import contextmanager
 from dataclasses import dataclass, field
 
 from django.conf import settings
-from django.db import connection
 
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.core.feed_commands import (
+    EXIT_FAILED,
+    EXIT_LOCKED,  # noqa: F401 - re-exported; callers and tests import it from here
+    EXIT_OK,
+)
+from apps.core.feeds import FeedLocked
+from apps.core.feeds import advisory_lock as _advisory_lock
+from apps.core.feeds import advisory_lock_key as _advisory_lock_key
 
 from .models import LegalWorkFeedState, SyncResult
 
@@ -40,13 +45,10 @@ WORKBOOK_FILENAME = "dashkoda_oigusloome.xlsx"
 # someone else picks later.
 ADVISORY_LOCK_NAMESPACE = "dashkoda.legal_work.sync_oigusloome"
 
-EXIT_OK = 0
-EXIT_FAILED = 1
-EXIT_LOCKED = 3
-
-
-class SyncLocked(RuntimeError):
-    """Another synchronisation is already running."""
+# `EXIT_OK`, `EXIT_FAILED` and `EXIT_LOCKED` are imported above from
+# `apps.core.feed_commands`, which now owns them: every feed command uses the
+# same three. They stay importable from here because callers and tests have
+# always taken them from this module.
 
 
 @dataclass
@@ -77,31 +79,30 @@ class SyncOutcome:
         }
 
 
+#: The wording this feed has always used when its lock is held. Passed to the
+#: shared helper so the operator-visible message is byte-identical to what it
+#: was when this module carried its own copy of the lock.
+LOCKED_MESSAGE = "Teine sünkroonimine juba käib."
+
+#: This feed's own exception name, kept because `except SyncLocked` reads better
+#: beside the feed's code and every caller and test already uses it. It **is**
+#: `FeedLocked` rather than a subclass, so a lock taken through the shared
+#: helper is caught by either name.
+SyncLocked = FeedLocked
+
+
 def advisory_lock_key(name: str = ADVISORY_LOCK_NAMESPACE) -> int:
-    """A stable signed 64-bit key for `pg_try_advisory_lock`."""
-    digest = hashlib.sha256(name.encode("utf-8")).digest()[:8]
-    return int.from_bytes(digest, "big", signed=True)
+    """This feed's lock key, from the canonical derivation."""
+    return _advisory_lock_key(name)
 
 
-@contextmanager
 def advisory_lock(name: str = ADVISORY_LOCK_NAMESPACE):
-    """Session-level advisory lock held for the whole run.
+    """This feed's session-level lock, from the canonical helper.
 
-    Session level rather than transaction level, because the sync downloads and
-    parses outside any transaction and holding one open for that long would pin
-    a connection and bloat the database.
+    The name stays this module's, which is what keeps the feed independent of
+    every other one; only the mechanism is shared.
     """
-    key = advisory_lock_key(name)
-    with connection.cursor() as cursor:
-        cursor.execute("SELECT pg_try_advisory_lock(%s)", [key])
-        acquired = cursor.fetchone()[0]
-    if not acquired:
-        raise SyncLocked("Teine sünkroonimine juba käib.")
-    try:
-        yield
-    finally:
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT pg_advisory_unlock(%s)", [key])
+    return _advisory_lock(name, locked_message=LOCKED_MESSAGE)
 
 
 def get_feed_state(source) -> LegalWorkFeedState:
