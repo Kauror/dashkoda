@@ -113,11 +113,22 @@ class MatchReport:
 
 @dataclass
 class _Preview:
-    """What a dry run knows about one record: enough to resolve competition."""
+    """What a dry run knows about one record: enough to resolve competition.
+
+    Deliberately the same shape `_resolve_competing_primaries` reads off a real
+    `LegalOpinionDecision`, so the one function can rank a preview and a live
+    row identically.
+
+    `score` has no default on purpose. It used to default to zero, and the one
+    construction site never passed it, so every previewed claim tied at zero and
+    a date-gap tie demoted both sides instead of picking the stronger one.
+    Requiring it makes that omission a `TypeError` rather than a silent
+    disagreement with the live run.
+    """
 
     legal_item: object
     decision: str
-    score: Decimal = Decimal("0.00")
+    score: Decimal
     contradiction_codes: list = field(default_factory=list)
 
 
@@ -251,6 +262,50 @@ def _ensure_matters(items: list[LegalWorkItem], snapshot: LegalWorkSnapshot) -> 
     return resolved, len(collisions)
 
 
+def _planned_relations(decisions, relation_plan):
+    """Every relation a matched decision would publish, in publication order.
+
+    Yields `(index, primary, [(secondary, role), ...])`.
+
+    Shared by the live path, which turns these into rows, and the dry run, which
+    counts them. Two implementations of "which documents does this decision
+    link?" would be two chances for a preview to disagree with publication, and
+    that disagreement is exactly what a dry run exists to rule out.
+    """
+    for index, scored_list in relation_plan:
+        if decisions[index].decision != MatchDecision.MATCHED or not scored_list:
+            continue
+        primary, *rest = scored_list
+        secondaries = [
+            (secondary, SECONDARY_ROLE[secondary.candidate.classification])
+            for secondary in rest
+            if secondary.candidate.classification in SECONDARY_ROLE
+        ]
+        yield index, primary, secondaries
+
+
+def _preview_identity(items) -> tuple[dict[int, str], set[str], int]:
+    """Resolve durable identity for a dry run, writing nothing.
+
+    Returns the key each record would resolve to, the keys that cannot carry a
+    link, and how many keys collided in this snapshot.
+
+    A key is unusable either because two materially different records in this
+    snapshot claim it, or because a previous run already flagged the matter.
+    `has_ambiguous_identity` is only ever set and never cleared, so reading the
+    stored flag alongside this snapshot's collisions gives the same answer the
+    live run would reach after `_ensure_matters`.
+    """
+    grouped, collisions = resolve_matter_key(items)
+    keys_by_item = {row.pk: key for key, rows in grouped.items() for row in rows}
+    already_flagged = set(
+        LegalMatter.objects.filter(
+            matter_key__in=list(grouped), has_ambiguous_identity=True
+        ).values_list("matter_key", flat=True)
+    )
+    return keys_by_item, collisions | already_flagged, len(collisions)
+
+
 def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> MatchReport:
     items = list(opinion_eligible_items(LegalWorkItem.objects.filter(snapshot=legal_snapshot)))
     candidates = _candidates(catalogue)
@@ -264,14 +319,43 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
         # resolution, which is part of that decision. Leaving it out made a dry
         # run promise one more match than the live run would produce, which is
         # the one thing a dry run must not do.
+        #
+        # Two inputs to that decision have to be reproduced exactly, or the
+        # preview goes wrong in the same way for a different reason:
+        #
+        # - the **candidate score**. `_resolve_competing_primaries` breaks a
+        #   date-gap tie on score, and a preview that left it at zero made every
+        #   tied claim look equal — so both sides were demoted and the dry run
+        #   under-promised a match the live run would keep;
+        # - the **durable identity**. A live run demotes a match whose matter has
+        #   an ambiguous identity, and reports how many keys collided.
+        #
+        # Both are derived read-only here: `resolve_matter_key` writes nothing,
+        # and an existing matter's flag is only ever set, never cleared, so the
+        # effective value is what the live run would find.
+        keys_by_item, ambiguous_keys, collisions = _preview_identity(items)
+        report.identity_collisions = collisions
+
         preview: list = []
         preview_plan: list = []
         for item in items:
             decision, best, _runner, extra = _decide(item, candidates, rarity)
-            preview.append(_Preview(item, decision))
+            if decision == MatchDecision.MATCHED and keys_by_item.get(item.pk) in ambiguous_keys:
+                decision = MatchDecision.AMBIGUOUS
+            score = best.score if best else Decimal("0.00")
+            preview.append(_Preview(item, decision, score=score))
             preview_plan.append((len(preview) - 1, [best, *extra] if best else []))
             _count(report, decision)
         _resolve_competing_primaries(preview, preview_plan, report)
+
+        # Count the links publication would create, through the same planner the
+        # live path uses. A preview that reported no relations at all was
+        # technically true — a dry run publishes nothing — but useless: the
+        # operator wants to know how many resource pages this run would fill in.
+        for _index, _primary, secondaries in _planned_relations(preview, preview_plan):
+            report.primary_relations += 1
+            report.secondary_relations += len(secondaries)
+
         report.detail = (
             f"Proovikäivitus: {len(items)} kirjet, {report.matched} seotud, "
             f"{report.ambiguous} ebaselget, {report.unmatched} sidumata. "
@@ -337,11 +421,8 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
         LegalOpinionDecision.objects.bulk_create(decisions, batch_size=200)
 
         relations: list[LegalOpinionDocumentRelation] = []
-        for index, scored_list in relation_plan:
+        for index, primary, secondaries in _planned_relations(decisions, relation_plan):
             decision = decisions[index]
-            if decision.decision != MatchDecision.MATCHED or not scored_list:
-                continue
-            primary = scored_list[0]
             relations.append(
                 LegalOpinionDocumentRelation(
                     decision=decision,
@@ -352,10 +433,7 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
                     evidence_codes=sorted(primary.evidence),
                 )
             )
-            for secondary in scored_list[1:]:
-                role = SECONDARY_ROLE.get(secondary.candidate.classification)
-                if role is None:
-                    continue
+            for secondary, role in secondaries:
                 relations.append(
                     LegalOpinionDocumentRelation(
                         decision=decision,

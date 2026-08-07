@@ -12,6 +12,7 @@ refuses, and what never appears in the markup.
 from __future__ import annotations
 
 import datetime as dt
+from dataclasses import dataclass
 
 import pytest
 from django.urls import reverse
@@ -35,7 +36,8 @@ from apps.legal_work.opinion_match_models import (
     LegalOpinionMatchSnapshot,
     OpinionResource,
 )
-from apps.legal_work.opinion_match_sync import run_opinion_matching
+from apps.legal_work.opinion_match_sync import MatchReport, run_opinion_matching
+from apps.legal_work.opinion_matching import THRESHOLD_MATCH
 from apps.legal_work.opinion_models import OpinionCatalogueEntry, OpinionDocumentBlob
 from apps.legal_work.opinion_pdf import ValidationStatus
 from apps.legal_work.topic_links import resolve_opinion_links
@@ -45,6 +47,34 @@ from .opinion_match_factory import letter, publish_catalogue
 pytestmark = [pytest.mark.django_db, pytest.mark.filterwarnings("ignore::UserWarning")]
 
 SENT = dt.date(2026, 3, 10)
+
+
+@dataclass
+class _CandidateStub:
+    """Only what the competing-claim tie-break reads off a candidate."""
+
+    entry_id: int
+    filename_date: dt.date
+    detected_date: dt.date | None = None
+
+
+@dataclass
+class _ScoredStub:
+    """A scored candidate, reduced to the tie-break's view of one."""
+
+    entry_id: int
+    candidate_date: dt.date
+
+    @property
+    def candidate(self) -> _CandidateStub:
+        return _CandidateStub(entry_id=self.entry_id, filename_date=self.candidate_date)
+
+
+@dataclass
+class _ItemStub:
+    """A legal record, reduced to the date the tie-break compares."""
+
+    sent_date: dt.date
 
 
 # -- eligibility ------------------------------------------------------------
@@ -227,6 +257,153 @@ class TestMatching:
             live.ambiguous,
             live.unmatched,
         )
+
+    def test_a_dry_run_breaks_a_date_tie_on_score_exactly_as_a_live_run_does(
+        self, opinion_roots, opinion_source, imported_snapshot
+    ):
+        """Equal date gaps, unequal scores, one letter: the exact regression.
+
+        `_resolve_competing_primaries` ranks a claim by date agreement first and
+        by score second. The preview object never carried a score, so both
+        claims tied at zero; the tie-break reads a tie as "neither is stronger"
+        and demotes **both**. A live run, whose rows do carry the score, kept the
+        stronger one. So the dry run reported one match fewer than the live run
+        published — the opposite direction to the case already covered above,
+        and invisible to it because those two records differ on date.
+
+        Here they cannot: two records on the same instrument, sent two days
+        either side of the letter, agree with it equally well. Only the
+        recipient separates them, and therefore only the score.
+        """
+        source, _ = opinion_roots
+        items = list(LegalWorkItem.objects.filter(snapshot=imported_snapshot))
+        topic = "Maksukorralduse seaduse muutmise seaduse eelnõu 130 SE"
+        stronger, weaker = items[0], items[1]
+
+        # Identical topics, different received dates: two distinct durable
+        # matters competing for one letter, rather than one colliding key.
+        LegalWorkItem.objects.filter(pk=stronger.pk).update(
+            topic=topic,
+            sent_status=SentStatus.SENT,
+            sent_date=SENT - dt.timedelta(days=2),
+            received_date=dt.date(2026, 2, 1),
+            recipient="Rahandusministeerium",
+        )
+        LegalWorkItem.objects.filter(pk=weaker.pk).update(
+            topic=topic,
+            sent_status=SentStatus.SENT,
+            sent_date=SENT + dt.timedelta(days=2),
+            received_date=dt.date(2026, 2, 2),
+            recipient="Justiitsministeerium",
+        )
+        LegalWorkItem.objects.filter(snapshot=imported_snapshot).exclude(
+            pk__in=[stronger.pk, weaker.pk]
+        ).update(sent_status=SentStatus.PENDING, sent_date=None)
+
+        publish_catalogue(
+            source,
+            [
+                letter(
+                    date=SENT,
+                    recipient="Rahandusministeerium",
+                    subject=f"Arvamus {topic} kohta",
+                )
+            ],
+        )
+
+        preview = run_opinion_matching(dry_run=True)
+        live = run_opinion_matching()
+
+        decisions = {row.legal_item_id: row for row in LegalOpinionDecision.objects.all()}
+        strong, weak = decisions[stronger.pk], decisions[weaker.pk]
+
+        # The scenario has to be the one described, or the test proves nothing.
+        assert strong.score > weak.score, (
+            "the two records must score differently for the tie-break to be "
+            f"reached; got {strong.score} and {weak.score}"
+        )
+        assert min(strong.score, weak.score) >= THRESHOLD_MATCH, (
+            "both records must independently reach a match, or they never "
+            f"compete; got {strong.score} and {weak.score}"
+        )
+
+        # What the live run actually did.
+        assert (live.matched, live.ambiguous) == (1, 1)
+        assert strong.decision == MatchDecision.MATCHED
+        assert weak.decision == MatchDecision.AMBIGUOUS
+
+        # ...and what the dry run promised it would do.
+        assert (preview.matched, preview.ambiguous, preview.unmatched) == (
+            live.matched,
+            live.ambiguous,
+            live.unmatched,
+        )
+        assert preview.primary_relations == live.primary_relations == 1
+        assert preview.secondary_relations == live.secondary_relations
+
+    def test_the_tie_break_keeps_the_higher_scoring_claim(self):
+        """The winner itself, at the level the dry run resolves it.
+
+        `_resolve_competing_primaries` is the one function both paths use, and a
+        preview now reaches it carrying the same score a published row would.
+        """
+        from decimal import Decimal
+
+        from apps.legal_work.opinion_match_sync import _Preview, _resolve_competing_primaries
+
+        report = MatchReport(result="generated", matched=2)
+        scored = _ScoredStub(entry_id=7, candidate_date=SENT)
+        previews = [
+            _Preview(_ItemStub(SENT - dt.timedelta(days=2)), MatchDecision.MATCHED, Decimal("91")),
+            _Preview(_ItemStub(SENT + dt.timedelta(days=2)), MatchDecision.MATCHED, Decimal("81")),
+        ]
+
+        _resolve_competing_primaries(previews, [(0, [scored]), (1, [scored])], report)
+
+        assert previews[0].decision == MatchDecision.MATCHED
+        assert previews[1].decision == MatchDecision.AMBIGUOUS
+        assert (report.matched, report.ambiguous) == (1, 1)
+
+    def test_a_dry_run_reports_the_identity_collisions_a_live_run_records(
+        self, opinion_roots, opinion_source, imported_snapshot
+    ):
+        """A colliding key demotes a match, so a preview must see it too.
+
+        The live run flags the matter in `_ensure_matters` and refuses to link
+        it. The dry run writes nothing, so it derives the same answer from
+        `resolve_matter_key` instead of ignoring the rule.
+        """
+        source, _ = opinion_roots
+        items = list(LegalWorkItem.objects.filter(snapshot=imported_snapshot))
+        topic = "Maksukorralduse seaduse muutmise seaduse eelnõu 130 SE"
+
+        # Same topic *and* same received date: one key, two records, so the
+        # matter is ambiguous and can never carry a link.
+        for item in items[:2]:
+            LegalWorkItem.objects.filter(pk=item.pk).update(
+                topic=topic,
+                sent_status=SentStatus.SENT,
+                sent_date=SENT,
+                received_date=dt.date(2026, 2, 1),
+                recipient="Rahandusministeerium",
+            )
+        LegalWorkItem.objects.filter(snapshot=imported_snapshot).exclude(
+            pk__in=[i.pk for i in items[:2]]
+        ).update(sent_status=SentStatus.PENDING, sent_date=None)
+
+        publish_catalogue(source, [letter(date=SENT, subject=f"Arvamus {topic} kohta")])
+
+        preview = run_opinion_matching(dry_run=True)
+        live = run_opinion_matching()
+
+        assert live.identity_collisions == 1
+        assert preview.identity_collisions == live.identity_collisions
+        assert (preview.matched, preview.ambiguous, preview.unmatched) == (
+            live.matched,
+            live.ambiguous,
+            live.unmatched,
+        )
+        assert preview.matched == 0, "an ambiguous identity can never carry a link"
 
     def test_no_legal_row_is_mutated(self, matched_world):
         item, _report = matched_world
