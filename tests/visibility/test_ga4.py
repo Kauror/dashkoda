@@ -145,3 +145,121 @@ def test_the_contract_refuses_a_negative_figure():
 
     with pytest.raises(ValueError):
         reading.validate()
+
+
+# -- what the Data API can actually answer with -------------------------
+#
+# `_read` is the parsing half of `Ga4ApiCollector.collect`, split out so every
+# response shape is reachable without a credential or a socket. The shape that
+# mattered is `"rows": []` — a period with no traffic — which used to raise
+# `IndexError` and kill the scheduled command with a traceback.
+
+DAY = date(2026, 7, 1)
+
+
+def read(payload):
+    return Ga4ApiCollector._read(payload, period_start=DAY, period_end=DAY)
+
+
+def test_a_normal_response_is_read():
+    reading = read(
+        {"rows": [{"metricValues": [{"value": "412"}, {"value": "301"}, {"value": "988"}]}]}
+    )
+
+    assert (reading.sessions, reading.active_users, reading.page_views) == (412, 301, 988)
+    assert reading.period_start == DAY
+
+
+def test_an_empty_rows_list_is_no_data_rather_than_a_crash():
+    """The regression: GA4 omits rows entirely for a day with no traffic."""
+    reading = read({"rows": []})
+
+    assert (reading.sessions, reading.active_users, reading.page_views) == (None, None, None)
+
+
+def test_a_missing_rows_key_is_also_no_data():
+    reading = read({})
+
+    assert (reading.sessions, reading.active_users, reading.page_views) == (None, None, None)
+
+
+def test_a_null_rows_value_is_also_no_data():
+    reading = read({"rows": None})
+
+    assert reading.sessions is None
+
+
+def test_no_data_is_never_reported_as_zero():
+    """An absence of measurement and a measured zero are different facts."""
+    payload = read({"rows": []}).canonical_payload()
+
+    assert payload["sessions"] is None
+    assert payload["sessions"] != 0
+
+
+def test_a_genuine_zero_is_still_a_reading():
+    """If GA4 does report zeroes, they are real values and are kept."""
+    reading = read({"rows": [{"metricValues": [{"value": "0"}, {"value": "0"}, {"value": "0"}]}]})
+
+    assert (reading.sessions, reading.active_users, reading.page_views) == (0, 0, 0)
+    assert reading.canonical_payload()["sessions"] == 0
+
+
+def test_no_data_and_a_measured_zero_hash_differently():
+    """The content digest decides idempotence, so they must not collide."""
+    import hashlib
+    import json
+
+    def digest(reading):
+        return hashlib.sha256(
+            json.dumps(reading.canonical_payload(), sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+
+    empty = read({"rows": []})
+    zeroes = read({"rows": [{"metricValues": [{"value": "0"}] * 3}]})
+
+    assert digest(empty) != digest(zeroes)
+
+
+def test_too_few_metrics_is_refused():
+    with pytest.raises(ValueError, match="nõutud veebistatistika"):
+        read({"rows": [{"metricValues": [{"value": "412"}]}]})
+
+
+def test_a_row_with_no_metric_values_is_refused():
+    """Distinct from no rows: a row that reports nothing is malformed."""
+    with pytest.raises(ValueError, match="nõutud veebistatistika"):
+        read({"rows": [{}]})
+
+
+def test_a_non_numeric_value_is_refused():
+    with pytest.raises(ValueError, match="ei ole arv"):
+        read({"rows": [{"metricValues": [{"value": "palju"}] * 3}]})
+
+
+def test_a_null_value_is_refused():
+    with pytest.raises(ValueError, match="ei ole arv"):
+        read({"rows": [{"metricValues": [{"value": None}] * 3}]})
+
+
+def test_a_metric_without_a_value_key_is_refused():
+    with pytest.raises(ValueError, match="ilma väärtuseta"):
+        read({"rows": [{"metricValues": [{"nimi": "sessions"}] * 3}]})
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        [],
+        "rows",
+        None,
+        {"rows": "none"},
+        {"rows": ["not a row"]},
+        {"rows": [{"metricValues": "412"}]},
+    ],
+    ids=["list", "string", "null", "rows-string", "row-string", "values-string"],
+)
+def test_a_malformed_document_is_refused_rather_than_raising_a_type_error(payload):
+    """Every rejection is a `ValueError` the command already handles."""
+    with pytest.raises(ValueError):
+        read(payload)
