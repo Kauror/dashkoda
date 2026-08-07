@@ -65,7 +65,15 @@ class TestThereIsOneImplementation:
         assert legal_sync.advisory_lock_key() == advisory_lock_key(LEGAL_WORK)
         assert event_sync.advisory_lock_key() == advisory_lock_key(EVENT_PROGRAMME)
 
-    def test_neither_module_still_hashes_anything_itself(self):
+    def test_neither_module_still_derives_a_key_itself(self):
+        """No second lock implementation, and no second key derivation.
+
+        Checked as "does not import `hashlib`" rather than "does not contain
+        `sha256`": both modules legitimately read `download.sha256`, the
+        workbook's own content checksum, which has nothing to do with a lock.
+        Deriving a key needs `hashlib`, and neither module imports it any more.
+        """
+        import ast
         import inspect
 
         from apps.event_programme import sync as event_sync
@@ -74,7 +82,14 @@ class TestThereIsOneImplementation:
         for module in (legal_sync, event_sync):
             source = inspect.getsource(module)
             assert "pg_try_advisory_lock" not in source, "a second lock implementation is back"
-            assert "sha256" not in source, "a second key derivation is back"
+
+            imported = set()
+            for node in ast.walk(ast.parse(source)):
+                if isinstance(node, ast.Import):
+                    imported.update(alias.name for alias in node.names)
+                elif isinstance(node, ast.ImportFrom) and node.module:
+                    imported.add(node.module)
+            assert "hashlib" not in imported, "a second key derivation is back"
 
     def test_the_feed_exception_is_the_shared_one(self):
         """`except SyncLocked` must catch what the shared helper raises."""
