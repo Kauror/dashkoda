@@ -121,7 +121,7 @@ class Ga4ConnectionStatus:
 
 @dataclass(frozen=True)
 class WebsiteTrafficReading:
-    """The normalised shape a future collector must produce.
+    """The normalised shape the collector produces.
 
     Not a model instance: the collector's job ends at a validated, hashable
     description of one reporting period, and the publication service turns it

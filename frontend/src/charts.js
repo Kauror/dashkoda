@@ -1,12 +1,11 @@
 /*
  * DashKoda chart bootstrap.
  *
- * This module is bundled locally and is deliberately not referenced by any
- * template yet: PR-04 has no verified data, and an invented chart would be a
- * fabricated metric. It exists so that the first real data module can mount a
- * chart without redesigning the frontend build or the Content Security Policy.
+ * Bundled locally and mounted by the Liikmeskond page, which draws the
+ * membership trend. It was written before any module had verified data to draw
+ * and deliberately left unreferenced until one did; that is no longer the case.
  *
- * Contract for later modules:
+ * Contract for a module that mounts a chart:
  *
  *   <figure data-chart data-chart-payload="membership-trend">
  *     <div data-chart-canvas role="img" aria-label="...text alternative..."></div>

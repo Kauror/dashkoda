@@ -84,7 +84,7 @@ satisfy both.
 ## The matcher
 
 ```
-opinion-1.0-norm<normaliser>-extract<extractor>
+opinion-1.1-norm<normaliser>-extract<extractor>
 ```
 
 Its own weights, thresholds and rarity corpus — never a consultation matcher's.

@@ -15,8 +15,8 @@ token, route definition or production environment value belongs in Git. See
 
 The presentation layer is server-rendered Django templates with HTMX and the
 Alpine.js CSP build under a strict Content Security Policy. Tailwind CSS 4
-provides styling and ECharts is bundled for charts, though no chart is rendered
-yet. Web typography uses
+provides styling and ECharts is bundled for charts; the Liikmeskond page draws
+the membership trend with it. Web typography uses
 `system-ui, -apple-system, "Segoe UI", Arial, sans-serif`.
 
 See [design-system.md](design-system.md) for the visual language,
@@ -116,8 +116,9 @@ The future monolith will separate shared infrastructure from business modules:
   selectors, the calendar collector and its feed state. It is **supplementary**:
   it has no route, it produces no dashboard total and it never overrides an
   event-programme field. The Sündmused page names it as a secondary connection.
-- `visibility` owns the manually observed audience sizes — the two newsletter
-  lists and their overlap, and the four social follower counts — their metric
+- `visibility` owns the manually observed audience sizes — the three newsletter
+  lists, each reported on its own and never summed, and the four social follower
+  counts — their metric
   registry, selectors, staff entry workflow, the Nähtavus page, the overview's
   channel band and the Google Analytics website-traffic collector (`sync_ga4`,
   optional and off until the deployment supplies a property ID and a read-only
@@ -134,11 +135,10 @@ publication decision stays in its own app.
 Exact future app names and models are introduced only by their implementing pull
 requests. No pull request creates placeholder business apps or models. The
 overview, Liikmeskond, Õigusloome, Sündmused, Uudised and Nähtavus are routed;
-every
-still-planned module appears in the navigation as an inert entry marked
-`Lisamisel` and has no route. That includes the nested entries — Fookusteemad
-under Õigusloome, and Projektid with its two views — which exist so the sidebar
-states the intended scope without a placeholder app behind any of them.
+every still-planned module appears in the navigation as an inert entry marked
+`Lisamisel` and has no route. One nested entry remains — Fookusteemad under
+Õigusloome — which exists so the sidebar states the intended scope without a
+placeholder app behind it.
 
 The overview assembles its view-model in `apps/dashboard/overview.py`, which
 reads each module through that module's own `selectors.py` and decides what the
@@ -255,8 +255,11 @@ The build is bounded and resumable: a slice per run, and a snapshot published
 only once every entry has a terminal state, so a partial backfill never becomes
 current. See [legal-opinion-documents.md](legal-opinion-documents.md).
 
-Phase 1 catalogues only. No legal topic links to a document, no resource page
-exists and no PDF is served; that is the next phase.
+Phase 2 has since shipped: sent legal records are matched to opinion documents,
+each durable matter has an internal resource page at a UUID route, and the PDF
+is served from the private blob store to any authenticated viewer. Matching,
+identity and the resource pages are described in
+[legal-opinion-matching.md](legal-opinion-matching.md).
 
 ### Data that is not collected at all
 
@@ -313,7 +316,7 @@ and the internal board-report history count different things; see
 - restyled viewer login page
 - one neutral HTMX fragment and its `HX-Redirect` session handling
 - locally bundled ECharts bootstrap, rendered by the Liikmeskond page
-- Playwright browser smoke suite across four viewports in CI
+- Playwright browser smoke suite across six viewports in CI
 - `sources` app: `DataSource`, private `SourceArtifact`, `ImportRun` registry
 - private artifact storage outside every served path, with a staff-only,
   permission-guarded download
@@ -377,8 +380,10 @@ collected and are not modelled. Neither opinion command is scheduled by this
 repository; the intended times are documented and the Unraid templates are
 examples, not installations.
 
-Arvamused, Finantsid, Fookusteemad and Projektid are inert navigation entries,
-because no source is connected for any of them.
+Fookusteemad is an inert navigation entry, because no source is connected for
+it. Arvamused, Finantsid and Projektid were inert entries too and were removed
+at the board's request: naming a module the sidebar cannot open earns its place
+only while somebody is waiting for it.
 
 Nothing **collects** the communication-channel audience figures. Six of the
 seven can be stored — a staff user types them in and `apps/visibility`

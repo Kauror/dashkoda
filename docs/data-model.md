@@ -356,8 +356,9 @@ model, the quality policy and the manual workflow.
 `apps/visibility` is the second dataset with no remote source. Three models:
 `VisibilityEntryBatch` (one submission, one idempotency boundary, one
 correlation ID), `VisibilityObservation` (one metric on one date, immutable
-apart from `is_current_for_date`) and `WebsiteTrafficObservation` (the Google
-Analytics shape, which **nothing writes yet**).
+apart from `is_current_for_date`) and `WebsiteTrafficObservation`, which the
+scheduled `sync_ga4` command writes — the one collected figure in this module,
+and one the deployment has not enabled, so the table is empty in practice.
 
 The metric vocabulary is a closed `TextChoices` set of seven, deliberately not a
 JSON blob: a free-text metric name would make "was this ever reported"

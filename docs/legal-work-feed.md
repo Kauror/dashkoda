@@ -44,9 +44,9 @@ the layout.
 rejected, so the generator can add metadata without breaking the importer.
 
 `dataset_key` must be `oigusloome`. Supported `schema_version` values are
-**`1.0` and `1.1`**.
+**`1.0`, `1.1` and `1.2`**.
 
-### Why two schema versions
+### Why three schema versions
 
 The brief specified `1.0`; the generator emits `1.1`. The `DATA` table is
 identical between them — 1.1 only added CONTROL metadata (`overview_year`,
@@ -485,7 +485,7 @@ target.save(update_fields=["is_current"])
 | Symptom | Cause |
 | --- | --- |
 | `puudub Exceli tabel 'tbl_oigusloome'` | the generator did not write the DATA table |
-| `Toetamata skeemi versioon` | the workbook declares a version outside `{1.0, 1.1}` |
+| `Toetamata skeemi versioon` | the workbook declares a version outside `{1.0, 1.1, 1.2}` |
 | `CONTROL ei ole DATA lehega kooskõlas` | the workbook's own summary disagrees with its rows |
 | `CONTROL lehe väljad on tühjad` | a required CONTROL key was written with an empty value |
 | `DATA lehel puudub Exceli tabel` after an upload | the workbook was round-tripped through Excel Online, which strips the table |

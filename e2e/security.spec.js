@@ -47,7 +47,9 @@ test("the ECharts bootstrap module loads under the same policy without errors", 
   const api = await page.evaluate(() => Object.keys(window.DashKodaCharts).sort());
   expect(api).toEqual(["chartTheme", "mountChart", "mountCharts", "readPayload"]);
 
-  // No chart is mounted anywhere yet: PR-04 has no verified data to draw.
+  // Nothing mounts on this page. The chart module is loaded here only to check
+  // its public surface and that it runs under the Content Security Policy; the
+  // page it is actually mounted on is Liikmeskond.
   const mounted = await page.evaluate(() => window.DashKodaCharts.mountCharts().length);
   expect(mounted).toBe(0);
 

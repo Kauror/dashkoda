@@ -28,13 +28,18 @@ collecting alongside it as a separate, supplementary feed for publicly announced
 upcoming events, and never overrides it. See
 [docs/event-programme-feed.md](docs/event-programme-feed.md).
 
-The communication-channel figures — the two newsletter lists and the Facebook,
+The communication-channel figures — the three newsletter lists and the Facebook,
 LinkedIn, Instagram and YouTube follower counts — are **entered by hand** by a
 staff user and shown at `/nahtavus/` and in the overview's channel band. Nothing
 collects them: there is no social or mailing-list integration, no credential and
-no scheduled job. Website visits stay unconnected because Google Analytics is
-not wired up. See
-[docs/visibility-manual-entry.md](docs/visibility-manual-entry.md).
+no scheduled job.
+
+Website traffic is the one exception, and it is **built but switched off**. The
+Google Analytics collector, its command and its feed state all exist; the
+deployment has no property ID, no service-account key and no schedule, so
+nothing is ever requested and the website slot honestly reports no connection.
+See [docs/visibility-manual-entry.md](docs/visibility-manual-entry.md) and
+[docs/deployment-status.md](docs/deployment-status.md).
 
 The remaining sections still render an explicit empty state, because no other
 data source is connected — nothing on those pages is a placeholder metric.
@@ -63,9 +68,12 @@ PostgreSQL only. A failed synchronization never replaces the last good data; it
 is disclosed instead. See [docs/legal-work-feed.md](docs/legal-work-feed.md).
 
 A development/pilot deployment runs at `https://dash.orgusaar.ee`. That is
-ahead of the planned operations milestone, which is **not** complete: there is
-no backup automation, no tested restore, no rollback tooling and no separate
-staging environment. See [docs/deployment-status.md](docs/deployment-status.md).
+ahead of the planned operations milestone, which is **not** complete. A nightly
+database backup is installed and verified, and an archive has been restored into
+a throwaway database and checked. What is still missing is a restore **over the
+production database**, rollback tooling and a separate staging environment — a
+backup you can read is not yet a recovery you can perform. See
+[docs/deployment-status.md](docs/deployment-status.md).
 
 ## Requirements
 
@@ -197,7 +205,8 @@ npm run e2e
   from the public member count, the one-time import and the staff entry form
 - [docs/visibility-manual-entry.md](docs/visibility-manual-entry.md) — the
   manually entered newsletter and social audience figures, the newsletter union
-  rule, the staff data-entry hub and the Google Analytics placeholder
+  rule, the staff data-entry hub and the Google Analytics collector, which is
+  implemented but disabled
 - [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
 - [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
 - [docs/security.md](docs/security.md) — viewer access boundary and browser policy
