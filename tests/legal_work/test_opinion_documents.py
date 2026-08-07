@@ -39,9 +39,6 @@ from apps.legal_work.opinion_pdf import (
 
 from .opinion_factory import make_encrypted_pdf, make_pdf, opinion_pdf
 
-pytestmark = pytest.mark.filterwarnings("ignore::UserWarning")
-
-
 # -- validation -------------------------------------------------------------
 
 
