@@ -46,11 +46,15 @@ class PortGuardError(RuntimeError):
     """
 
 
-def inspect_ports(container: str, *, runner=subprocess.run) -> dict:
+def inspect_ports(container: str, *, runner=None) -> dict:
     """Return the container's port map, or raise.
 
-    `runner` is injected so the failure path can be tested without Docker.
+    `runner` is injected so the failure path can be tested without Docker. It
+    defaults to `None` and is resolved here rather than in the signature: a
+    default argument binds `subprocess.run` once at import, which no later
+    patching can reach.
     """
+    runner = runner if runner is not None else subprocess.run
     if not container or not container.strip():
         raise PortGuardError(
             "No database container was resolved. Compose returned nothing for the "
@@ -126,7 +130,7 @@ def assert_unpublished(ports: dict, *, port_spec: str = POSTGRES_PORT_SPEC) -> N
         )
 
 
-def check(container: str, *, port_spec: str = POSTGRES_PORT_SPEC, runner=subprocess.run) -> None:
+def check(container: str, *, port_spec: str = POSTGRES_PORT_SPEC, runner=None) -> None:
     """Full guard: resolve the port map and require no binding."""
     assert_unpublished(inspect_ports(container, runner=runner), port_spec=port_spec)
 
