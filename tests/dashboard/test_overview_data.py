@@ -189,8 +189,11 @@ def test_the_arrivals_tab_is_gone_entirely(viewer, legal_work_snapshot):
     assert 'id="tab-received"' not in card
     assert 'id="panel-received"' not in card
     assert "thirdSelected" not in card, "no third tab state may survive"
-    assert card.count('role="tab"') - card.count('role="tabpanel"') == 2
+    # `role="tab"` does not substring-match `role="tablist"` or
+    # `role="tabpanel"`: the character after `tab` differs in each.
+    assert card.count('role="tab"') == 2
     assert card.count('role="tabpanel"') == 2
+    assert card.count('role="tablist"') == 1
     assert 'x-data="tabPair"' in card
 
 
