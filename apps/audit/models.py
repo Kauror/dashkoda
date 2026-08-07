@@ -239,6 +239,12 @@ class AuditAction(models.TextChoices):
         "visibility.ga4_sync_failed",
         "Veebiliikluse kogumine ebaõnnestus",
     )
+    # Retention. The one scheduled action that deletes published rows, so it
+    # leaves a permanent record of exactly how many and from which family.
+    SNAPSHOTS_PRUNED = (
+        "sources.snapshots_pruned",
+        "Vanad hetkeseisud kustutatud",
+    )
 
 
 class AuditEventQuerySet(models.QuerySet):
