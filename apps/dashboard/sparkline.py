@@ -66,41 +66,47 @@ type Point = tuple[date | datetime, int | float | Decimal | None]
 
 @dataclass(frozen=True)
 class Sparkline:
-    """One drawable series: its polyline, its ends and its range."""
+    """One drawable series: its polyline and its range."""
 
     points: str
-    first_value: float
-    last_value: float
     minimum: float
     maximum: float
     point_count: int
-    last_x: float
-    last_y: float
-
-    @property
-    def is_flat(self) -> bool:
-        return self.maximum == self.minimum
 
 
 def build_sparkline(series: Sequence[Point]) -> Sparkline | None:
     """Map `(when, value)` pairs onto the viewBox, oldest first.
 
+    Horizontal position comes from the **date**, not from the position in the
+    list. These series are hand-kept and deliberately unwindowed, so two
+    readings a day apart and two readings a year apart are both ordinary; laying
+    them out evenly would draw the second pair as the same slope as the first
+    and invite a reader to see a rate that is not there. `build_trend_chart`
+    has always measured its axis this way and this is the same rule.
+
     `None` values are dropped rather than plotted, so a gap in the source stays
-    a gap in the data. Returns `None` when what is left cannot describe a trend.
+    a gap in the data. Returns `None` when what is left cannot describe a trend:
+    fewer than two readings, or every reading on one date, which is a column
+    rather than a trend over time.
     """
-    values = [float(value) for _when, value in series if value is not None]
-    if len(values) < MINIMUM_POINTS:
+    observations = _observations(series)
+    if len(observations) < MINIMUM_POINTS:
         return None
 
+    start = observations[0][0]
+    span_days = (observations[-1][0] - start).days
+    if span_days <= 0:
+        return None
+
+    values = [value for _when, value in observations]
     minimum = min(values)
     maximum = max(values)
     span = maximum - minimum
     usable_height = VIEWBOX_HEIGHT - (2 * VERTICAL_PADDING)
-    last_index = len(values) - 1
 
     coordinates = []
-    for index, value in enumerate(values):
-        x = (index / last_index) * VIEWBOX_WIDTH
+    for when, value in observations:
+        x = ((when - start).days / span_days) * VIEWBOX_WIDTH
         # A flat series sits on the centre line. Scaling it to the top or the
         # bottom would dramatise noise that is not there.
         offset = 0.5 if span == 0 else (value - minimum) / span
@@ -109,13 +115,9 @@ def build_sparkline(series: Sequence[Point]) -> Sparkline | None:
 
     return Sparkline(
         points=" ".join(f"{x:.2f},{y:.2f}" for x, y in coordinates),
-        first_value=values[0],
-        last_value=values[-1],
         minimum=minimum,
         maximum=maximum,
-        point_count=len(values),
-        last_x=coordinates[-1][0],
-        last_y=coordinates[-1][1],
+        point_count=len(observations),
     )
 
 
