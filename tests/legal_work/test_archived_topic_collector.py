@@ -583,9 +583,14 @@ def test_the_cutoff_still_honours_an_explicit_date(settings):
 
 
 def test_no_container_local_date_remains_in_the_archive_collector():
-    """The whole module reads application time, not the system clock."""
+    """The whole module reads application time, not the system clock.
+
+    Matched on the call as the module would actually spell it — `datetime` is
+    imported as `dt` here — so the prose in `hydration_cutoff`'s own docstring,
+    which names the mistake it exists to describe, does not trip this.
+    """
     import inspect
 
     from apps.legal_work import archived_topics
 
-    assert "date.today()" not in inspect.getsource(archived_topics)
+    assert "dt.date.today()" not in inspect.getsource(archived_topics)
