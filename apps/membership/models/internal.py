@@ -790,6 +790,16 @@ class MembershipDataIssue(models.Model):
     def __str__(self) -> str:
         return f"{self.warning_code} ({self.get_severity_display()})"
 
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
+                raise InternalObservationImmutable(
+                    "An imported membership data issue may only change its "
+                    "resolved, resolution_note, resolved_by and resolved_at fields."
+                )
+        return super().save(*args, **kwargs)
+
 
 class MembershipMetricConflict(models.Model):
     """Two board reports disagreeing about one metric on one date.
@@ -864,3 +874,13 @@ class MembershipMetricConflict(models.Model):
 
     def __str__(self) -> str:
         return f"{self.observation_date:%d.%m.%Y} {self.metric}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
+                raise InternalObservationImmutable(
+                    "An imported membership metric conflict may only change its "
+                    "resolved, resolution_note, resolved_by and resolved_at fields."
+                )
+        return super().save(*args, **kwargs)
