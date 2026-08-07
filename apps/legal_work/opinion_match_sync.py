@@ -56,7 +56,7 @@ from .opinion_matching import (
 from .opinion_models import OpinionCatalogueEntry, OpinionCatalogueSnapshot
 from .opinion_pdf import ExtractionStatus, ValidationStatus
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dashkoda.legal_work.opinion_match_sync")
 
 LOCK_NAME = "legal_opinion_matching"
 

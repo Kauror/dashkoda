@@ -173,6 +173,71 @@ replace this section with what actually happened.
 
 ---
 
+## What the logs contain
+
+Every collector logs what it did at `INFO`, under a `dashkoda.*` logger name, to
+**stderr** — which the container runtime and each cron wrapper's own log file
+already capture. There is nothing extra to configure or collect.
+
+Until `config/settings/base.py` gained an explicit `LOGGING` block, none of it
+arrived anywhere: with no such setting Django configures handlers for `django`
+and `django.server` only, so a record under `dashkoda.*` had no handler and was
+discarded. The scheduled jobs still wrote their JSON summary line, which is why
+nothing looked broken — what was missing was everything a collector noticed on
+the way to that line.
+
+What you can expect to see:
+
+- which host was read, and how many pages or bytes it took;
+- why a run decided the content was unchanged;
+- the counts a publication produced.
+
+What is deliberately **not** in a log line, and is tested for in
+`tests/core/test_logging.py`:
+
+- a sharing URL, a property ID or a credential path — all bearer-style secrets;
+- any part of a response body, a workbook cell, an opinion PDF or its filename;
+- an access token.
+
+Third-party loggers stay at `WARNING`. `urllib3` narrates every connection at
+`INFO` and `google.auth` narrates credential handling, neither of which belongs
+in a cron log.
+
+### Reading them
+
+```bash
+# One job's own file, newest last.
+tail -n 40 /mnt/user/appdata/dashkoda/logs/sync_oigusloome_public.log
+
+# The container's stream, which carries the INFO records above.
+docker compose -f compose.yaml -f compose.unraid.yaml logs --tail 200 web
+```
+
+## Session and rate-limit housekeeping
+
+Two maintenance commands exist. **Neither is scheduled**, and neither needs to
+be at the current scale.
+
+`purge_viewer_rate_limits` deletes inactive viewer rate-limit buckets older than
+30 days. It is scoped to that one table, it preserves a bucket that is currently
+locked out, and it is idempotent — a second run matches nothing new. It prints
+the number of rows deleted and nothing else.
+
+```bash
+docker compose -f compose.yaml -f compose.unraid.yaml exec -T web   python manage.py purge_viewer_rate_limits
+```
+
+`clearsessions` is Django's own, and removes expired session rows.
+
+```bash
+docker compose -f compose.yaml -f compose.unraid.yaml exec -T web   python manage.py clearsessions
+```
+
+**Recommendation, not an installation.** If either is ever scheduled, the free
+slots are before 05:30 or after 06:30 Tallinn, outside the feed chain — the same
+constraint the GA4 wrapper example describes. Neither has an hour guard, so
+either would need one adding, or a UTC-anchored slot like the backup's.
+
 ## Still missing
 
 - **Rollback tooling.** There is no command that returns the application to a

@@ -78,7 +78,7 @@ from .opinion_storage import (
     store_blob,
 )
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("dashkoda.legal_work.opinion_catalogue_sync")
 
 LOCK_NAME = "legal_opinion_documents"
 IMPORTER_NAME = "legal_opinion_catalogue"

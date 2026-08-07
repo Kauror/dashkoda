@@ -10,11 +10,19 @@ permissions:
   contents: read
 
 # A newer push to the same pull request makes an in-flight run obsolete, so it
-# is cancelled rather than left to finish against superseded code. Pushes to
-# main are never cancelled: every commit on the default branch keeps its own
-# verified result.
+# is cancelled rather than left to finish against superseded code.
+#
+# Pushes to main are never cancelled: every commit on the default branch keeps
+# its own verified result, which is what lets a deployment name the exact SHA
+# whose CI passed. That was the intent before, but the group was keyed on
+# `github.ref` — one group for every push to main — so merging three pull
+# requests in quick succession cancelled the first two runs and left two commits
+# on main with no result of their own. Keying main's group on the commit gives
+# each one its own group, so nothing can supersede it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: >-
+    ${{ github.workflow }}-${{ github.event_name == 'pull_request'
+        && github.ref || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Shared by all three jobs. Every value is synthetic and exists only for CI;
@@ -80,7 +88,7 @@ jobs:
           enable-cache: true
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -91,9 +99,33 @@ jobs:
       - name: Install locked frontend dependencies
         run: npm ci
 
-      - name: Audit frontend dependencies
-        run: npm audit --audit-level=high
-        continue-on-error: true
+      # F-CI-2: dependency scanning is ADVISORY by decision. A vulnerability
+      # disclosed at an awkward moment must not stand between a fix and
+      # production, so neither audit fails the job. Both run visibly, print
+      # what they found, and say plainly that they did not gate anything.
+      #
+      # `continue-on-error` is deliberately not used: it marks the step as
+      # failed-but-tolerated, which reads as a red mark nobody investigates.
+      # `|| true` on the audit command keeps the step green while still
+      # printing the findings, and a separate line states the status.
+      - name: Audit frontend dependencies (advisory)
+        run: |
+          echo "::group::npm audit — advisory, does not gate this build"
+          npm audit --audit-level=high || true
+          echo "::endgroup::"
+          echo "npm audit is advisory: high and critical findings are printed above."
+
+      - name: Audit Python dependencies (advisory)
+        run: |
+          echo "::group::pip-audit — advisory, does not gate this build"
+          # Run through `uvx` so the scanner is never added to the application's
+          # own locked dependencies: it is CI tooling, not something the runtime
+          # image should carry. Pinned so a scanner release cannot change what
+          # this job does without a commit.
+          uv export --frozen --no-dev --no-emit-project > /tmp/requirements.txt
+          uvx --from pip-audit==2.10.1 pip-audit --requirement /tmp/requirements.txt --progress-spinner off || true
+          echo "::endgroup::"
+          echo "pip-audit is advisory: findings are printed above and gate nothing."
 
       - name: Build frontend bundle
         run: npm run build
@@ -271,7 +303,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Install Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -313,7 +345,7 @@ jobs:
 
       - name: Upload browser smoke artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: playwright
           path: |
