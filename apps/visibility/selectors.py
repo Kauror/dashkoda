@@ -281,16 +281,6 @@ def get_visibility_series(
     )
 
 
-def _reading(spec: VisibilityMetricSpec, *, today: date) -> MetricReading:
-    latest = get_latest_visibility_observation(spec.key)
-    previous = (
-        get_previous_visibility_observation(spec.key, before=latest.observation_date)
-        if latest is not None
-        else None
-    )
-    return MetricReading(spec=spec, observation=latest, previous=previous, today=today)
-
-
 def _readings_by_metric(metrics, *, today: date) -> dict[str, MetricReading]:
     """Every requested metric's current reading, in **one** query.
 
@@ -516,7 +506,9 @@ def get_manual_entry_defaults(*, today: date | None = None) -> dict[str, MetricR
     replacing before they type, rather than after they have submitted.
     """
     today = today or timezone.localdate()
-    return {spec.key: _reading(spec, today=today) for spec in METRICS}
+    # One query, like the summary: the staff form shows every metric at once, so
+    # asking per metric cost the same fourteen round trips the page used to.
+    return _readings_by_metric(tuple(spec.key for spec in METRICS), today=today)
 
 
 def latest_observation_date() -> date | None:
