@@ -199,3 +199,43 @@ class TestTheAnswersAreUnchanged:
 
         assert len(newsletter.readings) == len(NEWSLETTER_METRICS)
         assert not hasattr(newsletter, "total")
+
+
+class TestTheStaffEntryFormCostsTheSame:
+    """The form shows every metric at once, so it had the same fourteen queries.
+
+    Found by the post-remediation audit: the first pass batched the viewer path
+    and left this one asking per metric.
+    """
+
+    def test_the_entry_defaults_cost_one_query(self, django_assert_num_queries, submit, today):
+        from apps.visibility.selectors import get_manual_entry_defaults
+
+        submit(observation_date=today, **every_metric(100))
+
+        with django_assert_num_queries(1):
+            defaults = get_manual_entry_defaults(today=today)
+            [(r.value, r.previous_value) for r in defaults.values()]
+
+    def test_it_still_answers_for_every_metric(self, submit, today):
+        from apps.visibility.registry import METRICS
+        from apps.visibility.selectors import get_manual_entry_defaults
+
+        submit(observation_date=today, **every_metric(100))
+
+        defaults = get_manual_entry_defaults(today=today)
+
+        assert set(defaults) == {spec.key for spec in METRICS}
+
+    def test_it_agrees_with_the_summary(self, submit, today, days_ago):
+        from apps.visibility.selectors import get_manual_entry_defaults
+
+        submit(observation_date=days_ago(3), **every_metric(50))
+        submit(observation_date=today, **every_metric(100))
+
+        defaults = get_manual_entry_defaults(today=today)
+        summary = get_visibility_summary(today=today)
+
+        for metric in ALL_METRICS:
+            assert defaults[metric].value == summary.reading(metric).value
+            assert defaults[metric].previous_value == summary.reading(metric).previous_value
