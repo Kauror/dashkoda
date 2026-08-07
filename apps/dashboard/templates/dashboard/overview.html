@@ -59,7 +59,7 @@ None of them reached this file.
   <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
 
     {# -------- Õigusloome -------- #}
-    <section aria-labelledby="section-legislation" class="dk-section flex flex-col" x-data="tabTrio">
+    <section aria-labelledby="section-legislation" class="dk-section flex flex-col" x-data="tabPair">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
         <h2 id="section-legislation" class="text-base font-semibold text-text">Õigusloome</h2>
         {% comment %}
@@ -75,14 +75,17 @@ None of them reached this file.
       {% if legal_work.has_data %}
         <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-2 sm:px-5">
           {% comment %}
-          Töös leads because it is the only one of the three that is a state
-          rather than an event: a board member opening the page asks what is on
-          the table before asking what moved. Arrivals then departures follows
-          the order a topic travels.
+          Töös leads because it is a state rather than an event: a board member
+          opening the page asks what is on the table before asking what has
+          already left.
+
+          Arrivals are not a third state. A record that has just come in is
+          simply active work, so it belongs in Töös; the full Õigusloome page is
+          where arrivals are inspected by date.
 
           The tablist stays hidden until Alpine has booted, so it is never a dead
-          control. Without JavaScript all three panels below simply remain
-          visible, each under its own heading.
+          control. Without JavaScript both panels below simply remain visible,
+          each under its own heading.
           {% endcomment %}
           <div x-cloak role="tablist" aria-label="Õigusloome nimekirjad" class="flex gap-1">
             <button type="button"
@@ -94,20 +97,12 @@ None of them reached this file.
                     :class="firstTabClass"
                     class="dk-tab">Töös</button>
             <button type="button"
-                    id="tab-received"
-                    role="tab"
-                    aria-controls="panel-received"
-                    x-on:click="showSecond"
-                    :aria-selected="secondSelected"
-                    :class="secondTabClass"
-                    class="dk-tab">Viimased sisse</button>
-            <button type="button"
                     id="tab-sent"
                     role="tab"
                     aria-controls="panel-sent"
-                    x-on:click="showThird"
-                    :aria-selected="thirdSelected"
-                    :class="thirdTabClass"
+                    x-on:click="showSecond"
+                    :aria-selected="secondSelected"
+                    :class="secondTabClass"
                     class="dk-tab">Välja läinud</button>
           </div>
           {% comment %}
@@ -118,9 +113,9 @@ None of them reached this file.
         </div>
 
         {% comment %}
-        Ordered by deadline, soonest first, so the topic nearest to going out
-        leads. A record with no deadline trails the dated ones; it says so
-        rather than borrowing a date it does not have.
+        Every open record, ordered by deadline, soonest first, so the topic
+        nearest to going out leads. A record with no deadline trails the dated
+        ones; it says so rather than borrowing a date it does not have.
         {% endcomment %}
         <div id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="firstSelected" class="flex-1">
           <h3 class="sr-only">Töös olevad teemad</h3>
@@ -140,26 +135,7 @@ None of them reached this file.
           </ul>
         </div>
 
-        {% comment %}
-        Newest arrival first. A received date in the future is a known workbook
-        problem and the selector leaves those out, so nothing sits permanently at
-        the top of this list on the strength of a wrong date.
-        {% endcomment %}
-        <div id="panel-received" role="tabpanel" aria-labelledby="tab-received" x-show="secondSelected" class="flex-1">
-          <h3 class="sr-only">Viimased sisse tulnud</h3>
-          <ul class="divide-y divide-border">
-            {% for row in page.legal_work_received %}
-              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                {% include "dashboard/components/legal_topic.html" with item=row only %}
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">sisse {{ row.item.received_date|date:"j.m.y" }}</span>
-              </li>
-            {% empty %}
-              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Sisse tulnud teemasid ei ole selles hetkeseisus.</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="thirdSelected" class="flex-1">
+        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="secondSelected" class="flex-1">
           <h3 class="sr-only">Viimati välja läinud</h3>
           <ul class="divide-y divide-border">
             {% for row in page.legal_work_sent %}

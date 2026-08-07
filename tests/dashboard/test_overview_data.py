@@ -161,26 +161,99 @@ def test_the_open_count_and_activity_come_from_the_snapshot(viewer, legal_work_s
     assert "Sünteetiline kiireloomuline teema" in body(response)
 
 
-def test_the_card_offers_three_lists_with_work_in_hand_leading(viewer, legal_work_snapshot):
-    """Töös, Viimased sisse, Välja läinud — in that order, Töös selected.
+def test_the_card_offers_exactly_two_lists_with_work_in_hand_leading(viewer, legal_work_snapshot):
+    """Töös then Välja läinud, and nothing else.
 
-    Töös leads because it is the only one of the three that is a state rather
-    than an event: a board member opening the page asks what is on the table
-    before asking what moved. Arrivals then departures follows the order a topic
-    travels through the Chamber.
+    Töös leads because it is a state rather than an event: a board member
+    opening the page asks what is on the table before asking what has already
+    left. Arrivals used to sit between them, which read as a third lifecycle
+    state; they are a way of sorting active work, so they are Töös rows now.
     """
     card = section(viewer.get(reverse("home")), "section-legislation")
-    tabs = [card.index(f'id="tab-{name}"') for name in ("open", "received", "sent")]
+    tabs = [card.index(f'id="tab-{name}"') for name in ("open", "sent")]
 
-    assert tabs == sorted(tabs), "the tabs read in the order a topic travels"
+    assert tabs == sorted(tabs), "work in hand leads, departures follow"
     # The panel bound to the first tab is the one Alpine shows on load.
     assert (
         'id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="firstSelected"' in card
     )
-    # All three lists have rows, and each states its own kind of date.
     assert "tähtaeg" in card
-    assert "sisse" in card
     assert "välja" in card
+
+
+def test_the_arrivals_tab_is_gone_entirely(viewer, legal_work_snapshot):
+    """Not hidden, not renamed, not left behind as empty markup."""
+    card = section(viewer.get(reverse("home")), "section-legislation")
+
+    assert "Viimased sisse" not in card
+    assert 'id="tab-received"' not in card
+    assert 'id="panel-received"' not in card
+    assert "thirdSelected" not in card, "no third tab state may survive"
+    assert card.count('role="tab"') - card.count('role="tabpanel"') == 2
+    assert card.count('role="tabpanel"') == 2
+    assert 'x-data="tabPair"' in card
+
+
+def test_every_tab_still_maps_to_exactly_one_panel(viewer, legal_work_snapshot):
+    """Accessibility survives the removal: two tabs, two panels, paired."""
+    card = section(viewer.get(reverse("home")), "section-legislation")
+
+    for name in ("open", "sent"):
+        assert f'id="tab-{name}"' in card
+        assert f'aria-controls="panel-{name}"' in card
+        assert f'id="panel-{name}"' in card
+        assert f'aria-labelledby="tab-{name}"' in card
+    assert 'role="tablist"' in card
+
+
+def test_a_recently_received_active_topic_is_in_toos(viewer, legal_work_snapshot):
+    """The one thing removing the tab must not do is hide active work.
+
+    Arrivals were their own list; now the only place an active record can
+    appear on this card is Töös, so an open record must be there whatever its
+    received date.
+    """
+    card = section(viewer.get(reverse("home")), "section-legislation")
+    panel = card.split('id="panel-open"', 1)[1].split('id="panel-sent"', 1)[0]
+
+    assert "Sünteetiline kiireloomuline teema" in panel
+
+
+def test_a_sent_topic_never_appears_in_toos(legal_work_snapshot):
+    """Töös is the active population, and sent work has left it."""
+    from apps.dashboard.overview import LEGAL_ACTIVE_LIMIT
+    from apps.legal_work.selectors import get_latest_sent_items, get_open_items_by_deadline
+
+    active = list(get_open_items_by_deadline(legal_work_snapshot, limit=LEGAL_ACTIVE_LIMIT))
+    sent = list(get_latest_sent_items(legal_work_snapshot))
+
+    assert active, "the fixture must have active work for this to mean anything"
+    for item in active:
+        assert item.is_open
+    assert not ({i.pk for i in active} & {i.pk for i in sent})
+
+
+def test_toos_lists_each_record_once(legal_work_snapshot):
+    from apps.dashboard.overview import LEGAL_ACTIVE_LIMIT
+    from apps.legal_work.selectors import get_open_items_by_deadline
+
+    ids = [i.pk for i in get_open_items_by_deadline(legal_work_snapshot, limit=LEGAL_ACTIVE_LIMIT)]
+
+    assert len(ids) == len(set(ids))
+
+
+def test_an_active_topic_without_a_deadline_is_not_lost(legal_work_snapshot):
+    """It trails the dated ones rather than dropping out of the population."""
+    from apps.legal_work.selectors import get_open_items_by_deadline
+
+    active = list(get_open_items_by_deadline(legal_work_snapshot, limit=None))
+    dated = [i for i in active if i.deadline_date]
+    undated = [i for i in active if not i.deadline_date]
+
+    assert len(active) == len(dated) + len(undated)
+    if undated and dated:
+        order = [i.pk for i in active]
+        assert order.index(undated[0].pk) > order.index(dated[-1].pk)
 
 
 def test_each_card_lists_enough_rows_to_stand_level_with_its_neighbour():
@@ -193,12 +266,17 @@ def test_each_card_lists_enough_rows_to_stand_level_with_its_neighbour():
     """
     from apps.dashboard.overview import (
         EVENTS_PREVIEW_LIMIT,
+        LEGAL_ACTIVE_LIMIT,
         LEGAL_PREVIEW_LIMIT,
         NEWS_PREVIEW_LIMIT,
     )
 
-    # Row one: three tabs, so each row costs a third of an untabbed card's.
+    # Row one: the sent list keeps the tuned preview height.
     assert LEGAL_PREVIEW_LIMIT == 7
+    # Töös absorbed the arrivals tab, so it carries what two tabs of seven could
+    # jointly surface. Shrinking this is how an active record becomes harder to
+    # find than it was before the simplification.
+    assert LEGAL_ACTIVE_LIMIT == 2 * LEGAL_PREVIEW_LIMIT
     # Row two: two cards of the same shape, kept level with each other.
     assert EVENTS_PREVIEW_LIMIT == NEWS_PREVIEW_LIMIT == 5
 
