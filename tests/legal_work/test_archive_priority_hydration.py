@@ -35,7 +35,7 @@ from apps.legal_work.shortlist import (
 )
 
 from .archive_factory import ARCHIVE_PATH, DETAIL_PREFIX, archive_card, archive_listing
-from .current_topic_factory import LISTING_PATH, FakeSite, card, detail, listing
+from .current_topic_factory import LISTING_PATH, FakeSite, card, detail, listing, not_found
 
 pytestmark = pytest.mark.django_db
 
@@ -366,10 +366,8 @@ def test_a_new_legal_snapshot_can_create_hydration_work_without_a_listing_change
 def test_a_failed_priority_detail_is_recorded_and_does_not_stop_the_run(
     current_published, archive_sync
 ):
-    from apps.core.public_http import PublicFetchError
-
     site = archive_with_old_candidate()
-    site.errors[f"{DETAIL_PREFIX}{OLD_SLUG}"] = PublicFetchError("Allikat ei leitud (404).")
+    site.errors[f"{DETAIL_PREFIX}{OLD_SLUG}"] = not_found()
 
     report = archive_sync(site, max_detail_pages=10)
 
@@ -383,10 +381,8 @@ def test_a_failed_priority_detail_is_recorded_and_does_not_stop_the_run(
 def test_a_terminally_failed_priority_candidate_does_not_hold_completion_open(
     current_published, archive_sync
 ):
-    from apps.core.public_http import PublicFetchError
-
     site = archive_with_old_candidate()
-    site.errors[f"{DETAIL_PREFIX}{OLD_SLUG}"] = PublicFetchError("Allikat ei leitud (404).")
+    site.errors[f"{DETAIL_PREFIX}{OLD_SLUG}"] = not_found()
 
     report = archive_sync(site, max_detail_pages=50)
 
@@ -395,10 +391,8 @@ def test_a_terminally_failed_priority_candidate_does_not_hold_completion_open(
 
 
 def test_a_failed_candidate_is_retried_on_a_later_run(current_published, archive_sync):
-    from apps.core.public_http import PublicFetchError
-
     broken = archive_with_old_candidate()
-    broken.errors[f"{DETAIL_PREFIX}{OLD_SLUG}"] = PublicFetchError("Allikat ei leitud (404).")
+    broken.errors[f"{DETAIL_PREFIX}{OLD_SLUG}"] = not_found()
     archive_sync(broken, max_detail_pages=10)
     assert old_row().detail_status == DetailStatus.FAILED
 

@@ -41,9 +41,10 @@ from dataclasses import dataclass, field
 from urllib.parse import urljoin, urlparse
 
 from django.conf import settings
+from django.utils import timezone
 
 from apps.core.canonical import canonical_checksum
-from apps.core.public_http import PublicFetchError, fetch, is_allowed_public_url
+from apps.core.public_http import FetchFailure, PublicFetchError, fetch, is_allowed_public_url
 from apps.news.collector import to_plain_text
 
 from .current_topics import (
@@ -75,7 +76,46 @@ FAILURE_UNPARSABLE = "unparsable"
 
 
 class ArchiveCollectionError(RuntimeError):
-    """The archive listing could not be collected or is not usable."""
+    """The archive listing could not be collected or is not usable.
+
+    Carries the transport layer's classification when it wraps one, so a caller
+    can tell "the page is gone" from "the host refused us" without reading the
+    message. Errors raised by this module's own validation carry no fetch
+    failure at all, which is why `failure` is optional.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        failure: FetchFailure | None = None,
+        status_code: int | None = None,
+    ):
+        super().__init__(message)
+        self.failure = failure
+        self.status_code = status_code
+
+
+# How a transport failure becomes one of this module's stored failure codes.
+# Anything absent from the map is `unavailable`: a source that is unreachable
+# for a reason we have no separate handling for is, from the archive's point of
+# view, simply unavailable and worth retrying on a later bounded run.
+_FAILURE_CODES = {
+    FetchFailure.NOT_FOUND: FAILURE_NOT_FOUND,
+    FetchFailure.REFUSED: FAILURE_REFUSED,
+}
+
+
+def _failure_code(error: ArchiveCollectionError) -> str:
+    """Classify a collection failure from structured data, never from prose.
+
+    This used to search the message for `"404"` and for the Estonian word
+    `"keeldus"`. Both are display strings: rewording an error message, or
+    translating one, silently reclassified every failure that depended on it —
+    and a body that happened to contain `404` for an unrelated reason was
+    classified as a missing page.
+    """
+    return _FAILURE_CODES.get(error.failure, FAILURE_UNAVAILABLE)
 
 
 @dataclass(frozen=True)
@@ -306,14 +346,11 @@ def hydrate_detail(url: str, *, session=None) -> ArchiveDetail:
     try:
         html = _fetch_html(url, session=session)
     except ArchiveCollectionError as error:
-        message = str(error)
-        if "404" in message:
-            code = FAILURE_NOT_FOUND
-        elif "keeldus" in message:
-            code = FAILURE_REFUSED
-        else:
-            code = FAILURE_UNAVAILABLE
-        return ArchiveDetail(canonical_url=url, status=DetailStatus.FAILED, failure_code=code)
+        return ArchiveDetail(
+            canonical_url=url,
+            status=DetailStatus.FAILED,
+            failure_code=_failure_code(error),
+        )
 
     parsed = parse_detail(html)
     body_source = parsed["body"] or parsed["node"]
@@ -349,8 +386,14 @@ def hydrate_detail(url: str, *, session=None) -> ArchiveDetail:
 
 
 def hydration_cutoff(today: dt.date | None = None) -> dt.date:
-    """The oldest publication date worth reading a detail page for."""
-    today = today or dt.date.today()
+    """The oldest publication date worth reading a detail page for.
+
+    `timezone.localdate()` rather than `date.today()`: the application's day is
+    `Europe/Tallinn`, and the container's clock is UTC. Between midnight and
+    03:00 Tallinn time the two disagree, so the container-local date moved the
+    window by a day for the runs that happen overnight — which is most of them.
+    """
+    today = today or timezone.localdate()
     return today - dt.timedelta(days=settings.KODA_ARCHIVE_HYDRATION_WINDOW_DAYS)
 
 
@@ -440,7 +483,9 @@ def _fetch_html(url: str, *, session=None) -> str:
             session=session,
         )
     except PublicFetchError as error:
-        raise ArchiveCollectionError(str(error)) from error
+        raise ArchiveCollectionError(
+            str(error), failure=error.failure, status_code=error.status_code
+        ) from error
     return result.text()
 
 

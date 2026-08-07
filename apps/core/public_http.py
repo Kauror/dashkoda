@@ -23,6 +23,7 @@ import ipaddress
 import logging
 import time
 from dataclasses import dataclass
+from enum import StrEnum
 from urllib.parse import urljoin, urlparse
 
 import requests
@@ -45,15 +46,61 @@ CHUNK_BYTES = 64 * 1024
 BLOCKED_HOSTNAMES = frozenset({"localhost", "localhost.localdomain", "ip6-localhost"})
 
 
+class FetchFailure(StrEnum):
+    """Why a fetch failed, as a stable value rather than as prose.
+
+    A caller that needs to treat "the page is gone" differently from "the host
+    refused us" must not reach that conclusion by searching the message for
+    `404` or for an Estonian word. The message is for a human and is free to be
+    reworded or translated; this is the part that is part of the contract.
+    """
+
+    NOT_FOUND = "not_found"
+    REFUSED = "refused"
+    RATE_LIMITED = "rate_limited"
+    SERVER_ERROR = "server_error"
+    TIMEOUT = "timeout"
+    TRANSPORT = "transport"
+    TOO_LARGE = "too_large"
+    UNEXPECTED_CONTENT = "unexpected_content"
+    EMPTY = "empty"
+    REDIRECT = "redirect"
+    NOT_ALLOWED = "not_allowed"
+    UNKNOWN = "unknown"
+
+
 class PublicFetchError(RuntimeError):
-    """A public fetch failed. Messages are safe to log and to store."""
+    """A public fetch failed. Messages are safe to log and to store.
+
+    `failure` and `status_code` carry the machine-readable half. Both have
+    defaults so an existing `raise PublicFetchError("...")` keeps working and
+    simply classifies as `UNKNOWN`.
+    """
+
+    def __init__(
+        self,
+        message: str,
+        *,
+        failure: FetchFailure = FetchFailure.UNKNOWN,
+        status_code: int | None = None,
+    ):
+        super().__init__(message)
+        self.failure = failure
+        self.status_code = status_code
 
 
 class RetryableFetchError(PublicFetchError):
     """A transient failure worth one bounded retry."""
 
-    def __init__(self, message: str, *, retry_after: float | None = None):
-        super().__init__(message)
+    def __init__(
+        self,
+        message: str,
+        *,
+        retry_after: float | None = None,
+        failure: FetchFailure = FetchFailure.UNKNOWN,
+        status_code: int | None = None,
+    ):
+        super().__init__(message, failure=failure, status_code=status_code)
         self.retry_after = retry_after
 
 
@@ -111,25 +158,28 @@ def require_allowed_url(url: str, *, allowed_hosts: frozenset[str]) -> str:
         parts = urlparse(url)
         hostname = parts.hostname
     except ValueError as error:
-        raise PublicFetchError("Vigane URL.") from error
+        raise PublicFetchError("Vigane URL.", failure=FetchFailure.NOT_ALLOWED) from error
 
     if parts.scheme.lower() != "https":
-        raise PublicFetchError("Lubatud on ainult HTTPS.")
+        raise PublicFetchError("Lubatud on ainult HTTPS.", failure=FetchFailure.NOT_ALLOWED)
     if not hostname:
-        raise PublicFetchError("URL-il puudub hostinimi.")
+        raise PublicFetchError("URL-il puudub hostinimi.", failure=FetchFailure.NOT_ALLOWED)
 
     hostname = hostname.lower().rstrip(".")
     if hostname in BLOCKED_HOSTNAMES:
-        raise PublicFetchError("Kohalikule hostile ei pöörduta.")
+        raise PublicFetchError("Kohalikule hostile ei pöörduta.", failure=FetchFailure.NOT_ALLOWED)
     try:
         ipaddress.ip_address(hostname.strip("[]"))
     except ValueError:
         pass
     else:
-        raise PublicFetchError("IP-aadressile ei pöörduta.")
+        raise PublicFetchError("IP-aadressile ei pöörduta.", failure=FetchFailure.NOT_ALLOWED)
 
     if hostname not in allowed_hosts:
-        raise PublicFetchError(f"Host {hostname} ei ole lubatud allikate hulgas.")
+        raise PublicFetchError(
+            f"Host {hostname} ei ole lubatud allikate hulgas.",
+            failure=FetchFailure.NOT_ALLOWED,
+        )
     return hostname
 
 
@@ -176,11 +226,14 @@ def fetch(
 
             content_type = _content_type(response)
             if expected_content_types is not None and content_type not in expected_content_types:
-                raise PublicFetchError(f"Ootamatu sisutüüp: {content_type or '(määramata)'}.")
+                raise PublicFetchError(
+                    f"Ootamatu sisutüüp: {content_type or '(määramata)'}.",
+                    failure=FetchFailure.UNEXPECTED_CONTENT,
+                )
             _reject_declared_size(response, max_bytes)
             content = _read_capped(response, max_bytes)
             if not content:
-                raise PublicFetchError("Vastus oli tühi.")
+                raise PublicFetchError("Vastus oli tühi.", failure=FetchFailure.EMPTY)
 
             return FetchResult(
                 status_code=response.status_code,
@@ -231,11 +284,15 @@ def _follow(session, url, *, allowed_hosts, accept, etag, last_modified):
         location = response.headers.get("Location")
         response.close()
         if not location:
-            raise PublicFetchError("Ümbersuunamine ei sisaldanud sihtkohta.")
+            raise PublicFetchError(
+                "Ümbersuunamine ei sisaldanud sihtkohta.", failure=FetchFailure.REDIRECT
+            )
         current = urljoin(current, location)
         require_allowed_url(current, allowed_hosts=allowed_hosts)
 
-    raise PublicFetchError(f"Liiga palju ümbersuunamisi (üle {MAX_REDIRECTS}).")
+    raise PublicFetchError(
+        f"Liiga palju ümbersuunamisi (üle {MAX_REDIRECTS}).", failure=FetchFailure.REDIRECT
+    )
 
 
 def _request_once(session, url, *, accept, etag, last_modified):
@@ -253,9 +310,11 @@ def _request_once(session, url, *, accept, etag, last_modified):
             stream=True,
         )
     except requests.Timeout as error:
-        raise RetryableFetchError("Päring aegus.") from error
+        raise RetryableFetchError("Päring aegus.", failure=FetchFailure.TIMEOUT) from error
     except requests.RequestException as error:
-        raise RetryableFetchError(f"Ühendus ebaõnnestus: {type(error).__name__}.") from error
+        raise RetryableFetchError(
+            f"Ühendus ebaõnnestus: {type(error).__name__}.", failure=FetchFailure.TRANSPORT
+        ) from error
 
 
 def _require_success(response):
@@ -266,16 +325,32 @@ def _require_success(response):
     retry_after = _retry_after(response)
     response.close()
     if status == 404:
-        raise PublicFetchError("Allikat ei leitud (404).")
+        raise PublicFetchError(
+            "Allikat ei leitud (404).", failure=FetchFailure.NOT_FOUND, status_code=status
+        )
     if status in (401, 403):
-        raise PublicFetchError(f"Allikas keeldus ligipääsust ({status}).")
+        raise PublicFetchError(
+            f"Allikas keeldus ligipääsust ({status}).",
+            failure=FetchFailure.REFUSED,
+            status_code=status,
+        )
     if status == 429:
         raise RetryableFetchError(
-            "Allikas piiras päringute sagedust (429).", retry_after=retry_after
+            "Allikas piiras päringute sagedust (429).",
+            retry_after=retry_after,
+            failure=FetchFailure.RATE_LIMITED,
+            status_code=status,
         )
     if status in RETRYABLE_STATUSES:
-        raise RetryableFetchError(f"Allikas vastas koodiga {status}.", retry_after=retry_after)
-    raise PublicFetchError(f"Allikas vastas koodiga {status}.")
+        raise RetryableFetchError(
+            f"Allikas vastas koodiga {status}.",
+            retry_after=retry_after,
+            failure=FetchFailure.SERVER_ERROR,
+            status_code=status,
+        )
+    raise PublicFetchError(
+        f"Allikas vastas koodiga {status}.", failure=FetchFailure.UNKNOWN, status_code=status
+    )
 
 
 def _retry_after(response) -> float | None:
@@ -294,7 +369,8 @@ def _reject_declared_size(response, max_bytes: int) -> None:
     declared = response.headers.get("Content-Length")
     if declared and declared.strip().isdigit() and int(declared) > max_bytes:
         raise PublicFetchError(
-            f"Vastus on liiga suur: {int(declared)} baiti. Lubatud kuni {max_bytes} baiti."
+            f"Vastus on liiga suur: {int(declared)} baiti. Lubatud kuni {max_bytes} baiti.",
+            failure=FetchFailure.TOO_LARGE,
         )
 
 
@@ -312,10 +388,16 @@ def _read_capped(response, max_bytes: int) -> bytes:
                 continue
             total += len(chunk)
             if total > max_bytes:
-                raise PublicFetchError(f"Vastus ületab lubatud suuruse ({max_bytes} baiti).")
+                raise PublicFetchError(
+                    f"Vastus ületab lubatud suuruse ({max_bytes} baiti).",
+                    failure=FetchFailure.TOO_LARGE,
+                )
             chunks.append(chunk)
     except requests.RequestException as error:
-        raise PublicFetchError(f"Vastuse lugemine katkes: {type(error).__name__}.") from error
+        raise PublicFetchError(
+            f"Vastuse lugemine katkes: {type(error).__name__}.",
+            failure=FetchFailure.TRANSPORT,
+        ) from error
     return b"".join(chunks)
 
 

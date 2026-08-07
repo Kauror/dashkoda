@@ -131,6 +131,30 @@ def detail(
     </body></html>"""
 
 
+def not_found(message: str = "Allikat ei leitud (404).") -> Exception:
+    """A 404 exactly as the transport layer raises one.
+
+    Callers classify a collection failure from `PublicFetchError.failure`, not
+    from the message, so a fake that omitted the classification would make a
+    missing page look merely `unavailable` and quietly weaken the tests that
+    depend on telling the two apart.
+    """
+    from apps.core.public_http import FetchFailure, PublicFetchError
+
+    return PublicFetchError(message, failure=FetchFailure.NOT_FOUND, status_code=404)
+
+
+def refused(status: int = 403) -> Exception:
+    """An access refusal, classified the way `_require_success` classifies one."""
+    from apps.core.public_http import FetchFailure, PublicFetchError
+
+    return PublicFetchError(
+        f"Allikas keeldus ligipääsust ({status}).",
+        failure=FetchFailure.REFUSED,
+        status_code=status,
+    )
+
+
 class FakeSite:
     """Serves synthetic pages by path and records what was requested."""
 
@@ -140,7 +164,7 @@ class FakeSite:
         self.requested: list[str] = []
 
     def __call__(self, url, **kwargs):
-        from apps.core.public_http import FetchResult, PublicFetchError
+        from apps.core.public_http import FetchResult
 
         parsed = urlparse(url)
         key = parsed.path + (f"?{parsed.query}" if parsed.query else "")
@@ -148,7 +172,7 @@ class FakeSite:
         if key in self.errors:
             raise self.errors[key]
         if key not in self.pages:
-            raise PublicFetchError("Allikat ei leitud (404).")
+            raise not_found()
         return FetchResult(
             status_code=200,
             content=self.pages[key].encode("utf-8"),
