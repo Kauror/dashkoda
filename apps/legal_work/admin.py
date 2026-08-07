@@ -20,6 +20,7 @@ never overrides it.
 """
 
 from django.contrib import admin
+from django.db.models import OuterRef, Subquery
 from django.utils.html import format_html
 
 from apps.core.admin import ReadOnlyAdmin
@@ -38,6 +39,7 @@ from .models import (
     LegalWorkFeedState,
     LegalWorkItem,
     LegalWorkSnapshot,
+    MatchDecision,
 )
 
 
@@ -496,16 +498,34 @@ class LegalArchivedTopicMatchAdmin(ReadOnlyAdmin):
         state = "avatud" if item.is_open else "suletud"
         return f"{state} / {item.get_sent_status_display()}"
 
+    def get_queryset(self, request):
+        """Answer `current_topic_decision` for the whole page in one statement.
+
+        It used to be a query per row — the changelist shows a hundred — because
+        each row looked its own record up in the current-topic match snapshot.
+        A correlated subquery answers all of them with the page's own query.
+        """
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                _current_topic_decision=Subquery(
+                    LegalCurrentTopicMatch.objects.filter(
+                        snapshot=OuterRef("snapshot__current_topic_match_snapshot"),
+                        legal_item_id=OuterRef("legal_item_id"),
+                    ).values("decision")[:1]
+                )
+            )
+        )
+
     @admin.display(description="Hetkel käsil otsus")
     def current_topic_decision(self, obj) -> str:
-        match = (
-            obj.snapshot.current_topic_match_snapshot.matches.filter(
-                legal_item_id=obj.legal_item_id
-            )
-            .only("decision")
-            .first()
-        )
-        return match.get_decision_display() if match else "—"
+        decision = obj._current_topic_decision
+        if not decision:
+            return "—"
+        # The annotation is the stored value, so the label comes from the
+        # vocabulary rather than from `get_FOO_display` on a fetched row.
+        return MatchDecision(decision).label
 
     @admin.display(description="Kandidaat")
     def candidate_title(self, obj) -> str:
