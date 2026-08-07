@@ -86,7 +86,6 @@ def test_a_flat_series_is_drawn_on_the_centre_line():
 
     ys = {y for _x, y in coordinates(sparkline)}
 
-    assert sparkline.is_flat is True
     assert len(ys) == 1
     assert ys.pop() == VIEWBOX_HEIGHT / 2
 
@@ -94,8 +93,68 @@ def test_a_flat_series_is_drawn_on_the_centre_line():
 def test_decimal_values_survive_the_conversion():
     sparkline = build_sparkline(series(Decimal("10.5"), Decimal("20.5")))
 
-    assert sparkline.first_value == 10.5
-    assert sparkline.last_value == 20.5
+    assert sparkline.minimum == 10.5
+    assert sparkline.maximum == 20.5
+
+
+class TestTheAxisIsTime:
+    """A hand-kept series arrives at whatever interval somebody types it in.
+
+    Spacing the points evenly would draw a year-long gap with the same slope as
+    an overnight one, which invites a reader to see a rate that is not there.
+    """
+
+    def test_an_irregular_gap_is_drawn_to_scale(self):
+        sparkline = build_sparkline(
+            (
+                (dt.date(2026, 1, 1), 10),
+                (dt.date(2026, 1, 11), 20),
+                (dt.date(2026, 4, 1), 30),
+            )
+        )
+
+        xs = [x for x, _y in coordinates(sparkline)]
+
+        # 10 days of a 90-day window: the middle point sits near the left, not
+        # halfway across, which is where even spacing would have put it.
+        assert xs[0] == 0.0
+        assert xs[-1] == VIEWBOX_WIDTH
+        assert 10 < xs[1] < 13, xs
+
+    def test_evenly_dated_readings_are_still_evenly_spaced(self):
+        sparkline = build_sparkline(series(10, 20, 30))
+
+        xs = [x for x, _y in coordinates(sparkline)]
+
+        assert xs == [0.0, 50.0, 100.0]
+
+    def test_monthly_readings_respect_month_length(self):
+        """February is shorter than January and the axis says so."""
+        sparkline = build_sparkline(monthly(dt.date(2026, 1, 1), 10, 20, 30))
+
+        xs = [x for x, _y in coordinates(sparkline)]
+
+        assert xs[0] == 0.0
+        assert xs[-1] == VIEWBOX_WIDTH
+        # 31 of 59 days, so past halfway rather than exactly on it.
+        assert xs[1] > 50.0
+
+    def test_every_reading_on_one_date_is_not_a_trend(self):
+        """A column of readings has no time axis to be drawn against."""
+        day = dt.date(2026, 5, 1)
+
+        assert build_sparkline(((day, 10), (day, 20))) is None
+
+    def test_readings_out_of_order_are_sorted_before_drawing(self):
+        sparkline = build_sparkline(
+            ((dt.date(2026, 3, 1), 30), (dt.date(2026, 1, 1), 10), (dt.date(2026, 2, 1), 20))
+        )
+
+        xs = [x for x, _y in coordinates(sparkline)]
+
+        assert xs == sorted(xs)
+        assert xs[0] == 0.0
+        assert xs[-1] == VIEWBOX_WIDTH
 
 
 # -- two series on shared axes ------------------------------------------
