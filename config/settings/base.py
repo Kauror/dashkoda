@@ -375,3 +375,67 @@ LEGAL_OPINION_MIN_STABLE_AGE_SECONDS = 60
 # summary or the interface. See `apps/visibility/ga4.py`.
 GA4_PROPERTY_ID = os.environ.get("GA4_PROPERTY_ID", "")
 GA4_CREDENTIALS_FILE = os.environ.get("GA4_CREDENTIALS_FILE", "")
+
+
+# --------------------------------------------------------------------------
+# Logging
+# --------------------------------------------------------------------------
+#
+# Every collector already logs what it did — `legal_work.public_sync completed
+# rows=… size=…`, `current_topics.sync imported items=…`, `ga4.sync imported
+# period_end=…`. Eighteen modules do it, under `dashkoda.*` names.
+#
+# None of it was reaching anywhere. With no `LOGGING` setting, Django configures
+# handlers for `django` and `django.server` and nothing else, so an `INFO` record
+# from `dashkoda.legal_work.public_sync` had no handler to reach and was
+# discarded. The scheduled jobs write a JSON line through the command's own
+# stdout and that was the whole of the operational record; anything a collector
+# noticed on the way there was lost.
+#
+# So: DashKoda's own namespaces log at INFO to stderr, which the container
+# runtime and the cron wrappers already capture. Everything else stays where it
+# was, because the point is to hear this application, not to turn on every
+# library's INFO stream — `urllib3` alone would narrate each connection, and
+# `google.auth` narrates credential handling, which is the last thing that
+# should become chatty.
+#
+# What must never appear in a log line is a token, a credential path, a sharing
+# URL or file content. That is a property of the call sites, not of this
+# configuration, and `tests/core/test_logging.py` checks the ones that matter.
+LOGGING = {
+    "version": 1,
+    "disable_existing_loggers": False,
+    "formatters": {
+        "dashkoda": {
+            # The timestamp is the host's; the wrappers add their own Tallinn
+            # stamp to the log file, so this one exists to order records within
+            # a single run rather than to be read on its own.
+            "format": "{asctime} {levelname} {name}: {message}",
+            "style": "{",
+        },
+    },
+    "handlers": {
+        "stderr": {
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+            "formatter": "dashkoda",
+        },
+    },
+    "loggers": {
+        # This application, and only this application, is verbose.
+        "dashkoda": {
+            "handlers": ["stderr"],
+            "level": "INFO",
+            # Django's default root handler would otherwise print each record a
+            # second time.
+            "propagate": False,
+        },
+        # Chatty at INFO and useful only when something is wrong. `google` covers
+        # `google.auth`, which narrates credential handling.
+        "urllib3": {"level": "WARNING"},
+        "requests": {"level": "WARNING"},
+        "google": {"level": "WARNING"},
+        "google_auth_httplib2": {"level": "WARNING"},
+        "asyncio": {"level": "WARNING"},
+    },
+}
