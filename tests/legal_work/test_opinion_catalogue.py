@@ -31,7 +31,7 @@ from apps.legal_work.opinion_storage import blob_path, store_root
 
 from .opinion_factory import build_zip, make_encrypted_pdf, make_pdf, opinion_pdf
 
-pytestmark = [pytest.mark.django_db, pytest.mark.filterwarnings("ignore::UserWarning")]
+pytestmark = pytest.mark.django_db
 
 
 def bootstrap(source, entries):

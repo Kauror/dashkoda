@@ -35,9 +35,6 @@ from apps.legal_work.opinion_storage import (
 
 from .opinion_factory import build_zip, make_pdf, opinion_pdf
 
-pytestmark = pytest.mark.filterwarnings("ignore::UserWarning")
-
-
 # -- content addressing -----------------------------------------------------
 
 

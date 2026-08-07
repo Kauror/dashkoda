@@ -31,6 +31,18 @@ django_find_project = false
 pythonpath = ["."]
 python_files = ["test_*.py"]
 testpaths = ["tests"]
+# Exactly one warning is filtered, by message, and nothing else.
+#
+# WhiteNoise warns once per test that renders a page when `staticfiles/` has not
+# been collected — which on a host test run it has not, and need not be. That
+# was 388 of the suite's 388 warnings, and a warning that appears 388 times for
+# a known benign reason is not a signal, it is a screen that hides the ones that
+# matter. The container job, where the directory exists, reported 1.
+#
+# Deliberately not `ignore::UserWarning`: the category is far too broad, and
+# hiding it wholesale is how a real warning goes unnoticed. Anything WhiteNoise
+# does not say still reaches the summary.
+filterwarnings = ["ignore:No directory at:UserWarning"]
 
 [tool.ruff]
 line-length = 100
