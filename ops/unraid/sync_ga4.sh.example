@@ -1,12 +1,101 @@
 #!/bin/bash
-# DashKoda GA4 daily collection. Copy to the Unraid host; this repository does
-# not install or enable schedules. Run it by hand after mounting the read-only
-# service-account key and setting GA4_PROPERTY_ID / GA4_CREDENTIALS_FILE.
 #
-# Intended schedule: 0 6 * * * (host time zone Europe/Tallinn).
+# DashKoda Google Analytics website-traffic collection.
+#
+# ---------------------------------------------------------------------------
+# THIS IS NOT INSTALLED, AND GA4 IS NOT ENABLED.
+#
+# The application carries a complete, tested GA4 collector. The deployment
+# carries none of what it needs to run:
+#
+#   * no GA4_PROPERTY_ID
+#   * no GA4_CREDENTIALS_FILE and no mounted service-account key
+#   * no copy of this wrapper on the host
+#   * no cron entry
+#
+# That is deliberate. Enabling GA4 is a decision, not a side effect of the code
+# existing, and nothing in this repository installs or schedules anything. Do
+# not copy this file to the host until enabling website traffic is actually
+# intended. See docs/deployment-status.md.
+# ---------------------------------------------------------------------------
+#
+# To enable it later:
+#
+#   1. create a Google Cloud service account with **viewer** access to the GA4
+#      property and nothing else, and download its JSON key;
+#   2. put the key somewhere the web container can read and nowhere a web
+#      server serves, and mount it read-only;
+#   3. set GA4_PROPERTY_ID and GA4_CREDENTIALS_FILE in the deployment's own
+#      environment file — never in this repository, never on a command line;
+#   4. copy this file, set the deployment directory, make it executable:
+#
+#        cp sync_ga4.sh.example /boot/config/plugins/user.scripts/sync_ga4.sh
+#        chmod +x /boot/config/plugins/user.scripts/sync_ga4.sh
+#
+#   5. run it by hand once with --dry-run and check the exit code, then once
+#      live, and only then schedule it:
+#
+#        DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#          /boot/config/plugins/user.scripts/sync_ga4.sh; echo "exit=$?"
+#
+# Intended schedule — 06:00 every day, Europe/Tallinn:
+#
+#   0 6 * * *
+#
+# Before the 07:00 workbook job, because the two are unrelated and the earlier
+# slot is quiet. GA4 finalises a day some hours after it ends, so this collects
+# the *previous* completed day, not the current one.
+#
+# Cron uses the HOST clock. This host runs UTC even though its configuration
+# claims Europe/Tallinn, so a job that must land at a Tallinn time is installed
+# as a PAIR of UTC entries with an hour guard in the wrapper, exactly like the
+# other DashKoda jobs. See docs/deployment-status.md for the pattern; do not
+# copy the single-entry schedule above onto a UTC host and expect 06:00 local.
+#
+# This job takes its own PostgreSQL advisory lock, distinct from every other
+# feed's, so it can neither block nor be blocked by them. The flock below is
+# host-side defence in depth against two copies of this script overlapping.
+#
+# **A failure here cannot affect anything else.** GA4 is its own source with its
+# own state row. If collection fails, the previously published observation stays
+# current, every other page is untouched, and the website card keeps saying what
+# it said before. With GA4 unconfigured the command fails immediately, naming
+# the missing variables and publishing nothing.
+#
+# Expected exit codes:
+#
+#   0  imported, unchanged, or a successful dry run
+#   1  collection failed; the previous observation is still published
+#   3  the lock was already held, so a previous run is still in progress
+
 set -euo pipefail
 
+# Set this in the User Scripts environment, or edit the fallback below.
 DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+
+if [ ! -d "${DEPLOYMENT_DIRECTORY}" ]; then
+  echo "Deployment directory not found: ${DEPLOYMENT_DIRECTORY}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
+
 cd "${DEPLOYMENT_DIRECTORY}"
+
+# Both Compose files are named explicitly when the deployment has a host
+# override. Bare `docker compose` would recreate `web` without the host's bind
+# mounts on a stack that was created from both.
+COMPOSE_FILES=(-f compose.yaml)
+if [ -f compose.unraid.yaml ]; then
+  COMPOSE_FILES+=(-f compose.unraid.yaml)
+fi
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+#
+# `--json` emits one line of aggregate counts and identifiers. It never contains
+# the property ID, the credential path, an access token or any part of Google's
+# response. The three figures are `null` — not `0` — on a day GA4 reported no
+# rows, which is the difference between no traffic measured and zero measured.
 exec flock --nonblock /tmp/dashkoda-sync-ga4.lock \
-  docker compose exec -T web python manage.py sync_ga4
+  docker compose "${COMPOSE_FILES[@]}" exec -T web \
+    python manage.py sync_ga4 --json

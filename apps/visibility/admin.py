@@ -17,7 +17,12 @@ from django.utils.html import format_html
 
 from apps.core.admin import ReadOnlyAdmin
 
-from .models import VisibilityEntryBatch, VisibilityObservation, WebsiteTrafficObservation
+from .models import (
+    Ga4FeedState,
+    VisibilityEntryBatch,
+    VisibilityObservation,
+    WebsiteTrafficObservation,
+)
 
 
 class VisibilityObservationInline(admin.TabularInline):
@@ -146,4 +151,26 @@ class WebsiteTrafficObservationAdmin(ReadOnlyAdmin):
     date_hierarchy = "period_end"
     ordering = ("-period_end", "-id")
     list_select_related = ("source", "artifact", "import_run")
+    actions = None
+
+
+@admin.register(Ga4FeedState)
+class Ga4FeedStateAdmin(ReadOnlyAdmin):
+    """What the last GA4 collection attempt found.
+
+    The one place an operator can see that the collector ran, when it last
+    succeeded, and — sanitized — why it did not. Until GA4 is enabled in
+    production there is no row here at all, which is itself the honest answer.
+    """
+
+    list_display = (
+        "source",
+        "last_result",
+        "last_period_end",
+        "last_checked_at",
+        "last_successful_sync_at",
+        "last_changed_at",
+    )
+    list_filter = ("last_result",)
+    list_select_related = ("source", "current_observation")
     actions = None

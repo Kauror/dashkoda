@@ -225,6 +225,20 @@ class AuditAction(models.TextChoices):
         "visibility.observation_superseded",
         "Nähtavuse vaatlus asendatud",
     )
+    # Google Analytics website traffic: the one collected figure in this module,
+    # so the only one with the three feed events every other collector has.
+    GA4_OBSERVATION_IMPORTED = (
+        "visibility.ga4_observation_imported",
+        "Veebiliikluse vaatlus imporditud",
+    )
+    GA4_SYNC_UNCHANGED = (
+        "visibility.ga4_sync_unchanged",
+        "Veebiliikluse kogumine: muutusteta",
+    )
+    GA4_SYNC_FAILED = (
+        "visibility.ga4_sync_failed",
+        "Veebiliikluse kogumine ebaõnnestus",
+    )
 
 
 class AuditEventQuerySet(models.QuerySet):
