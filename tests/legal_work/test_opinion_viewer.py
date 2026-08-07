@@ -12,6 +12,7 @@ refuses, and what never appears in the markup.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from dataclasses import dataclass
 
 import pytest
@@ -665,6 +666,49 @@ class TestResourcePage:
 
         for leaked in ("matcher_version", "opinion-1.0", "date-exact", "runner_up", "score_margin"):
             assert leaked not in body
+
+    def test_it_is_styled_with_the_shared_design_tokens(
+        self, client, authenticate_viewer, matched_world
+    ):
+        """No raw palette utilities on the one page that used to carry them.
+
+        This page was built with literal `slate-*` and `amber-*` classes, so its
+        surfaces, borders and warning colour were pinned to palette values
+        instead of following the theme like every other page. The markup and the
+        layout are unchanged; only the vocabulary is.
+        """
+        item, _ = matched_world
+        authenticate_viewer(client)
+        url = reverse("opinion-resource", args=[self._resource(item).public_id])
+
+        body = client.get(url).content.decode()
+
+        for raw in ("slate-", "amber-", "bg-white"):
+            assert raw not in body, f"{raw} is a palette value, not a design token"
+        for token in ("dk-section", "dk-card", "text-text"):
+            assert token in body
+
+    def test_no_palette_literal_survives_in_the_template_at_all(self):
+        """Covers the branches a single request does not render.
+
+        The historical note only appears when the matter has left the current
+        workbook, so a rendered-body check cannot see it. Reading the template
+        covers every branch, including that one.
+        """
+        from pathlib import Path
+
+        import apps.legal_work as legal_work
+
+        source = (
+            Path(legal_work.__file__).parent / "templates" / "legal_work" / "opinion_resource.html"
+        ).read_text(encoding="utf-8")
+
+        # The comment explains what was replaced, so only class attributes count.
+        markup = re.sub(r"{% comment %}.*?{% endcomment %}", "", source, flags=re.S)
+
+        for raw in ("slate-", "amber-", "bg-white"):
+            assert raw not in markup, f"{raw} is a palette value, not a design token"
+        assert "dk-callout-warning" in markup, "the historical note is still a warning"
 
     def test_no_storage_detail_reaches_the_page(self, client, authenticate_viewer, matched_world):
         from apps.legal_work.opinion_storage import store_root

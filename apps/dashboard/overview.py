@@ -86,7 +86,6 @@ from .connections import (
     from_summary,
 )
 from .sparkline import (
-    Sparkline,
     TrendChart,
     TrendSource,
     build_trend_chart,
@@ -185,7 +184,6 @@ class SourcedFigure:
     value: int | Decimal | None = None
     unit: str = ""
     as_of: date | datetime | None = None
-    sparkline: Sparkline | None = None
     series: tuple = ()
     note: str = ""
 

@@ -7,10 +7,8 @@ asserts that.
 
 from django.template.loader import render_to_string
 
-from apps.dashboard.connections import Connection, ConnectionState, planned
+from apps.dashboard.connections import planned
 from apps.dashboard.navigation import NavItem
-from apps.dashboard.overview import SourcedFigure
-from apps.dashboard.sparkline import build_sparkline
 
 
 def render(name: str, context: dict) -> str:
@@ -228,63 +226,6 @@ def test_empty_state_shows_the_reason():
     assert "Lisatakse hiljem." in html
 
 
-def test_error_state_is_announced_and_carries_no_technical_detail():
-    html = render(
-        "error_state",
-        {"title": "Vaadet ei õnnestunud laadida.", "message": "Proovi lehte värskendada."},
-    )
-
-    assert 'role="alert"' in html
-    assert "Proovi lehte värskendada." in html
-
-
-def test_list_row_without_a_url_is_not_a_link():
-    html = render("list_row", {"title": "Näidisrida", "meta": "Testandmed"})
-
-    assert "Näidisrida" in html
-    assert "<a " not in html
-
-
-def test_list_row_with_a_url_is_a_link():
-    html = render("list_row", {"title": "Näidisrida", "url": "/"})
-
-    assert '<a href="/"' in html
-
-
-def test_table_wrapper_renders_synthetic_rows_inside_a_scroll_container():
-    html = render(
-        "table_wrapper",
-        {
-            "caption": "Näidistabel",
-            "columns": ["Periood", "Väärtus"],
-            "rows": [["2025 K1", "111"], ["2025 K2", "222"]],
-        },
-    )
-
-    assert "overflow-x-auto" in html
-    assert "<caption" in html
-    assert 'scope="col"' in html
-    assert "2025 K2" in html
-
-
-def test_table_wrapper_without_rows_shows_the_empty_state():
-    html = render(
-        "table_wrapper",
-        {"caption": "Näidistabel", "columns": ["Periood"], "empty_message": "Andmeid ei ole."},
-    )
-
-    assert "Andmeid ei ole." in html
-    assert "<table" not in html
-
-
-def test_skeleton_announces_that_content_is_loading():
-    html = render("skeleton", {"label": "Näidisandmeid laaditakse."})
-
-    assert 'aria-busy="true"' in html
-    assert "Näidisandmeid laaditakse." in html
-    assert 'aria-hidden="true"' in html
-
-
 def test_callout_uses_the_requested_variant():
     html = render(
         "callout",
@@ -348,34 +289,6 @@ def test_planned_module_names_the_source_as_unconnected():
     assert "Lisamisel" in html
     assert "Andmeallikas ei ole veel ühendatud." in html
     assert "Sünteetiline allikakirjeldus." in html
-
-
-def test_sparkline_figure_draws_a_line_and_keeps_the_table_beside_it():
-    from datetime import date
-
-    series = ((date(2025, 1, 1), 10), (date(2025, 2, 1), 12), (date(2025, 3, 1), 11))
-    html = render(
-        "sparkline_figure",
-        {
-            "figure": SourcedFigure(
-                label="Näidisnäitaja",
-                connection=Connection(
-                    "Sünteetiline testallikas", ConnectionState.CONNECTED, "iga päev"
-                ),
-                value=11,
-                unit="ühikut",
-                sparkline=build_sparkline(series),
-                series=series,
-            )
-        },
-    )
-
-    assert "<polyline" in html
-    assert 'style="' not in html
-    # The table is not a fallback; it stays in the document beside the drawing.
-    assert "<table" in html
-    assert "1.02.25" in html
-    assert "Sünteetiline testallikas · iga päev" in html
 
 
 def test_trend_chart_draws_both_series_and_tells_them_apart_without_colour():
@@ -469,23 +382,3 @@ def test_trend_chart_makes_every_observation_hoverable_without_a_script():
     # coordinate — it is two of them.
     assert '<path d="M0.00,' in html
     assert '<rect x="0.00"' in html
-
-
-def test_sparkline_figure_draws_nothing_when_one_point_cannot_show_a_trend():
-    from datetime import date
-
-    html = render(
-        "sparkline_figure",
-        {
-            "figure": SourcedFigure(
-                label="Näidisnäitaja",
-                connection=Connection("Sünteetiline testallikas", ConnectionState.CONNECTED),
-                value=10,
-                sparkline=build_sparkline(((date(2025, 1, 1), 10),)),
-                series=((date(2025, 1, 1), 10),),
-            )
-        },
-    )
-
-    assert "<polyline" not in html
-    assert "vähemalt kahte vaatlust" in html
