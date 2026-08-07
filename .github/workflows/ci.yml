@@ -229,10 +229,15 @@ jobs:
             echo "the web container logged an error during startup"
             exit 1
           fi
-          if [ -n "$(docker compose -f compose.yaml -f compose.dev.yaml port db 5432 2>/dev/null)" ]; then
-            echo "PostgreSQL must not publish a host port"
-            exit 1
-          fi
+          # PostgreSQL must stay on the private backend network. Resolve the
+          # service to a real container and read the authoritative binding
+          # state from `docker inspect`; anything that cannot be established —
+          # an unresolved service, a failing inspect, an unparsable document —
+          # fails the build rather than passing quietly. `ops/check_db_port.py`
+          # carries the logic and `tests/core/test_db_port_guard.py` covers
+          # both polarities.
+          db_container="$(docker compose -f compose.yaml -f compose.dev.yaml ps --quiet db)"
+          python3 ops/check_db_port.py --container "${db_container}" --port 5432/tcp
           volume_name="$(docker volume ls \
             --filter label=com.docker.compose.project=dashkoda_ci \
             --filter label=com.docker.compose.volume=postgres_data \
