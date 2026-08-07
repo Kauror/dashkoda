@@ -1,0 +1,103 @@
+#!/bin/bash
+#
+# DashKoda nightly PostgreSQL backup.
+#
+# Not generated: this one is not part of the morning feed chain and has no hour
+# guard, so it is kept by hand rather than by `generate_examples.py`.
+#
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
+#
+#   cp backup_db.sh.example /boot/config/plugins/user.scripts/backup_db.sh
+#   chmod +x /boot/config/plugins/user.scripts/backup_db.sh
+#
+# Run it by hand once and check the exit code and the archive it leaves:
+#
+#   DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#     /boot/config/plugins/user.scripts/backup_db.sh; echo "exit=$?"
+#
+# Intended schedule — 00:30 UTC, every day:
+#
+#   30 0 * * * /boot/config/plugins/user.scripts/backup_db.sh &> /dev/null
+#
+# **Anchored to UTC, not to Tallinn**, unlike every other DashKoda job. A backup
+# does not need to land at a particular wall-clock hour; it needs to land when
+# nothing else is running. So it takes no UTC pair and no hour guard, and it
+# drifts by an hour across the daylight-saving boundary on purpose.
+#
+# 00:30 UTC is chosen for its neighbours, not for itself. On the pilot host
+# those are the weekly Appdata Backup (01:00 Mondays), the array mover (01:40
+# daily) and the DashKoda feed chain (02:30–04:30 UTC, which is 05:30–06:30 in
+# Tallinn). This sits clear of all three, and the dump itself takes well under a
+# minute at the current database size.
+#
+# **A dump is only useful if it restores.** Every archive is verified before it
+# replaces the previous one: gzip integrity first, then that the decompressed
+# stream is a plain-SQL `pg_dump`. A corrupt archive is discarded and the run
+# fails loudly rather than quietly overwriting a good backup with a bad one.
+#
+# Pruning touches **only** this script's own `nightly-*.sql.gz` files. A manual
+# `pre-*.sql.gz` taken before a risky change is never deleted by automation.
+#
+# Expected exit codes:
+#
+#   0  a verified archive was written and old nightly archives pruned
+#   1  the dump failed, or the archive did not verify; nothing was replaced
+#
+# This is a **backup**, not a recovery procedure. Restoring over the production
+# database has never been rehearsed on this deployment — see
+# docs/deployment-status.md and docs/operations-runbook.md.
+
+set -euo pipefail
+
+# Set this in the User Scripts environment, or edit the fallback below.
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+REPO="${DEPLOYMENT_DIRECTORY}/repo"
+DEST="${DEPLOYMENT_DIRECTORY}/backups"
+LOG="${DEPLOYMENT_DIRECTORY}/logs/backup_db.log"
+RETAIN_DAYS=30
+
+if [ ! -d "${REPO}" ]; then
+  echo "Deployment repository not found: ${REPO}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
+
+mkdir -p "${DEST}" "$(dirname "${LOG}")"
+
+log()  { echo "$(date '+%Y-%m-%d %H:%M:%S %Z') $*" >> "${LOG}"; }
+fail() { rm -f "${TMP:-}"; log "exit=1 $1"; exit 1; }
+
+# Both Compose files, because the stack was created from both. Bare
+# `docker compose` would address a different project on this host.
+COMPOSE=(docker compose -f "${REPO}/compose.yaml")
+[ -f "${REPO}/compose.unraid.yaml" ] && COMPOSE+=(-f "${REPO}/compose.unraid.yaml")
+
+# Credentials come from the deployment's own environment file, never from here
+# and never from the command line.
+# shellcheck disable=SC1091
+set -a; . "${REPO}/.env"; set +a
+
+STAMP="$(date -u +%Y%m%d-%H%M%S)"
+TMP="${DEST}/.nightly-${STAMP}.sql.gz.partial"
+OUT="${DEST}/nightly-${STAMP}.sql.gz"
+
+# `exec -T db pg_dump` runs inside the database container, so no PostgreSQL
+# client is needed on the host and no port is published to reach it.
+"${COMPOSE[@]}" exec -T db pg_dump -U "${POSTGRES_USER}" -d "${POSTGRES_DB}" 2>/dev/null \
+  | gzip > "${TMP}" || fail "pg_dump failed"
+
+# Verify before replacing anything.
+gzip -t "${TMP}" 2>/dev/null || fail "corrupt archive discarded"
+gunzip -c "${TMP}" 2>/dev/null | head -c 4096 | grep -q "PostgreSQL database dump" \
+  || fail "archive is not a pg_dump; discarded"
+
+mv "${TMP}" "${OUT}"
+
+# Prunes only this script's own nightly archives. Manual pre-*.sql.gz dumps stay.
+find "${DEST}" -maxdepth 1 -name 'nightly-*.sql.gz' -mtime +"${RETAIN_DAYS}" -delete
+KEPT="$(find "${DEST}" -maxdepth 1 -name 'nightly-*.sql.gz' | wc -l)"
+SIZE="$(stat -c %s "${OUT}")"
+
+log "exit=0 $(basename "${OUT}") ${SIZE} bytes, ${KEPT} nightly archives retained"

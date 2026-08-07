@@ -38,20 +38,29 @@
 #        DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
 #          /boot/config/plugins/user.scripts/sync_ga4.sh; echo "exit=$?"
 #
-# Intended schedule — 06:00 every day, Europe/Tallinn:
+# Intended schedule — **none. This job is not scheduled and GA4 is not enabled.**
 #
-#   0 6 * * *
+# When it is enabled, it must NOT go at 06:00 Tallinn. That slot is inside the
+# feed chain, between the archive collection at 06:00 and its matcher at 06:15.
+# An earlier version of this file suggested exactly that, from before the chain
+# was compacted into 05:30–06:30.
 #
-# Before the 07:00 workbook job, because the two are unrelated and the earlier
-# slot is quiet. GA4 finalises a day some hours after it ends, so this collects
-# the *previous* completed day, not the current one.
+# The free slots either side of the chain are before 05:30 or after 06:30.
+# **05:00 Tallinn** is the recommendation: GA4 finalises a day some hours after
+# it ends, this job collects the *previous* completed day, and running it ahead
+# of the chain keeps the chain's own ordering untouched.
 #
-# Cron uses the HOST clock. This host runs UTC even though its configuration
-# claims Europe/Tallinn, so a job that must land at a Tallinn time is installed
-# as a PAIR of UTC entries with an hour guard in the wrapper, exactly like the
-# other DashKoda jobs. See docs/deployment-status.md for the pattern; do not
-# copy the single-entry schedule above onto a UTC host and expect 06:00 local.
+#   0 2 * * * /boot/config/plugins/user.scripts/sync_ga4.sh &> /dev/null
+#   0 3 * * * /boot/config/plugins/user.scripts/sync_ga4.sh &> /dev/null
 #
+#   summer (EEST, UTC+3): the 02:00 UTC entry runs, the 03:00 one skips
+#   winter (EET,  UTC+2): the 03:00 UTC entry runs, the 02:00 one skips
+#
+# The guard below is already set to 05 for that slot. Change both the guard and
+# the pair together if you choose a different time — `docs/operations-runbook.md`
+# lists what else is running.
+#
+
 # This job takes its own PostgreSQL advisory lock, distinct from every other
 # feed's, so it can neither block nor be blocked by them. The flock below is
 # host-side defence in depth against two copies of this script overlapping.
@@ -69,6 +78,17 @@
 #   3  the lock was already held, so a previous run is still in progress
 
 set -euo pipefail
+
+# Europe/Athens stands in for Europe/Tallinn: identical offsets, and present in
+# the trimmed zoneinfo where Tallinn is not.
+TALLINN_TZ="Europe/Athens"
+TARGET_HOUR="05"
+
+if [ "${DASHKODA_FORCE:-0}" != "1" ]; then
+  if [ "$(TZ="${TALLINN_TZ}" date +%H)" != "${TARGET_HOUR}" ]; then
+    exit 0
+  fi
+fi
 
 # Set this in the User Scripts environment, or edit the fallback below.
 DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"

@@ -346,7 +346,7 @@ and the internal board-report history count different things; see
   fixed metric registry, the staff entry and correction workflow, the Nähtavus
   page and the six-slot channel band
 - `/admin/data-entry/`, one staff-only index of every manual-entry workflow
-- Unraid script templates for 07:00 and 07:05 `Europe/Tallinn` schedules
+- Unraid script templates for 07:00 and 05:40 `Europe/Tallinn` schedules
 - the Koda.ee `Hetkel käsil` current-topic catalogue, a deterministic matcher
   over the current legal snapshot's consultation-eligible records, immutable
   match snapshots, their read-only admin, and the automatic topic links those
@@ -398,7 +398,7 @@ configuration alone never makes the page claim a connection.
 Press coverage, the newsletter itself and event history once an event has passed
 remain entirely unconnected, and no model is capable of holding those.
 
-The 07:00 schedule is **documented here as a template**; this repository installs
+The 05:30–06:30 chain is **documented here as a template**; this repository installs
 no schedule. An administrator has installed it on the pilot host. See
 [deployment-status.md](deployment-status.md).
 

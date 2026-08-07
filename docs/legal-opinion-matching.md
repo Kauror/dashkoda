@@ -196,7 +196,7 @@ output is aggregates only: counts, a snapshot id and the matcher version, never
 a topic, filename, recipient, subject, document text or path. A failure leaves
 the previous match snapshot current.
 
-**Not scheduled by this repository.** The intended time is 08:00
+**Not scheduled by this repository.** The intended time is 06:30
 `Europe/Tallinn`, installed as the usual UTC pair, and only after production
 acceptance shows zero false primary links.
 
