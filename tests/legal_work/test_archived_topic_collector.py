@@ -9,9 +9,10 @@ import datetime as dt
 
 import pytest
 
-from apps.core.public_http import PublicFetchError
+from apps.core.public_http import FetchFailure, PublicFetchError, RetryableFetchError
 from apps.legal_work.archived_topics import (
     ArchiveCollectionError,
+    _fetch_html,
     collect_archive_index,
     content_key_for,
     discover_last_page,
@@ -30,7 +31,7 @@ from .archive_factory import (
     pager,
     simple_archive,
 )
-from .current_topic_factory import FakeSite, detail
+from .current_topic_factory import FakeSite, detail, not_found, refused
 
 
 @pytest.fixture
@@ -407,3 +408,184 @@ def test_the_response_cap_is_passed_to_the_transport(patch_fetch, settings):
 def test_the_pager_helper_marks_its_own_last_page():
     assert "pager__item--last" in pager(current=0, last=5)
     assert pager(current=0, last=0) == ""
+
+
+# -- failure classification ---------------------------------------------
+#
+# A detail failure used to be classified by searching the error message for
+# `"404"` and for the Estonian word `"keeldus"`. Both are display strings, so
+# rewording or translating one silently reclassified every failure that
+# depended on it — and any message that happened to contain `404` for an
+# unrelated reason was recorded as a missing page. Classification now reads
+# `PublicFetchError.failure`, which is part of the contract.
+
+
+def _detail_failure(patch_fetch, error):
+    site = patch_fetch(
+        archive_site({0: [("alpha", "Alfa")]}, errors={f"{DETAIL_PREFIX}alpha": error})
+    )
+    return hydrate_detail(f"https://www.koda.ee{DETAIL_PREFIX}alpha", session=site)
+
+
+def test_a_404_is_recorded_as_missing(patch_fetch):
+    result = _detail_failure(patch_fetch, not_found())
+
+    assert result.status == DetailStatus.FAILED
+    assert result.failure_code == "http_404"
+
+
+@pytest.mark.parametrize("status", [401, 403])
+def test_an_access_refusal_is_recorded_as_refused(patch_fetch, status):
+    result = _detail_failure(patch_fetch, refused(status))
+
+    assert result.failure_code == "http_refused"
+
+
+def test_a_timeout_is_recorded_as_unavailable(patch_fetch):
+    result = _detail_failure(
+        patch_fetch, RetryableFetchError("Päring aegus.", failure=FetchFailure.TIMEOUT)
+    )
+
+    assert result.failure_code == "unavailable"
+
+
+def test_a_transport_failure_is_recorded_as_unavailable(patch_fetch):
+    result = _detail_failure(
+        patch_fetch,
+        RetryableFetchError(
+            "Ühendus ebaõnnestus: ConnectionError.", failure=FetchFailure.TRANSPORT
+        ),
+    )
+
+    assert result.failure_code == "unavailable"
+
+
+def test_a_server_error_is_recorded_as_unavailable(patch_fetch):
+    result = _detail_failure(
+        patch_fetch,
+        RetryableFetchError(
+            "Allikas vastas koodiga 503.", failure=FetchFailure.SERVER_ERROR, status_code=503
+        ),
+    )
+
+    assert result.failure_code == "unavailable"
+
+
+def test_an_unexpected_content_type_is_recorded_as_unavailable(patch_fetch):
+    result = _detail_failure(
+        patch_fetch,
+        PublicFetchError("Ootamatu sisutüüp: image/png.", failure=FetchFailure.UNEXPECTED_CONTENT),
+    )
+
+    assert result.failure_code == "unavailable"
+
+
+def test_an_unknown_source_error_is_recorded_as_unavailable(patch_fetch):
+    """The safe default: unreachable for a reason we do not model separately."""
+    result = _detail_failure(patch_fetch, PublicFetchError("Midagi läks valesti."))
+
+    assert result.failure_code == "unavailable"
+
+
+def test_a_malformed_page_is_still_unparsable_rather_than_unavailable(patch_fetch):
+    """A page that arrives and cannot be read is a different failure."""
+    site = patch_fetch(
+        archive_site(
+            {0: [("alpha", "Alfa")]},
+            details={"alpha": "<!doctype html><html><body><p>ei midagi</p></body></html>"},
+        )
+    )
+
+    result = hydrate_detail(f"https://www.koda.ee{DETAIL_PREFIX}alpha", session=site)
+
+    assert result.failure_code == "unparsable"
+
+
+def test_the_message_alone_no_longer_decides_the_classification(patch_fetch):
+    """The regression, from both directions.
+
+    A refusal whose message happens to contain `404` used to be recorded as a
+    missing page; a missing page whose message was reworded used to fall through
+    to `unavailable`.
+    """
+    misleading = _detail_failure(
+        patch_fetch,
+        PublicFetchError(
+            "Allikas keeldus ligipääsust (403). Vaata viidet 404 dokumentatsioonis.",
+            failure=FetchFailure.REFUSED,
+            status_code=403,
+        ),
+    )
+    assert misleading.failure_code == "http_refused"
+
+    reworded = _detail_failure(
+        patch_fetch,
+        PublicFetchError("Lehte ei ole olemas.", failure=FetchFailure.NOT_FOUND, status_code=404),
+    )
+    assert reworded.failure_code == "http_404"
+
+
+def test_the_structured_failure_survives_the_wrapping(patch_fetch):
+    """`ArchiveCollectionError` must carry the classification, not drop it."""
+    site = patch_fetch(
+        archive_site({0: [("alpha", "Alfa")]}, errors={f"{DETAIL_PREFIX}alpha": refused(403)})
+    )
+
+    with pytest.raises(ArchiveCollectionError) as error:
+        _fetch_html(f"https://www.koda.ee{DETAIL_PREFIX}alpha", session=site)
+
+    assert error.value.failure == FetchFailure.REFUSED
+    assert error.value.status_code == 403
+
+
+def test_a_failure_code_is_still_free_of_any_source_message(patch_fetch):
+    """No raw source text may reach stored viewer-facing state."""
+    result = _detail_failure(
+        patch_fetch,
+        PublicFetchError(
+            "Sisemine viga: /srv/secret/path leaked", failure=FetchFailure.SERVER_ERROR
+        ),
+    )
+
+    assert result.failure_code == "unavailable"
+    assert "secret" not in result.failure_code
+    assert result.body_text == ""
+
+
+# -- the hydration cutoff uses application time --------------------------
+
+
+def test_the_hydration_cutoff_follows_the_application_date(settings, monkeypatch):
+    """`Europe/Tallinn`, not the container's UTC clock.
+
+    The archive runs overnight, and between midnight and 03:00 Tallinn the
+    container's UTC date is still yesterday — so `date.today()` moved the window
+    by a day for exactly the runs that use it. Pinning `timezone.localdate` to a
+    date that is not today is what separates the two: the old implementation
+    ignored it and answered from the real system clock.
+    """
+    from apps.legal_work import archived_topics
+
+    window = settings.KODA_ARCHIVE_HYDRATION_WINDOW_DAYS
+    tallinn_today = dt.date(2026, 7, 1)
+    monkeypatch.setattr(archived_topics.timezone, "localdate", lambda: tallinn_today)
+
+    assert hydration_cutoff() == tallinn_today - dt.timedelta(days=window)
+    assert hydration_cutoff() != dt.date.today() - dt.timedelta(days=window)
+
+
+def test_the_cutoff_still_honours_an_explicit_date(settings):
+    window = settings.KODA_ARCHIVE_HYDRATION_WINDOW_DAYS
+
+    assert hydration_cutoff(dt.date(2026, 3, 10)) == dt.date(2026, 3, 10) - dt.timedelta(
+        days=window
+    )
+
+
+def test_no_container_local_date_remains_in_the_archive_collector():
+    """The whole module reads application time, not the system clock."""
+    import inspect
+
+    from apps.legal_work import archived_topics
+
+    assert "date.today()" not in inspect.getsource(archived_topics)
