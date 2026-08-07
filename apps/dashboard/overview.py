@@ -50,7 +50,6 @@ from apps.legal_work.selectors import (
     count_received_since,
     count_sent_since,
     get_latest_sent_items,
-    get_newest_received_items,
     get_open_items_by_deadline,
 )
 from apps.legal_work.topic_links import present_topics, resolve_links_for
@@ -103,6 +102,13 @@ from .sparkline import (
 # its rows cost a third of what an untabbed card's would, and it sits beside the
 # Liikmeskond card's three figures and its chart.
 LEGAL_PREVIEW_LIMIT = 7
+
+#: Töös carries the whole active population now that arrivals are not a separate
+#: tab. Twice the preview limit, because two tabs of seven could jointly surface
+#: fourteen distinct active records and dropping one tab must not shrink what an
+#: active record has to compete against to be seen. The full Õigusloome page
+#: lists every open record; this is the summary of the most urgent of them.
+LEGAL_ACTIVE_LIMIT = 14
 
 # Row two — two list cards of the same shape, kept level with each other. Five is
 # what the events card was asked for; the news card follows it so this row does
@@ -276,7 +282,6 @@ class OverviewPage:
     # plus whatever public address the read path resolved for it. The row itself
     # is reached through `.item` and is never modified.
     legal_work_open: tuple
-    legal_work_received: tuple
     legal_work_sent: tuple
     events: Connection
     upcoming_events: tuple
@@ -312,17 +317,13 @@ def build_overview(*, legal_work, membership, news, events, trend_range_key=None
     # current snapshot themselves when handed `None`, which would be three
     # pointless queries on a page that already knows there is nothing published.
     legal_open_items = (
-        list(get_open_items_by_deadline(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else []
-    )
-    legal_received_items = (
-        list(get_newest_received_items(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else []
+        list(get_open_items_by_deadline(snapshot, limit=LEGAL_ACTIVE_LIMIT)) if snapshot else []
     )
     legal_sent_items = (
         list(get_latest_sent_items(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else []
     )
-    legal_links = resolve_links_for(legal_open_items, legal_received_items, legal_sent_items)
+    legal_links = resolve_links_for(legal_open_items, legal_sent_items)
     legal_open = present_topics(legal_open_items, legal_links)
-    legal_received = present_topics(legal_received_items, legal_links)
     legal_sent = present_topics(legal_sent_items, legal_links)
 
     public_connection = from_summary(
@@ -369,7 +370,6 @@ def build_overview(*, legal_work, membership, news, events, trend_range_key=None
         ),
         legal_work=legal_connection,
         legal_work_open=legal_open,
-        legal_work_received=legal_received,
         legal_work_sent=legal_sent,
         events=events_connection,
         upcoming_events=tuple(

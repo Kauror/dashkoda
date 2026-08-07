@@ -142,8 +142,12 @@ screen, and one distinguished only by hue does not exist for a reader who cannot
 separate the hues.
 
 `legal_topic` exists because the Õigusloome card lists the same kind of record
-under three tabs — Töös, Viimased sisse, Välja läinud — and a rule about when a
-topic is clickable must not be able to hold in two of them and not the third.
+under two tabs — Töös and Välja läinud — and a rule about when a topic is
+clickable must not be able to hold in one of them and not the other. The card
+carried a third tab, Viimased sisse, until arrivals were recognised as a way of
+sorting active work rather than a state of their own; recently received records
+are ordinary Töös rows now, and the full Õigusloome page is where they are
+inspected by date.
 Nothing supplies an address today: `Tööd eelnõudega.xlsx` has no such column and
 is read-only to this application, and a column on `LegalWorkItem` would not help
 on its own, because snapshot rows are rebuilt on every import and a manually
