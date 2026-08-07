@@ -36,10 +36,17 @@ class Migration(migrations.Migration):
         # a table that already holds rows: every existing row would receive the
         # *same* value and the unique index would fail. Add it nullable, give
         # each row its own identifier, then tighten — the documented pattern.
+        #
+        # The default is deliberately absent here. Keeping `default=uuid.uuid4`
+        # on this step defeats the whole pattern: Django evaluates a callable
+        # default **once** and writes that single value to every existing row,
+        # so the backfill below then finds nothing null and the unique index
+        # still fails. Adding the column empty is what makes the backfill the
+        # thing that assigns identifiers.
         migrations.AddField(
             model_name="opiniondocumentblob",
             name="public_id",
-            field=models.UUIDField(default=uuid.uuid4, editable=False, null=True),
+            field=models.UUIDField(editable=False, null=True),
         ),
         migrations.RunPython(
             _assign_blob_public_ids,
