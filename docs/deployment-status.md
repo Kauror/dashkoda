@@ -352,18 +352,28 @@ credential exists, because there is nothing remote to authenticate to.
 
 **The managed store is not covered by the PostgreSQL backup and cannot be
 reconstructed from it**: the database holds text and metadata, not bytes. The
-store must be backed up alongside the database dump, and the bootstrap archive
-retained as the evidence the catalogue was derived from.
+store must be backed up alongside the database dump, and both archives in
+`opinions/bootstrap-archive/` retained as the evidence the catalogue was derived
+from.
 
 The initial import is run by hand over several bounded runs using
 `--max-documents N` until the output stops reporting `"result": "partial"`. A
 partial build publishes nothing, so the pilot can be interrupted at any point
 without leaving a half-catalogue current.
 
-Neither `sync_legal_opinion_documents` nor `verify_legal_opinion_store` is
-scheduled. The intended sync time is 06:20 `Europe/Tallinn`, installed as the
-usual UTC pair — but **while the source is a static archive there is nothing for
-a daily sync to find**, so it is deliberately left uninstalled.
+`sync_legal_opinion_documents` **is scheduled**, at 06:20 `Europe/Tallinn` as
+the usual UTC pair (`20 3` / `20 4` with an `06` hour guard). It became worth
+running daily once the source stopped being a static archive: since the
+2025+2026 activation the source root holds loose PDFs in year folders, so a new
+document appears simply by being placed there.
+
+`verify_legal_opinion_store` remains unscheduled and is run by hand.
+
+**The cloud-to-server step is not yet automated.** OneDrive is where staff
+maintain the documents, but nothing copies them to this host automatically. A
+new PDF must be placed in `opinions/source/onedrive/<year>/` over the existing
+administrative SSH path. Authenticated OneDrive mirroring is a later piece of
+work; until it exists, do not describe this feed as end-to-end automatic.
 
 A catalogue failure cannot affect any other feed: separate source, separate
 advisory lock, separate transaction, and a failure leaves the previous catalogue
@@ -390,12 +400,11 @@ Migration `0006` is additive. It adds one field to the blob table, backfills an
 opaque identifier for every existing row in batches, then tightens it to unique
 — safe on a table that already holds documents, which the pilot's does.
 
-`match_legal_opinion_documents` is **not scheduled by this repository**. The
-intended time is 06:30 `Europe/Tallinn`, installed as the usual UTC pair, and
-only after production acceptance shows zero false primary links. It is the one
-opinion job worth scheduling while the source is a static archive: new legal
-workbook snapshots arrive daily and can require rematching against the same
-catalogue, whereas the catalogue itself has nothing new to find.
+`match_legal_opinion_documents` **is scheduled**, at 06:30 `Europe/Tallinn` as
+the usual UTC pair (`30 3` / `30 4` with an `06` hour guard), installed after
+production acceptance showed zero false primary links. It runs ten minutes after
+the catalogue job, so a document that arrived overnight is catalogued before the
+matcher considers it.
 
 A matching failure cannot affect any other feed, and leaves the previous match
 snapshot current. Global freshness stays four.

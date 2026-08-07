@@ -37,8 +37,26 @@ handover unreadable. A file is only read once it has stopped changing
 (`LEGAL_OPINION_MIN_STABLE_AGE_SECONDS`), so a PDF still being copied is never
 hashed half-written.
 
-The recurring-folder workflow exists in code and is tested, but the **only**
-source used in the current rollout is the bootstrap ZIP.
+The recurring-folder workflow is what production runs. Since the 2025+2026
+activation the active source is **loose PDFs in year folders** under
+`source/onedrive/2025/` and `source/onedrive/2026/`, read by `DirectoryProvider`.
+
+No ZIP remains in the source root. Both archives are preserved deliberately
+*outside* it, where nothing ingests them automatically:
+
+- `opinions/bootstrap-archive/Opinions-2026-pilot.zip` — the 34-document pilot
+  the first catalogue was built from;
+- `opinions/bootstrap-archive/Opinions-full-2020-2026.zip` — the complete
+  767-document historical handover.
+
+The pilot ZIP was moved out *before* the expanded catalogue was published, so
+the first 2025+2026 catalogue already carries its final directory-backed source
+identity rather than changing identity a second time later.
+
+**Active years are 2025 and 2026 only.** 2020–2024 stay inside the full archive
+until a separate decision activates them. That is an operator choice about what
+sits in the source directory; there is no year filter in application code and
+the collector remains year-agnostic.
 
 ## The archive is treated as untrusted
 
@@ -211,8 +229,8 @@ metadata, not bytes.
 Back up `/mnt/user/appdata/dashkoda/opinions/store` alongside the database dump.
 `blobs/` is the part that matters; `temporary/` is disposable and `quarantine/`
 is diagnostic. The source inbox should be retained too, as the evidence the
-catalogue was derived from: **do not delete the bootstrap ZIP** until backup
-policy explicitly allows it.
+catalogue was derived from: **do not delete either archive in
+`opinions/bootstrap-archive/`** until backup policy explicitly allows it.
 
 `verify_legal_opinion_store --json` re-reads and re-hashes every blob. It reports
 and never repairs — deleting a blob that looks wrong is how a recoverable fault
