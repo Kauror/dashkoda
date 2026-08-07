@@ -188,8 +188,50 @@ class MembershipMonthlyNewMemberValueAdmin(ReadOnlyAdmin):
     list_select_related = ("source", "import_run", "selected_source_document")
 
 
+class ResolutionStampMixin:
+    """Stamps who resolved an imported quality record, and audits it.
+
+    Two admins need exactly this: `MembershipDataIssue` and
+    `MembershipMetricConflict`. The stamping was written out twice, character
+    for character apart from the audit summary, which is the one part that
+    genuinely differs — a warning is identified by its code and severity, a
+    conflict by its date and metric.
+
+    So the mechanism lives here and each admin supplies only its own summary
+    through `resolution_summary`. The mixin owns no query, no permission and no
+    field list.
+
+    The resolver and the timestamp are set here rather than being form fields,
+    so they describe what actually happened instead of what somebody typed. The
+    save names the resolution fields explicitly, because both models refuse any
+    write that could touch what the import wrote and a bare `obj.save()` claims
+    to rewrite the whole row.
+    """
+
+    def resolution_summary(self, obj) -> dict:
+        """The audit summary for this model. Never source text."""
+        raise NotImplementedError
+
+    def save_model(self, request, obj, form, change):
+        became_resolved = obj.resolved and not obj.resolved_at
+        if became_resolved:
+            obj.resolved_by = request.user
+            obj.resolved_at = timezone.now()
+        elif not obj.resolved:
+            obj.resolved_by = None
+            obj.resolved_at = None
+        obj.save(update_fields=sorted(obj.MUTABLE_FIELDS))
+        if became_resolved:
+            record_event(
+                action=AuditAction.MEMBERSHIP_ISSUE_RESOLVED,
+                obj=obj,
+                actor=request.user,
+                change_summary=self.resolution_summary(obj),
+            )
+
+
 @admin.register(MembershipDataIssue)
-class MembershipDataIssueAdmin(admin.ModelAdmin):
+class MembershipDataIssueAdmin(ResolutionStampMixin, admin.ModelAdmin):
     """Imported warnings, resolvable but not rewritable."""
 
     list_display = (
@@ -242,41 +284,17 @@ class MembershipDataIssueAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
-    def save_model(self, request, obj, form, change):
-        """Stamp who resolved it, and record that in the audit trail.
-
-        The resolver and the timestamp are set here rather than being form
-        fields, so they describe what actually happened instead of what someone
-        typed.
-
-        The save names the resolution fields explicitly: the model now refuses
-        any write that could touch what the import put there, and a bare
-        `obj.save()` claims to rewrite the whole row.
-        """
-        became_resolved = obj.resolved and not obj.resolved_at
-        if became_resolved:
-            obj.resolved_by = request.user
-            obj.resolved_at = timezone.now()
-        elif not obj.resolved:
-            obj.resolved_by = None
-            obj.resolved_at = None
-        obj.save(update_fields=sorted(obj.MUTABLE_FIELDS))
-        if became_resolved:
-            record_event(
-                action=AuditAction.MEMBERSHIP_ISSUE_RESOLVED,
-                obj=obj,
-                actor=request.user,
-                change_summary={
-                    "source": obj.source.slug,
-                    "warning_code": obj.warning_code,
-                    "severity": obj.severity,
-                    "issue_id": obj.pk,
-                },
-            )
+    def resolution_summary(self, obj) -> dict:
+        return {
+            "source": obj.source.slug,
+            "warning_code": obj.warning_code,
+            "severity": obj.severity,
+            "issue_id": obj.pk,
+        }
 
 
 @admin.register(MembershipMetricConflict)
-class MembershipMetricConflictAdmin(admin.ModelAdmin):
+class MembershipMetricConflictAdmin(ResolutionStampMixin, admin.ModelAdmin):
     """Cross-document disagreements, resolvable in the same narrow way."""
 
     list_display = (
@@ -322,25 +340,10 @@ class MembershipMetricConflictAdmin(admin.ModelAdmin):
     def has_delete_permission(self, request, obj=None):
         return False
 
-    def save_model(self, request, obj, form, change):
-        """Same narrow resolution stamp as a data issue, saved the same way."""
-        became_resolved = obj.resolved and not obj.resolved_at
-        if became_resolved:
-            obj.resolved_by = request.user
-            obj.resolved_at = timezone.now()
-        elif not obj.resolved:
-            obj.resolved_by = None
-            obj.resolved_at = None
-        obj.save(update_fields=sorted(obj.MUTABLE_FIELDS))
-        if became_resolved:
-            record_event(
-                action=AuditAction.MEMBERSHIP_ISSUE_RESOLVED,
-                obj=obj,
-                actor=request.user,
-                change_summary={
-                    "source": obj.source.slug,
-                    "metric": obj.metric,
-                    "observation_date": obj.observation_date.isoformat(),
-                    "conflict_id": obj.pk,
-                },
-            )
+    def resolution_summary(self, obj) -> dict:
+        return {
+            "source": obj.source.slug,
+            "metric": obj.metric,
+            "observation_date": obj.observation_date.isoformat(),
+            "conflict_id": obj.pk,
+        }

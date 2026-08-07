@@ -54,6 +54,7 @@ from django.utils import timezone
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
+    ContentIdentity,
     describe_error,
     fail_feed,
     find_published_artifact,
@@ -243,7 +244,7 @@ def synchronize_archived_topics(
             priority_candidates=len(priority_urls),
         )
 
-    collection = type("Collection", (), {"sha256": checksum, "size_bytes": size})()
+    collection = ContentIdentity(sha256=checksum, size_bytes=size)
     try:
         artifact, run = start_run(
             source,

@@ -22,6 +22,7 @@ import json
 
 from django.core.management.base import BaseCommand
 
+from apps.core.feed_commands import FeedCommandOutputMixin
 from apps.core.feeds import FeedLocked, FeedResult, SourceOutcome, advisory_lock
 from apps.events.sync import LOCK_NAME as EVENTS_LOCK
 from apps.events.sync import synchronize_events
@@ -55,7 +56,7 @@ LABELS = {
 }
 
 
-class Command(BaseCommand):
+class Command(FeedCommandOutputMixin, BaseCommand):
     help = "Collect the public Koda.ee member count, news feed and events calendar."
 
     def add_arguments(self, parser):
@@ -65,16 +66,8 @@ class Command(BaseCommand):
             default="all",
             help="Which source to synchronize. Defaults to all.",
         )
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Collect and validate without publishing anything.",
-        )
-        parser.add_argument(
-            "--json",
-            action="store_true",
-            dest="as_json",
-            help="Emit one structured JSON line instead of prose.",
+        self.add_output_arguments(
+            parser, dry_run_help="Collect and validate without publishing anything."
         )
 
     def handle(self, *args, **options):
