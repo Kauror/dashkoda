@@ -253,6 +253,12 @@ class OpinionCatalogueSnapshot(models.Model):
     )
     source_manifest_checksum = models.CharField(max_length=64, verbose_name="Lähtekomplekti räsi")
     extractor_version = models.CharField(max_length=20, verbose_name="Lugeja versioon")
+    filename_normaliser_version = models.CharField(
+        max_length=20,
+        default="",
+        blank=True,
+        verbose_name="Failinime normaliseerija versioon",
+    )
     observed_at = models.DateTimeField(verbose_name="Kogutud")
     entry_count = models.PositiveIntegerField(default=0, verbose_name="Kirjeid")
     valid_count = models.PositiveIntegerField(default=0, verbose_name="Korras")
