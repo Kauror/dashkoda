@@ -29,6 +29,8 @@ from datetime import date
 from decimal import Decimal
 from enum import StrEnum
 
+from django.db.models import F, Window
+from django.db.models.functions import RowNumber
 from django.utils import timezone
 
 from .models import (
@@ -289,6 +291,54 @@ def _reading(spec: VisibilityMetricSpec, *, today: date) -> MetricReading:
     return MetricReading(spec=spec, observation=latest, previous=previous, today=today)
 
 
+def _readings_by_metric(metrics, *, today: date) -> dict[str, MetricReading]:
+    """Every requested metric's current reading, in **one** query.
+
+    Each reading needs two rows: the newest current observation and the one
+    before it, which is what a change is measured against. Asking per metric
+    cost two queries each — fourteen for the seven metrics the page draws — and
+    every one of them was the same query with a different constant.
+
+    A window ranks the rows per metric and keeps the first two. The second row
+    is the previous observation and not merely the second-newest row, because
+    `visibilityobservation_one_current_per_metric_date` guarantees exactly one
+    current row per metric per date: among current rows the dates are unique, so
+    rank 2 is the newest with a strictly earlier date. That is the same row
+    `get_previous_visibility_observation` returns.
+
+    A metric nobody has entered has no rows and therefore no reading — absent,
+    never zero.
+    """
+    ranked = (
+        VisibilityObservation.objects.filter(metric__in=list(metrics), is_current_for_date=True)
+        .annotate(
+            position=Window(
+                expression=RowNumber(),
+                partition_by=[F("metric")],
+                order_by=[F("observation_date").desc(), F("id").desc()],
+            )
+        )
+        .filter(position__lte=2)
+        .select_related("source", "batch")
+        .order_by("metric", "position")
+    )
+
+    rows: dict[str, list] = {}
+    for observation in ranked:
+        rows.setdefault(observation.metric, []).append(observation)
+
+    return {
+        metric: MetricReading(
+            spec=spec_for(metric),
+            observation=found[0] if found else None,
+            previous=found[1] if len(found) > 1 else None,
+            today=today,
+        )
+        for metric in metrics
+        for found in [rows.get(metric, [])]
+    }
+
+
 @dataclass(frozen=True)
 class NewsletterSummary:
     """The Chamber's three newsletters, each list on its own.
@@ -341,9 +391,8 @@ class NewsletterSummary:
 
 def get_newsletter_summary(*, today: date | None = None) -> NewsletterSummary:
     today = today or timezone.localdate()
-    return NewsletterSummary(
-        lists=tuple(_reading(spec_for(metric), today=today) for metric in NEWSLETTER_METRICS)
-    )
+    readings = _readings_by_metric(NEWSLETTER_METRICS, today=today)
+    return NewsletterSummary(lists=tuple(readings[metric] for metric in NEWSLETTER_METRICS))
 
 
 @dataclass(frozen=True)
@@ -374,10 +423,14 @@ class VisibilitySummary:
 
 
 def get_visibility_summary(*, today: date | None = None) -> VisibilitySummary:
+    """Every metric's current state. One query for all seven."""
     today = today or timezone.localdate()
+    readings = _readings_by_metric((*NEWSLETTER_METRICS, *SOCIAL_METRICS), today=today)
     return VisibilitySummary(
-        newsletter=get_newsletter_summary(today=today),
-        social=tuple(_reading(spec_for(metric), today=today) for metric in SOCIAL_METRICS),
+        newsletter=NewsletterSummary(
+            lists=tuple(readings[metric] for metric in NEWSLETTER_METRICS)
+        ),
+        social=tuple(readings[metric] for metric in SOCIAL_METRICS),
         today=today,
     )
 
