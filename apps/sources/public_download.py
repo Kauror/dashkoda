@@ -37,12 +37,35 @@ from django.core.exceptions import ImproperlyConfigured
 # The sharing link must live on a Microsoft host. This is not a security
 # boundary on its own — it is a configuration guard that catches a mistyped or
 # swapped-in URL before any request is made.
-ALLOWED_HOST_SUFFIXES = (
-    ".sharepoint.com",
-    ".onedrive.com",
+# Microsoft's sharing hosts, as **domains** rather than as string suffixes.
+#
+# These were once written as a mixture of the two — `.sharepoint.com` with a
+# leading dot beside a bare `1drv.ms` — and matched with `hostname.endswith()`.
+# For the dotted entries that happens to be safe; for the bare ones it is not,
+# because `endswith("1drv.ms")` is also true of `evil1drv.ms`, a domain anybody
+# can register. `is_allowed_host` below matches on the label boundary instead,
+# so a domain may only be extended at a dot.
+ALLOWED_HOST_DOMAINS = (
+    "sharepoint.com",
+    "onedrive.com",
     "onedrive.live.com",
     "1drv.ms",
 )
+
+
+def is_allowed_host(hostname: str, allowed_domains=ALLOWED_HOST_DOMAINS) -> bool:
+    """Whether `hostname` is one of `allowed_domains`, or below one of them.
+
+    The rule is exactly: the host equals the domain, or it ends with a dot
+    followed by the domain. `foo.1drv.ms` is below `1drv.ms`; `evil1drv.ms` is
+    a different domain that merely shares a spelling, and `1drv.ms.evil.example`
+    is a subdomain of `evil.example`.
+
+    `hostname` is expected already lowercased and stripped of a trailing root
+    dot, which `validate_public_url` does before calling this.
+    """
+    return any(hostname == domain or hostname.endswith(f".{domain}") for domain in allowed_domains)
+
 
 # Hostnames that must never be a collection target, even though an operator
 # supplies the configuration.
@@ -182,7 +205,7 @@ def validate_public_url(url: str, *, source: WorkbookSource) -> str:
     hostname = hostname.lower().rstrip(".")
     _require_routable_hostname(hostname, error_class=PublicUrlNotConfigured)
 
-    if not any(hostname == suffix or hostname.endswith(suffix) for suffix in ALLOWED_HOST_SUFFIXES):
+    if not is_allowed_host(hostname):
         raise PublicUrlNotConfigured(
             f"{source.url_setting} peab viitama Microsofti OneDrive'i või SharePointi hostile."
         )

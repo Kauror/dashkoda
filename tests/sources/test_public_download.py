@@ -27,7 +27,11 @@ import requests
 from apps.event_programme import public_download as event_programme_download
 from apps.legal_work import public_download as legal_work_download
 from apps.sources import public_download as shared
-from apps.sources.public_download import XLSX_MIME_TYPE, PublicDownloadError
+from apps.sources.public_download import (
+    XLSX_MIME_TYPE,
+    PublicDownloadError,
+    is_allowed_host,
+)
 
 # A synthetic sharing URL shaped like the real one but pointing nowhere. The
 # distinctive marker is what the secret-leak assertions look for.
@@ -240,6 +244,129 @@ def test_malformed_or_foreign_hosts_are_refused(settings, feed, url):
 
     with pytest.raises(feed.module.PublicUrlNotConfigured):
         feed.module.load_public_url()
+
+
+# -- the host boundary --------------------------------------------------
+#
+# The allowlist was matched with `hostname.endswith(suffix)` over a list that
+# mixed dotted suffixes with bare domains. `endswith("1drv.ms")` is true of
+# `evil1drv.ms` — a registrable domain with no relationship to Microsoft — so
+# an operator could be talked into configuring one. Matching now happens on the
+# label boundary: equal to the domain, or below it at a dot.
+
+
+class TestTheHostBoundary:
+    @pytest.mark.parametrize(
+        "hostname",
+        [
+            "1drv.ms",
+            "foo.1drv.ms",
+            "bar.foo.1drv.ms",
+            "onedrive.live.com",
+            "sharepoint.com",
+            "synthetic-tenant-my.sharepoint.com",
+            "a.b.c.onedrive.com",
+        ],
+        ids=[
+            "apex",
+            "subdomain",
+            "nested-subdomain",
+            "live-apex",
+            "sharepoint-apex",
+            "tenant",
+            "deep-onedrive",
+        ],
+    )
+    def test_a_microsoft_host_is_allowed(self, hostname):
+        assert is_allowed_host(hostname) is True
+
+    @pytest.mark.parametrize(
+        "hostname",
+        [
+            "evil1drv.ms",
+            "my1drv.ms",
+            "1drv.ms.evil.example",
+            "notsharepoint.com",
+            "sharepoint.com.attacker.invalid",
+            "onedrive.live.com.evil.example",
+            "xonedrive.com",
+            "1drv.msevil.example",
+            "",
+        ],
+        ids=[
+            "prefixed-domain",
+            "another-prefixed-domain",
+            "domain-as-a-label",
+            "prefixed-sharepoint",
+            "sharepoint-as-a-label",
+            "live-as-a-label",
+            "prefixed-onedrive",
+            "no-boundary-at-all",
+            "empty",
+        ],
+    )
+    def test_a_lookalike_host_is_refused(self, hostname):
+        assert is_allowed_host(hostname) is False
+
+    def test_the_registrable_lookalike_is_the_one_that_used_to_pass(self):
+        """The regression, stated on its own.
+
+        `evil1drv.ms` ends with `1drv.ms` and is a domain anybody can buy.
+        """
+        assert "evil1drv.ms".endswith("1drv.ms")
+        assert is_allowed_host("evil1drv.ms") is False
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://evil1drv.ms/workbook.xlsx",
+            "https://1drv.ms.attacker.invalid/workbook.xlsx",
+            "https://notsharepoint.com/workbook.xlsx",
+        ],
+    )
+    def test_a_lookalike_host_is_refused_through_the_feed_configuration(self, settings, feed, url):
+        """End to end, at the boundary an operator actually configures."""
+        setattr(settings, feed.url_setting, url)
+
+        with pytest.raises(feed.module.PublicUrlNotConfigured):
+            feed.module.load_public_url()
+
+    def test_a_trailing_root_dot_does_not_evade_the_check(self, settings, feed):
+        setattr(settings, feed.url_setting, "https://evil1drv.ms./workbook.xlsx")
+
+        with pytest.raises(feed.module.PublicUrlNotConfigured):
+            feed.module.load_public_url()
+
+    def test_case_is_not_a_way_through(self, settings, feed):
+        setattr(settings, feed.url_setting, "https://EVIL1DRV.MS/workbook.xlsx")
+
+        with pytest.raises(feed.module.PublicUrlNotConfigured):
+            feed.module.load_public_url()
+
+    def test_a_genuine_subdomain_still_configures(self, settings, feed):
+        setattr(settings, feed.url_setting, "https://foo.1drv.ms/x/abc")
+
+        assert feed.module.load_public_url() == "https://foo.1drv.ms/x/abc"
+
+    def test_both_feeds_share_the_one_implementation(self, monkeypatch):
+        """A fix here is a fix for every feed, not a fix owed to the others.
+
+        Each wrapper keeps a thin `validate_public_url` of its own so it can
+        supply its `WorkbookSource`, but the host rule itself exists once. This
+        pins that: patching the shared predicate changes both feeds.
+        """
+        calls = []
+
+        def recording(hostname, *args, **kwargs):
+            calls.append(hostname)
+            return True
+
+        monkeypatch.setattr(shared, "is_allowed_host", recording)
+
+        for module in (legal_work_download, event_programme_download):
+            module.validate_public_url("https://anything.invalid/x")
+
+        assert calls == ["anything.invalid", "anything.invalid"]
 
 
 # -- the download parameter ---------------------------------------------
