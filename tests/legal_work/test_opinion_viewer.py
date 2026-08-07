@@ -44,7 +44,7 @@ from apps.legal_work.topic_links import resolve_opinion_links
 
 from .opinion_match_factory import letter, publish_catalogue
 
-pytestmark = [pytest.mark.django_db, pytest.mark.filterwarnings("ignore::UserWarning")]
+pytestmark = pytest.mark.django_db
 
 SENT = dt.date(2026, 3, 10)
 
