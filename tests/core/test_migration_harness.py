@@ -8,6 +8,11 @@ checked here.
 `legal_work` `0005`→`0006` is used as the subject because it is the pair the
 repository actually has — one that adds a field and back-fills it — so these
 tests exercise a real backward migration rather than a contrived one.
+
+The pair under test and the app's leaf are **not** the same thing. They happened
+to coincide while `0006` was the newest migration, and naming the leaf as a
+literal made every later migration break this file. The leaf is asked of the
+migration graph instead.
 """
 
 from __future__ import annotations
@@ -20,7 +25,11 @@ from tests.migration_harness import leaf_migration, models_at
 
 BEFORE = "0005_opinion_document_catalogue"
 AFTER = "0006_opinion_matching_and_resources"
-LEAF = ("legal_work", AFTER)
+
+
+def leaf() -> tuple[str, str]:
+    """Whatever `legal_work`'s newest migration is today."""
+    return leaf_migration("legal_work")
 
 
 def applied() -> set:
@@ -54,7 +63,7 @@ class TestItReachesTheHistoricalState:
 
         populated_migration("legal_work", before=BEFORE, after=AFTER, seed=seed)
 
-        assert LEAF not in recorded["applied"], "the harness did not migrate backwards"
+        assert leaf() not in recorded["applied"], "the harness did not migrate backwards"
         assert ("legal_work", BEFORE) in recorded["applied"]
 
     def test_a_seed_that_raises_does_not_swallow_the_failure(self, populated_migration):
@@ -81,7 +90,7 @@ class TestItPutsTheDatabaseBack:
         populated_migration("legal_work", before=BEFORE, after=AFTER, seed=lambda apps: None)
 
     def test_and_the_leaf_migration_is_applied_again_afterwards(self, db):
-        assert LEAF in applied()
+        assert leaf() in applied()
 
     def test_a_failing_harness_test_also_restores(self, populated_migration):
         """Teardown is a fixture's, so an exception in the body cannot skip it."""
@@ -94,12 +103,28 @@ class TestItPutsTheDatabaseBack:
             )
 
     def test_and_the_leaf_is_still_applied_after_that_failure(self, db):
-        assert LEAF in applied()
+        assert leaf() in applied()
 
 
 class TestTheHelpers:
     def test_the_leaf_migration_is_the_newest_one(self, db):
-        assert leaf_migration("legal_work") == LEAF
+        """The highest-numbered migration on disk is the one the harness returns.
+
+        Compared against the migration files rather than a literal, so adding a
+        migration does not require editing this file — and stated as a `max` of
+        a set that must be non-empty, so it cannot pass by comparing nothing.
+        """
+        import pathlib
+
+        import apps.legal_work.migrations as package
+
+        names = sorted(
+            path.stem
+            for path in pathlib.Path(package.__file__).parent.glob("0*.py")
+            if path.stem != "__init__"
+        )
+        assert len(names) > 1, "this assertion is worthless with fewer than two migrations"
+        assert leaf() == ("legal_work", names[-1])
 
     def test_an_unknown_app_has_no_leaf(self, db):
         with pytest.raises(Exception):
@@ -108,7 +133,7 @@ class TestTheHelpers:
     def test_models_at_returns_a_registry_not_todays_models(self, db):
         from apps.legal_work.opinion_models import OpinionDocumentBlob
 
-        historical = models_at(LEAF).get_model("legal_work", "OpinionDocumentBlob")
+        historical = models_at(leaf()).get_model("legal_work", "OpinionDocumentBlob")
 
         assert historical is not OpinionDocumentBlob
         assert historical._meta.db_table == OpinionDocumentBlob._meta.db_table
