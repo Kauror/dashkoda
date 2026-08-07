@@ -198,10 +198,59 @@ class Ga4ApiCollector:
             timeout=30,
         )
         response.raise_for_status()
-        values = response.json().get("rows", [{}])[0].get("metricValues", [])
-        numbers = [int(item["value"]) for item in values]
+        return self._read(response.json(), period_start=period_start, period_end=period_end)
+
+    @staticmethod
+    def _read(payload, *, period_start: date, period_end: date) -> WebsiteTrafficReading:
+        """Turn one `runReport` document into a reading.
+
+        Separated from the request so every shape the API can answer with is
+        reachable in a test without a credential or a network call.
+
+        **A period with no traffic carries no `rows` at all.** The previous
+        implementation indexed `[0]` into whatever came back, which worked for
+        the missing-key case — the default `[{}]` absorbed it — and raised
+        `IndexError` for the one the API actually produces, `"rows": []`. A
+        scheduled collector then died with a traceback on the first genuinely
+        quiet day.
+
+        No rows is **not** a measured zero. It is an absence of measurement, and
+        this dashboard keeps the two apart everywhere else, so every figure stays
+        `None` and the website card goes on saying nothing has been collected.
+        """
+        if not isinstance(payload, dict):
+            raise ValueError("Google Analytics vastus ei olnud ootuspärane dokument.")
+
+        reading = WebsiteTrafficReading(period_start=period_start, period_end=period_end)
+
+        rows = payload.get("rows") or []
+        if not isinstance(rows, list):
+            raise ValueError("Google Analytics tagastas ootamatu ridade kuju.")
+        if not rows:
+            return reading.validate()
+
+        first = rows[0]
+        if not isinstance(first, dict):
+            raise ValueError("Google Analytics tagastas ootamatu rea kuju.")
+
+        values = first.get("metricValues") or []
+        if not isinstance(values, list):
+            raise ValueError("Google Analytics tagastas ootamatu näitajate kuju.")
+
+        numbers = []
+        for item in values:
+            if not isinstance(item, dict) or "value" not in item:
+                raise ValueError("Google Analytics tagastas näitaja ilma väärtuseta.")
+            try:
+                numbers.append(int(item["value"]))
+            except (TypeError, ValueError) as error:
+                raise ValueError(
+                    "Google Analytics tagastas veebistatistika väärtuse, mis ei ole arv."
+                ) from error
+
         if len(numbers) != 3:
             raise ValueError("Google Analytics ei tagastanud nõutud veebistatistika näitajaid.")
+
         return WebsiteTrafficReading(
             period_start=period_start,
             period_end=period_end,
