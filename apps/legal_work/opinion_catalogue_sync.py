@@ -49,7 +49,7 @@ from apps.sources.services import complete_import_run, fail_import_run
 
 from .opinion_bootstrap import ensure_opinion_source
 from .opinion_classification import classify_document
-from .opinion_filenames import parse_opinion_filename
+from .opinion_filenames import FILENAME_NORMALISER_VERSION, parse_opinion_filename
 from .opinion_header import compare_with_filename, parse_document_header
 from .opinion_models import (
     CatalogueBuildState,
@@ -184,6 +184,10 @@ def synchronize_opinion_documents(
         published is not None
         and published.source_manifest_checksum == checksum
         and published.extractor_version == EXTRACTOR_VERSION
+        # Dates, recipients and subjects are parsed out of the filenames, so a
+        # change in how a filename is read changes the catalogue's contents even
+        # when every source byte is identical.
+        and published.filename_normaliser_version == FILENAME_NORMALISER_VERSION
         and not full
     ):
         _mark_unchanged(state, correlation_id, checksum, entries=len(manifest))
@@ -490,6 +494,7 @@ def _publish(
                 import_run=run,
                 source_manifest_checksum=checksum,
                 extractor_version=EXTRACTOR_VERSION,
+                filename_normaliser_version=FILENAME_NORMALISER_VERSION,
                 observed_at=timezone.now(),
                 entry_count=len(manifest),
                 valid_count=report.valid_entries,
