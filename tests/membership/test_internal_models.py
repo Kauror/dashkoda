@@ -10,12 +10,15 @@ from decimal import Decimal
 
 import pytest
 from django.db import IntegrityError, transaction
+from django.utils import timezone
 
 from apps.membership.models import (
     InternalMembershipObservation,
     InternalObservationImmutable,
     InternalSourceKind,
     MembershipCountObservation,
+    MembershipDataIssue,
+    MembershipMetricConflict,
     MembershipMonthlyNewMemberValue,
     MonthlyValueStatus,
     QualityStatus,
@@ -247,6 +250,199 @@ def test_an_imported_child_row_cannot_be_edited(imported_package):
 
     with pytest.raises(InternalObservationImmutable):
         movement.save()
+
+
+# --------------------------------------------------------------------------
+# The resolution models: imported facts fixed, the resolution itself movable
+# --------------------------------------------------------------------------
+#
+# Both models declared `MUTABLE_FIELDS` from the start but enforced nothing, so
+# the contract was a comment. These tests hold the same line the sibling
+# import models hold, from both directions.
+
+
+@pytest.mark.django_db
+class TestDataIssueImmutability:
+    def test_the_import_creates_them(self, imported_package):
+        """Creation is unaffected; only a later rewrite is refused."""
+        assert MembershipDataIssue.objects.count() == 2
+
+    def test_a_resolution_may_be_recorded(self, imported_package, staff_user):
+        issue = MembershipDataIssue.objects.get(warning_code="collection_pct_over_100")
+
+        issue.resolved = True
+        issue.resolution_note = "Eelarve kontrollitud."
+        issue.resolved_by = staff_user
+        issue.resolved_at = timezone.now()
+        issue.save(update_fields=["resolved", "resolution_note", "resolved_by", "resolved_at"])
+
+        issue.refresh_from_db()
+        assert issue.resolved is True
+        assert issue.resolution_note == "Eelarve kontrollitud."
+
+    def test_a_bare_save_is_refused(self, imported_package):
+        """The commonest way to lose an imported fact."""
+        issue = MembershipDataIssue.objects.first()
+        issue.resolved = True
+
+        with pytest.raises(InternalObservationImmutable):
+            issue.save()
+
+    def test_an_imported_field_cannot_be_rewritten(self, imported_package):
+        issue = MembershipDataIssue.objects.first()
+        issue.message = "Midagi muud."
+
+        with pytest.raises(InternalObservationImmutable):
+            issue.save(update_fields=["message"])
+
+    def test_an_imported_field_cannot_ride_along_with_a_resolution(self, imported_package):
+        """A permitted field does not license the ones beside it."""
+        issue = MembershipDataIssue.objects.first()
+        issue.resolved = True
+        issue.severity = "error"
+
+        with pytest.raises(InternalObservationImmutable):
+            issue.save(update_fields=["resolved", "severity"])
+
+    def test_the_stored_warning_survives_a_refused_write(self, imported_package):
+        issue = MembershipDataIssue.objects.get(warning_code="collection_pct_over_100")
+        original = issue.message
+        issue.message = "Midagi muud."
+
+        with pytest.raises(InternalObservationImmutable):
+            issue.save(update_fields=["message"])
+
+        issue.refresh_from_db()
+        assert issue.message == original
+
+
+@pytest.mark.django_db
+class TestMetricConflictImmutability:
+    def test_the_import_creates_them(self, imported_package):
+        assert MembershipMetricConflict.objects.count() == 1
+
+    def test_a_resolution_may_be_recorded(self, imported_package, staff_user):
+        conflict = MembershipMetricConflict.objects.get()
+
+        conflict.resolved = True
+        conflict.resolution_note = "Valitud dokument A."
+        conflict.resolved_by = staff_user
+        conflict.resolved_at = timezone.now()
+        conflict.save(update_fields=["resolved", "resolution_note", "resolved_by", "resolved_at"])
+
+        conflict.refresh_from_db()
+        assert conflict.resolved is True
+
+    def test_a_bare_save_is_refused(self, imported_package):
+        conflict = MembershipMetricConflict.objects.get()
+        conflict.resolved = True
+
+        with pytest.raises(InternalObservationImmutable):
+            conflict.save()
+
+    def test_the_disagreement_itself_cannot_be_rewritten(self, imported_package):
+        """Editing this is how a conflict gets made to disappear."""
+        conflict = MembershipMetricConflict.objects.get()
+        conflict.values_summary = "3200 | 3200"
+
+        with pytest.raises(InternalObservationImmutable):
+            conflict.save(update_fields=["values_summary"])
+
+    def test_the_metric_and_date_cannot_move(self, imported_package):
+        conflict = MembershipMetricConflict.objects.get()
+        conflict.metric = "paid_members"
+
+        with pytest.raises(InternalObservationImmutable):
+            conflict.save(update_fields=["metric"])
+
+
+@pytest.mark.django_db
+class TestTheAdminResolutionWorkflow:
+    """The one legitimate writer must still work through the guard.
+
+    `save_model` used to call a bare `obj.save()`, which the guard now refuses,
+    so it names the resolution fields instead. Without these tests the guard
+    would have silently broken the only workflow it is meant to permit.
+    """
+
+    def _admin_for(self, model):
+        from django.contrib import admin as django_admin
+
+        return django_admin.site._registry[model]
+
+    def _post(self, rf, user):
+        request = rf.post("/admin/")
+        request.user = user
+        return request
+
+    def test_resolving_an_issue_stamps_the_resolver(self, imported_package, staff_user, rf):
+        issue = MembershipDataIssue.objects.first()
+        issue.resolved = True
+        issue.resolution_note = "Vaadatud."
+
+        self._admin_for(MembershipDataIssue).save_model(
+            self._post(rf, staff_user), issue, form=None, change=True
+        )
+
+        issue.refresh_from_db()
+        assert issue.resolved is True
+        assert issue.resolved_by == staff_user
+        assert issue.resolved_at is not None
+
+    def test_resolving_an_issue_records_an_audit_event(self, imported_package, staff_user, rf):
+        from apps.audit.models import AuditAction, AuditEvent
+
+        issue = MembershipDataIssue.objects.first()
+        issue.resolved = True
+
+        self._admin_for(MembershipDataIssue).save_model(
+            self._post(rf, staff_user), issue, form=None, change=True
+        )
+
+        assert AuditEvent.objects.filter(action=AuditAction.MEMBERSHIP_ISSUE_RESOLVED).exists()
+
+    def test_unresolving_an_issue_clears_the_stamp(self, imported_package, staff_user, rf):
+        issue = MembershipDataIssue.objects.first()
+        admin_instance = self._admin_for(MembershipDataIssue)
+        issue.resolved = True
+        admin_instance.save_model(self._post(rf, staff_user), issue, form=None, change=True)
+
+        issue.resolved = False
+        admin_instance.save_model(self._post(rf, staff_user), issue, form=None, change=True)
+
+        issue.refresh_from_db()
+        assert issue.resolved is False
+        assert issue.resolved_by is None
+        assert issue.resolved_at is None
+
+    def test_resolving_a_conflict_stamps_the_resolver(self, imported_package, staff_user, rf):
+        conflict = MembershipMetricConflict.objects.get()
+        conflict.resolved = True
+
+        self._admin_for(MembershipMetricConflict).save_model(
+            self._post(rf, staff_user), conflict, form=None, change=True
+        )
+
+        conflict.refresh_from_db()
+        assert conflict.resolved is True
+        assert conflict.resolved_by == staff_user
+
+    def test_the_admin_cannot_add_or_delete_either_model(self, rf, staff_user):
+        request = self._post(rf, staff_user)
+        for model in (MembershipDataIssue, MembershipMetricConflict):
+            admin_instance = self._admin_for(model)
+            assert admin_instance.has_add_permission(request) is False
+            assert admin_instance.has_delete_permission(request) is False
+
+    def test_every_imported_field_is_read_only_in_the_admin(self):
+        """The form cannot even offer what the model would refuse."""
+        for model in (MembershipDataIssue, MembershipMetricConflict):
+            admin_instance = self._admin_for(model)
+            editable = set(admin_instance.fields) - set(admin_instance.readonly_fields)
+            assert editable <= model.MUTABLE_FIELDS, (
+                f"{model.__name__} offers {editable - model.MUTABLE_FIELDS} for editing, "
+                "which the model refuses to save"
+            )
 
 
 @pytest.mark.django_db

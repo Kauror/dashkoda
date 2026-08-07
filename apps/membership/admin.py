@@ -248,6 +248,10 @@ class MembershipDataIssueAdmin(admin.ModelAdmin):
         The resolver and the timestamp are set here rather than being form
         fields, so they describe what actually happened instead of what someone
         typed.
+
+        The save names the resolution fields explicitly: the model now refuses
+        any write that could touch what the import put there, and a bare
+        `obj.save()` claims to rewrite the whole row.
         """
         became_resolved = obj.resolved and not obj.resolved_at
         if became_resolved:
@@ -256,7 +260,7 @@ class MembershipDataIssueAdmin(admin.ModelAdmin):
         elif not obj.resolved:
             obj.resolved_by = None
             obj.resolved_at = None
-        super().save_model(request, obj, form, change)
+        obj.save(update_fields=sorted(obj.MUTABLE_FIELDS))
         if became_resolved:
             record_event(
                 action=AuditAction.MEMBERSHIP_ISSUE_RESOLVED,
@@ -319,6 +323,7 @@ class MembershipMetricConflictAdmin(admin.ModelAdmin):
         return False
 
     def save_model(self, request, obj, form, change):
+        """Same narrow resolution stamp as a data issue, saved the same way."""
         became_resolved = obj.resolved and not obj.resolved_at
         if became_resolved:
             obj.resolved_by = request.user
@@ -326,7 +331,7 @@ class MembershipMetricConflictAdmin(admin.ModelAdmin):
         elif not obj.resolved:
             obj.resolved_by = None
             obj.resolved_at = None
-        super().save_model(request, obj, form, change)
+        obj.save(update_fields=sorted(obj.MUTABLE_FIELDS))
         if became_resolved:
             record_event(
                 action=AuditAction.MEMBERSHIP_ISSUE_RESOLVED,
