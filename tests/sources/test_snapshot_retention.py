@@ -113,14 +113,22 @@ def matched_current_world(legal_snapshot, monkeypatch):
 
 class TestTheRegistry:
     def test_it_is_written_out_rather_than_discovered(self):
-        """Introspection would enrol the next model before anyone decided."""
+        """Introspection would enrol the next model before anyone decided.
+
+        Parsed rather than scanned, for the same reason the command's test is:
+        a comment explaining *why* the registry avoids `get_models()` must not
+        be what fails the check.
+        """
+        import ast
         import inspect
 
         from apps.sources import retention
 
-        source = inspect.getsource(retention)
-        assert "get_models()" not in source
-        assert "__subclasses__" not in source
+        tree = ast.parse(inspect.getsource(retention))
+        attributes = {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+
+        assert "get_models" not in attributes
+        assert "__subclasses__" not in attributes
 
     def test_every_family_resolves_and_declares_a_real_cutoff_field(self):
         from apps.sources.retention import family_model
@@ -386,15 +394,42 @@ class TestWhatIsNeverPruned:
         assert SourceArtifact.objects.count() == artifacts
         assert ImportRun.objects.count() == runs
 
-    def test_the_command_names_only_registered_models(self):
-        """Nothing outside the registry can be reached from the command."""
+    def test_the_command_reaches_no_model_outside_the_registry(self):
+        """Nothing outside the registry can be reached from the command.
+
+        Asserted against the parsed module, not its text. The command's own
+        docstring *names* what it never prunes — audit events, artifacts,
+        opinion blobs, `LegalMatter` identities — and a substring scan cannot
+        tell a promise from a reference. It would fail on the documentation
+        that makes the guarantee.
+        """
+        import ast
         import inspect
 
         from apps.sources.management.commands import prune_snapshots
 
-        source = inspect.getsource(prune_snapshots)
-        for forbidden in ("AuditEvent", "SourceArtifact", "OpinionDocumentBlob", "LegalMatter"):
-            assert forbidden not in source
+        tree = ast.parse(inspect.getsource(prune_snapshots))
+
+        # The only model module it may import is the audit one, and only for
+        # the action enum. Every snapshot model arrives through `family_model`.
+        model_modules = {
+            node.module
+            for node in ast.walk(tree)
+            if isinstance(node, ast.ImportFrom) and (node.module or "").endswith(".models")
+        }
+        assert model_modules == {"apps.audit.models"}, model_modules
+
+        referenced = {node.id for node in ast.walk(tree) if isinstance(node, ast.Name)}
+        referenced |= {node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)}
+        referenced |= {
+            alias.asname or alias.name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+            for alias in node.names
+        }
+        forbidden = {"AuditEvent", "SourceArtifact", "OpinionDocumentBlob", "LegalMatter"}
+
+        assert not referenced & forbidden, referenced & forbidden
 
 
 class TestThePlanMatchesTheCommand:
