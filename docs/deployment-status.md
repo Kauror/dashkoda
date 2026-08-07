@@ -224,15 +224,50 @@ docker compose exec web python manage.py migrate visibility
 It creates three tables and touches no existing one. The five manual data sources
 register themselves on first use, so nothing has to be seeded.
 
-Two settings are declared and **optional**: `GA4_PROPERTY_ID` and
-`GA4_CREDENTIALS_FILE`. Both may stay unset indefinitely — the application
-starts, every page renders and nothing contacts Google without them. The
-scheduled `sync_ga4` command can collect one completed day of website traffic
-once the deployment supplies the property ID and a mounted **read-only**
-service-account key (`ops/unraid/sync_ga4.sh.example` is the schedule
-template). Live acceptance against the real property has not been performed,
-and the website slot claims a connection only after an observation has actually
-been published.
+### Google Analytics: complete in code, off in production
+
+The GA4 collector is **operationally complete and deliberately disabled**. Both
+halves of that sentence matter, because the repository used to describe it as
+unbuilt and the code has been ahead of the description for some time.
+
+What exists in the application:
+
+- `Ga4ApiCollector`, reading one completed day through a read-only service
+  account, and refusing a response it cannot make sense of;
+- `synchronize_ga4`, with the same reliability contract as every other feed —
+  its own PostgreSQL advisory lock, a `Ga4FeedState` row, checksum-based
+  unchanged detection, sanitized failure recording and audit events;
+- `sync_ga4` with `--dry-run`, `--json`, `--date` and the standard exit codes
+  (`0` imported/unchanged/dry run, `1` failed, `3` already running);
+- `ops/unraid/sync_ga4.sh.example`, a wrapper template.
+
+What the deployment does **not** have, and is not getting in this programme:
+
+| | |
+| --- | --- |
+| `GA4_PROPERTY_ID` | not set |
+| `GA4_CREDENTIALS_FILE` | not set |
+| Service-account key | not created, not mounted |
+| Wrapper on the host | not copied |
+| Cron entry | not installed |
+| Live acceptance against the real property | never performed |
+
+So no GA4 request is ever made, `WebsiteTrafficObservation` is empty, and the
+website slot says it is unconnected — which is true. Configuration alone never
+claims a connection; only a published observation does.
+
+Enabling it later is configuration, not development: create the service account,
+mount the key, set the two variables, run `sync_ga4 --dry-run`, then a live run,
+then install the wrapper as a UTC cron pair with an hour guard like every other
+DashKoda job. The steps are in `ops/unraid/sync_ga4.sh.example`.
+
+The migration that supports this is additive: `visibility` `0003` creates one
+new `Ga4FeedState` table and touches no existing row. It is applied by the same
+`migrate visibility` above, and the table stays empty until GA4 actually runs.
+
+GA4 is **not** counted in the dashboard's global freshness row. That denominator
+is the four wired modules; adding a disabled source to it would report the
+deployment as permanently one source short of healthy.
 
 The first real figures are typed by an authorised staff user after deployment at
 `/admin/data-entry/visibility/new/`. **No production figure is committed to this

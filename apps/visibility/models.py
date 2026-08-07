@@ -35,7 +35,12 @@ from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import F, Q
 
+from apps.core.feeds import FeedResult
 from apps.sources.models import DataSource
+
+# Sanitized, truncated failure text. Long enough for a useful sentence, short
+# enough that nothing resembling a payload can be stored in it.
+MAX_ERROR_SUMMARY_LENGTH = 500
 
 # The note is a short operator remark ("loetud Smaily halduses"), never a place
 # to accumulate prose.
@@ -338,17 +343,19 @@ class VisibilityObservation(models.Model):
 
 
 class WebsiteTrafficObservation(models.Model):
-    """Website traffic for one reporting period. **Nothing writes this yet.**
+    """Website traffic for one reporting period.
 
-    The model exists so the GA4 integration is a collector plus a migration-free
-    publication path rather than a schema redesign, and so the shape of that
-    future data is reviewable now. There is no manual entry route for it, no
-    Google SDK dependency, no credential and no request: see `ga4.py` for the
-    seam and `docs/visibility-manual-entry.md` for what the next pull request
-    needs.
+    The `sync_ga4` command is the only writer, and there is no manual entry
+    route: unlike every other figure in this module, this one is collected.
+    That collection is **not enabled in production** — no property ID, no
+    service-account key, no schedule — so in practice the table is empty and
+    the website card says so. Configuration alone never claims a connection;
+    only a published observation does.
 
     The three figures are nullable because a reporting API that omits one has
-    not reported zero, and this application does not invent the difference.
+    not reported zero, and this application does not invent the difference. A
+    period GA4 returns no rows for publishes all three as `None` for the same
+    reason: no rows is an absence of measurement, not a measured zero.
     """
 
     source = models.ForeignKey(
@@ -427,3 +434,77 @@ class WebsiteTrafficObservation(models.Model):
 
     def delete(self, *args, **kwargs):
         raise VisibilityRecordImmutable("A website traffic observation cannot be deleted.")
+
+
+class Ga4FeedState(models.Model):
+    """What the last GA4 collection attempt found.
+
+    The same shape every other feed's state row has, so "last checked",
+    "stale after a failure" and the state badge mean one thing across the
+    application. GA4 is the only automated source in this module; the manual
+    figures beside it have no feed to fall behind and no row here.
+
+    No `etag` and no `last_modified`: this is a JSON API call with a date range,
+    not a document fetch with validators, so storing them would suggest a
+    conditional request that never happens. Change is decided the way it is for
+    every other feed — a canonical checksum over the normalised reading.
+
+    `last_period_end` is the source-identity field: which reporting day was last
+    collected. It is what tells an operator whether the schedule has fallen
+    behind, which a timestamp alone cannot, because a run that succeeds while
+    the API returns nothing new still updates `last_checked_at`.
+
+    Deliberately holds no property ID, no credential path, no access token and
+    no response body.
+    """
+
+    source = models.OneToOneField(
+        DataSource,
+        on_delete=models.PROTECT,
+        related_name="ga4_feed_state",
+        verbose_name="Andmeallikas",
+    )
+    last_checked_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Viimati kontrollitud"
+    )
+    last_successful_sync_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Viimane edukas sünkroonimine"
+    )
+    last_changed_at = models.DateTimeField(null=True, blank=True, verbose_name="Viimati muutunud")
+    last_result = models.CharField(
+        max_length=16,
+        choices=FeedResult,
+        default=FeedResult.NEVER_RUN,
+        verbose_name="Viimane tulemus",
+    )
+    last_error_summary = models.CharField(
+        max_length=MAX_ERROR_SUMMARY_LENGTH,
+        blank=True,
+        verbose_name="Viimane veateade",
+        help_text=(
+            "Puhastatud ja lühendatud. Ei sisalda võtmeid, tokeneid, "
+            "property ID-d ega Google'i vastuse sisu."
+        ),
+    )
+    last_period_end = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Viimane kogutud päev",
+        help_text="Millise aruandepäevani on andmed kogutud.",
+    )
+    current_observation = models.ForeignKey(
+        WebsiteTrafficObservation,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Kehtiv vaatlus",
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Muudetud")
+
+    class Meta:
+        verbose_name = "Google Analyticsi andmevoo olek"
+        verbose_name_plural = "Google Analyticsi andmevoo olekud"
+
+    def __str__(self) -> str:
+        return f"{self.source.slug}: {self.get_last_result_display()}"
