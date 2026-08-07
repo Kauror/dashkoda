@@ -17,33 +17,23 @@ Exit codes:
     3  another match run was already running
 """
 
-import json
-
 from django.core.management.base import BaseCommand
 
+from apps.core.feed_commands import FeedCommandOutputMixin
 from apps.core.feeds import FeedLocked, advisory_lock
 from apps.legal_work.current_topic_match_sync import LOCK_NAME, run_current_topic_matching
 from apps.legal_work.models import SyncResult
-from apps.legal_work.sync import EXIT_LOCKED
 
 
-class Command(BaseCommand):
+class Command(FeedCommandOutputMixin, BaseCommand):
     help = (
         "Match the current legal-work snapshot's open records against the "
         "current Koda.ee 'Hetkel käsil' catalogue and publish the decisions."
     )
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Compute every decision without publishing a snapshot.",
-        )
-        parser.add_argument(
-            "--json",
-            action="store_true",
-            dest="as_json",
-            help="Emit one structured JSON line instead of prose.",
+        self.add_output_arguments(
+            parser, dry_run_help="Compute every decision without publishing a snapshot."
         )
 
     def handle(self, *args, **options):
@@ -55,17 +45,14 @@ class Command(BaseCommand):
             with advisory_lock(LOCK_NAME):
                 outcome = run_current_topic_matching(dry_run=options["dry_run"])
         except FeedLocked as error:
-            self._emit(
-                as_json,
-                {"result": "locked", "detail": str(error)},
-                f"Vahele jäetud: {error}",
-                style=self.style.WARNING,
-            )
-            raise SystemExit(EXIT_LOCKED) from None
+            self.exit_locked(error, as_json=as_json)
 
+        # Only the keys `MatchOutcomeReport.as_dict` defines: result,
+        # detail, dry-run flag, snapshot id, four counts and the matcher
+        # version. No topic, no candidate title, no URL, no evidence text.
         payload = outcome.as_dict()
         if outcome.result == SyncResult.FAILED:
-            self._emit(as_json, payload, outcome.detail, style=self.style.ERROR)
+            self.emit(as_json, payload, outcome.detail, style=self.style.ERROR)
             raise SystemExit(outcome.exit_code)
 
         message = outcome.detail
@@ -75,13 +62,4 @@ class Command(BaseCommand):
                 f"Seotud: {outcome.matched_count}, ebaselgeid: {outcome.ambiguous_count}, "
                 f"sidumata: {outcome.unmatched_count}."
             )
-        self._emit(as_json, payload, message, style=self.style.SUCCESS)
-
-    def _emit(self, as_json: bool, payload: dict, message: str, *, style) -> None:
-        if as_json:
-            # Only the keys `MatchOutcomeReport.as_dict` defines: result,
-            # detail, dry-run flag, snapshot id, four counts and the matcher
-            # version. No topic, no candidate title, no URL, no evidence text.
-            self.stdout.write(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-        else:
-            self.stdout.write(style(message))
+        self.emit(as_json, payload, message, style=self.style.SUCCESS)

@@ -30,26 +30,23 @@ Exit codes:
     3  another collection was already running
 """
 
-import json
-
 from django.core.management.base import BaseCommand
 
+from apps.core.feed_commands import FeedCommandOutputMixin
 from apps.core.feeds import FeedLocked, FeedResult, advisory_lock
 from apps.legal_work.archived_topic_sync import LOCK_NAME, synchronize_archived_topics
-from apps.legal_work.sync import EXIT_FAILED, EXIT_LOCKED
+from apps.legal_work.sync import EXIT_FAILED
 
 
-class Command(BaseCommand):
+class Command(FeedCommandOutputMixin, BaseCommand):
     help = (
         "Collect the public Koda.ee 'Hetkel käsil' archive index, hydrate a "
         "bounded slice of its detail pages, and publish an archive snapshot."
     )
 
     def add_arguments(self, parser):
-        parser.add_argument(
-            "--dry-run",
-            action="store_true",
-            help="Collect and validate without publishing a snapshot.",
+        self.add_output_arguments(
+            parser, dry_run_help="Collect and validate without publishing a snapshot."
         )
         parser.add_argument(
             "--full",
@@ -70,12 +67,6 @@ class Command(BaseCommand):
                 "there is no way to name a URL."
             ),
         )
-        parser.add_argument(
-            "--json",
-            action="store_true",
-            dest="as_json",
-            help="Emit one structured JSON line instead of prose.",
-        )
 
     def handle(self, *args, **options):
         as_json = options["as_json"]
@@ -87,17 +78,13 @@ class Command(BaseCommand):
                     max_detail_pages=options["max_detail_pages"],
                 )
         except FeedLocked as error:
-            self._emit(
-                as_json,
-                {"result": "locked", "detail": str(error)},
-                f"Vahele jäetud: {error}",
-                style=self.style.WARNING,
-            )
-            raise SystemExit(EXIT_LOCKED) from None
+            self.exit_locked(error, as_json=as_json)
 
+        # Counts, a snapshot id and progress flags. Never a title, a
+        # summary, a URL or any page text.
         payload = report.as_dict()
         if report.result == FeedResult.FAILED:
-            self._emit(as_json, payload, report.detail, style=self.style.ERROR)
+            self.emit(as_json, payload, report.detail, style=self.style.ERROR)
             raise SystemExit(EXIT_FAILED)
 
         message = report.detail
@@ -111,12 +98,4 @@ class Command(BaseCommand):
                 f"lugemata {report.priority_pending_count}). "
                 f"Täielik: {'jah' if report.backfill_complete else 'ei'}."
             )
-        self._emit(as_json, payload, message, style=self.style.SUCCESS)
-
-    def _emit(self, as_json: bool, payload: dict, message: str, *, style) -> None:
-        if as_json:
-            # Counts, a snapshot id and progress flags. Never a title, a
-            # summary, a URL or any page text.
-            self.stdout.write(json.dumps(payload, ensure_ascii=False, sort_keys=True))
-        else:
-            self.stdout.write(style(message))
+        self.emit(as_json, payload, message, style=self.style.SUCCESS)
