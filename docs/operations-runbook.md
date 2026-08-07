@@ -11,7 +11,7 @@ This does not make the operations milestone complete. See "Still missing".
 
 ## The database backup
 
-A nightly `pg_dump` runs on the Unraid host at **02:30 UTC**, installed from the
+A nightly `pg_dump` runs on the Unraid host at **00:30 UTC**, installed from the
 flash drive so it survives a reboot. The wrapper is
 `/mnt/user/appdata/dashkoda/backup_db.sh` and it is deliberately careful:
 
@@ -30,6 +30,48 @@ gzipped — restore with `psql`, not `pg_restore`.
 **Verified 2026-08-05.** The first scheduled run produced
 `nightly-20260805-023002.sql.gz`, 330 710 bytes compressed / 2 315 712
 uncompressed, and the log recorded `exit=0 … 3 nightly archives retained`.
+
+## The morning feed chain
+
+<!-- SCHEDULE:BEGIN -->
+<!-- Generated from ops/unraid/generate_examples.py. Do not edit by hand:
+     tests/core/test_ops_wrappers.py fails if this drifts from the wrappers. -->
+
+The whole chain runs **05:30–06:30 Europe/Tallinn**, so every figure on the
+dashboard is fresh before anyone looks at it at 07:00.
+
+The pilot host cannot express Tallinn time — `/etc/localtime` is absent and both
+the clock and `crond` run on UTC — so each job is installed as a **pair** of UTC
+entries and the wrapper's own hour guard runs only the occurrence that is the
+intended Tallinn hour. The skipped occurrence is a no-op. `Europe/Tallinn` is
+missing from the trimmed zoneinfo, so the guards read `Europe/Athens`, which has
+identical EET/EEST offsets.
+
+| Tallinn | UTC (summer, EEST) | UTC (winter, EET) | Guard | Job |
+| --- | --- | --- | --- | --- |
+| **05:30** | `30 2 * * *` | `30 3 * * *` | `05` | `sync_oigusloome_public` |
+| **05:35** | `35 2 * * *` | `35 3 * * *` | `05` | `sync_event_programme` |
+| **05:40** | `40 2 * * *` | `40 3 * * *` | `05` | `sync_koda_public` |
+| **05:45** | `45 2 * * *` | `45 3 * * *` | `05` | `sync_legal_current_topics` |
+| **05:50** | `50 2 * * *` | `50 3 * * *` | `05` | `match_legal_current_topics` |
+| **06:00** | `0 3 * * *` | `0 4 * * *` | `06` | `sync_legal_archived_topics` |
+| **06:15** | `15 3 * * *` | `15 4 * * *` | `06` | `match_legal_archived_topics` |
+| **06:20** | `20 3 * * *` | `20 4 * * *` | `06` | `sync_legal_opinion_documents` |
+| **06:30** | `30 3 * * *` | `30 4 * * *` | `06` | `match_legal_opinion_documents` |
+
+Two UTC minutes carry two jobs each. That is not a clash: in any given season
+exactly one of the pair passes its hour guard and the other exits immediately.
+
+Order is a dependency order, not a preference. The workbook is first because
+every matcher scores against whichever legal snapshot is current when it runs;
+each collector precedes the matcher that reads it; and the archive collection
+gets fifteen minutes rather than five because a full walk is 143 pages.
+
+The nightly database backup sits outside this chain at **00:30 UTC**, anchored
+to UTC rather than to Tallinn — see "The database backup" above.
+
+Run any job by hand with `DASHKODA_FORCE=1` to bypass its hour guard.
+<!-- SCHEDULE:END -->
 
 ### Checking that last night's backup happened
 
@@ -96,7 +138,7 @@ $C exec -T db psql -U dashkoda -d postgres -c "DROP DATABASE IF EXISTS $S;"
 
 ### What the 2026-08-05 drill found
 
-| | restored (02:30 UTC) | production at the time |
+| | restored (nightly) | production at the time |
 | --- | --- | --- |
 | public tables | 39 | 39 |
 | event snapshots / current | 1 / 1 | 3 / 1 |
@@ -105,7 +147,7 @@ $C exec -T db psql -U dashkoda -d postgres -c "DROP DATABASE IF EXISTS $S;"
 | declared vs actual records | 607 = 607 | 606 = 606 |
 
 The differences are correct, not drift: the backup is a point-in-time capture
-from 02:30 UTC, and both feeds imported after it. Two events were added during
+from that night's dump, and both feeds imported after it. Two events were added during
 the day and one legal record left the set — ordinary movement, and a useful
 reminder that the restored figures are *supposed* to differ from live ones.
 

@@ -341,10 +341,10 @@ action anywhere.
 | Time (Europe/Tallinn) | Job |
 | --- | --- |
 | 07:00 | `sync_oigusloome_public` |
-| 07:15 | `sync_legal_current_topics` |
-| 07:20 | `match_legal_current_topics` |
-| 07:25 | `sync_legal_archived_topics` |
-| 07:40 | `match_legal_archived_topics` |
+| 05:45 | `sync_legal_current_topics` |
+| 05:50 | `match_legal_current_topics` |
+| 06:00 | `sync_legal_archived_topics` |
+| 06:15 | `match_legal_archived_topics` |
 
 Separate wrappers, separate flock files, separate logs. The fifteen-minute gap
 before matching gives a daily incremental archive run room to finish.

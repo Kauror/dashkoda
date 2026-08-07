@@ -1,56 +1,98 @@
 #!/bin/bash
 #
-# DashKoda legal-work synchronisation over the public read-only OneDrive link,
-# intended for the Unraid host's own scheduler. This is the feed's one recurring
-# collection route: it needs no Microsoft Entra application and no client
-# secret, only OIGUSLOOME_PUBLIC_URL in the deployment's environment file.
+# DashKoda legal-work synchronisation over the public read-only OneDrive link.
 #
-# Copy this file, replace the deployment directory, make it executable, and
-# schedule it. This repository installs nothing and enables nothing.
+# GENERATED FILE — edit `ops/unraid/generate_examples.py` and re-run it.
+# The schedule is described once there; these examples and the documented times
+# are checked against each other by `tests/core/test_ops_wrappers.py`.
+#
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
 #
 #   cp sync_oigusloome_public.sh.example \
 #     /boot/config/plugins/user.scripts/sync_oigusloome_public.sh
 #   chmod +x /boot/config/plugins/user.scripts/sync_oigusloome_public.sh
 #
-# Run it by hand once before scheduling it, and check the exit code:
+# Run it by hand once before scheduling it, and check the exit code. The guard
+# below would otherwise skip it outside its own hour:
 #
-#   /boot/config/plugins/user.scripts/sync_oigusloome_public.sh; echo "exit=$?"
+#   DASHKODA_FORCE=1 DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#     /boot/config/plugins/user.scripts/sync_oigusloome_public.sh; echo "exit=$?"
 #
-# Intended schedule — 07:00 every day, Europe/Tallinn:
+# Intended schedule — 05:30 every day, Europe/Tallinn.
 #
-#   0 7 * * *
+# The pilot host cannot express Tallinn time: `/etc/localtime` is absent, so the
+# clock and crond both run on UTC. The job is installed as a PAIR of UTC entries
+# and the hour guard runs only the occurrence that is 05:30 in Tallinn:
 #
-# Cron uses the HOST clock, so confirm the host really is on Europe/Tallinn
-# before enabling it. Estonia observes daylight saving, so a host left on UTC
-# runs this job an hour early or late depending on the season:
+#   30 2 * * * /boot/config/plugins/user.scripts/sync_oigusloome_public.sh &> /dev/null
+#   30 3 * * * /boot/config/plugins/user.scripts/sync_oigusloome_public.sh &> /dev/null
 #
-#   timedatectl                      # look for "Time zone: Europe/Tallinn"
-#   date +'%Z %z %H:%M'              # expect EET +0200 in winter, EEST +0300 in summer
+#   summer (EEST, UTC+3): the 02:30 UTC entry runs, the 03:30 one skips
+#   winter (EET,  UTC+2): the 03:30 UTC entry runs, the 02:30 one skips
 #
-# The application already refuses overlapping runs through a PostgreSQL
-# advisory lock, which is the primary overlap protection and works even across
-# hosts, containers and shells. The flock below is defence in depth on the host,
-# for the case where the container itself is slow to start.
+# The skipped occurrence is a no-op. `Europe/Tallinn` is missing from that host's
+# trimmed zoneinfo, so the guard reads `Europe/Athens`, which has identical
+# EET/EEST offsets. On a host that really is on Europe/Tallinn, install a single
+# entry at `30 5 * * *` and the guard passes anyway.
+#
+# The whole chain runs 05:30–06:30, so every figure is fresh before 07:00.
+# `docs/operations-runbook.md` lists it in order.
+#
+# First in the chain. Every matcher scores against whichever legal
+# snapshot is current when it runs, so the workbook is refreshed before
+# anything reads it.
+#
+# The sharing URL is never passed on the command line: the container reads
+# it from its own environment, so it stays out of shell history and process
+# listings. Treat it as a bearer-style secret.
 #
 # Expected exit codes:
 #
 #   0  imported, unchanged, or a successful dry run
-#   1  failed — the previous snapshot stays published and the dashboard says the
-#      last check failed
+#   1  failed — the previous snapshot stays published and the dashboard
+#      says the last check failed
 #   3  another synchronisation was still running
 #
-# The URL is never passed on the command line: the container reads it from its
-# own environment, so it stays out of shell history and process listings.
+# This job takes its own PostgreSQL advisory lock, so it can neither block nor
+# be blocked by another feed. The flock below is host-side defence in depth
+# against two copies of this script overlapping.
 
 set -euo pipefail
 
-# Replace with the directory holding compose.yaml on the Unraid host.
-DEPLOYMENT_DIRECTORY="<DASHKODA_DEPLOYMENT_DIRECTORY>"
+# Europe/Athens stands in for Europe/Tallinn: identical offsets, and present in
+# the trimmed zoneinfo where Tallinn is not.
+TALLINN_TZ="Europe/Athens"
+TARGET_HOUR="05"
+
+if [ "${DASHKODA_FORCE:-0}" != "1" ]; then
+  if [ "$(TZ="${TALLINN_TZ}" date +%H)" != "${TARGET_HOUR}" ]; then
+    exit 0
+  fi
+fi
+
+# Set this in the User Scripts environment, or edit the fallback below.
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+
+if [ ! -d "${DEPLOYMENT_DIRECTORY}" ]; then
+  echo "Deployment directory not found: ${DEPLOYMENT_DIRECTORY}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
 
 cd "${DEPLOYMENT_DIRECTORY}"
 
+# Both Compose files are named explicitly when the deployment has a host
+# override. Bare `docker compose` would recreate `web` without the host's bind
+# mounts on a stack that was created from both.
+COMPOSE_FILES=(-f compose.yaml)
+if [ -f compose.unraid.yaml ]; then
+  COMPOSE_FILES+=(-f compose.unraid.yaml)
+fi
+
 # Targets the Compose service by name rather than a generated container name,
 # so a recreated container does not silently break the schedule.
-exec flock --nonblock /tmp/dashkoda-sync-oigusloome.lock \
-  docker compose exec -T web \
+exec flock --nonblock /tmp/dashkoda-sync-oigusloome-public.lock \
+  docker compose "${COMPOSE_FILES[@]}" exec -T web \
     python manage.py sync_oigusloome_public --json

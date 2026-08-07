@@ -459,8 +459,8 @@ Both commands are idempotent: unchanged inputs recompute nothing.
 | Time (Europe/Tallinn) | Command |
 | --- | --- |
 | 07:00 | `sync_oigusloome_public` |
-| 07:15 | `sync_legal_current_topics` |
-| 07:20 | `match_legal_current_topics` |
+| 05:45 | `sync_legal_current_topics` |
+| 05:50 | `match_legal_current_topics` |
 
 Two **separate** wrappers, five minutes apart, each with its own flock file, its
 own PostgreSQL advisory lock, its own log and its own exit code:

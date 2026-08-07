@@ -246,7 +246,7 @@ Each section states its own state honestly: never connected, imported with an
 observation time, unchanged since the last import, or failed while still showing
 the last good data with a restrained warning. Viewers never see exception text.
 
-## 07:05 scheduling
+## 05:40 scheduling
 
 DashKoda contains no scheduler. A template is provided at
 [`ops/unraid/sync_koda_public.sh.example`](../ops/unraid/sync_koda_public.sh.example).

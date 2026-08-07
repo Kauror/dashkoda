@@ -43,7 +43,7 @@ planned operations milestone (PR-09) is complete. Still outstanding:
 - failure alerting for the legal feed.
 
 Two of these have since moved. A nightly database backup is installed on the
-pilot host — a dump at 02:30 UTC that the script verifies before keeping and
+pilot host — a dump at 00:30 UTC that the script verifies before keeping and
 that prunes only its own nightly archives — and on 2026-08-05 an archive was
 restored into a throwaway database and checked: 39 tables, one current snapshot
 per feed, and every declared count equal to what the tables actually held. It
@@ -110,7 +110,7 @@ needed because this route keeps no permanent copy of the workbook.
 The Microsoft Graph route was retired, so its five variables, its Entra
 application and its tenant admin consent are no longer needed by anything.
 
-**The schedule is installed** on the pilot host, at 07:00 `Europe/Tallinn` as the
+**The schedule is installed** on the pilot host, at 05:30 `Europe/Tallinn` as the
 UTC pair described above.
 
 - Public link: the download, URL handling, XLSX validation and temporary-file
@@ -131,7 +131,7 @@ The exact post-deployment commands are in
 Three further sources — the public member directory, the news RSS feed and the
 events calendar — need **no credential at all**. They are anonymous, read-only
 public endpoints, so a deployment that syncs them requires only a host schedule
-at 07:05 `Europe/Tallinn` — five minutes after the legal-work job, so the two
+at 05:40 `Europe/Tallinn` — five minutes after the legal-work job, so the two
 never contend and each keeps its own readable log — created by an administrator
 from
 [`ops/unraid/sync_koda_public.sh.example`](../ops/unraid/sync_koda_public.sh.example).
@@ -163,7 +163,7 @@ variable, `EVENT_PROGRAMME_PUBLIC_URL`, holding the view-only sharing link — a
 bearer-style secret that stays in the server environment and reaches no log, audit
 summary, command output or database row. No new volume and no new container.
 
-One host schedule, at 07:00 `Europe/Tallinn` after the 06:30 workbook
+One host schedule, at 05:30 `Europe/Tallinn` after the 06:30 workbook
 publication — on the pilot host the UTC pair described above — from
 [`ops/unraid/sync_event_programme.sh.example`](../ops/unraid/sync_event_programme.sh.example).
 
@@ -287,8 +287,8 @@ link to its Koda.ee consultation page on `/oigusloome/` and on the overview card
 everything else stays plain text. The address is resolved at read time from
 PostgreSQL, so **no page render contacts Koda.ee**.
 
-The intended times are 07:15 `Europe/Tallinn` for `sync_legal_current_topics`
-and 07:20 for `match_legal_current_topics`, both after the 07:00 workbook job and
+The intended times are 05:45 `Europe/Tallinn` for `sync_legal_current_topics`
+and 05:50 for `match_legal_current_topics`, both after the 05:30 workbook job and
 the other public feeds. They are **two separate jobs**, each with its own
 wrapper, flock file and log, from
 [`ops/unraid/sync_legal_current_topics.sh.example`](../ops/unraid/sync_legal_current_topics.sh.example)
@@ -315,7 +315,7 @@ acceptance steps.
 and no credential: the archive is another anonymous public endpoint on the
 existing Koda.ee host allowlist, retaining no file.
 
-Two additional jobs, intended at 07:25 and 07:40 `Europe/Tallinn`, from
+Two additional jobs, intended at 06:00 and 06:15 `Europe/Tallinn`, from
 [`ops/unraid/sync_legal_archived_topics.sh.example`](../ops/unraid/sync_legal_archived_topics.sh.example)
 and
 [`ops/unraid/match_legal_archived_topics.sh.example`](../ops/unraid/match_legal_archived_topics.sh.example).
@@ -361,7 +361,7 @@ partial build publishes nothing, so the pilot can be interrupted at any point
 without leaving a half-catalogue current.
 
 Neither `sync_legal_opinion_documents` nor `verify_legal_opinion_store` is
-scheduled. The intended sync time is 07:50 `Europe/Tallinn`, installed as the
+scheduled. The intended sync time is 06:20 `Europe/Tallinn`, installed as the
 usual UTC pair — but **while the source is a static archive there is nothing for
 a daily sync to find**, so it is deliberately left uninstalled.
 
@@ -391,7 +391,7 @@ opaque identifier for every existing row in batches, then tightens it to unique
 — safe on a table that already holds documents, which the pilot's does.
 
 `match_legal_opinion_documents` is **not scheduled by this repository**. The
-intended time is 08:00 `Europe/Tallinn`, installed as the usual UTC pair, and
+intended time is 06:30 `Europe/Tallinn`, installed as the usual UTC pair, and
 only after production acceptance shows zero false primary links. It is the one
 opinion job worth scheduling while the source is a static archive: new legal
 workbook snapshots arrive daily and can require rematching against the same

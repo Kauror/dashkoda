@@ -393,7 +393,7 @@ reaches no log, audit summary, command output, interface or PostgreSQL row.
 
 ### Schedule
 
-`07:00 Europe/Tallinn`, using `ops/unraid/sync_event_programme.sh.example`. The
+`05:30 Europe/Tallinn`, using `ops/unraid/sync_event_programme.sh.example`. The
 workbook publication flow runs at 06:30, so the import must run after it. One
 schedule only: a second would contend for the advisory lock for no benefit.
 
