@@ -49,7 +49,7 @@ makes them available as utilities (`bg-surface`, `text-brand`, `border-border`).
 | --- | --- | --- |
 | `--color-bg` | `#101418` | page background |
 | `--color-surface` | `#171c22` | cards, sidebar, sections |
-| `--color-elevated` | `#1e242b` | inputs, hover fills, skeletons |
+| `--color-elevated` | `#1e242b` | inputs, hover fills |
 | `--color-sunken` | `#0b0e12` | drawer scrim |
 | `--color-border` | `#2a323b` | default separators |
 | `--color-border-strong` | `#3d4954` | emphasised separators, control edges |
@@ -124,14 +124,9 @@ context contract in a leading `{% comment %}` block.
 | `status_badge` | status expressed as text inside a coloured chip |
 | `empty_state` | truthful "there is nothing here yet" |
 | `planned_module` | truthful "nothing collects this at all" |
-| `error_state` | announced failure, no technical detail |
-| `list_row` | compact row, link only when a destination exists |
 | `legal_topic` | one legal-work topic, a link only once a source gives the record an address |
-| `table_wrapper` | scroll container, column spec, empty fallback |
-| `skeleton` | genuine loading only, never missing data |
 | `callout` | one short note with a thin accent edge |
 | `chart_figure` | one ECharts chart, plus the text summary and data table that always accompany it |
-| `sparkline_figure` | one server-drawn miniature trend, with the same alternatives |
 | `trend_chart` | two or more dated series on one pair of axes, solid and dashed, with the same alternatives |
 | `channel_card` | one communication channel: a value, its provenance, or a truthful reason it has neither |
 
@@ -209,11 +204,10 @@ all: the board asked for the source name, the update cadence and the connection
 badge to come out of the card footers.
 
 Provenance itself is not gone, and where two figures of different currency sit
-together it is still spelled out. `sparkline_figure` names its source and its
-cadence, so the Liikmeskond card still says which number came from the daily
-public directory and which from the monthly board report — a figure recounted
-every day and one reported once a month are different kinds of claim, and the
-overview shows both at once. The connection strip at the foot of the overview
+together it is still spelled out. The Liikmeskond card still says which number
+came from the daily public directory and which from the monthly board report — a
+figure recounted every day and one reported once a month are different kinds of
+claim, and the overview shows both at once. The connection strip at the foot of the overview
 still counts the connected and the stale sources, so a failed check is disclosed
 even though no card carries a badge for it. Every figure is still *built* with
 the `Connection` it came from; what changed is how much of it the footer prints.
@@ -270,10 +264,16 @@ Geometry inside an attribute is written with `stringformat`, never
 `floatformat`. The dashboard renders in Estonian, `floatformat` is localised,
 and `12,34` in a `points` or `d` attribute is not one coordinate — it is two.
 
-`sparkline_figure` exists so the overview does not have to load the ECharts
-bundle to draw a card-sized line. It keeps `chart_figure`'s contract: the text
-summary and the data table stay in the document for every reader and are not a
-fallback. A series with fewer than two points is not a trend and is not drawn.
+The Nähtavus page draws its card-sized trends as inline SVG in
+`visibility/overview.html` rather than loading the ECharts bundle for a line a
+few pixels tall. It keeps `chart_figure`'s contract: the text summary and the
+data table stay in the document for every reader and are not a fallback. A
+series with fewer than two points is not a trend and is not drawn.
+
+There was once a `sparkline_figure` component for this. It was never included by
+any template and was removed; the inline implementation is the only one, and a
+second component recreated to hold the abstraction would be a component with one
+caller.
 
 Components are covered by `tests/dashboard/test_components.py` using clearly
 synthetic values. `tests/dashboard/test_overview.py` asserts that with nothing

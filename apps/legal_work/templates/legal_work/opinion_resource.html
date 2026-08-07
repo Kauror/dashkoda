@@ -16,6 +16,12 @@ When the matter has left the newest workbook the page still renders, from the
 durable metadata, with an explicit historical note — a published address that
 starts returning 404 is worse than one that says the matter is no longer in the
 current workbook.
+
+Styling is the shared `dk-*` vocabulary and the semantic colour tokens, like
+every other page. It was built with raw `slate-*` and `amber-*` utilities, which
+made this the one page whose surfaces, borders and warning colour were pinned to
+literal palette values instead of following the theme. The markup, the layout
+and the information hierarchy are unchanged.
 {% endcomment %}
 
 {% block title %}Arvamus – DashKoda{% endblock %}
@@ -24,71 +30,71 @@ current workbook.
 <div class="flex flex-col gap-6">
 
   <header class="flex flex-col gap-2">
-    <p class="text-sm text-slate-500">Kaubanduskoja arvamus</p>
-    <h1 class="text-xl font-semibold text-slate-900">
+    <p class="text-sm text-text-secondary">Kaubanduskoja arvamus</p>
+    <h1 class="text-xl font-semibold text-text">
       {% if item %}{{ item.topic }}{% else %}{{ matter.last_known_topic }}{% endif %}
     </h1>
     {% if is_historical %}
-      <p class="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800">
+      <p class="dk-callout dk-callout-warning">
         Seda asja ei ole praeguses õigusloome töövihikus. Allpool on viimane
         teadaolev teave.
       </p>
     {% endif %}
   </header>
 
-  <section class="rounded-lg border border-slate-200 bg-white p-4">
+  <section class="dk-section dk-section-body">
     <dl class="grid grid-cols-1 gap-3 sm:grid-cols-3">
       {% if item %}
         <div>
-          <dt class="text-xs uppercase tracking-wide text-slate-500">Välja saadetud</dt>
-          <dd class="text-sm text-slate-900">{{ item.sent_date|date:"d.m.Y"|default:"—" }}</dd>
+          <dt class="text-xs uppercase tracking-wide text-text-secondary">Välja saadetud</dt>
+          <dd class="text-sm text-text">{{ item.sent_date|date:"d.m.Y"|default:"—" }}</dd>
         </div>
         <div>
-          <dt class="text-xs uppercase tracking-wide text-slate-500">Kellele</dt>
-          <dd class="text-sm text-slate-900">{{ item.recipient|default:"—" }}</dd>
+          <dt class="text-xs uppercase tracking-wide text-text-secondary">Kellele</dt>
+          <dd class="text-sm text-text">{{ item.recipient|default:"—" }}</dd>
         </div>
         <div>
-          <dt class="text-xs uppercase tracking-wide text-slate-500">Õigusakti liik</dt>
-          <dd class="text-sm text-slate-900">{{ item.act_type|default:"—" }}</dd>
+          <dt class="text-xs uppercase tracking-wide text-text-secondary">Õigusakti liik</dt>
+          <dd class="text-sm text-text">{{ item.act_type|default:"—" }}</dd>
         </div>
       {% else %}
         <div>
-          <dt class="text-xs uppercase tracking-wide text-slate-500">Sisse</dt>
-          <dd class="text-sm text-slate-900">{{ matter.received_date|date:"d.m.Y"|default:"—" }}</dd>
+          <dt class="text-xs uppercase tracking-wide text-text-secondary">Sisse</dt>
+          <dd class="text-sm text-text">{{ matter.received_date|date:"d.m.Y"|default:"—" }}</dd>
         </div>
       {% endif %}
     </dl>
   </section>
 
   <section class="flex flex-col gap-3">
-    <h2 class="text-base font-semibold text-slate-900">Arvamuskiri</h2>
+    <h2 class="text-base font-semibold text-text">Arvamuskiri</h2>
     {% if primary %}
-      <a class="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-white p-4 hover:border-slate-400"
+      <a class="dk-card flex min-w-0 items-center gap-3 p-4 transition-colors hover:border-border-strong"
          href="{% url 'opinion-document' primary.entry.blob.public_id %}">
-        <span class="min-w-0 flex-1 truncate text-sm text-slate-900">
+        <span class="min-w-0 flex-1 truncate text-sm text-text">
           {{ primary.entry.display_filename }}
         </span>
-        <span class="shrink-0 text-xs text-slate-500">
+        <span class="shrink-0 text-xs text-text-secondary">
           {{ primary.entry.blob.page_count }} lk
         </span>
       </a>
     {% else %}
-      <p class="text-sm text-slate-500">Arvamuskirja ei ole seotud.</p>
+      <p class="text-sm text-text-secondary">Arvamuskirja ei ole seotud.</p>
     {% endif %}
   </section>
 
   {% if secondary %}
     <section class="flex flex-col gap-3">
-      <h2 class="text-base font-semibold text-slate-900">Seotud dokumendid</h2>
+      <h2 class="text-base font-semibold text-text">Seotud dokumendid</h2>
       <ul class="flex flex-col gap-2">
         {% for relation in secondary %}
           <li>
-            <a class="flex min-w-0 items-center gap-3 rounded-lg border border-slate-200 bg-white p-3 hover:border-slate-400"
+            <a class="dk-card flex min-w-0 items-center gap-3 p-3 transition-colors hover:border-border-strong"
                href="{% url 'opinion-document' relation.entry.blob.public_id %}">
-              <span class="shrink-0 rounded bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+              <span class="dk-badge dk-badge-neutral shrink-0">
                 {{ relation.get_role_display }}
               </span>
-              <span class="min-w-0 flex-1 truncate text-sm text-slate-900">
+              <span class="min-w-0 flex-1 truncate text-sm text-text">
                 {{ relation.entry.display_filename }}
               </span>
             </a>

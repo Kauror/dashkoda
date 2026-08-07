@@ -113,8 +113,6 @@ ARCHIVE_PLAUSIBLE_SCORE = Decimal("48.00")
 ARCHIVE_MINIMUM_MARGIN = Decimal("18.00")
 
 
-EVIDENCE_INDEX_ONLY = "index-only-candidate"
-EVIDENCE_ALSO_CURRENT = "present-in-current-catalogue"
 EVIDENCE_NO_RARE_OVERLAP = "no-uncommon-token-overlap"
 
 ARCHIVE_BLOCKING_EVIDENCE = frozenset(
@@ -366,8 +364,6 @@ __all__ = [
     "ARCHIVE_MATCHER_VERSION",
     "ARCHIVE_MINIMUM_MARGIN",
     "ARCHIVE_PLAUSIBLE_SCORE",
-    "EVIDENCE_ALSO_CURRENT",
-    "EVIDENCE_INDEX_ONLY",
     "EVIDENCE_NO_RARE_OVERLAP",
     "match_archive",
 ]

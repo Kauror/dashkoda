@@ -335,11 +335,6 @@
     border-left-color: var(--color-danger);
   }
 
-  .dk-skeleton-bar {
-    @apply h-3 rounded-xs bg-elevated;
-    animation: dk-pulse 1.8s ease-in-out infinite;
-  }
-
   /* htmx.config.includeIndicatorStyles is disabled so that no inline
      <style> element is injected under the strict CSP. */
   .dk-indicator {
@@ -349,16 +344,5 @@
   .htmx-request .dk-indicator,
   .htmx-request.dk-indicator {
     @apply visible;
-  }
-}
-
-@keyframes dk-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.55;
   }
 }

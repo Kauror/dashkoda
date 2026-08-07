@@ -96,22 +96,6 @@ class MembershipChange:
         return self.previous.observed_at if self.previous else None
 
 
-def get_membership_change() -> MembershipChange:
-    """The published count and the one immediately before it."""
-    current = get_current_membership_observation()
-    previous = None
-    if current is not None:
-        previous = (
-            MembershipCountObservation.objects.filter(
-                source__slug=settings.KODA_MEMBERS_SOURCE_SLUG,
-                observed_at__lt=current.observed_at,
-            )
-            .order_by("-observed_at", "-id")
-            .first()
-        )
-    return MembershipChange(current=current, previous=previous)
-
-
 def get_membership_change_over(*, days: int = CHANGE_WINDOW_DAYS) -> MembershipChange:
     """The published count against the last reading before the window opened.
 
