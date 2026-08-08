@@ -25,10 +25,19 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
-from apps.core.formatting import percentage, whole_euros
+from apps.core.formatting import (
+    integer,
+    long_date,
+    percent,
+    percentage,
+    percentage_points,
+    signed_integer,
+    whole_euros,
+)
 
+from .analytics import compare_with, share_change, value_domain
 from .internal_selectors import InternalTrend, MonthlyValue
-from .models import SizeBand
+from .models import QualityStatus, SizeBand
 
 # Board reports number their months in Roman numerals, and the monthly chart
 # keeps that convention so the axis matches the source people are used to.
@@ -150,28 +159,94 @@ def _base_option(*, legend: bool = True) -> dict:
 # --------------------------------------------------------------------------
 
 
-def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
-    """Two lines on a real time axis.
+# Beyond this many observations the per-point markers stop helping and become
+# the picture: a five-year monthly history is sixty dots on one line. The line
+# still carries every point and the axis pointer still lands on each of them, so
+# nothing is hidden — only the dots go.
+SYMBOL_DENSITY_LIMIT = 24
 
-    A time axis rather than evenly spaced categories, because the observations
-    are genuinely irregular — some months have one board report, some have none
-    — and spacing them evenly would misrepresent when the Chamber actually
-    counted.
+
+def _provisional_dates(trend: InternalTrend) -> frozenset[date]:
+    return frozenset(
+        point.observation_date
+        for point in trend.points
+        if point.observation.quality_status == QualityStatus.PROVISIONAL
+    )
+
+
+def _direction(value) -> str:
+    """The non-colour signal for a change.
+
+    A reader who cannot separate the hues still gets the sense from the glyph
+    beside the figure, and a screen reader gets it from the change label.
     """
-    total = [[_iso(day), _number(value)] for day, value in trend.series("total_members")]
-    paid = [[_iso(day), _number(value)] for day, value in trend.series("paid_members")]
+    if value is None or value == 0:
+        return "flat"
+    return "up" if value > 0 else "down"
 
-    option = _base_option()
+
+def _point(day: date, value, *, provisional: bool) -> dict:
+    """One drawn point, carrying the key its tooltip is stored under.
+
+    The key travels with the datum rather than being derived in the browser from
+    an axis timestamp, which would put a timezone between a point and its own
+    readout.
+
+    A provisional observation is drawn hollow. That is the whole visual rule —
+    not a warning colour, because an estimate that will firm up next month is
+    not an error, and the design system's warning hue already means something
+    else.
+    """
+    item = {"value": [_iso(day), _number(value)], "tip": _iso(day)}
+    if provisional:
+        item["symbol"] = "circle"
+        item["symbolSize"] = 8
+        item["itemStyle"] = {"color": "transparent", "borderWidth": 2}
+    return item
+
+
+def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
+    """Is the membership growing or shrinking, and how much of it has paid?
+
+    Two lines on a real time axis. A time axis rather than evenly spaced
+    categories, because the observations are genuinely irregular — some months
+    carry a board report and some carry none — and spacing them evenly would
+    misrepresent when the Chamber actually counted.
+
+    The legend is gone. Two series labelled directly at their last point cost
+    the reader no glance away from the line.
+    """
+    provisional = _provisional_dates(trend)
+    total_series = trend.series("total_members")
+    paid_series = trend.series("paid_members")
+
+    total = [_point(day, value, provisional=day in provisional) for day, value in total_series]
+    paid = [_point(day, value, provisional=day in provisional) for day, value in paid_series]
+
+    # One domain for both lines. The paid count is read against the total, and
+    # a second axis would let the gap between them mean nothing.
+    domain = value_domain(tuple(value for _, value in total_series + paid_series))
+    show_symbols = max(len(total), len(paid), 1) <= SYMBOL_DENSITY_LIMIT
+
+    y_axis = {"type": "value", "name": "Liikmeid"}
+    if domain is not None:
+        y_axis["min"] = _number(domain.minimum)
+        y_axis["max"] = _number(domain.maximum)
+
+    option = _base_option(legend=False)
     option.update(
         {
             "xAxis": {"type": "time"},
-            "yAxis": {"type": "value", "name": "Liikmeid"},
+            "yAxis": y_axis,
+            "tooltip": {"trigger": "axis", "axisPointer": {"type": "line"}},
             "series": [
                 {
                     "name": "Liikmeid kokku",
                     "type": "line",
-                    "showSymbol": True,
+                    "showSymbol": show_symbols,
                     "symbolSize": 6,
+                    "lineStyle": {"width": 2.5},
+                    "endLabel": {"show": True, "formatter": "{a}"},
                     # Absent values are not in the data at all, so there is
                     # nothing to connect across. This flag makes that explicit.
                     "connectNulls": False,
@@ -180,12 +255,18 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
                 {
                     "name": "Tasunud liikmeid",
                     "type": "line",
-                    "showSymbol": True,
+                    "showSymbol": show_symbols,
                     "symbolSize": 6,
+                    # Dashed as well as differently coloured, so the two lines
+                    # stay separable in greyscale and for a reader who cannot
+                    # tell the hues apart.
+                    "lineStyle": {"width": 2, "type": "dashed"},
+                    "endLabel": {"show": True, "formatter": "{a}"},
                     "connectNulls": False,
                     "data": paid,
                 },
             ],
+            "dashkoda": {"tooltip": _trend_tooltips(trend, provisional)},
         }
     )
 
@@ -208,11 +289,19 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
     footnotes = []
     if trend.withheld_metric_points:
         footnotes.append("Osad ajaloolised punktid on vastuolude tõttu graafikult välja jäetud.")
+    if provisional:
+        footnotes.append("Esialgsed vaatlused on graafikul tühja markeriga.")
 
     return ChartPayload(
         payload_id="internal-membership-trend",
         title="Liikmeid kokku ja tasunud liikmeid",
+        question="Kas liikmeskond kasvab või kahaneb ja kui suur osa liikmetest on tasunud?",
         option=option,
+        size="large",
+        readouts=_trend_readouts(trend, provisional),
+        observation_label=(
+            f"Seisuga {long_date(trend.points[-1].observation_date)}" if trend.points else ""
+        ),
         table_headers=("Kuupäev", "Liikmeid kokku", "Tasunud liikmeid", "Tasunute osakaal", "Olek"),
         table_rows=tuple(rows),
         summary=(
@@ -222,6 +311,112 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
         empty_message="Sisemise aruande vaatlusi ei ole veel imporditud.",
         footnotes=tuple(footnotes),
     )
+
+
+def _trend_tooltips(trend: InternalTrend, provisional: frozenset[date]) -> dict:
+    """One finished readout per observation date.
+
+    Built here rather than in the browser so a tooltip cannot spell a figure
+    differently from the header above it, and so the gap between the two counts
+    is named rather than left for the reader to subtract.
+    """
+    tooltips = {}
+    for point in trend.points:
+        total = point.value("total_members")
+        paid = point.value("paid_members")
+        if total is None and paid is None:
+            continue
+        rows = [
+            TooltipRow(label="Liikmeid kokku", value=integer(total), emphasis=True),
+            TooltipRow(label="Tasunud liikmeid", value=integer(paid)),
+        ]
+        if total is not None and paid is not None:
+            # Named "Vahe" and nothing more. The board report says how many
+            # members there are and how many have paid; it does not say the
+            # remainder is an unpaid invoice, and calling it one would be this
+            # page inventing a meaning the source never carried.
+            rows.append(TooltipRow(label="Vahe", value=integer(total - paid)))
+        share = point.paid_member_share_pct
+        if share is not None:
+            rows.append(TooltipRow(label="Tasunute osakaal", value=percent(share)))
+        tooltips[_iso(point.observation_date)] = {
+            "title": long_date(point.observation_date),
+            "rows": [
+                {"label": row.label, "value": row.value, "emphasis": row.emphasis} for row in rows
+            ],
+            "note": "Olek: esialgne" if point.observation_date in provisional else "",
+        }
+    return tooltips
+
+
+def _trend_readouts(trend: InternalTrend, provisional: frozenset[date]) -> tuple[Readout, ...]:
+    """The figures that answer the question before the chart is looked at.
+
+    Each comparison is against the observation nearest a year before the latest
+    one, and `apps.membership.analytics` refuses rather than reaches when
+    nothing is near enough. A readout whose comparison is unavailable still
+    shows its value, and says why the comparison is missing.
+    """
+    if not trend.points:
+        return ()
+
+    latest = trend.points[-1]
+    when = latest.observation_date
+    readouts = []
+
+    for label, field_name in (
+        ("Liikmeid kokku", "total_members"),
+        ("Tasunud liikmeid", "paid_members"),
+    ):
+        value = latest.value(field_name)
+        if value is None:
+            continue
+        comparison = compare_with(
+            value, when, trend.series(field_name), provisional_dates=provisional
+        )
+        readouts.append(
+            Readout(
+                label=label,
+                value=integer(value),
+                change=signed_integer(comparison.absolute) if comparison.is_available else "",
+                change_label=(
+                    f"{signed_integer(comparison.absolute)} võrreldes "
+                    f"{long_date(comparison.baseline_date)}"
+                    if comparison.is_available
+                    else comparison.unavailable_reason
+                ),
+                direction=_direction(comparison.absolute) if comparison.is_available else "",
+                note="" if comparison.is_available else comparison.unavailable_reason,
+            )
+        )
+
+    share = latest.paid_member_share_pct
+    if share is not None:
+        shares = tuple(
+            (point.observation_date, point.paid_member_share_pct)
+            for point in trend.points
+            if point.paid_member_share_pct is not None
+        )
+        comparison = compare_with(share, when, shares, provisional_dates=provisional)
+        points = share_change(share, comparison.baseline) if comparison.is_available else None
+        readouts.append(
+            Readout(
+                label="Tasunute osakaal",
+                value=percent(share),
+                # A share moves in percentage points, not percent: the two are
+                # different numbers describing the same movement.
+                change=percentage_points(points) if points is not None else "",
+                change_label=(
+                    f"{percentage_points(points)} võrreldes {long_date(comparison.baseline_date)}"
+                    if points is not None
+                    else comparison.unavailable_reason
+                ),
+                direction=_direction(points),
+                note="" if comparison.is_available else comparison.unavailable_reason,
+            )
+        )
+
+    return tuple(readouts)
 
 
 # --------------------------------------------------------------------------
