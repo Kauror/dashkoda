@@ -223,6 +223,27 @@ CHAIN: tuple[Job, ...] = (
         ],
     ),
     Job(
+        name="sync_public_opinions",
+        purpose="DashKoda public Koda.ee opinion corpus collection.",
+        command="sync_public_opinions --json",
+        tallinn="06:25",
+        ordering=(
+            "After the private opinion catalogue and before the opinion matcher: the\n"
+            "matcher reads whichever corpus is current when it runs, so both sources\n"
+            "are refreshed first."
+        ),
+        exit_codes=[
+            "0  imported, or unchanged",
+            "1  collection failed; the previous corpus is still published",
+            "3  the lock was already held, so a previous run is still in progress",
+        ],
+        notes=[
+            "Incremental by default: the listing edge plus a short refresh overlap.\n"
+            "The historical 2025+ walk runs once with --full before the schedule is\n"
+            "useful, and identical corpus content publishes nothing."
+        ],
+    ),
+    Job(
         name="match_legal_opinion_documents",
         purpose="DashKoda matching of sent legal-work records against opinion documents.",
         command="match_legal_opinion_documents --json",
