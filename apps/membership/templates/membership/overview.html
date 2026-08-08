@@ -25,7 +25,12 @@ No individual member is listed anywhere, because neither dataset stores one.
 {% block title %}Liikmeskond – DashKoda{% endblock %}
 
 {% block extra_head %}
-  {% if charts %}
+  {% comment %}
+  The bundle loads only when there is something to draw. `sections` already
+  excludes any section with no charts, so a page with no published history
+  ships no chart JavaScript at all.
+  {% endcomment %}
+  {% if sections %}
     <script type="module" src="{% static 'build/charts.js' %}"></script>
   {% endif %}
 {% endblock %}
