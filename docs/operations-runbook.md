@@ -65,9 +65,18 @@ identical EET/EEST offsets.
 Two UTC minutes carry two jobs each. That is not a clash: in any given season
 exactly one of the pair passes its hour guard and the other exits immediately.
 
-`sync_public_opinions` is prepared in this repository but **not yet installed
-on the pilot host**: the row above is the slot it will take when the public
-opinion source is deployed, after its one-time `--full` historical walk.
+`sync_public_opinions` is **installed and running** as of 2026-08-08, after
+its one-time `--full` historical walk collected 126 pages and 115 public
+opinion PDFs. Its scheduled runs are incremental: the listing edge plus a
+short refresh overlap, which measured 5 listing pages, 14 detail refreshes and
+no downloads once the corpus was complete. The `--full` walk is a one-time
+step and is never what the schedule runs — incremental mode refuses to run at
+all until a full walk has succeeded.
+
+The two event-link jobs, by contrast, are documented above but **not yet
+installed**: `/etc/cron.d/root` holds 23 dashkoda lines (eleven guarded jobs
+as a UTC pair each, plus the backup), and `discover_koda_event_pages` and
+`match_public_event_links` are not among them.
 
 Order is a dependency order, not a preference. The workbook is first because
 every matcher scores against whichever legal snapshot is current when it runs;
