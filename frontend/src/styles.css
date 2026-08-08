@@ -341,6 +341,21 @@
     @apply text-micro text-text-muted;
   }
 
+  /* A section's own control: one choice among a few, as a link.
+   *
+   * Not a button, because each one is a real URL the reader can bookmark, share
+   * or reach with the back button — the state lives in the query string, not in
+   * the browser. The active one is marked by weight and a filled surface as well
+   * as by `aria-current`, so the choice is not carried by colour alone. */
+  .dk-chip {
+    @apply inline-flex min-h-9 items-center rounded-md border border-border px-3 py-1
+      text-sm text-text-secondary transition-colors hover:border-border-strong hover:text-text;
+  }
+
+  .dk-chip-active {
+    @apply border-brand-border bg-brand-soft font-semibold text-text;
+  }
+
   .dk-section {
     @apply rounded-lg border border-border bg-surface;
   }

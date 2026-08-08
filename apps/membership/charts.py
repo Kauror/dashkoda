@@ -149,6 +149,64 @@ class ChartPayload:
         return bool(self.table_rows)
 
 
+@dataclass(frozen=True)
+class ToggleOption:
+    """One choice in a section's control, as a link the server can already build."""
+
+    label: str
+    query: str
+    is_active: bool
+
+
+@dataclass(frozen=True)
+class Toggle:
+    """A named control belonging to one section.
+
+    A control is only built when it has something to switch between. Offering a
+    choice that cannot change the picture is worse than offering none: the
+    reader clicks it, nothing moves, and they are left wondering what they broke.
+    """
+
+    label: str
+    options: tuple[ToggleOption, ...]
+
+    @property
+    def is_offered(self) -> bool:
+        return len(self.options) > 1
+
+
+@dataclass(frozen=True)
+class AnalyticsSection:
+    """One analytical tool: a question, its charts, and the controls that
+    belong to *it* rather than to the page.
+
+    The page used to carry a single date range above a pile of charts, only two
+    of which obeyed it. Everything a control governs is now inside the same
+    section as the control, so a reader can tell what a change will affect by
+    looking at where it sits.
+    """
+
+    section_id: str
+    title: str
+    description: str = ""
+    charts: tuple[ChartPayload, ...] = ()
+    presets: tuple = ()
+    show_custom_range: bool = False
+    toggles: tuple[Toggle, ...] = ()
+
+    @property
+    def has_charts(self) -> bool:
+        return bool(self.charts)
+
+    @property
+    def has_controls(self) -> bool:
+        return (
+            bool(self.presets)
+            or self.show_custom_range
+            or any(toggle.is_offered for toggle in self.toggles)
+        )
+
+
 def _iso(value: date) -> str:
     return value.isoformat()
 
@@ -443,6 +501,9 @@ def _trend_readouts(trend: InternalTrend, provisional: frozenset[date]) -> tuple
 
 # The two things a reader can ask this chart for. Both are query-string values,
 # so a view survives a bookmark and a shared link.
+PARAM_VIEW = "vaade"
+PARAM_BENCHMARK = "vordlus"
+
 VIEW_MONTHLY = "kuu"
 VIEW_CUMULATIVE = "kumulatiivne"
 VIEWS = (VIEW_MONTHLY, VIEW_CUMULATIVE)
