@@ -30,10 +30,19 @@ address when one exists.
 Bytes are the document; where they were found is provenance. The same letter
 filed privately and published publicly is **one blob with two provenances**,
 never two documents — `OpinionDocumentBlob.sha256` is globally unique and
-both sources resolve into it. When public and private PDFs differ in bytes
-they stay distinct documents, because a revised or signed variant is not the
-same file and pretending otherwise would invent an equivalence no evidence
-established.
+both sources resolve into it.
+
+Byte-distinct files stay distinct documents, with one measured exception at
+the matching layer: Koda.ee routinely publishes the letter it sent as a
+**re-export** — same correspondence, different bytes, near-identical text.
+The rehearsal against production data found forty-two such pairs, and
+treating them as competitors tied letters against their own re-publication
+at a margin of zero. The matcher therefore treats near-identical full text
+within a one-week document-date window (`texts_are_same_letter`) as the same
+letter with two provenances; anything weaker — a similar title, a shared
+week — keeps two files distinct, and two genuinely different documents tying
+on one matter demote to ambiguous for staff review rather than either being
+picked.
 
 ## Collection
 
