@@ -242,9 +242,9 @@ def synchronize_public_opinions(
             session=session,
         )
     except PublicOpinionCollectionError as error:
-        return _fail(state, error, correlation_id)
+        return _fail(state, error, correlation_id, dry_run=dry_run, full=full)
     except OSError as error:
-        return _fail(state, error, correlation_id)
+        return _fail(state, error, correlation_id, dry_run=dry_run, full=full)
 
     checksum, canonical_size = _corpus_checksum(drafts)
     _summarise(report, drafts)
@@ -277,7 +277,7 @@ def synchronize_public_opinions(
             actor=actor,
         )
     except Exception as error:  # noqa: BLE001 - a failure must keep the last good corpus
-        return _fail(state, error, correlation_id)
+        return _fail(state, error, correlation_id, dry_run=dry_run, full=full)
 
     report.result = RESULT_IMPORTED
     report.snapshot_id = snapshot.pk
@@ -942,7 +942,9 @@ def _mark_unchanged(state, correlation_id, checksum: str, *, pages: int) -> None
     )
 
 
-def _fail(state, error: Exception, correlation_id) -> PublicOpinionReport:
+def _fail(
+    state, error: Exception, correlation_id, *, dry_run: bool = False, full: bool = False
+) -> PublicOpinionReport:
     """Record a failure without disturbing the last good corpus."""
     message = describe_error(error)
     fail_feed(
@@ -952,7 +954,7 @@ def _fail(state, error: Exception, correlation_id) -> PublicOpinionReport:
         audit_action=AuditAction.PUBLIC_OPINIONS_FAILED,
         logger=logger,
     )
-    return PublicOpinionReport(result=RESULT_FAILED, detail=message)
+    return PublicOpinionReport(result=RESULT_FAILED, detail=message, dry_run=dry_run, full=full)
 
 
 def _failure_code(error: Exception) -> str:
