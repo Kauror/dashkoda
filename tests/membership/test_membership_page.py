@@ -136,10 +136,15 @@ def test_monthly_chart_omits_a_conflict_instead_of_charting_zero(viewer_client, 
     option = json.loads(match.group(1).replace("\\u0022", '"'))
     series_2024 = next(item for item in option["series"] if item["name"] == "2024")
 
-    assert series_2024["data"][0] == 12  # reported
-    assert series_2024["data"][1] == 0  # an explicit zero survives as a zero
-    assert series_2024["data"][2] is None  # the conflict is absent, not zero
-    assert series_2024["data"][6] is None  # never reported
+    # A drawn month is an object carrying the key its tooltip is stored under; a
+    # month with no value is absent entirely, which is what keeps "nobody
+    # reported this" from being drawn as a zero.
+    drawn = [None if item is None else item["value"] for item in series_2024["data"]]
+
+    assert drawn[0] == 12  # reported
+    assert drawn[1] == 0  # an explicit zero survives as a zero
+    assert drawn[2] is None  # the conflict is absent, not zero
+    assert drawn[6] is None  # never reported
 
 
 def test_chart_bundle_loads_only_when_there_is_a_chart(

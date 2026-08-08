@@ -45,6 +45,7 @@ from .analytics import (
     cumulative,
     elapsed_total,
     mean_of_complete_years,
+    net_movement,
     pick_comparable,
     share_change,
     value_domain,
@@ -1107,26 +1108,67 @@ def _fee_readouts(by_year: dict[int, list[dict]], current_year: int | None) -> t
 
 
 def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None) -> ChartPayload:
-    """Diverging horizontal bars: removed to the left, joined to the right.
+    """Which company sizes are we gaining members in, and which are we losing?
 
-    The removed series is negated for drawing only. The table and the tooltip
-    both show the real positive count, because nobody reports "minus eleven
-    members left".
+    Diverging horizontal bars: departures to the left, arrivals to the right,
+    one row per size band in the source's own band order.
+
+    **The negation is geometry and nothing else.** The removed count is drawn as
+    a negative number because that is what makes a bar extend leftwards, and
+    that value must never reach a reader: nobody reports that minus eleven
+    members left. Every figure a reader sees — the bar-end label, the tooltip,
+    the table — carries the positive count. The tooltip is built here from the
+    source values rather than from the drawn ones, which is what makes that
+    structural rather than a rule someone has to remember.
+
+    Net movement is derived for presentation and is not stored anywhere. It is
+    stated in the header, in each row's tooltip and in the table, but not as a
+    third bar: a chart that draws arrivals, departures and their difference
+    draws the same fact twice and invites the reader to add the picture up.
     """
     labels = [row["label"] for row in rows]
-    joined = [_number(row["joined"]) for row in rows]
-    removed = [None if row["removed"] is None else -_number(row["removed"]) for row in rows]
 
-    option = _base_option()
+    def bar(row: dict, key: str, *, negate: bool) -> dict | None:
+        value = row[key]
+        if value is None:
+            return None
+        drawn = -value if negate else value
+        return {
+            "value": _number(drawn),
+            "tip": row["band"],
+            # The label states the count, never the drawn geometry.
+            "label": {
+                "show": True,
+                "position": "left" if negate else "right",
+                "formatter": integer(value),
+            },
+        }
+
+    option = _base_option(legend=False)
     option.update(
         {
             "xAxis": {"type": "value", "name": "Liikmeid"},
             "yAxis": {"type": "category", "data": labels, "inverse": True},
-            "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
+            "tooltip": {"trigger": "item"},
+            # Bar-end values so the chart is readable without hovering, and
+            # `hideOverlap` so a narrow screen drops the ones that would collide
+            # rather than printing them on top of each other.
+            "labelLayout": {"hideOverlap": True},
             "series": [
-                {"name": "Lahkunud", "type": "bar", "stack": "movement", "data": removed},
-                {"name": "Liitunud", "type": "bar", "stack": "movement", "data": joined},
+                {
+                    "name": "Lahkunud",
+                    "type": "bar",
+                    "stack": "movement",
+                    "data": [bar(row, "removed", negate=True) for row in rows],
+                },
+                {
+                    "name": "Liitunud",
+                    "type": "bar",
+                    "stack": "movement",
+                    "data": [bar(row, "joined", negate=False) for row in rows],
+                },
             ],
+            "dashkoda": {"tooltip": _movement_tooltips(rows, observation_date)},
         }
     )
 
@@ -1137,17 +1179,84 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
     return ChartPayload(
         payload_id="internal-membership-size-movement",
         title="Liitunud ja lahkunud suurusklassiti",
+        question="Millistes ettevõtete suurusklassides me liikmeid võidame või kaotame?",
         option=option,
-        table_headers=("Suurusklass", "Liitunud", "Lahkunud"),
-        table_rows=tuple((row["label"], row["joined"], row["removed"]) for row in rows),
+        size="categorical",
+        readouts=_movement_readouts(rows),
+        observation_label=(f"Seisuga {long_date(observation_date)}" if observation_date else ""),
+        table_headers=("Suurusklass", "Liitunud", "Lahkunud", "Neto"),
+        table_rows=tuple(
+            (
+                row["label"],
+                row["joined"],
+                row["removed"],
+                net_movement(row["joined"], row["removed"]),
+            )
+            for row in rows
+        ),
         summary=(
             "Vastandsuunaline tulpgraafik: lahkunud vasakul, liitunud paremal, "
             f"{len(rows)} suurusklassi kohta"
-            + (f" seisuga {observation_date:%d.%m.%Y}." if observation_date else ".")
+            + (f" seisuga {long_date(observation_date)}." if observation_date else ".")
         ),
         empty_message="Suurusklasside jaotust selle vaatluse kohta ei ole.",
         footnotes=footnotes,
     )
+
+
+def _movement_tooltips(rows: tuple[dict, ...], observation_date: date | None) -> dict:
+    """One readout per band, stating counts as the source reported them.
+
+    Built from `row["removed"]`, never from the negated value the bar carries.
+    """
+    tooltips = {}
+    for row in rows:
+        readout = []
+        if row["joined"] is not None:
+            readout.append(
+                {"label": "Liitunud", "value": integer(row["joined"]), "emphasis": False}
+            )
+        if row["removed"] is not None:
+            readout.append(
+                {"label": "Lahkunud", "value": integer(row["removed"]), "emphasis": False}
+            )
+        net = net_movement(row["joined"], row["removed"])
+        if net is not None:
+            readout.append({"label": "Neto", "value": signed_integer(net), "emphasis": True})
+        tooltips[row["band"]] = {
+            "title": row["label"],
+            "rows": readout,
+            "note": f"Seisuga {long_date(observation_date)}" if observation_date else "",
+        }
+    return tooltips
+
+
+def _movement_readouts(rows: tuple[dict, ...]) -> tuple[Readout, ...]:
+    """The whole observation's arrivals, departures and net.
+
+    Each total counts only the bands that reported that direction, so a band
+    missing one side does not quietly contribute a zero to it.
+    """
+    joined = [row["joined"] for row in rows if row["joined"] is not None]
+    removed = [row["removed"] for row in rows if row["removed"] is not None]
+    if not joined and not removed:
+        return ()
+
+    readouts = [
+        Readout(label="Liitunud kokku", value=integer(sum(joined)) if joined else ""),
+        Readout(label="Lahkunud kokku", value=integer(sum(removed)) if removed else ""),
+    ]
+    if joined and removed:
+        net = sum(joined) - sum(removed)
+        readouts.append(
+            Readout(
+                label="Neto",
+                value=signed_integer(net),
+                direction=_direction(net),
+                note="liitunud miinus lahkunud",
+            )
+        )
+    return tuple(readouts)
 
 
 # --------------------------------------------------------------------------
@@ -1156,38 +1265,93 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
 
 
 def removal_reasons_chart(rows: tuple[dict, ...], *, observation_date: date | None) -> ChartPayload:
-    """Horizontal bars with counts, and shares in the table.
+    """Why are members leaving?
 
-    Not a pie: five categories of similar size are hard to compare as angles,
-    and the design system offers no pie component to justify one.
+    Horizontal bars, largest first. The selector returns them in whatever order
+    the rows come back in and the source documents no ordering of its own, so
+    the ranking is this chart's decision — and ranking is most of the answer to
+    the question.
+
+    Not a pie: categories of similar size are hard to compare as angles, and the
+    design system offers no pie component to justify one.
+
+    Each bar carries its count and its share at the end, so the chart answers
+    the question without being hovered at all. A legend would name a single
+    series that the heading already names.
     """
+    ordered = sorted(
+        (row for row in rows if row["count"] is not None),
+        key=lambda row: (-row["count"], row["label"]),
+    )
+
     option = _base_option(legend=False)
     option.update(
         {
             "xAxis": {"type": "value", "name": "Liikmeid"},
-            "yAxis": {"type": "category", "data": [row["label"] for row in rows], "inverse": True},
-            "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
+            "yAxis": {
+                "type": "category",
+                "data": [row["label"] for row in ordered],
+                "inverse": True,
+            },
+            "tooltip": {"trigger": "item"},
+            "labelLayout": {"hideOverlap": True},
             "series": [
                 {
                     "name": "Lahkunuid",
                     "type": "bar",
-                    "data": [_number(row["count"]) for row in rows],
+                    "data": [
+                        {
+                            "value": _number(row["count"]),
+                            "tip": row["key"],
+                            "label": {
+                                "show": True,
+                                "position": "right",
+                                "formatter": (
+                                    f"{integer(row['count'])}  {percent(row['share_pct'])}"
+                                    if row["share_pct"] is not None
+                                    else integer(row["count"])
+                                ),
+                            },
+                        }
+                        for row in ordered
+                    ],
                 }
             ],
+            "dashkoda": {"tooltip": _reason_tooltips(ordered, observation_date)},
         }
     )
 
     return ChartPayload(
         payload_id="internal-membership-removal-reasons",
         title="Lahkumise põhjused",
+        question="Miks liikmed lahkuvad?",
         option=option,
+        size="categorical",
+        observation_label=(f"Seisuga {long_date(observation_date)}" if observation_date else ""),
         table_headers=("Põhjus", "Liikmeid", "Osakaal"),
         table_rows=tuple(
-            (row["label"], row["count"], percentage(row["share_pct"])) for row in rows
+            (row["label"], row["count"], percentage(row["share_pct"], places=1)) for row in rows
         ),
         summary=(
-            f"Horisontaalne tulpgraafik {len(rows)} lahkumise põhjuse kohta"
-            + (f" seisuga {observation_date:%d.%m.%Y}." if observation_date else ".")
+            f"Horisontaalne tulpgraafik {len(ordered)} lahkumise põhjusega, suuremast "
+            "väiksemani"
+            + (f", seisuga {long_date(observation_date)}." if observation_date else ".")
         ),
         empty_message="Lahkumise põhjuseid selle vaatluse kohta ei ole.",
     )
+
+
+def _reason_tooltips(rows: list[dict], observation_date: date | None) -> dict:
+    tooltips = {}
+    for row in rows:
+        readout = [{"label": "Liikmeid", "value": integer(row["count"]), "emphasis": True}]
+        if row["share_pct"] is not None:
+            readout.append(
+                {"label": "Osakaal", "value": percent(row["share_pct"]), "emphasis": False}
+            )
+        tooltips[row["key"]] = {
+            "title": row["label"],
+            "rows": readout,
+            "note": f"Seisuga {long_date(observation_date)}" if observation_date else "",
+        }
+    return tooltips
