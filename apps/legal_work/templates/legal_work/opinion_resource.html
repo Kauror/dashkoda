@@ -70,32 +70,59 @@ and the information hierarchy are unchanged.
     <h2 class="text-base font-semibold text-text">Arvamuskiri</h2>
     {% if primary %}
       <a class="dk-card flex min-w-0 items-center gap-3 p-4 transition-colors hover:border-border-strong"
-         href="{% url 'opinion-document' primary.entry.blob.public_id %}">
+         href="{{ primary.href }}"
+         {% if primary.is_external %}rel="noopener noreferrer"{% endif %}>
         <span class="min-w-0 flex-1 truncate text-sm text-text">
-          {{ primary.entry.display_filename }}
+          {{ primary.label }}
         </span>
+        {% if primary.is_external %}
+          <span class="dk-badge dk-badge-neutral shrink-0">Koda.ee</span>
+        {% endif %}
         <span class="shrink-0 text-xs text-text-secondary">
-          {{ primary.entry.blob.page_count }} lk
+          {{ primary.page_count }} lk
         </span>
       </a>
+      {% if primary.fallback_href %}
+        <p class="text-xs text-text-secondary">
+          <a class="underline" href="{{ primary.fallback_href }}">Ava koopia DashKodas</a>
+        </p>
+      {% endif %}
+    {% elif article_url %}
+      <p class="text-sm text-text-secondary">
+        Arvamuskirja PDF-i ei ole seotud. Koja seisukohta kajastab avalik artikkel.
+      </p>
     {% else %}
       <p class="text-sm text-text-secondary">Arvamuskirja ei ole seotud.</p>
     {% endif %}
   </section>
 
+  {% if article_url %}
+    <section class="flex flex-col gap-3">
+      <h2 class="text-base font-semibold text-text">Koda.ee kajastus</h2>
+      <a class="dk-card flex min-w-0 items-center gap-3 p-4 transition-colors hover:border-border-strong"
+         href="{{ article_url }}" rel="noopener noreferrer">
+        <span class="min-w-0 flex-1 truncate text-sm text-text">
+          Vaata arvamust Koda.ee-s
+        </span>
+        <span class="dk-badge dk-badge-neutral shrink-0">Artikkel</span>
+      </a>
+    </section>
+  {% endif %}
+
   {% if secondary %}
     <section class="flex flex-col gap-3">
       <h2 class="text-base font-semibold text-text">Seotud dokumendid</h2>
       <ul class="flex flex-col gap-2">
-        {% for relation in secondary %}
+        {% for document in secondary %}
           <li>
             <a class="dk-card flex min-w-0 items-center gap-3 p-3 transition-colors hover:border-border-strong"
-               href="{% url 'opinion-document' relation.entry.blob.public_id %}">
+               href="{{ document.href }}"
+               {% if document.is_external %}rel="noopener noreferrer"{% endif %}>
               <span class="dk-badge dk-badge-neutral shrink-0">
-                {{ relation.get_role_display }}
+                {{ document.role_display }}
               </span>
               <span class="min-w-0 flex-1 truncate text-sm text-text">
-                {{ relation.entry.display_filename }}
+                {{ document.label }}
               </span>
             </a>
           </li>
