@@ -24,12 +24,56 @@ Context:
 {% endcomment %}
 
 <figure data-chart data-chart-payload="{{ chart.payload_id }}" class="flex w-full flex-col gap-3">
-  <figcaption>
+  <figcaption class="flex flex-col gap-1">
     <span class="text-sm font-medium text-text">{{ chart.title }}</span>
+    {% if chart.question %}
+      <span class="dk-meta">{{ chart.question }}</span>
+    {% endif %}
+    {% if chart.observation_label %}
+      <span class="dk-meta tabular-nums">{{ chart.observation_label }}</span>
+    {% endif %}
   </figcaption>
 
+  {% comment %}
+  The analytical header: the two or three figures that answer the chart's own
+  question before the reader looks at the drawing. Every string arrives
+  formatted — this template chooses layout and nothing else.
+
+  The change carries a glyph as well as a colour, because a change distinguished
+  only by hue does not exist for a reader who cannot separate the hues, and
+  `change_label` is what a screen reader gets instead of an arrow it cannot
+  describe. A readout whose comparison is unavailable still shows its value and
+  says, in `note`, why the comparison is missing rather than omitting it
+  silently.
+  {% endcomment %}
+  {% if chart.readouts %}
+    <dl class="flex flex-wrap gap-x-8 gap-y-3">
+      {% for readout in chart.readouts %}
+        <div class="min-w-0">
+          <dt class="text-sm text-text-secondary">{{ readout.label }}</dt>
+          <dd class="flex flex-wrap items-baseline gap-x-2">
+            <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ readout.value }}</span>
+            {% if readout.has_change %}
+              <span class="dk-meta tabular-nums{% if readout.direction == 'up' %} text-success{% elif readout.direction == 'down' %} text-danger{% endif %}">
+                {% if readout.direction == "up" %}↑{% elif readout.direction == "down" %}↓{% else %}→{% endif %}
+                {{ readout.change }}<span class="sr-only"> ({{ readout.change_label }})</span>
+              </span>
+            {% elif readout.note %}
+              <span class="dk-meta">{{ readout.note }}</span>
+            {% endif %}
+          </dd>
+        </div>
+      {% endfor %}
+    </dl>
+  {% endif %}
+
+  {% comment %}
+  The height is a named analytical shape rather than one size for every chart.
+  `charts.py` asks for `large`, `medium` or `categorical`; the classes live in
+  the design system, so no JavaScript measures anything.
+  {% endcomment %}
   <div data-chart-canvas
-       class="h-72 w-full sm:h-80"
+       class="{% if chart.size == 'large' %}dk-chart-large{% elif chart.size == 'categorical' %}dk-chart-categorical{% else %}dk-chart-medium{% endif %}"
        role="img"
        aria-label="{{ chart.summary }}"></div>
   <p data-chart-empty hidden class="text-sm text-text-secondary">{{ chart.empty_message }}</p>

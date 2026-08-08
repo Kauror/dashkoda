@@ -76,6 +76,70 @@ export function readPayload(id) {
   }
 }
 
+/*
+ * Tooltips are built on the server and rendered here as DOM nodes.
+ *
+ * Every figure in a readout was formatted in Python by the same helpers that
+ * wrote the headline above the chart, so a tooltip cannot spell a number
+ * differently from the page around it, and this file never has to know what a
+ * percentage point is or how Estonian groups thousands.
+ *
+ * Nodes rather than a markup string, and `textContent` rather than `innerHTML`,
+ * so a label that arrived from a source can never be interpreted as markup. The
+ * Content Security Policy would stop a script from running, but a stray tag
+ * would still wreck the layout, and the honest fix is not to build markup from
+ * data at all.
+ */
+function tooltipNode(readout) {
+  const root = document.createElement("div");
+  root.className = "dk-chart-tooltip";
+
+  const title = document.createElement("p");
+  title.className = "dk-chart-tooltip-title";
+  title.textContent = readout.title || "";
+  root.append(title);
+
+  const list = document.createElement("dl");
+  list.className = "dk-chart-tooltip-rows";
+  for (const row of readout.rows || []) {
+    const term = document.createElement("dt");
+    term.textContent = row.label;
+    const value = document.createElement("dd");
+    value.textContent = row.value;
+    if (row.emphasis) {
+      value.className = "dk-chart-tooltip-lead";
+    }
+    list.append(term, value);
+  }
+  root.append(list);
+
+  if (readout.note) {
+    const note = document.createElement("p");
+    note.className = "dk-chart-tooltip-note";
+    note.textContent = readout.note;
+    root.append(note);
+  }
+  return root;
+}
+
+/**
+ * An axis-trigger formatter that looks each point's readout up by the key the
+ * server attached to the datum itself. Deriving the key from the axis value
+ * would put a timezone between a point and its own tooltip.
+ */
+function tooltipFormatter(readouts) {
+  return (params) => {
+    const points = Array.isArray(params) ? params : [params];
+    for (const point of points) {
+      const key = point && point.data && point.data.tip;
+      if (key && readouts[key]) {
+        return tooltipNode(readouts[key]);
+      }
+    }
+    return "";
+  };
+}
+
 const hasSeriesData = (payload) =>
   Boolean(payload) &&
   Array.isArray(payload.series) &&
@@ -112,6 +176,41 @@ export function mountChart(figure) {
     useDirtyRect: true,
   });
   /*
+   * `dashkoda` carries what ECharts must not receive as option: the
+   * server-rendered tooltip readouts, keyed by the `tip` each datum holds. It is
+   * lifted out here so the rest of the payload is a plain ECharts option.
+   */
+  const { dashkoda = {}, ...option } = payload;
+
+  /*
+   * Axis labels the server supplied as a finite list, which the axis indexes
+   * into. This is the whole of the "formatter metadata" contract: no date
+   * arithmetic and no language crosses over, because a browser formatting a
+   * month name would be a second place Estonian was spelled.
+   */
+  if (dashkoda.axisLabels && Array.isArray(dashkoda.axisLabels.x)) {
+    const labels = dashkoda.axisLabels.x;
+    option.xAxis = {
+      ...(option.xAxis || {}),
+      axisLabel: {
+        ...((option.xAxis || {}).axisLabel || {}),
+        formatter: (value) => labels[Math.round(value)] ?? "",
+      },
+    };
+  }
+
+  if (dashkoda.tooltip) {
+    option.tooltip = {
+      ...(option.tooltip || {}),
+      formatter: tooltipFormatter(dashkoda.tooltip),
+      // A tooltip that runs off the edge of a phone is a tooltip nobody can
+      // read. ECharts keeps it inside the canvas when told to confine it.
+      confine: true,
+      enterable: false,
+    };
+  }
+
+  /*
    * `animation` is applied after the payload, not before it. Spread the other
    * way round and a payload carrying its own `animation: true` — which every
    * server-built option did — silently overrode the reduced-motion preference,
@@ -120,8 +219,8 @@ export function mountChart(figure) {
    */
   instance.setOption({
     ...chartTheme(),
-    ...payload,
-    animation: payload.animation !== false && !prefersReducedMotion(),
+    ...option,
+    animation: option.animation !== false && !prefersReducedMotion(),
   });
 
   if (typeof ResizeObserver === "function") {

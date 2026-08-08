@@ -280,6 +280,82 @@
     box-shadow: inset 0 -2px 0 0 var(--color-brand);
   }
 
+  /* A chart's own height, named rather than counted.
+   *
+   * Every chart used to be `h-72 sm:h-80`, which suits none of them: a
+   * five-year time series wants room to show its slope, and a four-category
+   * distribution wants only as much height as it has bars. The names are the
+   * analytical shape, so a chart asks for what it is rather than for a number,
+   * and `charts.py` never mentions a pixel.
+   *
+   * All three keep a floor on a phone. A chart squeezed below its floor is not
+   * a smaller chart, it is an unreadable one, and the data table underneath is
+   * the better answer at that size. */
+  .dk-chart-large {
+    @apply h-80 w-full sm:h-96 lg:h-[26rem];
+  }
+
+  .dk-chart-medium {
+    @apply h-72 w-full sm:h-80 lg:h-[22rem];
+  }
+
+  /* Distribution charts grow with their categories rather than with the
+     viewport, so a band count change does not need a stylesheet change. */
+  .dk-chart-categorical {
+    @apply w-full;
+    min-height: 14rem;
+  }
+
+  /* The server-rendered readout ECharts shows on hover, focus or tap.
+   *
+   * ECharts owns the positioning; this owns everything inside. It is built from
+   * DOM nodes rather than a markup string, so nothing here can be reached by a
+   * label that arrived from a source. */
+  .dk-chart-tooltip {
+    @apply flex flex-col gap-1.5 text-sm;
+  }
+
+  .dk-chart-tooltip-title {
+    @apply text-micro font-semibold tracking-wide text-text-muted uppercase;
+  }
+
+  /* Label left, figure right, on a shared baseline: a column of values that can
+     be compared down the tooltip rather than read one line at a time. */
+  .dk-chart-tooltip-rows {
+    @apply grid grid-cols-[auto_1fr] items-baseline gap-x-6 gap-y-1;
+  }
+
+  .dk-chart-tooltip-rows dt {
+    @apply text-text-secondary;
+  }
+
+  .dk-chart-tooltip-rows dd {
+    @apply text-right tabular-nums text-text;
+  }
+
+  .dk-chart-tooltip-lead {
+    @apply font-semibold;
+  }
+
+  .dk-chart-tooltip-note {
+    @apply text-micro text-text-muted;
+  }
+
+  /* A section's own control: one choice among a few, as a link.
+   *
+   * Not a button, because each one is a real URL the reader can bookmark, share
+   * or reach with the back button — the state lives in the query string, not in
+   * the browser. The active one is marked by weight and a filled surface as well
+   * as by `aria-current`, so the choice is not carried by colour alone. */
+  .dk-chip {
+    @apply inline-flex min-h-9 items-center rounded-md border border-border px-3 py-1
+      text-sm text-text-secondary transition-colors hover:border-border-strong hover:text-text;
+  }
+
+  .dk-chip-active {
+    @apply border-brand-border bg-brand-soft font-semibold text-text;
+  }
+
   .dk-section {
     @apply rounded-lg border border-border bg-surface;
   }

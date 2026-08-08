@@ -18,6 +18,7 @@ from apps.membership.ranges import (
     months_before,
     offers_choice,
     parse_iso_date,
+    range_presets,
     resolve_window,
 )
 
@@ -146,3 +147,69 @@ def test_a_choice_is_offered_only_when_it_can_change_something():
     assert offers_choice(earliest=LATEST, latest=LATEST) is False
     assert offers_choice(earliest=None, latest=LATEST) is False
     assert offers_choice(earliest=None, latest=None) is False
+
+
+# -- presets --------------------------------------------------------------
+
+
+def test_a_preset_resolves_to_the_same_two_dates_the_fields_carry():
+    """A preset is a shortcut that fills the control in, not a second
+    vocabulary: the URL it links to says exactly what it shows."""
+    presets = range_presets(earliest=dt.date(2016, 1, 31), latest=dt.date(2026, 7, 31), active=None)
+    year = next(item for item in presets if item.label == "1 aasta")
+
+    assert year.window.start == dt.date(2025, 7, 31)
+    assert year.window.end == dt.date(2026, 7, 31)
+    assert year.query == "alates=2025-07-31&kuni=2026-07-31"
+
+
+def test_presets_the_history_cannot_fill_are_not_offered():
+    """Two buttons drawing the identical line invite a reader to believe the
+    second one failed."""
+    labels = [
+        item.label
+        for item in range_presets(
+            earliest=dt.date(2024, 7, 31), latest=dt.date(2026, 7, 31), active=None
+        )
+    ]
+
+    assert labels == ["1 aasta", "Kõik"]
+
+
+def test_a_history_shorter_than_the_shortest_preset_offers_only_the_whole_of_it():
+    labels = [
+        item.label
+        for item in range_presets(
+            earliest=dt.date(2025, 11, 30), latest=dt.date(2026, 7, 31), active=None
+        )
+    ]
+
+    assert labels == ["Kõik"]
+
+
+def test_a_single_observation_offers_no_presets_at_all():
+    """A control that cannot change the picture is worse than no control."""
+    day = dt.date(2026, 7, 31)
+
+    assert range_presets(earliest=day, latest=day, active=None) == ()
+    assert range_presets(earliest=None, latest=None, active=None) == ()
+
+
+def test_exactly_one_preset_is_marked_active_for_a_resolved_window():
+    window = DateWindow(start=dt.date(2021, 7, 31), end=dt.date(2026, 7, 31))
+    presets = range_presets(
+        earliest=dt.date(2016, 1, 31), latest=dt.date(2026, 7, 31), active=window
+    )
+
+    assert [item.label for item in presets if item.is_active] == ["5 aastat"]
+
+
+def test_a_custom_window_matches_no_preset():
+    """The reader asked for something the presets do not offer, and none of
+    them claims to be showing it."""
+    window = DateWindow(start=dt.date(2022, 3, 14), end=dt.date(2026, 7, 31))
+    presets = range_presets(
+        earliest=dt.date(2016, 1, 31), latest=dt.date(2026, 7, 31), active=window
+    )
+
+    assert not any(item.is_active for item in presets)

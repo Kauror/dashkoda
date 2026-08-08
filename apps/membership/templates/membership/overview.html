@@ -25,7 +25,12 @@ No individual member is listed anywhere, because neither dataset stores one.
 {% block title %}Liikmeskond – DashKoda{% endblock %}
 
 {% block extra_head %}
-  {% if charts %}
+  {% comment %}
+  The bundle loads only when there is something to draw. `sections` already
+  excludes any section with no charts, so a page with no published history
+  ships no chart JavaScript at all.
+  {% endcomment %}
+  {% if sections %}
     <script type="module" src="{% static 'build/charts.js' %}"></script>
   {% endif %}
 {% endblock %}
@@ -78,51 +83,97 @@ No individual member is listed anywhere, because neither dataset stores one.
     </div>
   </section>
 
-  {# ---------------- 3. Trends ---------------- #}
-  {% if charts %}
-    <section aria-labelledby="section-trends" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Ajaloolised trendid" heading_id="section-trends" only %}
-      <div class="dk-section-body flex flex-col gap-8">
+  {# ---------------- 3. Analytical sections ---------------- #}
+  {% comment %}
+  Four analytical tools, each answering one management question and each
+  carrying only the controls that govern it.
 
-        {% comment %}
-        The window comes from `apps/membership/ranges.py`, which the overview
-        card reads too, so the same window is never named two ways on two
-        pages. `min`/`max` advertise the observation span — advice only; the
-        server clamps whatever actually arrives — and the fields carry the
-        resolved window rather than the raw input, so what the control shows is
-        always what the charts drew. A history of a single date renders no
-        control at all.
-        {% endcomment %}
-        {% if has_range_choice %}
-          <form method="get" action="{% url 'membership' %}#section-trends" class="flex flex-wrap items-end gap-x-3 gap-y-2">
-            <label class="flex flex-col gap-1">
-              <span class="dk-meta">Alates</span>
-              <input type="date"
-                     name="alates"
-                     value="{{ trend_window.start|date:'Y-m-d' }}"
-                     min="{{ trend_earliest|date:'Y-m-d' }}"
-                     max="{{ trend_latest|date:'Y-m-d' }}"
-                     class="dk-input dk-input-date">
-            </label>
-            <label class="flex flex-col gap-1">
-              <span class="dk-meta">Kuni</span>
-              <input type="date"
-                     name="kuni"
-                     value="{{ trend_window.end|date:'Y-m-d' }}"
-                     min="{{ trend_earliest|date:'Y-m-d' }}"
-                     max="{{ trend_latest|date:'Y-m-d' }}"
-                     class="dk-input dk-input-date">
-            </label>
-            <button type="submit" class="dk-button dk-button-secondary">Rakenda</button>
-          </form>
+  This replaced a single "Ajaloolised trendid" section with one date range above
+  a pile of five charts, of which only two obeyed that range. The control looked
+  like it governed the page and did not, which is the kind of thing a reader
+  discovers by mistrusting a number.
+
+  Every control is an ordinary link or GET form. Switching a view is a request
+  the browser can bookmark, share and go back through; nothing here holds client
+  state, and the charts stay server-drawn.
+  {% endcomment %}
+  {% for section in sections %}
+    <section aria-labelledby="{{ section.section_id }}" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title=section.title heading_id=section.section_id description=section.description only %}
+      <div class="dk-section-body flex flex-col gap-6">
+
+        {% if section.has_controls %}
+          <div class="flex flex-col gap-3">
+            {% if section.presets %}
+              {% comment %}
+              Presets fill in the same two dates the fields below carry; they are
+              a shortcut, not a second vocabulary. Only windows the history can
+              actually fill are offered — two buttons drawing the identical line
+              invite a reader to believe the second one failed.
+              {% endcomment %}
+              <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Periood">
+                {% for preset in section.presets %}
+                  <a href="?{{ preset.query }}#{{ section.section_id }}"
+                     class="dk-chip{% if preset.is_active %} dk-chip-active{% endif %}"
+                     {% if preset.is_active %}aria-current="true"{% endif %}>{{ preset.label }}</a>
+                {% endfor %}
+              </div>
+            {% endif %}
+
+            {% if section.show_custom_range %}
+              {% comment %}
+              `min`/`max` advertise the observation span — advice only; the
+              server clamps whatever actually arrives — and the fields carry the
+              resolved window rather than the raw input, so what the control
+              shows is always what the charts drew.
+              {% endcomment %}
+              <details class="text-sm">
+                <summary class="cursor-pointer text-text-secondary">Kohandatud vahemik</summary>
+                <form method="get" action="{% url 'membership' %}#{{ section.section_id }}" class="mt-2 flex flex-wrap items-end gap-x-3 gap-y-2">
+                  <label class="flex flex-col gap-1">
+                    <span class="dk-meta">Alates</span>
+                    <input type="date"
+                           name="alates"
+                           value="{{ trend_window.start|date:'Y-m-d' }}"
+                           min="{{ trend_earliest|date:'Y-m-d' }}"
+                           max="{{ trend_latest|date:'Y-m-d' }}"
+                           class="dk-input dk-input-date">
+                  </label>
+                  <label class="flex flex-col gap-1">
+                    <span class="dk-meta">Kuni</span>
+                    <input type="date"
+                           name="kuni"
+                           value="{{ trend_window.end|date:'Y-m-d' }}"
+                           min="{{ trend_earliest|date:'Y-m-d' }}"
+                           max="{{ trend_latest|date:'Y-m-d' }}"
+                           class="dk-input dk-input-date">
+                  </label>
+                  <button type="submit" class="dk-button dk-button-secondary">Rakenda</button>
+                </form>
+              </details>
+            {% endif %}
+
+            {% for toggle in section.toggles %}
+              {% if toggle.is_offered %}
+                <div class="flex flex-wrap items-center gap-2" role="group" aria-label="{{ toggle.label }}">
+                  <span class="dk-meta">{{ toggle.label }}:</span>
+                  {% for option in toggle.options %}
+                    <a href="{{ option.query }}"
+                       class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+                       {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+                  {% endfor %}
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
         {% endif %}
 
-        {% for chart in charts %}
+        {% for chart in section.charts %}
           {% include "dashboard/components/chart_figure.html" with chart=chart only %}
         {% endfor %}
       </div>
     </section>
-  {% endif %}
+  {% endfor %}
 
   {# ---------------- 4. Data quality ---------------- #}
   {% if internal_latest %}

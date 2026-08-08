@@ -216,6 +216,96 @@ still counts the connected and the stale sources, so a failed check is disclosed
 even though no card carries a badge for it. Every figure is still *built* with
 the `Connection` it came from; what changed is how much of it the footer prints.
 
+### Analytical charts
+
+The Liikmeskond charts are ECharts, drawn from a payload the server prepares in
+full. Five rules make them read as one system rather than as five drawings.
+
+**One subject, everything else context.** A chart has a current year, or a
+current series, and it is the strong one: full-weight line, drawn last, on top.
+Comparison series are muted, dashed and thinner. Historical years are context,
+not competitors — three at most behind the subject, because a fourth stops being
+background and becomes a thicket. A chart where every series has equal weight
+asks the reader to decide what matters, which is the chart's job.
+
+**Legends are a last resort.** A series is labelled at its own last point where
+that stays legible, so the reader never looks away from a line to find out which
+one it is. A single-series chart gets no legend at all: the heading already
+names it.
+
+**Direct values where they replace a hover.** Bar charts state their value at
+the bar end; distribution bars add their share beside it. `labelLayout:
+{hideOverlap: true}` drops the ones that would collide at narrow widths rather
+than printing them over each other. Time-series points are not labelled
+individually — that is label soup — beyond the last one.
+
+**Tooltips are built on the server.** Every figure is formatted in Python by the
+helpers in `apps.core.formatting`, keyed to its datum, and rendered by
+`frontend/src/charts.js` as DOM nodes with `textContent`. Three things follow:
+no number is spelled two ways on one page, the browser never has to know what a
+percentage point is, and a label that arrived from a source cannot be read as
+markup. A tooltip states the question's answer — the values, their difference,
+and the comparison — rather than a series name and a raw number.
+
+**Numbers and dates are Estonian everywhere they are read.** `3 412` with a
+non-breaking group separator, `742 400 €`, `72,8%` with a decimal comma, `+27`
+and `−17` with a real U+2212 minus, `+3,4 pp` for a movement in percentage
+points — which is not percent, and is spelled out because the distinction is the
+reason it exists. Dates are `31.07.2026`, `31. juuli` or `juuli 2026` by
+context; an ISO date never reaches a reader. Month axes use `jaan`–`dets`, not
+Roman numerals, even where the source numbers its months that way.
+
+#### Quality states are part of the visual language
+
+Four states must never collapse into each other, and three of them are drawn
+differently rather than only footnoted:
+
+| State | Drawn as |
+| --- | --- |
+| verified | an ordinary filled point |
+| provisional | a **hollow** point, plus `Olek: esialgne` in its own tooltip |
+| conflicted | nothing — no point, and no line across the gap |
+| missing | nothing, and never a zero |
+| an explicit zero | a real point at zero |
+
+Provisional is hollow rather than coloured, because an estimate that firms up
+next month is not an error and the warning hue already means something else.
+
+#### An axis can lie
+
+A y domain is where a truthful series most easily becomes a misleading picture,
+so the rule is written down in `apps.membership.analytics.value_domain` and
+tested from both directions. A **level** — a membership sitting in a narrow band
+far from the origin — is never anchored at zero, which would draw every real
+change as flat; and it is never fitted so tightly that a one-percent drift reads
+as a cliff, so the domain covers at least a twentieth of the largest value. A
+**proportion** that genuinely starts the year at nothing — budget completion —
+does start at zero, and its ceiling clears 100% so exceeding a budget is visible
+rather than clipped.
+
+#### Controls belong to their chart
+
+A control sits inside the section it governs, and a section that governs nothing
+has none. The Liikmeskond page carried one date range above five charts of which
+two obeyed it; a control that appears to govern the page and does not is how a
+reader learns to mistrust the numbers. A snapshot section states `Seisuga
+<date>` instead of inheriting a range that never applied to it.
+
+A control is only rendered when it can change the picture: a benchmark the
+history cannot support and a preset window the history cannot fill are both left
+out, because a choice that does nothing leaves the reader wondering what they
+broke. Controls are ordinary links and GET forms carrying server-resolved values
+— never the incoming query string copied forward — so a view is bookmarkable and
+no unvalidated input is reflected into an href.
+
+#### Height is a named shape
+
+`dk-chart-large`, `dk-chart-medium` and `dk-chart-categorical`. A five-year time
+series and a four-category distribution do not want the same frame, and no
+JavaScript measures anything. All three keep a floor on a phone: a chart squeezed
+below it is not a smaller chart, and the data table underneath is the better
+answer at that size.
+
 ### Proportions and trends are SVG geometry
 
 The Content Security Policy is `style-src 'self'` and

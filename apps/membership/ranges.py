@@ -161,3 +161,82 @@ def resolve_window(
     start = min(max(start, earliest), latest)
     end = min(max(end, earliest), latest)
     return DateWindow(start=start, end=end)
+
+
+# --------------------------------------------------------------------------
+# Presets
+#
+# The control is still a pair of dates. A preset is a shortcut that fills them
+# in, not a third vocabulary: each one resolves to `alates` and `kuni` and links
+# to a URL carrying exactly those, so a shared link says what it shows and a
+# bookmark keeps meaning what it meant.
+#
+# The suppression rule from the top of this module applies here too, and matters
+# more with buttons than it did with fields: two presets drawing the identical
+# line invite a reader to believe the second one failed. A preset is offered only
+# when it covers less history than there is; the first that covers all of it is
+# offered as "Kõik" and everything longer is left out.
+# --------------------------------------------------------------------------
+
+PRESET_MONTHS: tuple[tuple[str, int], ...] = (
+    ("1 aasta", 12),
+    ("3 aastat", 36),
+    ("5 aastat", 60),
+)
+
+PRESET_ALL = "Kõik"
+
+
+@dataclass(frozen=True)
+class RangePreset:
+    """One offered window, and whether it is the one being drawn."""
+
+    label: str
+    window: DateWindow
+    is_active: bool
+
+    @property
+    def query(self) -> str:
+        """The query string this preset links to."""
+        return f"{PARAM_FROM}={self.window.start:%Y-%m-%d}&{PARAM_TO}={self.window.end:%Y-%m-%d}"
+
+
+def range_presets(
+    *,
+    earliest: date | None,
+    latest: date | None,
+    active: DateWindow | None,
+) -> tuple[RangePreset, ...]:
+    """The windows worth offering for a history running `earliest`–`latest`.
+
+    Returns nothing at all when the history cannot fill even the shortest
+    preset, because a row of buttons that all draw the same line is a control
+    that does not control anything.
+    """
+    if earliest is None or latest is None or earliest == latest:
+        return ()
+
+    presets: list[RangePreset] = []
+    for label, months in PRESET_MONTHS:
+        start = months_before(latest, months)
+        if start <= earliest:
+            # This preset reaches past the beginning, so it and everything
+            # longer draw the whole history. "Kõik" says that honestly.
+            break
+        presets.append(
+            RangePreset(
+                label=label,
+                window=DateWindow(start=start, end=latest),
+                is_active=active is not None and active.start == start and active.end == latest,
+            )
+        )
+
+    whole = DateWindow(start=earliest, end=latest)
+    presets.append(
+        RangePreset(
+            label=PRESET_ALL,
+            window=whole,
+            is_active=active is not None and active.start == earliest and active.end == latest,
+        )
+    )
+    return tuple(presets)

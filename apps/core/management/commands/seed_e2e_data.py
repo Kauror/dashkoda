@@ -885,13 +885,72 @@ def _seed_internal_membership(today: dt.date) -> str:
         (90, 4176, 3988, "1268400.00", "1310000.00", 372, 29, 37),
         (30, 4203, 4025, "1276101.00", "1310000.00", 401, None, 44),
     ]
+    # Monthly arrivals, so the recruitment chart has a subject year and an
+    # earlier one to draw behind it.
+    #
+    # A report may only fill months up to its own observation date — a board
+    # report cannot state how many joined in a month that has not happened when
+    # it was written — so each report carries its own year up to its own month
+    # and the series is built across the six of them.
+    #
+    # February is an explicit `0` and March is left out entirely. The chart has
+    # to keep "nobody joined" apart from "nobody reported", and only a seed
+    # carrying both shapes can prove that it does.
+    latest_date = today - dt.timedelta(days=plan[-1][0])
+
+    def monthly_for(when: dt.date) -> dict[int, int]:
+        if when.year < latest_date.year:
+            return {number: 18 + number for number in range(1, when.month + 1)}
+        return {
+            number: (0 if number == 2 else 20 + number)
+            for number in range(1, when.month + 1)
+            if number != 3
+        }
+
+    # Movements and removal reasons ride on the newest report, which is the one
+    # the movement section describes. Every band reports both directions except
+    # the largest, which reports only arrivals — a band with one side missing
+    # must show no net rather than a net that counts a gap as zero.
+    #
+    # Neither table is marked complete, and that is the honest flag rather than
+    # a way around the cross-checks: a table missing one band's departures is a
+    # partial table. `publish_manual_report` only reconciles these sums against
+    # the year-to-date figures when the report claims completeness, which is the
+    # right rule — a partly filled table is an ordinary thing to have and must
+    # not be rejected for failing to add up.
+    size_joined = {
+        "employees_1_4": 21,
+        "employees_20_49": 27,
+        "employees_100_249": 14,
+        "employees_250_499": 8,
+    }
+    size_removed = {
+        "employees_1_4": 38,
+        "employees_20_49": 22,
+        "employees_100_249": 11,
+    }
+    reasons = {
+        "dissolved_bankrupt_merged_inactive_missing": 120,
+        "voluntary_debt_financial_or_other": 84,
+        "voluntary_no_service_value": 31,
+    }
+
     published = 0
     for offset, total, paid, received, budget, new_ytd, suspended, removed in plan:
+        when = today - dt.timedelta(days=offset)
+        is_latest = offset == plan[-1][0]
         report = ManualReport(
-            observation_date=today - dt.timedelta(days=offset),
-            reported_year=(today - dt.timedelta(days=offset)).year,
+            observation_date=when,
+            reported_year=when.year,
             document_title="Sünteetiline juhatuse aruanne",
             source_note="Sünteetiline seeme, mitte tegelik aruanne.",
+            monthly_year=when.year,
+            monthly_new_members=monthly_for(when),
+            joined_by_band=size_joined if is_latest else {},
+            removed_by_band=size_removed if is_latest else {},
+            size_table_complete=False,
+            removal_reasons=reasons if is_latest else {},
+            reasons_complete=False,
             facts=MetricFacts(
                 total_members=total,
                 paid_members=paid,
