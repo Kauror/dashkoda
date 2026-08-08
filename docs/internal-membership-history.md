@@ -326,13 +326,41 @@ relaxed Content Security Policy. Every chart carries a text summary and a data
 table that stay in the document — not a fallback, but the same numbers for every
 reader.
 
-| Chart | Form | Notes |
+The page is four analytical tools, each answering one management question, each
+carrying only the controls that govern it.
+
+| Section | Question | Form |
 | --- | --- | --- |
-| Total and paid members | line, real time axis | irregular observation dates, no interpolation |
-| Monthly new members | line, months I–XII | provisional marked; conflicts absent, never zero |
-| Fee collection | bars plus two percentage lines | reported and calculated shown separately; no gauge |
-| Joined vs removed by size | diverging horizontal bars | canonical band order; supporter separate |
-| Removal reasons | horizontal bars | counts and shares; no pie |
+| Liikmeskonna areng | Is the membership growing, and how much of it has paid? | two lines, real time axis, year-ago readouts |
+| Liikmemaksu laekumine | Is collection tracking towards the annual budget? | budget completion per year across the calendar year, 100% reference |
+| Uute liikmete dünaamika | Is recruitment stronger or weaker than usual? | current year as bars, one benchmark line, monthly or cumulative |
+| Liikmete liikumine | Which sizes are we gaining or losing, and why do members leave? | diverging bars by band; reasons ranked largest first |
+
+Four things about these that are data decisions rather than drawing ones:
+
+- **the fee chart draws the completion the amounts imply**, not the reported
+  percentage. `quality.py` withholds the reported figure when it disagrees with
+  the amounts, so the amounts are what survives a disagreement. Both keep their
+  own column in the table, and a disagreement is disclosed in a footnote —
+  never silently resolved. An observation with year precision has no day and is
+  not placed on a within-the-year axis at all;
+- **a cumulative recruitment line stops at the first unreported month.**
+  Carrying on would draw a flatter slope that reads as a slowdown nobody
+  measured; skipping the month would make the total mean "everything except the
+  month we lost". An explicitly reported `0` accumulates like any other month;
+- **a year-to-date figure is compared only against the same stretch of the
+  previous year**, and refuses to exist at all if any elapsed month is unknown.
+  July against a full twelve months is a collapse that never happened;
+- **the departure counts in the size chart are negated for drawing only.** No
+  reader-facing string ever carries that negation — not the bar label, not the
+  tooltip, not the table. Net movement is derived for presentation, stored
+  nowhere, and withheld for a band that reported only one direction.
+
+Comparisons are built in `apps/membership/analytics.py`, which answers or
+refuses and never reaches: a year-ago baseline is the observation nearest the
+anniversary within 45 days, growth from zero has no percentage, and a
+multi-year monthly average withdraws unless every named year reported that
+month.
 
 A chart is not rendered at all when it has nothing to draw, and the chart bundle
 is loaded only on pages that draw one.
@@ -341,9 +369,16 @@ is loaded only on pages that draw one.
 
 The overview card and the Liikmeskond page both offer the same range control,
 and both read it from `apps/membership/ranges.py` — one vocabulary, so the same
-window cannot be named two ways on two pages. The control is two native date
-fields, `alates` and `kuni`, submitted by a plain GET form: no JavaScript, and
-the control works with the bundle blocked. The card opens on the last six
+window cannot be named two ways on two pages. The vocabulary is two dates,
+`alates` and `kuni`. The Liikmeskond page offers them two ways: preset windows
+as ordinary links that fill both dates in, and the native date fields under
+`Kohandatud vahemik` for anything the presets do not cover. Both are plain GET,
+so there is no JavaScript in the control and it works with the bundle blocked.
+
+A preset the history cannot fill is not offered, for the same reason a
+never-drawable window was never offered: two controls drawing the identical line
+invite a reader to believe the second one failed. An eight-month history offers
+only `Kõik`. The card opens on the last six
 months, the page on the last five years — both counted back from the newest
 observation.
 
