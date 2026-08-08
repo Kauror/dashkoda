@@ -317,6 +317,17 @@ def _collect(*, previous, full, dry_run, report, session) -> list[_PageDraft]:
         if card.summary and not entry["summary"]:
             entry["summary"] = card.summary
 
+    # A full walk also re-reads every known page the listings no longer name:
+    # that is the one honest way to learn a page is gone, and a 404 there
+    # moves `is_present` rather than deleting anything.
+    listed_keys = {content_key_for(url) for url in candidates}
+    if full:
+        for key, page in known_pages.items():
+            if key not in listed_keys:
+                candidates.setdefault(
+                    page.canonical_url, {"summary": page.listing_summary, "listed": False}
+                )
+
     boundary = _refresh_boundary(known_pages)
     from_year = settings.KODA_OPINIONS_FROM_YEAR
 
@@ -364,7 +375,7 @@ def _collect(*, previous, full, dry_run, report, session) -> list[_PageDraft]:
     # Everything known and not re-read this run is carried forward untouched.
     for key, page in known_pages.items():
         if key not in drafts:
-            drafts[key] = _carry_page(page, full=full, seen_keys=set(drafts), report=report)
+            drafts[key] = _carry_page(page, report=report)
 
     ordered = sorted(
         drafts.values(),
@@ -449,9 +460,13 @@ def _read_page(*, url, key, known, listed, summary, now, dry_run, report, sessio
             # partial claim about the edge. Refuse the run.
             raise
         report.failed_pages += 1
-        draft = _carry_page(known, full=False, seen_keys=set(), report=None)
+        draft = _carry_page(known)
         draft.fetch_state = PublicFetchState.FAILED
         draft.failure_code = _failure_code(error)
+        if draft.failure_code == FAILURE_NOT_FOUND:
+            # The one failure that *is* an answer: the page is gone. Its rows
+            # and its documents stay — availability moved, history did not.
+            draft.is_present = False
         return draft
 
     report.detail_pages_fetched += 1
@@ -460,7 +475,7 @@ def _read_page(*, url, key, known, listed, summary, now, dry_run, report, sessio
         if known is None:
             raise PublicOpinionCollectionError(f"Artikli leht ei ole loetav: {key[:12]}.")
         report.failed_pages += 1
-        draft = _carry_page(known, full=False, seen_keys=set(), report=None)
+        draft = _carry_page(known)
         draft.fetch_state = PublicFetchState.FAILED
         draft.failure_code = FAILURE_UNPARSABLE
         return draft
@@ -683,7 +698,7 @@ def _refresh_boundary(known_pages) -> dt.date | None:
     return max(dates) - dt.timedelta(days=settings.KODA_OPINIONS_INCREMENTAL_OVERLAP_DAYS)
 
 
-def _carry_page(page: PublicOpinionPage, *, full: bool, seen_keys, report) -> _PageDraft:
+def _carry_page(page: PublicOpinionPage, *, report=None) -> _PageDraft:
     """The previous snapshot's answer, restated without having looked."""
     draft = _PageDraft(
         content_key=page.content_key,
@@ -748,12 +763,14 @@ def _corpus_checksum(drafts: list[_PageDraft]) -> str:
                 "content_hash": draft.content_hash,
                 "evidence": sorted(draft.opinion_evidence_codes),
                 "present": draft.is_present,
+                # Deliberately no fetch state: whether a fact was re-read or
+                # carried is run bookkeeping, and identical content re-read
+                # must not republish.
                 "documents": [
                     {
                         "url": document.pdf_url,
                         "sha256": document.blob.sha256 if document.blob else "",
                         "present": document.is_present,
-                        "state": str(document.fetch_state),
                     }
                     for document in sorted(draft.documents, key=lambda d: d.pdf_url)
                 ],

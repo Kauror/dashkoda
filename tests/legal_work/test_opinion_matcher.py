@@ -51,6 +51,7 @@ def candidate(
     readable=True,
 ) -> Candidate:
     return Candidate(
+        blob_id=1,
         entry_id=1,
         classification=classification,
         filename_date=filename_date,
@@ -81,8 +82,12 @@ def score(
 
 
 def test_the_matcher_names_its_normaliser_and_extractor():
-    """A stored decision must be able to say what produced it."""
-    assert MATCHER_VERSION.startswith("opinion-1.1-norm")
+    """A stored decision must be able to say what produced it.
+
+    1.2 is the dual-source candidate universe; the weights and thresholds are
+    1.1's, unchanged, and the tests below still assert them.
+    """
+    assert MATCHER_VERSION.startswith("opinion-1.2-norm")
     assert "-extract" in MATCHER_VERSION
 
 

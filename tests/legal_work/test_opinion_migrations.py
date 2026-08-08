@@ -75,6 +75,165 @@ def test_an_empty_table_still_migrates(populated_migration):
     assert apps.get_model("legal_work", "OpinionDocumentBlob").objects.count() == 0
 
 
+RELATION_BEFORE = "0007_catalogue_filename_normaliser_version"
+RELATION_AFTER = "0008_public_opinion_source"
+
+
+def seed_matched_world(apps):
+    """The 0007 state a real deployment carries: a matched relation whose only
+    document pointer is its private catalogue entry."""
+    import datetime as dt
+
+    now = dt.datetime(2026, 8, 1, 6, 0, tzinfo=dt.UTC)
+    source = apps.get_model("sources", "DataSource").objects.create(
+        slug="seed-source",
+        name="Seed",
+        source_type="document",
+        expected_update_frequency="irregular",
+    )
+    artifact = apps.get_model("sources", "SourceArtifact").objects.create(
+        source=source, original_name="seed", sha256="a" * 64
+    )
+    run = apps.get_model("sources", "ImportRun").objects.create(
+        source=source,
+        artifact=artifact,
+        importer_name="seed",
+        schema_version="1.0",
+        import_key="k" * 64,
+        dry_run=False,
+        status="completed",
+    )
+    legal = apps.get_model("legal_work", "LegalWorkSnapshot").objects.create(
+        source=source,
+        artifact=artifact,
+        import_run=run,
+        schema_version="1.0",
+        reporting_date=dt.date(2026, 7, 1),
+        workbook_generated_at=now,
+        is_current=True,
+    )
+    item = apps.get_model("legal_work", "LegalWorkItem").objects.create(
+        snapshot=legal,
+        record_id="OIG-2026-0001",
+        source_year=2026,
+        topic="Seemneteema",
+        sent_status="sent",
+        sent_date=dt.date(2026, 7, 2),
+        is_open=False,
+        source_row=2,
+    )
+    run2 = apps.get_model("sources", "ImportRun").objects.create(
+        source=source,
+        artifact=artifact,
+        importer_name="seed-opinions",
+        schema_version="1.0",
+        import_key="m" * 64,
+        dry_run=False,
+        status="completed",
+    )
+    catalogue = apps.get_model("legal_work", "OpinionCatalogueSnapshot").objects.create(
+        source=source,
+        artifact=artifact,
+        import_run=run2,
+        source_manifest_checksum="b" * 64,
+        extractor_version="1.0",
+        observed_at=now,
+        entry_count=1,
+        valid_count=1,
+        extracted_count=1,
+        is_current=True,
+    )
+    blob = apps.get_model("legal_work", "OpinionDocumentBlob").objects.create(
+        sha256="c" * 64,
+        storage_key=f"blobs/cc/{'c' * 64}.pdf",
+        byte_size=1024,
+        page_count=1,
+        validation_status="valid",
+    )
+    extraction = apps.get_model("legal_work", "OpinionDocumentExtraction").objects.create(
+        blob=blob,
+        extractor_name="pypdf",
+        extractor_version="1.0",
+        status="extracted",
+        text="Seemnetekst",
+        page_count=1,
+    )
+    entry = apps.get_model("legal_work", "OpinionCatalogueEntry").objects.create(
+        snapshot=catalogue,
+        source_provider="directory",
+        source_entry_key="seed.pdf",
+        original_filename="seed.pdf",
+        display_filename="seed.pdf",
+        classification="opinion",
+        blob=blob,
+        extraction=extraction,
+        source_order=0,
+    )
+    matter = apps.get_model("legal_work", "LegalMatter").objects.create(
+        matter_key="d" * 64,
+        identity_version="1.0",
+        last_known_topic="Seemneteema",
+    )
+    match = apps.get_model("legal_work", "LegalOpinionMatchSnapshot").objects.create(
+        legal_snapshot=legal,
+        opinion_catalogue_snapshot=catalogue,
+        matcher_version="opinion-1.1-norm1.0-extract1.0",
+        considered_item_count=1,
+        matched_count=1,
+        is_current=True,
+    )
+    decision = apps.get_model("legal_work", "LegalOpinionDecision").objects.create(
+        snapshot=match,
+        legal_item=item,
+        matter=matter,
+        decision="matched",
+        score=90,
+        runner_up_score=0,
+        score_margin=90,
+        candidate_count=1,
+    )
+    apps.get_model("legal_work", "LegalOpinionDocumentRelation").objects.create(
+        decision=decision,
+        entry=entry,
+        role="primary",
+        is_primary=True,
+        score=90,
+    )
+
+
+def test_the_relation_backfill_gives_every_existing_relation_its_document(
+    populated_migration,
+):
+    """Phase 42: the 0008 backfill against a populated 0007 world.
+
+    Every pre-existing relation must gain its entry's blob and extraction,
+    keep its entry, and satisfy the new provenance constraint — with no
+    resource id, matter key or blob duplicated along the way.
+    """
+    apps = populated_migration(
+        "legal_work", before=RELATION_BEFORE, after=RELATION_AFTER, seed=seed_matched_world
+    )
+
+    relation = apps.get_model("legal_work", "LegalOpinionDocumentRelation").objects.get()
+    entry = apps.get_model("legal_work", "OpinionCatalogueEntry").objects.get()
+
+    assert relation.blob_id == entry.blob_id
+    assert relation.extraction_id == entry.extraction_id
+    assert relation.entry_id == entry.pk
+    assert relation.public_document_id is None
+    assert apps.get_model("legal_work", "OpinionDocumentBlob").objects.count() == 1
+    match = apps.get_model("legal_work", "LegalOpinionMatchSnapshot").objects.get()
+    assert match.public_opinion_snapshot_id is None
+    assert match.is_current
+
+
+def test_the_relation_migration_survives_an_empty_table(populated_migration):
+    apps = populated_migration(
+        "legal_work", before=RELATION_BEFORE, after=RELATION_AFTER, seed=lambda apps: None
+    )
+    assert apps.get_model("legal_work", "LegalOpinionDocumentRelation").objects.count() == 0
+
+
 @pytest.mark.django_db
 def test_a_blob_created_after_the_migration_still_gets_an_identifier():
     """The column keeps its callable default for ordinary inserts.
