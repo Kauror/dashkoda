@@ -22,26 +22,14 @@ from __future__ import annotations
 import re
 import unicodedata
 
+# Estonian typography and tokenisation are shared with the event matcher, so
+# the two cannot disagree about what "the same string" means. What is built on
+# top of them — the phrases and stop words below — is specific to this
+# vocabulary and deliberately stays here.
+from apps.core.text_folding import TOKEN_PATTERN as _TOKEN_PATTERN
+from apps.core.text_folding import fold
+
 NORMALISER_VERSION = "1.0"
-
-# Estonian typography, folded to ASCII equivalents so a curly quote and a
-# straight one cannot make two identical phrases look different. Estonian opens
-# a quotation low („) and closes it high (“), and both forms appear on the same
-# Koda.ee page.
-_PUNCTUATION_MAP = {
-    "„": '"', "“": '"', "”": '"', "«": '"', "»": '"',
-    "‘": "'", "’": "'", "′": "'",
-    "–": "-", "—": "-", "−": "-", "‐": "-", "‑": "-",
-    " ": " ", " ": " ", " ": " ",
-    "…": " ",
-}  # fmt: skip
-
-_PUNCTUATION_TABLE = str.maketrans(_PUNCTUATION_MAP)
-
-# A token is a run of letters, digits and the two characters Estonian legal
-# writing uses inside a single term: the hyphen of "teadus- ja arendustegevus"
-# and the full stop of an ordinal. Everything else separates.
-_TOKEN_PATTERN = re.compile(r"[^\W_]+(?:[-.][^\W_]+)*", re.UNICODE)
 
 # Editorial scaffolding. These are the phrases the Chamber wraps around every
 # consultation — the invitation, not the subject — and they appear on nearly
@@ -239,22 +227,6 @@ _IDENTIFIER_PATTERNS = (
     re.compile(r"\b(\d{1,4})\s*(SE|OE|UA)\b"),
     re.compile(r"\bRT\s*([IV]+),?\s*(\d{2}\.\d{2}\.\d{4}),?\s*(\d+)\b"),
 )
-
-
-def fold(value: str) -> str:
-    """Unicode-normalise, fold case and collapse whitespace and punctuation.
-
-    NFC first, so a precomposed ``ä`` and a decomposed one are the same string
-    before anything else looks at them. Estonian diacritics are **kept**:
-    stripping them would merge ``ohutus`` and ``õhutus``, which mean different
-    things.
-    """
-    if not value:
-        return ""
-    text = unicodedata.normalize("NFC", value)
-    text = text.translate(_PUNCTUATION_TABLE)
-    text = text.casefold()
-    return " ".join(text.split())
 
 
 def strip_boilerplate(value: str) -> str:
