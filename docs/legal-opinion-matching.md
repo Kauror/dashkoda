@@ -84,10 +84,15 @@ satisfy both.
 ## The matcher
 
 ```
-opinion-1.1-norm<normaliser>-extract<extractor>
+opinion-1.2-norm<normaliser>-extract<extractor>
 ```
 
 Its own weights, thresholds and rarity corpus — never a consultation matcher's.
+1.2 is the dual-source candidate universe: a candidate is one **blob**, and the
+private catalogue and the public Koda.ee corpus (see
+[legal-opinion-public-source.md](legal-opinion-public-source.md)) merge into
+it, the same letter from both sources becoming one candidate with two
+provenances. The weights and thresholds below are 1.1's, unchanged.
 A consultation page is an editorial invitation written by Koda.ee; an opinion
 letter is formal correspondence carrying an outgoing date, an outgoing number,
 an addressee and a subject line that no consultation page has.
@@ -191,7 +196,8 @@ python manage.py match_legal_opinion_documents --json
 ```
 
 Its own advisory lock. Identical inputs — the same legal snapshot, the same
-catalogue snapshot and the same matcher version — return `unchanged`. JSON
+catalogue snapshot, the same public opinion corpus (or the same absence of
+one) and the same matcher version — return `unchanged`. JSON
 output is aggregates only: counts, a snapshot id and the matcher version, never
 a topic, filename, recipient, subject, document text or path. A failure leaves
 the previous match snapshot current.
