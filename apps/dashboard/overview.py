@@ -33,6 +33,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.formatting import GROUP_SEPARATOR, percentage, whole_euros
+from apps.event_programme.public_links import attach_public_links
 from apps.event_programme.selectors import (
     NEAR_TERM_DAYS,
     count_events_started_within,
@@ -381,7 +382,9 @@ def build_overview(
         legal_work_sent=legal_sent,
         events=events_connection,
         upcoming_events=tuple(
-            get_upcoming_programme_events(events.snapshot, limit=EVENTS_PREVIEW_LIMIT)
+            attach_public_links(
+                get_upcoming_programme_events(events.snapshot, limit=EVENTS_PREVIEW_LIMIT)
+            )
         ),
         news=news_connection,
         latest_news=tuple(get_latest_news(news.snapshot, limit=NEWS_PREVIEW_LIMIT)),

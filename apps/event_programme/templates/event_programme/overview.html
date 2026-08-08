@@ -211,7 +211,7 @@ inspected in the read-only admin.
                     {% endif %}
                   </td>
                   <td class="max-w-md border-b border-border px-4 py-2 text-text">
-                    {% if item.public_url %}
+                    {% if item.public_link %}
                       {% comment %}
                       `relative` is load-bearing. The visually hidden destination
                       note is absolutely positioned, and an absolutely positioned
@@ -219,7 +219,7 @@ inspected in the read-only admin.
                       block — without a positioned anchor it settles at the
                       untruncated text width and widens the page.
                       {% endcomment %}
-                      <a class="dk-link relative" href="{{ item.public_url }}" rel="noopener noreferrer">
+                      <a class="dk-link relative" href="{{ item.public_link.url }}" rel="noopener noreferrer">
                         {{ item.event_name }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
                       </a>
                     {% else %}

@@ -27,6 +27,7 @@ from django.core.paginator import Paginator
 from django.urls import reverse
 
 from .models import EventStatus
+from .public_links import attach_public_links
 from .selectors import (
     LINK_ALL,
     LINK_LINKED,
@@ -221,7 +222,7 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
         options=options,
         period_label=str(filters.year) if filters.year is not None else ALL_YEARS_LABEL,
         figures=_figures(snapshot, filters),
-        items=tuple(page.object_list),
+        items=tuple(attach_public_links(page.object_list)),
         pagination=_pagination(page, filters),
         result_count=paginator.count,
         quality=_quality_links(snapshot),

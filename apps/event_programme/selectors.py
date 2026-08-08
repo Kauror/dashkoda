@@ -33,6 +33,7 @@ from .models import (
     EventProgrammeSnapshot,
     EventStatus,
 )
+from .public_links import matched_event_ids
 
 # The near-term window the overview counts, in both directions. Matches the
 # legal-work activity window so the KPI cells describe the same length of time.
@@ -333,9 +334,9 @@ def get_filtered_event_programme_items(
     if filters.status:
         rows = rows.filter(event_status=filters.status)
     if filters.public_link == LINK_LINKED:
-        rows = rows.exclude(public_url="")
+        rows = rows.filter(_has_effective_link())
     elif filters.public_link == LINK_UNLINKED:
-        rows = rows.filter(public_url="")
+        rows = rows.exclude(_has_effective_link())
     if filters.review == REVIEW_REQUIRED:
         rows = rows.filter(review_required=True)
     elif filters.review == REVIEW_CLEAR:
@@ -390,7 +391,22 @@ def count_unknown_date_events(snapshot: EventProgrammeSnapshot | None = None) ->
     return _items(snapshot).filter(start_date=None).count()
 
 
+def _has_effective_link() -> Q:
+    """Rows a reader would see as a link: the workbook's own, or a matched page.
+
+    The filter and the counts have to ask the same question the table answers,
+    or the page contradicts itself — "0 linked" above a column full of links.
+    """
+    return Q(public_url__gt="") | Q(event_id__in=matched_event_ids())
+
+
 def count_linked_events(snapshot: EventProgrammeSnapshot | None = None) -> int:
+    """Events that show a link, from either source."""
+    return _items(snapshot).filter(_has_effective_link()).count()
+
+
+def count_workbook_linked_events(snapshot: EventProgrammeSnapshot | None = None) -> int:
+    """Events the Chamber linked by hand. The workbook's own coverage, unchanged."""
     return _items(snapshot).exclude(public_url="").count()
 
 
