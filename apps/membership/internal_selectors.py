@@ -312,6 +312,15 @@ def get_fee_collection_trend(
                 "budget": budget,
                 "reported_pct": point.value("membership_fee_collection_pct_reported"),
                 "computed_pct": point.computed_collection_pct,
+                # Whether the reported percentage was withheld because it
+                # disagreed with the amounts beside it, as opposed to never
+                # having been reported. The two look identical once the value is
+                # `None`, and only the first is worth telling a reader about.
+                "reported_withheld": ("membership_fee_collection_pct_reported" in point.withheld),
+                # A year-precision observation has no day, so it cannot be placed
+                # on a within-the-year axis without asserting a reading date the
+                # board never gave.
+                "is_year_precision": point.is_year_precision,
             }
         )
     return tuple(rows)

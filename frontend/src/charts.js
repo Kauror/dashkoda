@@ -181,6 +181,24 @@ export function mountChart(figure) {
    * lifted out here so the rest of the payload is a plain ECharts option.
    */
   const { dashkoda = {}, ...option } = payload;
+
+  /*
+   * Axis labels the server supplied as a finite list, which the axis indexes
+   * into. This is the whole of the "formatter metadata" contract: no date
+   * arithmetic and no language crosses over, because a browser formatting a
+   * month name would be a second place Estonian was spelled.
+   */
+  if (dashkoda.axisLabels && Array.isArray(dashkoda.axisLabels.x)) {
+    const labels = dashkoda.axisLabels.x;
+    option.xAxis = {
+      ...(option.xAxis || {}),
+      axisLabel: {
+        ...((option.xAxis || {}).axisLabel || {}),
+        formatter: (value) => labels[Math.round(value)] ?? "",
+      },
+    };
+  }
+
   if (dashkoda.tooltip) {
     option.tooltip = {
       ...(option.tooltip || {}),

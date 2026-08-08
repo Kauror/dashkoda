@@ -21,21 +21,23 @@ Two rules are absolute here:
 
 from __future__ import annotations
 
+from calendar import monthrange
 from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
 from apps.core.formatting import (
+    MONTH_ABBREVIATIONS,
+    euros,
     integer,
     long_date,
     percent,
     percentage,
     percentage_points,
     signed_integer,
-    whole_euros,
 )
 
-from .analytics import compare_with, share_change, value_domain
+from .analytics import compare_with, pick_comparable, share_change, value_domain
 from .internal_selectors import InternalTrend, MonthlyValue
 from .models import QualityStatus, SizeBand
 
@@ -515,75 +517,278 @@ def _monthly_status_label(value: MonthlyValue) -> str:
 # --------------------------------------------------------------------------
 
 
-def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
-    """Received against budget, with both percentages kept separate.
+# The reference line every year is read against.
+BUDGET_TARGET_PCT = 100
 
-    No circular gauge: a gauge shows one number well and this is three. When the
-    reported and the calculated percentage differ, both are shown rather than
-    one being silently preferred.
+# How far apart two observations may sit in the calendar year and still be
+# called the same point in it. The same reasoning as the year-over-year
+# tolerance: close enough to be the same season, far enough to survive a report
+# that arrived a month late.
+SEASON_TOLERANCE_DAYS = 45
+
+# Years drawn behind the current one. More than three and the muted lines stop
+# being context and become a thicket.
+COMPARISON_YEARS = 3
+
+
+def _year_position(day: date) -> float:
+    """Where a date sits in its calendar year, as a month offset.
+
+    31 July becomes 6.97 — just short of August. This is what lets several years
+    share one axis: each is drawn against its own progress through the year
+    rather than against an absolute date.
     """
-    dates = [_iso(row["observation_date"]) for row in rows]
-    received = [_number(row["received"]) for row in rows]
-    budget = [_number(row["budget"]) for row in rows]
-    reported_pct = [_number(row["reported_pct"]) for row in rows]
-    computed_pct = [_number(row["computed_pct"]) for row in rows]
+    _, days_in_month = monthrange(day.year, day.month)
+    return round((day.month - 1) + (day.day - 1) / days_in_month, 4)
 
-    option = _base_option()
+
+def _same_season(day: date, *, year: int) -> date:
+    """The same month and day in another year, for comparing like with like."""
+    try:
+        return day.replace(year=year)
+    except ValueError:
+        return day.replace(year=year, day=28)
+
+
+def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
+    """Is fee collection tracking towards the annual budget, and against history?
+
+    Replaces a chart that drew received euros, budgeted euros, the reported
+    percentage and the computed percentage as four series across two y axes. A
+    reader had to work out which axis each series belonged to before they could
+    read any of it, and the two percentage lines invited a comparison the data
+    does not support — they are the same quantity from two sources, not two
+    quantities.
+
+    What is drawn instead is one measure, budget completion, with each year as
+    its own line across the calendar year. That is the question the board asks:
+    are we further along than we were this time last year.
+
+    The completion drawn is the one **implied by the reported amounts**.
+    `quality.py` withholds the reported percentage when it disagrees with those
+    amounts, so the amounts are what survives a disagreement and the percentage
+    derived from them is the measure that can always be drawn. The reported
+    figure keeps its own column in the table, and a disagreement is disclosed
+    rather than quietly resolved.
+    """
+    drawable = [
+        row for row in rows if row["computed_pct"] is not None and not row["is_year_precision"]
+    ]
+    by_year: dict[int, list[dict]] = {}
+    for row in drawable:
+        by_year.setdefault(row["observation_date"].year, []).append(row)
+
+    years = sorted(by_year)
+    current_year = years[-1] if years else None
+    # Oldest first, so the current year is drawn last and sits on top.
+    drawn_years = years[-(COMPARISON_YEARS + 1) :]
+
+    series = []
+    for year in drawn_years:
+        is_current = year == current_year
+        series.append(
+            {
+                "name": str(year),
+                "type": "line",
+                "showSymbol": True,
+                "symbolSize": 7 if is_current else 5,
+                "connectNulls": False,
+                # The current year is the subject; the others are context. One
+                # strong line against muted ones rather than a rainbow in which
+                # every year competes for the same attention.
+                "lineStyle": (
+                    {"width": 2.5}
+                    if is_current
+                    else {"width": 1.5, "type": "dashed", "opacity": 0.6}
+                ),
+                "itemStyle": {} if is_current else {"opacity": 0.6},
+                "endLabel": {"show": True, "formatter": "{a}"},
+                "z": 3 if is_current else 2,
+                "data": [
+                    {
+                        "value": [
+                            _year_position(row["observation_date"]),
+                            _number(row["computed_pct"]),
+                        ],
+                        "tip": _iso(row["observation_date"]),
+                    }
+                    for row in sorted(by_year[year], key=lambda item: item["observation_date"])
+                ],
+                **(
+                    {
+                        "markLine": {
+                            "silent": True,
+                            "symbol": "none",
+                            "label": {"formatter": "Aastaeelarve"},
+                            "data": [{"yAxis": BUDGET_TARGET_PCT}],
+                        }
+                    }
+                    if is_current
+                    else {}
+                ),
+            }
+        )
+
+    highest = max(
+        [_number(row["computed_pct"]) for row in drawable] + [float(BUDGET_TARGET_PCT)],
+        default=float(BUDGET_TARGET_PCT),
+    )
+
+    option = _base_option(legend=False)
     option.update(
         {
-            "xAxis": {"type": "category", "data": dates},
-            "yAxis": [
-                {"type": "value", "name": "EUR"},
-                {"type": "value", "name": "%", "position": "right"},
-            ],
-            "series": [
-                {"name": "Laekunud", "type": "bar", "data": received},
-                {"name": "Eelarve", "type": "bar", "data": budget},
-                {
-                    "name": "Raporteeritud %",
-                    "type": "line",
-                    "yAxisIndex": 1,
-                    "connectNulls": False,
-                    "data": reported_pct,
-                },
-                {
-                    "name": "Arvutatud %",
-                    "type": "line",
-                    "yAxisIndex": 1,
-                    "connectNulls": False,
-                    "data": computed_pct,
-                },
-            ],
+            "xAxis": {
+                "type": "value",
+                "min": 0,
+                "max": 11,
+                "interval": 1,
+                "axisLabel": {"showMaxLabel": True},
+            },
+            "yAxis": {
+                "type": "value",
+                "name": "Eelarve täitmine",
+                # Zero is the right floor here, unlike the membership trend:
+                # completion is a proportion of a budget and starts the year at
+                # nothing. The ceiling clears the target so exceeding it is
+                # visible rather than clipped.
+                "min": 0,
+                "max": max(BUDGET_TARGET_PCT + 10, int(highest) + 10),
+            },
+            "tooltip": {"trigger": "item"},
+            "series": series,
+            "dashkoda": {
+                "tooltip": _fee_tooltips(by_year, current_year),
+                # A finite list the browser indexes into. No date logic crosses
+                # over; the axis is 0–11 and these are its twelve labels.
+                "axisLabels": {"x": list(MONTH_ABBREVIATIONS)},
+            },
         }
     )
 
+    footnotes = []
+    if any(row["reported_withheld"] for row in rows):
+        footnotes.append(
+            "Mõne vaatluse raporteeritud protsent ei ühti summadega ja on kõrvale jäetud; "
+            "graafik kasutab summadest arvutatud täitmist."
+        )
+    if any(row["is_year_precision"] for row in rows):
+        footnotes.append(
+            "Aastatäpsusega vaatlusi ei ole graafikule kantud, sest neil ei ole kuupäeva."
+        )
+
     return ChartPayload(
         payload_id="internal-membership-fees",
-        title="Liikmemaksu laekumine",
+        title="Liikmemaksu laekumine eelarvest",
+        question=(
+            "Kas liikmemaksu laekumine liigub aastaeelarve täitmise suunas ja kuidas "
+            "see võrdub varasemate aastatega?"
+        ),
         option=option,
+        size="large",
+        readouts=_fee_readouts(by_year, current_year),
+        observation_label=(
+            f"Seisuga {long_date(by_year[current_year][-1]['observation_date'])}"
+            if current_year
+            else ""
+        ),
         table_headers=(
             "Kuupäev",
-            "Laekunud (EUR)",
-            "Eelarve (EUR)",
+            "Laekunud",
+            "Aastaeelarve",
+            "Täitmine (summadest)",
             "Raporteeritud %",
-            "Arvutatud %",
         ),
         table_rows=tuple(
             (
                 row["observation_date"],
-                whole_euros(row["received"]),
-                whole_euros(row["budget"]),
-                percentage(row["reported_pct"]),
-                percentage(row["computed_pct"]),
+                euros(row["received"]),
+                euros(row["budget"]),
+                percent(row["computed_pct"]),
+                percent(row["reported_pct"]) if row["reported_pct"] is not None else None,
             )
             for row in rows
         ),
         summary=(
-            f"Tulpgraafik laekumisest ja eelarvest {len(rows)} vaatluse kohta, "
-            "koos raporteeritud ja arvutatud protsendiga."
+            f"Joongraafik eelarve täitmisest {len(drawn_years)} aasta kohta kalendriaasta "
+            "lõikes; jooksev aasta on esile tõstetud ja 100% on aastaeelarve."
         ),
         empty_message="Liikmemaksu andmeid ei ole veel imporditud.",
+        footnotes=tuple(footnotes),
     )
+
+
+def _fee_tooltips(by_year: dict[int, list[dict]], current_year: int | None) -> dict:
+    """One readout per observation, with last year's nearest comparable point.
+
+    The comparison is only offered when the previous year actually reported near
+    the same point in its year. An observation from a different season would be
+    a different question wearing the same label.
+    """
+    tooltips = {}
+    for year, rows in by_year.items():
+        previous = by_year.get(year - 1, [])
+        for row in rows:
+            when = row["observation_date"]
+            readout = [
+                {"label": "Laekunud", "value": euros(row["received"]), "emphasis": True},
+                {"label": "Aastaeelarve", "value": euros(row["budget"]), "emphasis": False},
+                {"label": "Täitmine", "value": percent(row["computed_pct"]), "emphasis": False},
+            ]
+            if previous:
+                candidates = tuple(
+                    (_same_season(other["observation_date"], year=year), other["computed_pct"])
+                    for other in previous
+                )
+                found = pick_comparable(candidates, when, tolerance_days=SEASON_TOLERANCE_DAYS)
+                if found is not None:
+                    _, earlier_pct = found
+                    readout.append(
+                        {
+                            "label": f"{year - 1} lähim võrreldav",
+                            "value": percent(earlier_pct),
+                            "emphasis": False,
+                        }
+                    )
+                    readout.append(
+                        {
+                            "label": "Erinevus",
+                            "value": percentage_points(
+                                share_change(row["computed_pct"], earlier_pct)
+                            ),
+                            "emphasis": False,
+                        }
+                    )
+            tooltips[_iso(when)] = {
+                "title": f"{long_date(when)}",
+                "rows": readout,
+                "note": "" if year == current_year else f"{year}. aasta võrdlus",
+            }
+    return tooltips
+
+
+def _fee_readouts(by_year: dict[int, list[dict]], current_year: int | None) -> tuple[Readout, ...]:
+    """Where this year stands against its budget, in three figures."""
+    if current_year is None:
+        return ()
+    latest = by_year[current_year][-1]
+    received, budget = latest["received"], latest["budget"]
+
+    readouts = [
+        Readout(label=f"{current_year} laekunud", value=euros(received)),
+        Readout(label="Aastaeelarve", value=euros(budget)),
+        Readout(label="Täitmine", value=percent(latest["computed_pct"])),
+    ]
+
+    if received is not None and budget is not None:
+        remaining = Decimal(budget) - Decimal(received)
+        readouts.append(
+            Readout(
+                label="Puudu aastaeelarvest" if remaining > 0 else "Üle aastaeelarve",
+                value=euros(abs(remaining)),
+                direction="down" if remaining > 0 else "up",
+            )
+        )
+    return tuple(readouts)
 
 
 # --------------------------------------------------------------------------
