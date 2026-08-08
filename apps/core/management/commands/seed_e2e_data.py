@@ -885,20 +885,27 @@ def _seed_internal_membership(today: dt.date) -> str:
         (90, 4176, 3988, "1268400.00", "1310000.00", 372, 29, 37),
         (30, 4203, 4025, "1276101.00", "1310000.00", 401, None, 44),
     ]
-    # Monthly arrivals for the current year and the one before it, so the
-    # recruitment chart has a subject year and a benchmark to draw. One month is
-    # an explicit `0` and one is left out entirely: the chart has to keep
-    # "nobody joined" and "nobody reported" apart, and only a seed carrying both
-    # can prove it does.
+    # Monthly arrivals, so the recruitment chart has a subject year and an
+    # earlier one to draw behind it.
+    #
+    # A report may only fill months up to its own observation date — a board
+    # report cannot state how many joined in a month that has not happened when
+    # it was written — so each report carries its own year up to its own month
+    # and the series is built across the six of them.
+    #
+    # February is an explicit `0` and March is left out entirely. The chart has
+    # to keep "nobody joined" apart from "nobody reported", and only a seed
+    # carrying both shapes can prove that it does.
     latest_date = today - dt.timedelta(days=plan[-1][0])
-    monthly_by_year = {
-        latest_date.year - 1: {number: 18 + number for number in range(1, 13)},
-        latest_date.year: {
+
+    def monthly_for(when: dt.date) -> dict[int, int]:
+        if when.year < latest_date.year:
+            return {number: 18 + number for number in range(1, when.month + 1)}
+        return {
             number: (0 if number == 2 else 20 + number)
-            for number in range(1, max(latest_date.month, 2) + 1)
+            for number in range(1, when.month + 1)
             if number != 3
-        },
-    }
+        }
 
     # Movements and removal reasons ride on the newest report, which is the one
     # the movement section describes. Every band reports both directions except
@@ -931,7 +938,7 @@ def _seed_internal_membership(today: dt.date) -> str:
             document_title="Sünteetiline juhatuse aruanne",
             source_note="Sünteetiline seeme, mitte tegelik aruanne.",
             monthly_year=when.year,
-            monthly_new_members=monthly_by_year.get(when.year, {}),
+            monthly_new_members=monthly_for(when),
             joined_by_band=size_joined if is_latest else {},
             removed_by_band=size_removed if is_latest else {},
             size_table_complete=is_latest,
