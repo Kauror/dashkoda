@@ -1,8 +1,8 @@
 """Which retired snapshots may be deleted, and which may never be.
 
-Ten models publish immutable snapshots. Current ones matter; roughly a week of
-retired history is enough to answer "what changed yesterday". Everything older
-that nothing depends on is deletable.
+Eleven models publish immutable snapshots. Current ones matter; roughly a week
+of retired history is enough to answer "what changed yesterday". Everything
+older that nothing depends on is deletable.
 
 **The registry is written out by hand, not discovered.** Finding snapshot models
 by introspection would silently enrol the next one somebody adds, before anyone
@@ -119,6 +119,16 @@ FAMILIES: tuple[SnapshotFamily, ...] = (
         model="event_programme.EventProgrammeSnapshot",
         label="Sündmuste programmi hetkeseis",
         cutoff_field="imported_at",
+    ),
+    SnapshotFamily(
+        model="events.PublicEventDiscoverySnapshot",
+        label="Avalike sündmuste lehtede avastusjooks",
+        cutoff_field="observed_at",
+        note=(
+            "A run record, not a catalogue. `PublicEventResource` has no "
+            "foreign key to it — the pages it found outlive every run, so "
+            "deleting old runs cannot remove a single discovered link."
+        ),
     ),
     SnapshotFamily(
         model="legal_work.LegalCurrentTopicMatchSnapshot",
