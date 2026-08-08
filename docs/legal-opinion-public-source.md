@@ -55,10 +55,12 @@ picked.
 - `https://www.koda.ee/et/uudised` — the news listing, whose cards carry full
   dates and therefore drive date-bounded walking.
 
-Detail pages live under `/et/uudised/`; attachments are direct `btn--file`
-links under `/sites/default/files/`, and their filenames follow the Chamber's
-own `date - recipient - subject` convention, so the private filename parser
-reads them unchanged.
+Detail pages live under two prefixes — recent articles are news nodes under
+`/et/uudised/`, older ones meie-arvamus nodes under `/et/meie-arvamus/` — and
+both shapes are read. Attachments are direct `btn--file` links under
+`/sites/default/files/`; their names carry the letter's own date in either
+the Chamber's private `YYYY-MM-DD - recipient - subject` convention or the
+upload style `DD MM YYYY ...`, and both are parsed.
 
 A page enters the corpus only with **opinion evidence**, recorded on the row:
 listed under `Meie arvamus`, position wording in the article, or an
