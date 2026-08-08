@@ -47,7 +47,6 @@ from .selectors import (
     count_events_for_year,
     count_events_started_within,
     count_events_starting_within,
-    count_linked_events,
     count_review_required_events,
     count_unknown_date_events,
     get_event_programme_filter_options,
@@ -154,6 +153,13 @@ def parse_filters(params, options: FilterOptions) -> ProgrammeFilters:
     current period", `all` means the whole history, and anything the snapshot
     does not contain falls back to the default rather than emptying the table
     without explanation.
+
+    `event_type` and `delivery_mode` are deliberately not read. The page has no
+    control for either any more, and a filter that can still be switched on from
+    a query string but has nowhere on screen to say it is on would shrink the
+    table with no visible reason. `ProgrammeFilters` still carries the fields and
+    the selector still honours them, so the capability is intact for whatever
+    asks for it explicitly — this page simply never asks.
     """
     return ProgrammeFilters(
         q=params.get("q", "").strip()[:100],
@@ -161,8 +167,6 @@ def parse_filters(params, options: FilterOptions) -> ProgrammeFilters:
         month=_allowed(params.get("month"), options.months),
         quarter=_allowed(params.get("quarter"), options.quarters),
         tag=_allowed(params.get("tag"), options.tags),
-        event_type=_allowed(params.get("event_type"), options.event_types),
-        delivery_mode=_allowed(params.get("delivery_mode"), options.delivery_modes),
         status=_allowed(params.get("status"), options.statuses),
         public_link=_one_of(params.get("public_link"), LINK_VALUES, LINK_ALL),
         review=_one_of(params.get("review"), REVIEW_VALUES, REVIEW_ALL),
@@ -231,10 +235,15 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
 
 
 def _figures(snapshot, filters: ProgrammeFilters) -> tuple[Figure, ...]:
-    """Four figures, each stating the period it measures.
+    """Three figures, each stating the period it measures.
 
     The filtered result count is not among them: the table states its own count,
-    and repeating it as a fifth card would put the same number on screen twice.
+    and repeating it as a fourth card would put the same number on screen twice.
+
+    Nor is the count of events carrying a confirmed public link. That is a
+    property of the workbook's link column rather than of the programme, the
+    "Avalik leht" filter is where a reader acts on it, and the board asked for it
+    off the figure strip.
     """
     period = str(filters.year) if filters.year is not None else "kogu ajaloos"
     return (
@@ -252,11 +261,6 @@ def _figures(snapshot, filters: ProgrammeFilters) -> tuple[Figure, ...]:
             label="Algas hiljuti",
             value=count_events_started_within(snapshot),
             note=f"eelmise {NEAR_TERM_DAYS} päeva jooksul",
-        ),
-        Figure(
-            label="Avaliku lehega",
-            value=count_linked_events(snapshot),
-            note="töövihikus kinnitatud viide",
         ),
     )
 
@@ -334,8 +338,6 @@ def _url(filters: ProgrammeFilters, *, page: int | None = None) -> str:
         ("month", filters.month),
         ("quarter", filters.quarter),
         ("tag", filters.tag),
-        ("event_type", filters.event_type),
-        ("delivery_mode", filters.delivery_mode),
         ("status", filters.status),
     ):
         if value:

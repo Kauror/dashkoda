@@ -94,9 +94,48 @@ def legal_work_rows() -> list[list]:
     ]
 
 
-@pytest.fixture
-def legal_work_snapshot(db, tmp_path):
-    path = write_workbook(tmp_path / "synthetic.xlsx", rows=legal_work_rows())
+def crowded_legal_rows() -> list[list]:
+    """Far more records than either tab of the card may preview.
+
+    Twenty open topics and ten sent ones. The small fixture above holds fewer
+    rows than any preview limit, so a limit that quietly doubled would be
+    invisible to it; here the extra rows are either on the card or they are not.
+
+    Deadlines and send dates both run outwards from today in step with the
+    index, so the expected preview is simply the first seven of each group.
+    """
+    rows = [
+        synthetic_row(
+            record_id=f"SYN-A{index:03d}",
+            topic=f"Sünteetiline töös olev teema {index:02d}",
+            received_date=TODAY - dt.timedelta(days=90 - index),
+            deadline_date=TODAY + dt.timedelta(days=index + 1),
+            is_open=True,
+            source_row=index + 2,
+        )
+        for index in range(20)
+    ]
+    rows += [
+        synthetic_row(
+            record_id=f"SYN-B{index:03d}",
+            topic=f"Sünteetiline saadetud teema {index:02d}",
+            received_date=TODAY - dt.timedelta(days=150 - index),
+            deadline_date=TODAY - dt.timedelta(days=60 - index),
+            sent_date=TODAY - dt.timedelta(days=index + 1),
+            sent_status="sent",
+            stage="jõustunud",
+            stage_key="jõustunud",
+            is_open=False,
+            source_row=index + 22,
+        )
+        for index in range(10)
+    ]
+    return rows
+
+
+def publish_legal_workbook(tmp_path, rows, *, name="synthetic.xlsx"):
+    """Import one synthetic workbook and hand back the snapshot it published."""
+    path = write_workbook(tmp_path / name, rows=rows)
     source = ensure_legal_work_source()
     with path.open("rb") as handle:
         artifact = register_artifact(
@@ -106,6 +145,16 @@ def legal_work_snapshot(db, tmp_path):
             mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         )
     return import_artifact(artifact, dry_run=False).snapshot
+
+
+@pytest.fixture
+def legal_work_snapshot(db, tmp_path):
+    return publish_legal_workbook(tmp_path, legal_work_rows())
+
+
+@pytest.fixture
+def crowded_legal_snapshot(db, tmp_path):
+    return publish_legal_workbook(tmp_path, crowded_legal_rows(), name="crowded.xlsx")
 
 
 def body(response) -> str:
@@ -128,6 +177,45 @@ def section(response, heading_id: str) -> str:
 
 def kpi_strip(response) -> str:
     return section(response, "section-kpi")
+
+
+def legal_panel(response, name: str) -> str:
+    """One tab panel's list of the Õigusloome card, by the tab it belongs to."""
+    card = section(response, "section-legislation")
+    return card.split(f'id="panel-{name}"', 1)[1].split("</ul>", 1)[0]
+
+
+# What each tab says when the snapshot holds nothing for it. Neither line claims
+# the source is unconnected: a published snapshot with no rows of one kind is a
+# measurement, not a broken feed.
+EMPTY_TAB_LINES = (
+    "Töös olevaid teemasid ei ole selles hetkeseisus.",
+    "Välja läinud arvamusi ei ole selles hetkeseisus.",
+)
+
+
+def previewed_rows(response, name: str) -> int:
+    """How many records that tab actually lists.
+
+    The empty state is an `<li>` too, so it is discounted here: a tab showing
+    its "nothing in this snapshot" line is listing no records, not one.
+    """
+    panel = legal_panel(response, name)
+    return panel.count("<li ") - sum(panel.count(line) for line in EMPTY_TAB_LINES)
+
+
+FIGURE_HEADING = re.compile(r"<h3[^>]*>(.*?)</h3>", re.S)
+
+
+def card_figure_labels(card: str) -> list[str]:
+    """The headings above a card's figures, in the order they are printed.
+
+    Read as headings rather than by searching the card for the text. The
+    membership chart's own caption names its series `Liikmeid kokku · koja
+    aruanne`, so a substring search for a second member total would match the
+    drawn line and could never tell a printed figure from a charted one.
+    """
+    return [" ".join(strip_tags(match).split()) for match in FIGURE_HEADING.findall(card)]
 
 
 def backdate_current_observation(*, days: int) -> None:
@@ -224,10 +312,10 @@ def test_a_recently_received_active_topic_is_in_toos(viewer, legal_work_snapshot
 
 def test_a_sent_topic_never_appears_in_toos(legal_work_snapshot):
     """Töös is the active population, and sent work has left it."""
-    from apps.dashboard.overview import LEGAL_ACTIVE_LIMIT
+    from apps.dashboard.overview import LEGAL_PREVIEW_LIMIT
     from apps.legal_work.selectors import get_latest_sent_items, get_open_items_by_deadline
 
-    active = list(get_open_items_by_deadline(legal_work_snapshot, limit=LEGAL_ACTIVE_LIMIT))
+    active = list(get_open_items_by_deadline(legal_work_snapshot, limit=LEGAL_PREVIEW_LIMIT))
     sent = list(get_latest_sent_items(legal_work_snapshot))
 
     assert active, "the fixture must have active work for this to mean anything"
@@ -237,10 +325,10 @@ def test_a_sent_topic_never_appears_in_toos(legal_work_snapshot):
 
 
 def test_toos_lists_each_record_once(legal_work_snapshot):
-    from apps.dashboard.overview import LEGAL_ACTIVE_LIMIT
+    from apps.dashboard.overview import LEGAL_PREVIEW_LIMIT
     from apps.legal_work.selectors import get_open_items_by_deadline
 
-    ids = [i.pk for i in get_open_items_by_deadline(legal_work_snapshot, limit=LEGAL_ACTIVE_LIMIT)]
+    ids = [i.pk for i in get_open_items_by_deadline(legal_work_snapshot, limit=LEGAL_PREVIEW_LIMIT)]
 
     assert len(ids) == len(set(ids))
 
@@ -259,6 +347,93 @@ def test_an_active_topic_without_a_deadline_is_not_lost(legal_work_snapshot):
         assert order.index(undated[0].pk) > order.index(dated[-1].pk)
 
 
+# -- the card is a preview, and both tabs preview the same number ------------
+
+
+def test_toos_previews_at_most_seven_records(viewer, crowded_legal_snapshot):
+    """Twenty open records exist; the card is a preview of seven of them."""
+    response = viewer.get(reverse("home"))
+
+    assert crowded_legal_snapshot.open_record_count == 20
+    assert previewed_rows(response, "open") == 7
+
+
+def test_valja_lainud_previews_at_most_seven_records(viewer, crowded_legal_snapshot):
+    response = viewer.get(reverse("home"))
+
+    assert previewed_rows(response, "sent") == 7
+
+
+def test_toos_previews_the_seven_most_urgent_records(viewer, crowded_legal_snapshot):
+    """Which seven matters as much as how many.
+
+    The fixture's deadlines run outwards from today with the index, so the
+    urgent end of the population is `00`–`06` and the eighth record is the first
+    that must not be on the card.
+    """
+    panel = legal_panel(viewer.get(reverse("home")), "open")
+
+    for index in range(7):
+        assert f"Sünteetiline töös olev teema {index:02d}" in panel
+    assert "Sünteetiline töös olev teema 07" not in panel
+
+
+def test_the_full_legal_page_still_lists_every_open_record(viewer, crowded_legal_snapshot):
+    """The card previews; the Õigusloome page is where the population is read."""
+    page = body(viewer.get(reverse("legal-work")))
+
+    for index in range(20):
+        assert f"Sünteetiline töös olev teema {index:02d}" in page
+
+
+def test_the_card_limit_never_reaches_the_full_page_selectors(crowded_legal_snapshot):
+    """The homepage limit is an argument the card passes, not a selector rule."""
+    from apps.legal_work.selectors import get_open_items, get_open_items_by_deadline
+
+    assert len(list(get_open_items(crowded_legal_snapshot))) == 20
+    assert len(list(get_open_items_by_deadline(crowded_legal_snapshot, limit=None))) == 20
+
+
+def test_both_tabs_reserve_a_full_preview_height(viewer, crowded_legal_snapshot):
+    """Neither tab may collapse the card when it holds fewer records.
+
+    The reserved height itself is CSS and is measured in the browser suite; what
+    is asserted here is that both panels claim it, because a card whose two tabs
+    reserve differently is the layout jump this exists to prevent.
+    """
+    card = section(viewer.get(reverse("home")), "section-legislation")
+
+    assert card.count("dk-preview-reserve") == 2
+
+
+def test_a_tab_with_fewer_than_seven_records_still_renders(viewer, legal_work_snapshot):
+    """The small fixture: two open records, one sent. Both tabs list what they
+    have and neither pads the shortfall with placeholder rows."""
+    response = viewer.get(reverse("home"))
+
+    assert previewed_rows(response, "open") == 2
+    assert previewed_rows(response, "sent") == 1
+    for line in EMPTY_TAB_LINES:
+        assert line not in section(response, "section-legislation")
+
+
+def test_a_tab_with_no_records_says_so_rather_than_filling_seven_rows(viewer, db, tmp_path):
+    """A published snapshot holding no sent opinion is a measurement.
+
+    The empty state names the snapshot, not the connection: the workbook
+    arrived, it simply has nothing under this tab.
+    """
+    publish_legal_workbook(tmp_path, legal_work_rows()[:1], name="open-only.xlsx")
+    response = viewer.get(reverse("home"))
+
+    assert previewed_rows(response, "open") == 1
+    assert previewed_rows(response, "sent") == 0
+    assert "Välja läinud arvamusi ei ole selles hetkeseisus." in section(
+        response, "section-legislation"
+    )
+    assert "ei ole veel ühendatud" not in section(response, "section-legislation")
+
+
 def test_each_card_lists_enough_rows_to_stand_level_with_its_neighbour():
     """A grid row is as tall as its tallest card, so the two cards in a row are
     tuned together: a card listing fewer rows than the one beside it leaves
@@ -267,19 +442,18 @@ def test_each_card_lists_enough_rows_to_stand_level_with_its_neighbour():
     Pinned as limits rather than as rendered row counts because the synthetic
     fixtures hold fewer records than any of these numbers.
     """
+    from apps.dashboard import overview as overview_module
     from apps.dashboard.overview import (
         EVENTS_PREVIEW_LIMIT,
-        LEGAL_ACTIVE_LIMIT,
         LEGAL_PREVIEW_LIMIT,
         NEWS_PREVIEW_LIMIT,
     )
 
-    # Row one: the sent list keeps the tuned preview height.
+    # Row one: one preview limit for the Õigusloome card, shared by both tabs.
     assert LEGAL_PREVIEW_LIMIT == 7
-    # Töös absorbed the arrivals tab, so it carries what two tabs of seven could
-    # jointly surface. Shrinking this is how an active record becomes harder to
-    # find than it was before the simplification.
-    assert LEGAL_ACTIVE_LIMIT == 2 * LEGAL_PREVIEW_LIMIT
+    assert not hasattr(overview_module, "LEGAL_ACTIVE_LIMIT"), (
+        "a second legal preview limit is what let Töös grow to fourteen rows"
+    )
     # Row two: two cards of the same shape, kept level with each other.
     assert EVENTS_PREVIEW_LIMIT == NEWS_PREVIEW_LIMIT == 5
 
@@ -407,29 +581,68 @@ def test_a_first_ever_reading_shows_no_change_it_cannot_know(viewer):
     assert "→" not in strip
 
 
-def test_the_two_membership_sources_are_never_merged(viewer, imported_internal_history):
-    """Each total is stated once, and the two are never drawn together.
+def test_the_page_states_one_member_total_and_it_is_the_daily_public_one(
+    viewer, imported_internal_history
+):
+    """The headline strip and the card must agree, because they now agree by
+    construction: both read the same koda.ee observation.
 
-    The board asked for the per-figure source lines and the explanatory note to
-    go, so the overview no longer argues the point in prose. What still has to
-    hold structurally is that the directory count appears only in the headline
-    strip and the board report's own figures only in their card. Naming the
-    sources is the Liikmeskond page's job now, and `test_membership_page.py`
-    holds it to that.
+    They used to hold different numbers under the same words — the directory's
+    daily count in the strip, the board report's monthly total in the card,
+    months apart. That is the subtraction the design has always tried to
+    prevent, and the fix was to stop printing the second total rather than to
+    reconcile two definitions that count different things.
     """
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
 
     response = viewer.get(reverse("home"))
-    page = body(response)
     card = section(response, "section-membership")
 
-    # The directory total is stated once, in the headline strip. Repeating it
-    # inside the board report's card is what let a reader read two definitions
-    # as one number.
     assert "3400" in kpi_strip(response)
-    assert "Liikmeid kataloogis" not in page
-    assert "Koda.ee liikmekataloog" not in card, "the directory is not a source of this card"
-    assert "Tasunud liikmeid" in card, "the card holds the report's own figures"
+    assert "3400" in card
+    assert "Liikmeid kokku" in card
+
+
+def test_the_board_reports_own_total_is_no_longer_a_figure_on_the_card(
+    viewer, imported_internal_history
+):
+    """It is drawn, not printed — under a label naming whose total it is.
+
+    Asserted on the card's headings rather than on its numbers. Whether a
+    particular total happens to appear as a substring somewhere depends on what
+    the fixture's figures are; whether the card prints a second member total is
+    the actual rule, and a heading is what makes it one.
+    """
+    synchronize_membership(collector=collector_returning(membership_collection(3400)))
+
+    # An explicit window wide enough that the chart is actually drawn. The
+    # package's two comparable observations are a year apart, so the default
+    # six-month window leaves a single point, which is not a trend and is not
+    # drawn — and an assertion about the drawing would then hold vacuously.
+    card = section(
+        viewer.get(reverse("home"), {"alates": "2024-01-01", "kuni": "2025-01-15"}),
+        "section-membership",
+    )
+
+    assert card_figure_labels(card) == [
+        "Liikmeid kokku",
+        "Tasunud liikmeid",
+        "Liikmemaksude laekumine",
+    ]
+    # Drawn, and the drawing says whose total it is.
+    assert card.count("<rect") == 2, "the window must be one where a chart exists"
+    assert "Liikmeid kokku · koja aruanne" in card
+
+
+def test_the_paid_share_names_the_report_it_is_a_share_of(viewer, imported_internal_history):
+    """Its denominator is the board report's total, which is not the number
+    beside it. Without the source line the percentage reads as a share of the
+    koda.ee count, and that ratio is between two different definitions."""
+    synchronize_membership(collector=collector_returning(membership_collection(3400)))
+
+    card = " ".join(strip_tags(section(viewer.get(reverse("home")), "section-membership")).split())
+
+    assert "Koja enda aruande liikmeskonna määratlus." in card
 
 
 def test_fee_collection_sits_with_the_counts_it_was_read_beside(viewer, imported_internal_history):
@@ -580,7 +793,6 @@ def test_unconnected_parts_still_say_so_on_a_page_full_of_data(viewer, legal_wor
     page = body(viewer.get(reverse("home")))
 
     assert "Kanalite statistika" in page
-    assert "Meediakajastused" in page
     # Website visits have no source at all and say exactly that.
     assert "Kodulehe külastused" in page
     assert "Google Analytics ei ole ühendatud." in page

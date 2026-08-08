@@ -389,12 +389,20 @@ def test_the_navigation_marks_the_new_routes_available():
 
 
 def test_external_links_are_safe(viewer):
+    """A link off the application opens in a new tab, and says so.
+
+    `target="_blank"` without `rel="noopener"` hands the opened page a reference
+    back to this one, so the two travel together. The visually hidden note is the
+    other half: a new tab that only sighted users are told about is a new tab a
+    screen-reader user has to discover by finding the back button gone.
+    """
     synchronize_news(collector=collector_returning(news_collection(2)))
 
     body = viewer.get(reverse("news")).content.decode()
 
-    assert 'rel="noopener noreferrer"' in body
-    assert "target=" not in body, "the design system has no accessible new-tab pattern"
+    assert 'target="_blank" rel="noopener noreferrer"' in body
+    assert "uuel vahelehel" in body
+    assert body.count('target="_blank"') == body.count('rel="noopener noreferrer"')
 
 
 def test_the_pages_keep_the_strict_csp(viewer):

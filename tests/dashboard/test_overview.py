@@ -138,8 +138,10 @@ def test_overview_names_every_channel_and_says_which_are_empty(client, authentic
         assert label in content
     assert "Google Analytics ei ole ühendatud." in content
     assert "Andmed puuduvad." in content
-    assert "Meediakajastused" in content
-    assert "Uudiskiri" in content
+    # Press coverage and the newsletter are named on the Uudised page, which is
+    # where they are promised. The overview's news card no longer carries a
+    # footer strip listing them as unconnected.
+    assert "Meediakajastused" not in content
 
 
 def test_overview_keeps_logout_as_a_csrf_protected_post(client, authenticate_viewer):

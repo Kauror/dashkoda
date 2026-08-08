@@ -145,7 +145,7 @@ def test_the_overview_preview_shows_the_programme_and_links_only_what_the_workbo
 
     # The upcoming linked event carries an anchor and the project's wording.
     assert "Sünteetiline tulev koolitus" in strip_tags(preview)
-    assert "(avaneb koda.ee lehel)" in preview
+    assert "(koda.ee, avaneb uuel vahelehel)" in preview
     # The ongoing event has no workbook link, so its title is plain text.
     assert "Sünteetiline käimasolev sündmus" in strip_tags(preview)
     assert 'href="https://www.koda.ee/et/sundmused/sunteetiline-programmi-sundmus-tulev"' in preview

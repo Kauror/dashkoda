@@ -7,10 +7,9 @@ Lists the current snapshot's feed items and links each one to the canonical
 article on Koda.ee. Summaries are the sanitized plain text stored at import; no
 article HTML is held or rendered.
 
-External links carry rel="noopener noreferrer" and an explicit visually-hidden
-note that they lead to koda.ee, so their destination is clear to everyone
-including screen-reader users. They open in the same tab, because the design
-system has no established accessible new-tab pattern.
+External links open in a new tab, carrying target="_blank"
+rel="noopener noreferrer" and an explicit visually-hidden note naming both the
+destination and the new tab, so neither is a surprise to a screen-reader user.
 {% endcomment %}
 
 {% block title %}Uudised – DashKoda{% endblock %}
@@ -49,8 +48,8 @@ system has no established accessible new-tab pattern.
               {% endif %}
             </div>
             <h3 class="text-sm font-medium text-text">
-              <a class="dk-link" href="{{ item.canonical_url }}" rel="noopener noreferrer">
-                {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
+              <a class="dk-link" href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer">
+                {{ item.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
               </a>
             </h3>
             {% if item.summary %}

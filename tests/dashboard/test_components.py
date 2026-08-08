@@ -188,7 +188,7 @@ def test_legal_topic_links_when_a_record_carries_an_address():
     assert 'rel="noopener noreferrer"' in html
     # The destination is announced to a screen reader, not only implied by
     # colour, and `relative` anchors that note inside the truncation.
-    assert "avaneb uuel lehel" in html
+    assert "avaneb uuel vahelehel" in html
     assert "relative" in html
 
 

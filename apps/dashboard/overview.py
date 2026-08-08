@@ -42,7 +42,6 @@ from apps.event_programme.selectors import (
 )
 from apps.legal_work.sections import (
     SECTION_OPEN,
-    SECTION_RECEIVED,
     SECTION_SENT,
     anchor,
 )
@@ -94,17 +93,12 @@ from .sparkline import (
 # leaves space that is already being paid for. The cards are therefore tuned in
 # pairs, by the row they sit in.
 #
-# Row one — the Õigusloome card shows one list at a time behind three tabs, so
-# its rows cost a third of what an untabbed card's would, and it sits beside the
-# Liikmeskond card's three figures and its chart.
+# Row one — the Õigusloome card shows one list at a time, and both of its tabs
+# preview the same number, so seven rows is the card's height beside the
+# Liikmeskond card's three figures and its chart. The tab holding fewer records
+# does not shrink it: `dk-preview-reserve` holds the seven-row height whichever
+# tab is showing. The full Õigusloome page is where the whole population is read.
 LEGAL_PREVIEW_LIMIT = 7
-
-#: Töös carries the whole active population now that arrivals are not a separate
-#: tab. Twice the preview limit, because two tabs of seven could jointly surface
-#: fourteen distinct active records and dropping one tab must not shrink what an
-#: active record has to compete against to be seen. The full Õigusloome page
-#: lists every open record; this is the summary of the most urgent of them.
-LEGAL_ACTIVE_LIMIT = 14
 
 # Row two — two list cards of the same shape, kept level with each other. Five is
 # what the events card was asked for; the news card follows it so this row does
@@ -214,20 +208,24 @@ class FeeCollection:
 
 @dataclass(frozen=True)
 class MembershipCard:
-    """Everything the board report says about the membership, in one card.
+    """What the page says about the membership, in one card.
 
-    `internal_total` and `internal` are the report's own total and paid counts.
-    They share a definition, a report and a reading date, so `chart` puts them on
-    one pair of axes and the gap between the lines *is* the paid share stated
-    beside the figure. `fee` is the same report's fee collection, which used to
-    sit in the headline strip away from the counts it is a ratio of.
+    `public_total` is the koda.ee directory count — the same reading, on the same
+    day, as the one leading the headline strip. The board asked for one member
+    total on the page and for it to be the daily public figure, so the card
+    states that number rather than a second, differently-dated one beside it.
 
-    The koda.ee directory count is a different definition on a different cadence.
-    It leads the headline strip and is not repeated here: one number, in one
-    place, said once. Neither figure prints its source on the overview any more;
-    the Liikmeskond page is where both are named in full.
+    `internal_total` and `internal` are the board report's own total and paid
+    counts. They share a definition, a report and a reading date, so `chart` puts
+    them on one pair of axes and the gap between the lines *is* `paid_share_pct`.
+    The report's total is no longer printed as a figure; it is drawn, under a
+    label that names whose total it is, and it remains the base of the paid
+    share. That share is a ratio inside the board report alone — the public
+    directory total is never its denominator, because the two count different
+    things. `fee` is the same report's fee collection.
     """
 
+    public_total: SourcedFigure
     internal: SourcedFigure
     internal_total: SourcedFigure
     fee: FeeCollection
@@ -251,7 +249,8 @@ class MembershipCard:
     @property
     def has_any_data(self) -> bool:
         return (
-            self.internal_total.value is not None
+            self.public_total.value is not None
+            or self.internal_total.value is not None
             or self.internal.value is not None
             or self.fee.has_data
         )
@@ -315,16 +314,15 @@ def build_overview(
 
     legal_connection = from_summary(legal_work, label=SOURCE_LEGAL_WORKBOOK)
 
-    # The card's three tabs list the same records the Õigusloome page lists, and
-    # a record often appears in more than one tab. All three are read first and
-    # their links resolved together in one query, so the same record cannot be
-    # clickable under `Töös` and plain text under `Sisse tulnud`.
+    # The card's tabs list the same records the Õigusloome page lists. Both are
+    # read first and their links resolved together in one query, so a record
+    # cannot be clickable under one tab and plain text under the other.
     #
     # The `if snapshot` guards stay: the selectors fall back to reading the
-    # current snapshot themselves when handed `None`, which would be three
+    # current snapshot themselves when handed `None`, which would be two
     # pointless queries on a page that already knows there is nothing published.
     legal_open_items = (
-        list(get_open_items_by_deadline(snapshot, limit=LEGAL_ACTIVE_LIMIT)) if snapshot else []
+        list(get_open_items_by_deadline(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else []
     )
     legal_sent_items = (
         list(get_latest_sent_items(snapshot, limit=LEGAL_PREVIEW_LIMIT)) if snapshot else []
@@ -373,6 +371,7 @@ def build_overview(
             change=change,
             internal_latest=internal_latest,
             internal_connection=internal_connection,
+            public_connection=public_connection,
             trend_from=trend_from,
             trend_to=trend_to,
             trend_range_key=trend_range_key,
@@ -451,7 +450,13 @@ def _build_kpis(
                 (
                     received_recent,
                     f"uusi teemasid {ACTIVITY_WINDOW_DAYS} päevaga",
-                    anchor(legal_page, SECTION_RECEIVED),
+                    # Plain text: Uusimad sisse tulnud is gone, and no remaining
+                    # section lists exactly the rows this window counts. Hetkel
+                    # töös is the nearest thing and it is not the same set — an
+                    # arrival that has already gone out is counted here and is
+                    # not there. A link landing on a different set of rows than
+                    # the number describes is worse than no link.
+                    "",
                 ),
                 (
                     sent_recent,
@@ -554,30 +559,45 @@ def _euros(amount: Decimal) -> str:
 
 
 def _build_membership_card(
-    *, change, internal_latest, internal_connection, trend_from, trend_to, trend_range_key
+    *,
+    change,
+    internal_latest,
+    internal_connection,
+    public_connection,
+    trend_from,
+    trend_to,
+    trend_range_key,
 ) -> MembershipCard:
-    """The board report's own figures, and only two of them are charted.
+    """The card's figures, and the two the chart draws.
 
-    The **chart is the report's total against its paid count**. That pairing is a
-    real comparison: both lines are the same definition of a member, read off the
-    same report on the same day, and the share stated beside the paid figure is
-    literally the gap between them.
+    The member total the card states is the **koda.ee directory count**, the same
+    reading the headline strip leads with. The board reads one member total off
+    this page and it is the daily public one, so the card no longer prints the
+    board report's own total as a second figure under the same words: two
+    identically labelled totals, three months apart, is an invitation to subtract
+    one from the other.
+
+    The **chart is still the report's total against its paid count**. That
+    pairing is a real comparison — both lines are the same definition of a
+    member, read off the same report on the same day, and the share stated beside
+    the paid figure is literally the gap between them. The line is labelled as
+    the report's own total so it cannot be read as a history of the figure above
+    it.
 
     Drawing the koda.ee directory's total on those axes instead would put two
-    definitions on one axis and invite exactly the subtraction that is forbidden.
-    It also could not be drawn: an unchanged daily check writes no observation,
-    so the directory series is a single point for weeks at a time and a single
-    point is not a trend. That count leads the headline strip and is not
-    repeated in this card.
+    definitions on one axis and invite the same forbidden subtraction. It also
+    could not be drawn: an unchanged daily check writes no observation, so the
+    directory series is a single point for weeks at a time, and a single point is
+    not a trend.
 
-    Fee collection is read off the same report as the two counts, so it sits with
-    them rather than in a strip of unrelated headline figures.
+    Fee collection is read off the same report as the paid count, so it sits with
+    it rather than in a strip of unrelated headline figures.
 
-    The three figures above the chart are the **latest** report and do not move
-    with the range control. Narrowing the window changes how much history is
-    drawn; it does not change what the most recent report said, and a headline
-    figure that shifted when a reader asked for a longer line would be answering
-    a question nobody put.
+    The figures above the chart are the **latest** reading and do not move with
+    the range control. Narrowing the window changes how much history is drawn; it
+    does not change what the most recent report said, and a headline figure that
+    shifted when a reader asked for a longer line would be answering a question
+    nobody put.
     """
     total_series: tuple = ()
     paid_series: tuple = ()
@@ -604,8 +624,23 @@ def _build_membership_card(
         paid_value = internal_latest.value("paid_members")
         total_value = internal_latest.value("total_members")
 
-    internal_total = SourcedFigure(
+    # The daily public count, the same reading the headline strip leads with. It
+    # is read from `change.current` rather than fetched again so the two cells
+    # cannot show different numbers, which is the defect this replaced.
+    public_total = SourcedFigure(
         label="Liikmeid kokku",
+        connection=public_connection,
+        value=change.current.total_members if change.current else None,
+        unit="liiget",
+        as_of=change.current.observed_at if change.current else None,
+        note="Koda.ee liikmekataloogi loend.",
+    )
+
+    # Charted, not printed as a figure. The label names whose total it is,
+    # because the number above it now comes from the other source and a line
+    # called simply "Liikmeid kokku" would read as that figure's own history.
+    internal_total = SourcedFigure(
+        label="Liikmeid kokku · koja aruanne",
         connection=internal_connection,
         value=total_value,
         unit="liiget",
@@ -625,6 +660,7 @@ def _build_membership_card(
     )
 
     return MembershipCard(
+        public_total=public_total,
         internal=internal,
         internal_total=internal_total,
         fee=_build_fee_collection(internal_latest, internal_connection),
