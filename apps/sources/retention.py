@@ -1,6 +1,6 @@
 """Which retired snapshots may be deleted, and which may never be.
 
-Eleven models publish immutable snapshots. Current ones matter; roughly a week
+Twelve models publish immutable snapshots. Current ones matter; roughly a week
 of retired history is enough to answer "what changed yesterday". Everything
 older that nothing depends on is deletable.
 
@@ -148,6 +148,17 @@ FAMILIES: tuple[SnapshotFamily, ...] = (
         label="Arvamuste sobitamine",
         cutoff_field="generated_at",
         pins=("legal_snapshot", "opinion_catalogue_snapshot"),
+    ),
+    SnapshotFamily(
+        model="event_programme.EventPublicMatchSnapshot",
+        label="Sündmuste viidete sobitamine",
+        cutoff_field="generated_at",
+        pins=("programme_snapshot",),
+        note=(
+            "Pins its programme snapshot by key. Its other input, the public "
+            "page set, is pinned by high-water mark rather than by foreign key "
+            "and is never deleted here — pruning a match cannot remove a page."
+        ),
     ),
 )
 

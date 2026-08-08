@@ -122,6 +122,13 @@ class AuditAction(models.TextChoices):
         "event_programme.snapshot_published",
         "Sündmuste programmi hetkeseis kehtestatud",
     )
+    # Attaching public page addresses to programme events. A separate action
+    # from the import above because it changes no programme field — only which
+    # public page an event is understood to point at.
+    EVENT_PUBLIC_LINKS_MATCHED = (
+        "event_programme.public_links_matched",
+        "Sündmuste avalikud viited sobitatud",
+    )
     EVENT_PROGRAMME_SYNC_UNCHANGED = (
         "event_programme.sync_unchanged",
         "Sündmuste programm: muutusteta",
