@@ -157,3 +157,21 @@ def opinion_source(db):
     from apps.legal_work.opinion_bootstrap import ensure_opinion_source
 
     return ensure_opinion_source()
+
+
+@pytest.fixture
+def patch_public_site(monkeypatch):
+    """Route the public-opinion collector's transport at a synthetic site."""
+
+    def patch(site):
+        monkeypatch.setattr("apps.legal_work.public_opinions.fetch", site)
+        return site
+
+    return patch
+
+
+@pytest.fixture
+def public_opinion_source(db):
+    from apps.legal_work.public_opinion_bootstrap import ensure_public_opinion_source
+
+    return ensure_public_opinion_source()

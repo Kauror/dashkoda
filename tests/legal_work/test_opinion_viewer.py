@@ -52,23 +52,28 @@ SENT = dt.date(2026, 3, 10)
 
 @dataclass
 class _CandidateStub:
-    """Only what the competing-claim tie-break reads off a candidate."""
+    """Only what the competing-claim tie-break reads off a candidate.
 
-    entry_id: int
+    Since 1.2 a claim is keyed by the blob — bytes are the document — so the
+    stub carries `blob_id` where it used to carry `entry_id`.
+    """
+
+    blob_id: int
     filename_date: dt.date
     detected_date: dt.date | None = None
+    page_published_date: dt.date | None = None
 
 
 @dataclass
 class _ScoredStub:
     """A scored candidate, reduced to the tie-break's view of one."""
 
-    entry_id: int
+    blob_id: int
     candidate_date: dt.date
 
     @property
     def candidate(self) -> _CandidateStub:
-        return _CandidateStub(entry_id=self.entry_id, filename_date=self.candidate_date)
+        return _CandidateStub(blob_id=self.blob_id, filename_date=self.candidate_date)
 
 
 @dataclass
@@ -353,7 +358,7 @@ class TestMatching:
         from apps.legal_work.opinion_match_sync import _Preview, _resolve_competing_primaries
 
         report = MatchReport(result="generated", matched=2)
-        scored = _ScoredStub(entry_id=7, candidate_date=SENT)
+        scored = _ScoredStub(blob_id=7, candidate_date=SENT)
         previews = [
             _Preview(_ItemStub(SENT - dt.timedelta(days=2)), MatchDecision.MATCHED, Decimal("91")),
             _Preview(_ItemStub(SENT + dt.timedelta(days=2)), MatchDecision.MATCHED, Decimal("81")),
@@ -494,13 +499,15 @@ class TestPrecedence:
         with django_assert_num_queries(0):
             assert resolve_opinion_links([]) == {}
 
-    def test_resolution_costs_one_query_however_many_records(
+    def test_resolution_costs_two_queries_however_many_records(
         self, matched_world, django_assert_num_queries
     ):
+        """Two since the public corpus: matched documents, then article-only
+        confirmations for whatever those left. Never one per record."""
         every_id = list(LegalWorkItem.objects.values_list("pk", flat=True))
         assert len(every_id) > 1
 
-        with django_assert_num_queries(1):
+        with django_assert_num_queries(2):
             resolve_opinion_links(every_id)
 
 

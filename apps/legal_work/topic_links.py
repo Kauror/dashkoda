@@ -34,7 +34,7 @@ from dataclasses import dataclass
 from urllib.parse import urlsplit
 
 from django.conf import settings
-from django.db.models import F
+from django.db.models import F, Q
 from django.urls import reverse
 
 from apps.core.public_http import is_allowed_public_url
@@ -173,14 +173,61 @@ def resolve_archive_links(item_ids) -> dict[int, str]:
     return {item_id: url for item_id, url in rows.iterator() if is_publishable_topic_url(url)}
 
 
+def is_publishable_public_document_url(url: str) -> bool:
+    """Whether a stored public PDF address may be rendered as a link.
+
+    HTTPS on an allowlisted Koda.ee host, under the fixed file path, carrying
+    no credentials. Checked at render time even though the collector already
+    validated it, for the same reason `is_publishable_topic_url` re-checks:
+    the collector guards what enters the database, this guards what leaves it.
+    """
+    if not url or len(url) > MAX_CANONICAL_URL_LENGTH:
+        return False
+    if not is_allowed_public_url(url, allowed_hosts=settings.KODA_ALLOWED_HOSTS):
+        return False
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    if parts.username or parts.password:
+        return False
+    return parts.path.startswith(settings.KODA_OPINIONS_FILE_PATH_PREFIX)
+
+
+def is_publishable_public_page_url(url: str) -> bool:
+    """Whether a stored Koda.ee article address may be rendered as a link."""
+    if not url or len(url) > MAX_CANONICAL_URL_LENGTH:
+        return False
+    if not is_allowed_public_url(url, allowed_hosts=settings.KODA_ALLOWED_HOSTS):
+        return False
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return False
+    if parts.username or parts.password:
+        return False
+    path = parts.path.rstrip("/")
+    return any(
+        f"{path}/".startswith(prefix) and path != prefix.rstrip("/")
+        for prefix in settings.KODA_OPINIONS_ARTICLE_PATH_PREFIXES
+    )
+
+
 def resolve_opinion_links(item_ids) -> dict[int, str]:
     """The internal resource address for each sent record that has one.
 
     Every staleness condition is in the query rather than checked afterwards,
     because a check that happens "later" is a check some future caller forgets.
     The `F()` comparisons tie the decision to the exact legal snapshot the row
-    being displayed belongs to, and to the exact catalogue the document belongs
-    to, so a decision computed against yesterday's import cannot surface.
+    being displayed belongs to, and to the exact source snapshot each
+    provenance belongs to, so a decision computed against yesterday's import
+    cannot surface. A provenance a relation does not carry imposes no
+    condition — a public-only document does not wait for a private catalogue.
+
+    Two ways to earn the address, tried in order. A **matched document** is
+    the ordinary one. A **confident article-only page relation** also links:
+    the Chamber's response is publicly confirmed even though no full PDF is
+    known, and "no document" must not read as "no opinion was sent".
 
     A matter whose durable identity collided is excluded here rather than at
     render time: an ambiguous identity must never become an address.
@@ -191,25 +238,64 @@ def resolve_opinion_links(item_ids) -> dict[int, str]:
 
     rows = (
         LegalOpinionDocumentRelation.objects.filter(
+            Q(entry__isnull=True)
+            | (
+                Q(entry__snapshot__is_current=True)
+                & Q(decision__snapshot__opinion_catalogue_snapshot_id=F("entry__snapshot_id"))
+            ),
+            Q(public_document__isnull=True)
+            | (
+                Q(public_document__snapshot__is_current=True)
+                & Q(
+                    decision__snapshot__public_opinion_snapshot_id=F("public_document__snapshot_id")
+                )
+            ),
             is_primary=True,
             decision__legal_item_id__in=ids,
             decision__snapshot__is_current=True,
             decision__decision=MatchDecision.MATCHED,
             decision__legal_item__snapshot__is_current=True,
             decision__snapshot__legal_snapshot_id=F("decision__legal_item__snapshot_id"),
-            decision__snapshot__opinion_catalogue_snapshot_id=F("entry__snapshot_id"),
-            entry__snapshot__is_current=True,
-            entry__blob__validation_status=ValidationStatus.VALID,
+            blob__validation_status=ValidationStatus.VALID,
             decision__matter__has_ambiguous_identity=False,
         )
         .filter(opinion_eligible_q("decision__legal_item__"))
         .values_list("decision__legal_item_id", "decision__matter__resource__public_id")
     )
-    return {
+    links = {
         item_id: reverse("opinion-resource", args=[public_id])
         for item_id, public_id in rows
         if public_id is not None
     }
+
+    remaining = ids - set(links)
+    if not remaining:
+        return links
+
+    from .opinion_match_models import LegalOpinionPageRelation
+
+    page_rows = (
+        LegalOpinionPageRelation.objects.filter(
+            decision__legal_item_id__in=remaining,
+            decision__snapshot__is_current=True,
+            decision__legal_item__snapshot__is_current=True,
+            decision__snapshot__legal_snapshot_id=F("decision__legal_item__snapshot_id"),
+            page__snapshot__is_current=True,
+            decision__snapshot__public_opinion_snapshot_id=F("page__snapshot_id"),
+            page__is_present=True,
+            decision__matter__has_ambiguous_identity=False,
+        )
+        .filter(opinion_eligible_q("decision__legal_item__"))
+        .values_list("decision__legal_item_id", "decision__matter__resource__public_id")
+    )
+    links.update(
+        {
+            item_id: reverse("opinion-resource", args=[public_id])
+            for item_id, public_id in page_rows
+            if public_id is not None
+        }
+    )
+    return links
 
 
 def resolve_consultation_links(item_ids) -> dict[int, str]:

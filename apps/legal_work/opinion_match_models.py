@@ -20,7 +20,17 @@ from django.db import models
 from django.db.models import F, Q
 
 from .models import LegalWorkItem, LegalWorkSnapshot, MatchDecision, SnapshotImmutable
-from .opinion_models import OpinionCatalogueEntry, OpinionCatalogueSnapshot
+from .opinion_models import (
+    OpinionCatalogueEntry,
+    OpinionCatalogueSnapshot,
+    OpinionDocumentBlob,
+    OpinionDocumentExtraction,
+)
+from .public_opinion_models import (
+    PublicOpinionDocument,
+    PublicOpinionPage,
+    PublicOpinionSnapshot,
+)
 
 MAX_TOPIC_SNAPSHOT_LENGTH = 500
 
@@ -131,7 +141,14 @@ class OpinionResource(models.Model):
 
 
 class LegalOpinionMatchSnapshot(models.Model):
-    """One matcher run, and the exact two inputs that produced it."""
+    """One matcher run, and the exact inputs that produced it.
+
+    Three inputs since the public source exists: the legal snapshot, the
+    private catalogue, and the public corpus. `public_opinion_snapshot` is
+    nullable because a deployment that has never crawled Koda.ee still
+    matches against its private catalogue alone — null means "no public
+    corpus existed", never "one existed but is not named".
+    """
 
     legal_snapshot = models.ForeignKey(
         LegalWorkSnapshot,
@@ -144,6 +161,14 @@ class LegalOpinionMatchSnapshot(models.Model):
         on_delete=models.CASCADE,
         related_name="match_snapshots",
         verbose_name="Arvamuste kataloog",
+    )
+    public_opinion_snapshot = models.ForeignKey(
+        PublicOpinionSnapshot,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="match_snapshots",
+        verbose_name="Avalik arvamuskorpus",
     )
     matcher_version = models.CharField(max_length=64, verbose_name="Sobitaja versioon")
     generated_at = models.DateTimeField(auto_now_add=True, verbose_name="Arvutatud")
@@ -160,9 +185,18 @@ class LegalOpinionMatchSnapshot(models.Model):
         verbose_name = "Arvamuste sobitamise hetkeseis"
         verbose_name_plural = "Arvamuste sobitamise hetkeseisud"
         constraints = [
+            # `nulls_distinct=False`, because null is a *value* here — "there
+            # was no public corpus" — and rerunning the same three inputs must
+            # collide exactly as it did when there were two.
             models.UniqueConstraint(
-                fields=["legal_snapshot", "opinion_catalogue_snapshot", "matcher_version"],
+                fields=[
+                    "legal_snapshot",
+                    "opinion_catalogue_snapshot",
+                    "public_opinion_snapshot",
+                    "matcher_version",
+                ],
                 name="legalopinionmatch_unique_inputs",
+                nulls_distinct=False,
             ),
             models.UniqueConstraint(
                 models.F("is_current"),
@@ -245,6 +279,13 @@ class LegalOpinionDecision(models.Model):
 class LegalOpinionDocumentRelation(models.Model):
     """One document attached to one decision, in one role.
 
+    The document is the **blob and its extraction** — bytes and the exact
+    reading matched against. Where those bytes were found is provenance:
+    `entry` names the private catalogue's claim and `public_document` the
+    public corpus's, either alone or both together when the same letter was
+    filed and published. A relation must carry at least one provenance,
+    because a document nobody can say the origin of is not evidence.
+
     A decision has at most one primary document — enforced by a partial unique
     index rather than by the code that writes it, because "at most one" is the
     property the viewer depends on and code can be bypassed.
@@ -256,8 +297,32 @@ class LegalOpinionDocumentRelation(models.Model):
         related_name="relations",
         verbose_name="Otsus",
     )
+    blob = models.ForeignKey(
+        OpinionDocumentBlob, on_delete=models.PROTECT, related_name="+", verbose_name="Fail"
+    )
+    extraction = models.ForeignKey(
+        OpinionDocumentExtraction,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Lugemine",
+    )
     entry = models.ForeignKey(
-        OpinionCatalogueEntry, on_delete=models.PROTECT, related_name="+", verbose_name="Dokument"
+        OpinionCatalogueEntry,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Privaatne kirje",
+    )
+    public_document = models.ForeignKey(
+        PublicOpinionDocument,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Avalik dokument",
     )
     role = models.CharField(max_length=16, choices=DocumentRole, verbose_name="Roll")
     is_primary = models.BooleanField(default=False, verbose_name="Põhidokument")
@@ -272,7 +337,7 @@ class LegalOpinionDocumentRelation(models.Model):
         verbose_name_plural = "Arvamuse dokumendiseosed"
         constraints = [
             models.UniqueConstraint(
-                fields=["decision", "entry"], name="legalopinionrelation_unique_entry_per_decision"
+                fields=["decision", "blob"], name="legalopinionrelation_unique_blob_per_decision"
             ),
             models.UniqueConstraint(
                 fields=["decision"],
@@ -283,9 +348,68 @@ class LegalOpinionDocumentRelation(models.Model):
                 condition=~Q(is_primary=True) | Q(role=DocumentRole.PRIMARY),
                 name="legalopinionrelation_primary_flag_matches_role",
             ),
+            models.CheckConstraint(
+                condition=Q(entry__isnull=False) | Q(public_document__isnull=False),
+                name="legalopinionrelation_has_provenance",
+            ),
         ]
+
+    @property
+    def display_filename(self) -> str:
+        """The sanitised name a reader sees, whichever source supplied it.
+
+        The private entry's name wins when both exist: a person typed it to
+        say what the document is, whereas the public name is derived from an
+        upload URL.
+        """
+        if self.entry is not None:
+            return self.entry.display_filename
+        if self.public_document is not None:
+            return self.public_document.display_filename
+        return ""
 
     def save(self, *args, **kwargs):
         if self.pk is not None and not self._state.adding:
             raise SnapshotImmutable("A generated document relation cannot be changed.")
+        return super().save(*args, **kwargs)
+
+
+class LegalOpinionPageRelation(models.Model):
+    """One public Koda.ee page attached to one decision, as page evidence.
+
+    Deliberately a different model from the document relation, because it
+    claims something weaker: the Chamber's position was *reported publicly
+    here*, not "this is the outgoing document". A page relation never carries
+    a role, never a primary flag, and never satisfies anything that requires
+    a full PDF — the separation is the guarantee that an article cannot be
+    dressed up as a letter.
+    """
+
+    decision = models.ForeignKey(
+        LegalOpinionDecision,
+        on_delete=models.CASCADE,
+        related_name="page_relations",
+        verbose_name="Otsus",
+    )
+    page = models.ForeignKey(
+        PublicOpinionPage, on_delete=models.PROTECT, related_name="+", verbose_name="Leht"
+    )
+    score = models.DecimalField(
+        max_digits=5, decimal_places=2, default=0, verbose_name="Seose skoor"
+    )
+    evidence_codes = models.JSONField(default=list, blank=True, verbose_name="Tõendikoodid")
+
+    class Meta:
+        ordering = ("decision", "-score")
+        verbose_name = "Arvamuse leheseos"
+        verbose_name_plural = "Arvamuse leheseosed"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["decision", "page"], name="legalopinionpagerel_unique_page_per_decision"
+            ),
+        ]
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise SnapshotImmutable("A generated page relation cannot be changed.")
         return super().save(*args, **kwargs)

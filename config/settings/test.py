@@ -19,6 +19,9 @@ STORAGES["staticfiles"] = {  # noqa: F405
 # at a per-test temporary directory, so nothing is left behind.
 SOURCE_ARTIFACT_ROOT = str(Path(tempfile.gettempdir()) / "dashkoda-test-source-artifacts")
 
+# No politeness pauses against a fake transport.
+KODA_OPINIONS_REQUEST_PAUSE_SECONDS = 0
+
 # The collapse guard is inert in the suite by default. Fixtures publish whatever
 # set of rows a test needs to describe -- nine events, then three, then one --
 # and a guard comparing each publication with the last would be arguing with

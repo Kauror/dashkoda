@@ -6,7 +6,10 @@ answered it.
 
 This is unlike every other DashKoda feed. There is no website and no URL: the
 documents are read from a directory on the host, they are **private
-correspondence**, and they are never served from a public path. Phase 1 — what
+correspondence**, and they are never served from a public path. The private
+folder is **not exhaustive** — the absence of a known PDF never proves no
+opinion was submitted — and Koda.ee is the second, public opinion source:
+see [legal-opinion-public-source.md](legal-opinion-public-source.md). Phase 1 — what
 this document describes — builds the catalogue and nothing else. **No viewer
 page changes, and no legal topic gains a link.** Linking is Phase 2.
 

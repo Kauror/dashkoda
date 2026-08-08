@@ -225,6 +225,20 @@ class AuditAction(models.TextChoices):
         "legal_work.opinion_match_failed",
         "Arvamuste sobitamine ebaõnnestus",
     )
+    # The public Koda.ee opinion corpus. Summaries carry counts, snapshot ids
+    # and checksum prefixes only — never a URL, a title, a filename or text.
+    PUBLIC_OPINIONS_IMPORTED = (
+        "legal_work.public_opinions_imported",
+        "Avalik arvamuskorpus imporditud",
+    )
+    PUBLIC_OPINIONS_UNCHANGED = (
+        "legal_work.public_opinions_unchanged",
+        "Avalik arvamuskorpus: muutusteta",
+    )
+    PUBLIC_OPINIONS_FAILED = (
+        "legal_work.public_opinions_failed",
+        "Avaliku arvamuskorpuse kogumine ebaõnnestus",
+    )
     # Manually observed audience sizes. A batch event describes one submission;
     # the per-observation events describe what that submission did to each
     # metric, which is what makes a correction auditable on its own.

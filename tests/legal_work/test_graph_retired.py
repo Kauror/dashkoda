@@ -176,4 +176,8 @@ def test_the_app_owns_exactly_the_commands_it_is_supposed_to():
         # The opinion matcher. Separately calibrated from both consultation
         # matchers, and likewise not scheduled here.
         "match_legal_opinion_documents",
+        # The public Koda.ee opinion corpus: the second opinion source, and a
+        # read-only coverage report over what the two sources answer.
+        "sync_public_opinions",
+        "report_opinion_coverage",
     }

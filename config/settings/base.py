@@ -409,6 +409,44 @@ LEGAL_OPINION_MAX_REPLACEMENT_RATIO = 0.02
 # half-copied PDF is never hashed into the store.
 LEGAL_OPINION_MIN_STABLE_AGE_SECONDS = 60
 
+# --------------------------------------------------------------------------
+# Public Koda.ee opinions
+# --------------------------------------------------------------------------
+#
+# The second opinion source: what Koda.ee itself publishes. `Meie arvamus` is
+# a filtered view over news nodes — its detail pages live under /et/uudised/ —
+# so both listings are walked and the union is the corpus. Attachment PDFs are
+# direct file links under /sites/default/files/ and reuse the private opinion
+# byte limits, validation and store.
+KODA_OPINIONS_SOURCE_SLUG = "koda-public-opinions"
+KODA_OPINIONS_MEIE_ARVAMUS_URL = "https://www.koda.ee/et/meie-arvamus"
+KODA_OPINIONS_NEWS_URL = "https://www.koda.ee/et/uudised"
+# Two detail-page prefixes, both real: recent opinion articles are news nodes
+# under /et/uudised/, older ones are meie-arvamus nodes under
+# /et/meie-arvamus/. The listing roots themselves are never articles.
+KODA_OPINIONS_ARTICLE_PATH_PREFIXES = ("/et/uudised/", "/et/meie-arvamus/")
+KODA_OPINIONS_FILE_PATH_PREFIX = "/sites/default/files/"
+
+# The historical window this project activates. Older Koda.ee opinion history
+# exists but is deliberately not collected; see docs/legal-opinion-public-source.md.
+KODA_OPINIONS_FROM_YEAR = 2025
+
+# Bounds. The `Meie arvamus` view is ~44 pages for its whole history and the
+# news listing reaches the 2025 boundary well inside a hundred pages; the cap
+# refuses a runaway walk, not a legitimate one.
+KODA_OPINIONS_MAX_LISTING_PAGES = 120
+KODA_OPINIONS_MAX_HTML_BYTES = 4 * 1024 * 1024
+KODA_OPINIONS_BODY_MAX_LENGTH = 6000
+
+# Incremental edge. A daily run reads this many pages of each listing edge and
+# re-reads articles published inside the overlap window, because Koda.ee
+# attaches the letter a day or two after publishing the article.
+KODA_OPINIONS_INCREMENTAL_LISTING_PAGES = 3
+KODA_OPINIONS_INCREMENTAL_OVERLAP_DAYS = 14
+
+# Politeness between consecutive requests to the one allowed host.
+KODA_OPINIONS_REQUEST_PAUSE_SECONDS = 0.5
+
 # Google Analytics 4.
 #
 # Read only by the scheduled `sync_ga4` command, which collects one completed
