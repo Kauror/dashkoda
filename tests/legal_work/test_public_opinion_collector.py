@@ -27,6 +27,7 @@ from apps.legal_work.public_opinion_sync import (
 from apps.legal_work.public_opinions import (
     PageAttachment,
     attachment_filename,
+    attachment_filename_date,
     canonical_article_url,
     is_article_url,
     is_attachment_url,
@@ -46,6 +47,7 @@ from .public_opinion_factory import (
     end_listings,
     listing,
     ma_card,
+    ma_detail,
     news_card,
     pdf_path,
     simple_public_site,
@@ -144,11 +146,43 @@ class TestDetailParsing:
         assert parsed.title == ""
         assert parsed.attachments == ()
 
+    def test_the_older_meie_arvamus_article_shape_is_read(self):
+        """A meie-arvamus node, a classless h1, the current-draft date class."""
+        html = ma_detail(
+            title="Kestlikkusaruande kohustust tuleb edasi lükata",
+            date=dt.date(2025, 4, 29),
+            attachments=attachment_link(
+                "29 04 2025 Raamatupidamise seaduse muutmise seaduse eelnõu.pdf",
+                folder="2025-05",
+            ),
+        )
+        parsed = parse_news_detail(html, base_url="https://www.koda.ee/et/meie-arvamus/x")
+        assert parsed.title == "Kestlikkusaruande kohustust tuleb edasi lükata"
+        assert parsed.published_date == dt.date(2025, 4, 29)
+        assert len(parsed.attachments) == 1
+
+
+class TestAttachmentFilenameDate:
+    def test_public_upload_names_date_themselves(self):
+        assert attachment_filename_date("29 04 2025 Raamatupidamise seadus.pdf") == dt.date(
+            2025, 4, 29
+        )
+        assert attachment_filename_date("25 02 26 Tarbijakaitseseaduse arvamus.pdf") == dt.date(
+            2026, 2, 25
+        )
+
+    def test_a_non_date_prefix_yields_nothing(self):
+        assert attachment_filename_date("Arvamus ilma kuupäevata.pdf") is None
+        assert attachment_filename_date("45 13 26 võimatu.pdf") is None
+        assert attachment_filename_date("") is None
+
 
 class TestUrlRules:
     def test_only_article_paths_qualify(self):
         assert is_article_url("https://www.koda.ee/et/uudised/mingi-artikkel")
+        assert is_article_url("https://www.koda.ee/et/meie-arvamus/vanem-arvamuslugu")
         assert not is_article_url("https://www.koda.ee/et/uudised")
+        assert not is_article_url("https://www.koda.ee/et/meie-arvamus")
         assert not is_article_url("https://www.koda.ee/et/pood/asi")
         assert not is_article_url("http://www.koda.ee/et/uudised/mingi-artikkel")
         assert not is_article_url("https://evil.example/et/uudised/mingi-artikkel")

@@ -93,6 +93,7 @@ from .public_opinion_models import (
 from .public_opinions import (
     PublicOpinionCollectionError,
     attachment_filename,
+    attachment_filename_date,
     canonical_article_url,
     fetch_html,
     fetch_pdf,
@@ -551,12 +552,13 @@ def _read_document(*, attachment, order, known, now, dry_run, report, session):
     changed letter under a new filename, so the URL is content-stable. A known
     URL whose fetch previously failed is retried, because no blob pins it.
     """
-    parsed = parse_opinion_filename(attachment_filename(attachment))
+    name = attachment_filename(attachment)
+    parsed = parse_opinion_filename(name)
     draft = _DocumentDraft(
         pdf_url=attachment.url,
         attachment_label=attachment.label[:400],
         display_filename=parsed.display[:400],
-        filename_date=parsed.date,
+        filename_date=parsed.date or attachment_filename_date(name),
         filename_recipient=parsed.recipient[:200],
         filename_subject=parsed.subject[:500],
         first_seen_at=known.first_seen_at if known is not None else now,

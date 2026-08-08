@@ -421,7 +421,10 @@ LEGAL_OPINION_MIN_STABLE_AGE_SECONDS = 60
 KODA_OPINIONS_SOURCE_SLUG = "koda-public-opinions"
 KODA_OPINIONS_MEIE_ARVAMUS_URL = "https://www.koda.ee/et/meie-arvamus"
 KODA_OPINIONS_NEWS_URL = "https://www.koda.ee/et/uudised"
-KODA_OPINIONS_ARTICLE_PATH_PREFIX = "/et/uudised/"
+# Two detail-page prefixes, both real: recent opinion articles are news nodes
+# under /et/uudised/, older ones are meie-arvamus nodes under
+# /et/meie-arvamus/. The listing roots themselves are never articles.
+KODA_OPINIONS_ARTICLE_PATH_PREFIXES = ("/et/uudised/", "/et/meie-arvamus/")
 KODA_OPINIONS_FILE_PATH_PREFIX = "/sites/default/files/"
 
 # The historical window this project activates. Older Koda.ee opinion history

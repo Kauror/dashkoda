@@ -59,9 +59,13 @@ NEWS_TITLE_CLASS = "news--teaser--title"
 NEWS_DATE_CLASS = "news--teaser--group-header--date"
 NEWS_CATEGORY_CLASS = "news--teaser--group-header--category"
 
-DETAIL_NODE_CLASSES = ("node--type-news", "node--view-mode-full")
-DETAIL_TITLE_CLASS = "news--default--title"
-DETAIL_DATE_CLASS = "news--default--date"
+# Two article shapes, both live: recent opinion articles are news nodes with a
+# classed title and `news--default--date`; older ones are meie-arvamus nodes
+# whose `<h1>` carries no class and whose date sits in
+# `current-draft--default--date`. Both print a full dd.mm.yyyy.
+DETAIL_NODE_VIEW_CLASS = "node--view-mode-full"
+DETAIL_NODE_TYPE_CLASSES = frozenset({"node--type-news", "node--type-meie-arvamus"})
+DETAIL_DATE_CLASSES = frozenset({"news--default--date", "current-draft--default--date"})
 ATTACHMENT_LINK_CLASS = "btn--file"
 
 # Evidence codes, stored on the page so the boundary stays inspectable.
@@ -220,9 +224,11 @@ class _CardParser(HTMLParser):
 class _DetailParser(HTMLParser):
     """One article page: title, date, article text, and its own file links.
 
-    Everything is scoped to the first `node--type-news node--view-mode-full`
-    subtree. The same node rendered again in a sideblock further down cannot
-    double the text, and a file link in a sidebar cannot become an attachment.
+    Everything is scoped to the first full-view article subtree, whichever of
+    the two node types it is. The same node rendered again in a sideblock
+    further down cannot double the text, and a file link in a sidebar cannot
+    become an attachment. The title is the node's first `<h1>` — the older
+    article shape gives it no class to hang on.
     """
 
     def __init__(self):
@@ -232,6 +238,7 @@ class _DetailParser(HTMLParser):
         self._node_depth: int | None = None
         self._node_seen = False
         self._title_depth: int | None = None
+        self._title_seen = False
         self._date_depth: int | None = None
         self._link_href: str | None = None
         self._link_label: list[str] = []
@@ -250,15 +257,17 @@ class _DetailParser(HTMLParser):
         if (
             self._node_depth is None
             and not self._node_seen
-            and all(marker in classes for marker in DETAIL_NODE_CLASSES)
+            and DETAIL_NODE_VIEW_CLASS in classes
+            and DETAIL_NODE_TYPE_CLASSES.intersection(classes)
         ):
             self._node_depth = self.depth
             self._node_seen = True
 
         if self._node_depth is not None:
-            if DETAIL_TITLE_CLASS in classes and self._title_depth is None:
+            if tag == "h1" and self._title_depth is None and not self._title_seen:
                 self._title_depth = self.depth
-            if DETAIL_DATE_CLASS in classes and self._date_depth is None:
+                self._title_seen = True
+            if DETAIL_DATE_CLASSES.intersection(classes) and self._date_depth is None:
                 self._date_depth = self.depth
             if tag == "a" and ATTACHMENT_LINK_CLASS in classes:
                 self._link_href = (attributes.get("href") or "").strip()
@@ -386,14 +395,19 @@ def _parse_full_date(text: str) -> dt.date | None:
 
 
 def is_article_url(url: str) -> bool:
-    """Whether a listing link is a Koda.ee news article this collector reads."""
+    """Whether a listing link is a Koda.ee article this collector reads.
+
+    Either detail prefix qualifies; the listing roots themselves never do.
+    """
     if not is_allowed_public_url(url, allowed_hosts=settings.KODA_ALLOWED_HOSTS):
         return False
     if len(url) > MAX_CANONICAL_URL_LENGTH:
         return False
     path = urlparse(url).path.rstrip("/")
-    prefix = settings.KODA_OPINIONS_ARTICLE_PATH_PREFIX
-    return f"{path}/".startswith(prefix) and path != prefix.rstrip("/")
+    return any(
+        f"{path}/".startswith(prefix) and path != prefix.rstrip("/")
+        for prefix in settings.KODA_OPINIONS_ARTICLE_PATH_PREFIXES
+    )
 
 
 def is_attachment_url(url: str) -> bool:
@@ -458,6 +472,29 @@ def attachment_filename(attachment: PageAttachment) -> str:
     path = unquote(urlparse(attachment.url).path)
     name = path.rsplit("/", 1)[-1]
     return name or attachment.label
+
+
+# Public upload names date themselves `DD MM YYYY ...` or `DD MM YY ...`,
+# unlike the private folder's `YYYY-MM-DD - ...`. Both are the letter's date.
+_UPLOAD_DATE_PATTERN = re.compile(r"^(\d{2})[ _](\d{2})[ _](\d{2}|\d{4})\b")
+
+
+def attachment_filename_date(filename: str) -> dt.date | None:
+    """The date a public upload name claims, or nothing.
+
+    Tried only when the private-convention parser found none, and only for
+    plausible calendar dates; a two-digit year is this century's.
+    """
+    match = _UPLOAD_DATE_PATTERN.match(filename or "")
+    if not match:
+        return None
+    day, month, year = (int(part) for part in match.groups())
+    if year < 100:
+        year += 2000
+    try:
+        return dt.date(year, month, day)
+    except ValueError:
+        return None
 
 
 # --------------------------------------------------------------------------

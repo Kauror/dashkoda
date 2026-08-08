@@ -207,8 +207,10 @@ def is_publishable_public_page_url(url: str) -> bool:
     if parts.username or parts.password:
         return False
     path = parts.path.rstrip("/")
-    prefix = settings.KODA_OPINIONS_ARTICLE_PATH_PREFIX
-    return f"{path}/".startswith(prefix) and path != prefix.rstrip("/")
+    return any(
+        f"{path}/".startswith(prefix) and path != prefix.rstrip("/")
+        for prefix in settings.KODA_OPINIONS_ARTICLE_PATH_PREFIXES
+    )
 
 
 def resolve_opinion_links(item_ids) -> dict[int, str]:

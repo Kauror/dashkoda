@@ -18,17 +18,19 @@ from apps.core.public_http import FetchFailure, PublicFetchError
 MA_LISTING_PATH = "/et/meie-arvamus"
 NEWS_LISTING_PATH = "/et/uudised"
 DETAIL_PREFIX = "/et/uudised/"
+MA_DETAIL_PREFIX = "/et/meie-arvamus/"
 FILE_PREFIX = "/sites/default/files/content-type/content/"
 
 
-def ma_card(slug: str, title: str, *, summary: str = "") -> str:
+def ma_card(slug: str, title: str, *, summary: str = "", prefix: str = DETAIL_PREFIX) -> str:
+    """A `Meie arvamus` teaser. Older cards link under /et/meie-arvamus/."""
     return f"""
     <div class="meie-arvamus--teaser node node--type-news node--view-mode-meie-arvamus-teaser">
       <div class="meie-arvamus--teaser--date">
         <span class="day">30</span><span class="month">juuli</span>
       </div>
       <div class="meie-arvamus--teaser--title">
-        <a href="{DETAIL_PREFIX}{slug}">{title}</a>
+        <a href="{prefix}{slug}">{title}</a>
       </div>
       <div class="current-draft--teaser--content"><p>{summary}</p></div>
     </div>
@@ -95,6 +97,30 @@ def detail(
       <div class="news--default--date">01.01.2001</div>
       <a href="/sites/default/files/sideblock.pdf" class="btn btn--file ext-pdf">Kõrvalpaan</a>
     </aside>
+    </body></html>
+    """
+
+
+def ma_detail(
+    *,
+    title: str,
+    date: dt.date | None = dt.date(2025, 4, 29),
+    body: str = "Kaubanduskoda esitas arvamuse eelnõu kohta ja teeb ettepaneku muudatusteks.",
+    attachments: str = "",
+) -> str:
+    """The older article shape: a meie-arvamus node, a classless `<h1>`, and
+    the date in `current-draft--default--date`."""
+    date_html = f'<div class="current-draft--default--date">{date:%d.%m.%Y}</div>' if date else ""
+    return f"""<!DOCTYPE html>
+    <html><head><title>{title}</title></head><body>
+    <article class="node node--type-meie-arvamus node--view-mode-full">
+      <h1>{title}</h1>
+      <div class="current-draft--default--group--date-and-header">{date_html}</div>
+      <div class="field field--name-field-paragraph">
+        <p>{body}</p>
+        {attachments}
+      </div>
+    </article>
     </body></html>
     """
 
