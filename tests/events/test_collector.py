@@ -12,10 +12,29 @@ import pytest
 
 from apps.events.collector import EventCollectionError, collect_events
 
-TOMORROW = dt.date.today() + dt.timedelta(days=1)
-NEXT_WEEK = dt.date.today() + dt.timedelta(days=7)
-YESTERDAY = dt.date.today() - dt.timedelta(days=1)
-TODAY = dt.date.today()
+
+def today() -> dt.date:
+    """The date the collector will use, read when the test runs.
+
+    Not a module constant. A constant is evaluated when pytest imports this
+    file; the collector reads its own clock when the test executes. Those are
+    the same date all day and different for the few minutes after midnight, so
+    a suite that starts before midnight and reaches this file after it compares
+    a stale date against a live one. CI hit exactly that at 00:07 Tallinn: an
+    event built for "today" was already yesterday by the time the collector
+    filtered it, and the run failed on a change that had nothing to do with
+    events.
+
+    `dt.date.today()` is the right clock despite the collector using
+    `datetime.now(TALLINN)`: Django sets `TZ=Europe/Tallinn` and calls
+    `tzset()` during setup, so the process local date *is* the Tallinn date by
+    the time any test runs. Do not "fix" this to something else.
+    """
+    return dt.date.today()
+
+
+def days_from_today(count: int) -> dt.date:
+    return today() + dt.timedelta(days=count)
 
 
 def teaser(slug: str, title: str, category: str = "Koolitused") -> str:
@@ -30,7 +49,7 @@ def teaser(slug: str, title: str, category: str = "Koolitused") -> str:
     return f"""
     <div class="event--teaser node node--type-event">
       <div class="event--teaser--group-left">
-        <div class="event--teaser--date">{TOMORROW:%d.%m.%Y}</div>
+        <div class="event--teaser--date">{days_from_today(1):%d.%m.%Y}</div>
       </div>
       <div class="event--teaser--group-right">
         <a href="/et/sundmused/{category.lower()}" hreflang="et">{category}</a>
@@ -67,7 +86,7 @@ def detail(
     with_json_ld=True,
     fallback_date=None,
 ) -> str:
-    start = start if start is not None else TOMORROW.isoformat()
+    start = start if start is not None else days_from_today(1).isoformat()
     event = {
         "@type": "Event",
         "name": name,
@@ -149,7 +168,7 @@ def test_a_valid_listing_yields_upcoming_events(patch_fetch):
             {
                 "/et/sundmused": listing("alpha", "beta"),
                 "/et/sundmused/alpha": detail(name="Alfa"),
-                "/et/sundmused/beta": detail(name="Beeta", start=NEXT_WEEK.isoformat()),
+                "/et/sundmused/beta": detail(name="Beeta", start=days_from_today(7).isoformat()),
             }
         )
     )
@@ -157,7 +176,7 @@ def test_a_valid_listing_yields_upcoming_events(patch_fetch):
     collection = collect_events()
 
     assert [entry.title for entry in collection.entries] == ["Alfa", "Beeta"]
-    assert collection.entries[0].starts_on == TOMORROW
+    assert collection.entries[0].starts_on == days_from_today(1)
     assert len(collection.sha256) == 64
 
 
@@ -166,7 +185,7 @@ def test_a_date_only_event_receives_no_invented_time(patch_fetch):
 
     entry = collect_events().entries[0]
 
-    assert entry.starts_on == TOMORROW
+    assert entry.starts_on == days_from_today(1)
     assert entry.starts_at is None
     assert entry.ends_at is None
 
@@ -176,7 +195,9 @@ def test_an_exact_timestamp_is_parsed_from_structured_data(patch_fetch):
         FakeSite(
             {
                 "/et/sundmused": listing("alpha"),
-                "/et/sundmused/alpha": detail(start=f"{TOMORROW.isoformat()}T14:30:00+03:00"),
+                "/et/sundmused/alpha": detail(
+                    start=f"{days_from_today(1).isoformat()}T14:30:00+03:00"
+                ),
             }
         )
     )
@@ -185,7 +206,7 @@ def test_an_exact_timestamp_is_parsed_from_structured_data(patch_fetch):
 
     assert entry.starts_at is not None
     assert entry.starts_at.hour == 14
-    assert entry.starts_on == TOMORROW
+    assert entry.starts_on == days_from_today(1)
 
 
 def test_the_location_is_taken_from_structured_data(patch_fetch):
@@ -207,7 +228,7 @@ def test_the_class_based_date_is_the_documented_fallback(patch_fetch):
             {
                 "/et/sundmused": listing("alpha"),
                 "/et/sundmused/alpha": detail(
-                    with_json_ld=False, fallback_date=f"{TOMORROW:%d.%m.%Y}"
+                    with_json_ld=False, fallback_date=f"{days_from_today(1):%d.%m.%Y}"
                 ),
             }
         )
@@ -215,7 +236,7 @@ def test_the_class_based_date_is_the_documented_fallback(patch_fetch):
 
     entry = collect_events().entries[0]
 
-    assert entry.starts_on == TOMORROW
+    assert entry.starts_on == days_from_today(1)
     assert entry.starts_at is None
 
 
@@ -292,8 +313,8 @@ def test_past_events_are_excluded(patch_fetch):
         FakeSite(
             {
                 "/et/sundmused": listing("past", "future"),
-                "/et/sundmused/past": detail(start=YESTERDAY.isoformat()),
-                "/et/sundmused/future": detail(start=TOMORROW.isoformat()),
+                "/et/sundmused/past": detail(start=days_from_today(-1).isoformat()),
+                "/et/sundmused/future": detail(start=days_from_today(1).isoformat()),
             }
         )
     )
@@ -309,7 +330,7 @@ def test_an_event_ending_today_is_retained(patch_fetch):
         FakeSite(
             {
                 "/et/sundmused": listing("today"),
-                "/et/sundmused/today": detail(start=TODAY.isoformat()),
+                "/et/sundmused/today": detail(start=today().isoformat()),
             }
         )
     )
@@ -323,7 +344,7 @@ def test_a_multi_day_event_still_running_is_retained(patch_fetch):
             {
                 "/et/sundmused": listing("running"),
                 "/et/sundmused/running": detail(
-                    start=YESTERDAY.isoformat(), end=TOMORROW.isoformat()
+                    start=days_from_today(-1).isoformat(), end=days_from_today(1).isoformat()
                 ),
             }
         )
@@ -332,7 +353,7 @@ def test_a_multi_day_event_still_running_is_retained(patch_fetch):
     entries = collect_events().entries
 
     assert len(entries) == 1
-    assert entries[0].ends_on == TOMORROW
+    assert entries[0].ends_on == days_from_today(1)
 
 
 def test_events_are_ordered_chronologically(patch_fetch):
@@ -340,8 +361,8 @@ def test_events_are_ordered_chronologically(patch_fetch):
         FakeSite(
             {
                 "/et/sundmused": listing("later", "sooner"),
-                "/et/sundmused/later": detail(name="Hiljem", start=NEXT_WEEK.isoformat()),
-                "/et/sundmused/sooner": detail(name="Varem", start=TOMORROW.isoformat()),
+                "/et/sundmused/later": detail(name="Hiljem", start=days_from_today(7).isoformat()),
+                "/et/sundmused/sooner": detail(name="Varem", start=days_from_today(1).isoformat()),
             }
         )
     )
@@ -356,7 +377,7 @@ def test_an_end_before_start_is_refused(patch_fetch):
             {
                 "/et/sundmused": listing("broken"),
                 "/et/sundmused/broken": detail(
-                    start=NEXT_WEEK.isoformat(), end=TOMORROW.isoformat()
+                    start=days_from_today(7).isoformat(), end=days_from_today(1).isoformat()
                 ),
             }
         )
@@ -447,7 +468,7 @@ def test_a_listing_with_only_past_events_is_refused(patch_fetch):
         FakeSite(
             {
                 "/et/sundmused": listing("past"),
-                "/et/sundmused/past": detail(start=YESTERDAY.isoformat()),
+                "/et/sundmused/past": detail(start=days_from_today(-1).isoformat()),
             }
         )
     )
