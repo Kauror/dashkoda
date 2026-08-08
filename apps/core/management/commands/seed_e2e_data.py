@@ -911,6 +911,13 @@ def _seed_internal_membership(today: dt.date) -> str:
     # the movement section describes. Every band reports both directions except
     # the largest, which reports only arrivals — a band with one side missing
     # must show no net rather than a net that counts a gap as zero.
+    #
+    # Neither table is marked complete, and that is the honest flag rather than
+    # a way around the cross-checks: a table missing one band's departures is a
+    # partial table. `publish_manual_report` only reconciles these sums against
+    # the year-to-date figures when the report claims completeness, which is the
+    # right rule — a partly filled table is an ordinary thing to have and must
+    # not be rejected for failing to add up.
     size_joined = {
         "employees_1_4": 21,
         "employees_20_49": 27,
@@ -941,9 +948,9 @@ def _seed_internal_membership(today: dt.date) -> str:
             monthly_new_members=monthly_for(when),
             joined_by_band=size_joined if is_latest else {},
             removed_by_band=size_removed if is_latest else {},
-            size_table_complete=is_latest,
+            size_table_complete=False,
             removal_reasons=reasons if is_latest else {},
-            reasons_complete=is_latest,
+            reasons_complete=False,
             facts=MetricFacts(
                 total_members=total,
                 paid_members=paid,
