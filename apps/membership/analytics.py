@@ -314,3 +314,75 @@ def mean_of_complete_years(
             return None
         values.append(value)
     return _quantise(Decimal(sum(values)) / Decimal(len(values)), places=1)
+
+
+# How much of the drawn height a series is allowed to be flat before the axis
+# stops zooming in on it.
+#
+# A membership that moved between 3 380 and 3 412 has a span of 32 on a base of
+# 3 412 — one percent. An axis fitted tightly to that span draws a one-percent
+# drift as a cliff, and the reader takes away a collapse that did not happen.
+# Requiring the domain to cover at least this fraction of the largest value puts
+# the movement back in proportion to the quantity it is a movement in.
+#
+# The opposite failure is forcing zero: a 0–3 412 axis draws every real
+# membership change as a flat line, which is the same lie told the other way.
+# Neither end is anchored, and the floor below is what keeps the middle honest.
+MIN_DOMAIN_FRACTION = Decimal("0.05")
+
+# Breathing room above and below, so the newest point is not welded to the frame.
+DOMAIN_PADDING_FRACTION = Decimal("0.10")
+
+
+@dataclass(frozen=True)
+class Domain:
+    """The value range an axis should cover."""
+
+    minimum: Decimal
+    maximum: Decimal
+
+    @property
+    def height(self) -> Decimal:
+        return self.maximum - self.minimum
+
+
+def value_domain(
+    values: tuple[Decimal | int, ...],
+    *,
+    min_fraction: Decimal = MIN_DOMAIN_FRACTION,
+    padding: Decimal = DOMAIN_PADDING_FRACTION,
+) -> Domain | None:
+    """An axis range that neither flattens a real change nor magnifies a small one.
+
+    Zero is never forced. A membership series lives in a narrow band far from
+    the origin, and anchoring the axis at zero would compress every movement the
+    page exists to show into a flat line near the top of the frame.
+
+    Instead the domain is the observed span plus padding, widened when the span
+    is a small fraction of the values themselves. That widening is the rule that
+    stops the axis from turning a one-percent drift into a cliff — the most
+    common way a truthful series becomes a misleading picture.
+
+    A single observation has no span at all, so it is given a domain around
+    itself rather than a zero-height axis.
+    """
+    if not values:
+        return None
+
+    lowest = Decimal(min(values))
+    highest = Decimal(max(values))
+    span = highest - lowest
+
+    # The smallest height this data is allowed to be drawn in, so a nearly flat
+    # series stays nearly flat.
+    floor = abs(highest) * min_fraction
+    if span < floor:
+        middle = (highest + lowest) / 2
+        lowest = middle - floor / 2
+        highest = middle + floor / 2
+        span = highest - lowest
+
+    room = span * padding
+    return Domain(
+        minimum=_quantise(lowest - room, places=0), maximum=_quantise(highest + room, places=0)
+    )

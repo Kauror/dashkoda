@@ -51,8 +51,55 @@ GRID = {"left": 56, "right": 24, "top": 32, "bottom": 40, "containLabel": True}
 
 
 @dataclass(frozen=True)
+class Readout:
+    """One figure in a chart's analytical header.
+
+    Every string arrives formatted. A template that had to decide how to write a
+    signed percentage would be the second place that decision lived, and the two
+    would drift the first time one of them changed.
+
+    `direction` is the non-colour signal — a reader who cannot separate the hues
+    still gets the sense of the change from the glyph beside it, and a reader
+    using a screen reader gets it from `change_label`.
+    """
+
+    label: str
+    value: str
+    change: str = ""
+    change_label: str = ""
+    direction: str = ""
+    note: str = ""
+
+    @property
+    def has_change(self) -> bool:
+        return bool(self.change)
+
+
+@dataclass(frozen=True)
+class TooltipRow:
+    """One line of a pre-rendered tooltip.
+
+    The value is a finished string, built by the same formatters the readouts
+    use. Nothing about how a figure is written crosses into JavaScript, so the
+    tooltip cannot spell a number differently from the header above it, and the
+    browser never has to know what a percentage point is.
+    """
+
+    label: str
+    value: str
+    emphasis: bool = False
+
+
+@dataclass(frozen=True)
 class ChartPayload:
-    """One chart plus the accessible alternative that always accompanies it."""
+    """One chart plus the accessible alternative that always accompanies it.
+
+    The fields beyond `option` are the analytical frame: the question the chart
+    answers, the two or three figures that answer it before the reader looks at
+    the drawing, and the date the drawing describes. A chart is free to use none
+    of them — the movement charts have no time controls and no comparison — and
+    a template renders only what is present.
+    """
 
     payload_id: str
     title: str
@@ -62,6 +109,14 @@ class ChartPayload:
     summary: str
     empty_message: str = "Andmed puuduvad."
     footnotes: tuple[str, ...] = field(default_factory=tuple)
+    question: str = ""
+    observation_label: str = ""
+    readouts: tuple[Readout, ...] = field(default_factory=tuple)
+    # A design-system size name, not a pixel count: `chart_figure.html` maps it
+    # to a height class. A distribution chart with four categories and a
+    # five-year time series do not want the same frame, and JavaScript is not
+    # needed to say so.
+    size: str = "medium"
 
     @property
     def has_data(self) -> bool:

@@ -24,6 +24,7 @@ from apps.membership.analytics import (
     net_movement,
     pick_comparable,
     share_change,
+    value_domain,
 )
 
 JULY = dt.date(2026, 7, 31)
@@ -254,3 +255,50 @@ def test_a_year_missing_that_month_withdraws_the_average():
 
 def test_an_average_over_no_years_is_nothing_rather_than_zero():
     assert mean_of_complete_years({}, period=7, years=()) is None
+
+
+# -- the y axis, where a truthful series most easily becomes a lie ---------
+
+
+def test_the_axis_is_never_anchored_at_zero():
+    """A membership lives in a narrow band far from the origin. A 0–3 412 axis
+    draws every real change as a flat line near the top of the frame."""
+    domain = value_domain((3380, 3400, 3412))
+
+    assert domain.minimum > 3000
+
+
+def test_a_nearly_flat_series_is_drawn_nearly_flat():
+    """32 members of movement on a base of 3 412 is one percent. Fitted tightly
+    it reads as a cliff, and the reader takes away a collapse."""
+    tight = value_domain((3380, 3412))
+
+    assert tight.height >= Decimal("3412") * Decimal("0.05")
+
+
+def test_a_genuinely_large_movement_is_not_compressed():
+    """The floor is a minimum, not a target: real variation keeps its scale."""
+    domain = value_domain((1000, 5000))
+
+    assert domain.minimum < 1000
+    assert domain.maximum > 5000
+    assert domain.height > 4000
+
+
+def test_the_domain_leaves_room_around_the_extremes():
+    domain = value_domain((1000, 5000))
+
+    assert domain.minimum < 1000, "the lowest point is not welded to the frame"
+    assert domain.maximum > 5000
+
+
+def test_a_single_observation_gets_a_domain_around_itself():
+    """Not a zero-height axis, which has no drawable range at all."""
+    domain = value_domain((3412,))
+
+    assert domain.height > 0
+    assert domain.minimum < 3412 < domain.maximum
+
+
+def test_no_values_means_no_domain_rather_than_a_zero_axis():
+    assert value_domain(()) is None
