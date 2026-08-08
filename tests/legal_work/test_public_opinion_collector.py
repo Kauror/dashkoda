@@ -250,19 +250,29 @@ class TestCrawlBoundaries:
     def test_pages_older_than_the_window_are_not_activated(
         self, patch_public_site, opinion_roots, db
     ):
+        """Not activated, and not paid for: no attachment fetch, no blob."""
         old = dt.date(2024, 5, 5)
+        name = "2024-05-05 - Ministeerium - Arvamus vana asja kohta.pdf"
         site = FakePublicSite(
             pages={
                 MA_LISTING_PATH: listing(ma_card("vana", "Vana arvamus")),
                 NEWS_LISTING_PATH: listing(),
-                f"{DETAIL_PREFIX}vana": detail(title="Vana arvamus", date=old),
-            }
+                f"{DETAIL_PREFIX}vana": detail(
+                    title="Vana arvamus", date=old, attachments=attachment_link(name)
+                ),
+            },
+            files={pdf_path(name): b"%PDF-1.7 never fetched"},
         )
         end_listings(site)
         patch_public_site(site)
         report = synchronize_public_opinions(full=True)
         assert report.result == RESULT_IMPORTED
         assert PublicOpinionPage.objects.count() == 0
+        assert report.documents_fetched == 0
+        assert not any(".pdf" in path.lower() for path in site.requested)
+        from apps.legal_work.opinion_models import OpinionDocumentBlob
+
+        assert OpinionDocumentBlob.objects.count() == 0
 
     def test_ordinary_news_without_evidence_is_not_collected(
         self, patch_public_site, opinion_roots, db

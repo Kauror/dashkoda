@@ -331,7 +331,6 @@ def _collect(*, previous, full, dry_run, report, session) -> list[_PageDraft]:
                 )
 
     boundary = _refresh_boundary(known_pages)
-    from_year = settings.KODA_OPINIONS_FROM_YEAR
 
     drafts: dict[str, _PageDraft] = {}
     for url, found in candidates.items():
@@ -357,20 +356,6 @@ def _collect(*, previous, full, dry_run, report, session) -> list[_PageDraft]:
             session=session,
         )
         if draft is None:
-            continue
-        # The historical window is a property of the *page*, decided from its
-        # own date: a full crawl walks listings past the boundary because the
-        # `Meie arvamus` cards carry no year, but pages outside the window are
-        # not activated.
-        if (
-            known is None
-            and draft.published_date is not None
-            and draft.published_date.year < from_year
-        ):
-            continue
-        if known is None and not draft.opinion_evidence_codes:
-            # Ordinary news: no editorial listing, no position wording, no
-            # opinion-shaped attachment. Not part of this corpus.
             continue
         drafts[key] = draft
 
@@ -491,6 +476,23 @@ def _read_page(*, url, key, known, listed, summary, now, dry_run, report, sessio
     if known is not None:
         previous_codes = set(known.opinion_evidence_codes or [])
         evidence = sorted(previous_codes | set(evidence))
+
+    # Qualification comes **before** any attachment is fetched: a page outside
+    # the historical window or without opinion evidence is not part of this
+    # corpus, and its files must not be downloaded, stored or paid for again
+    # on every later run. The window is a property of the page's own date —
+    # a full crawl walks listings past the boundary because `Meie arvamus`
+    # cards carry no year — and a page already in the corpus stays qualified.
+    if known is None:
+        if (
+            detail.published_date is not None
+            and detail.published_date.year < settings.KODA_OPINIONS_FROM_YEAR
+        ):
+            return None
+        if not evidence:
+            # Ordinary news: no editorial listing, no position wording, no
+            # opinion-shaped attachment.
+            return None
 
     draft = _PageDraft(
         content_key=key,
