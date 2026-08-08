@@ -92,7 +92,11 @@ def seed_matched_world(apps):
         expected_update_frequency="irregular",
     )
     artifact = apps.get_model("sources", "SourceArtifact").objects.create(
-        source=source, original_name="seed", sha256="a" * 64
+        source=source,
+        original_name="seed",
+        sha256="a" * 64,
+        size_bytes=1024,
+        external_reference="seed:artifact",
     )
     run = apps.get_model("sources", "ImportRun").objects.create(
         source=source,

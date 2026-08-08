@@ -54,6 +54,7 @@ from apps.core.canonical import canonical_checksum
 from apps.core.feed_sync import (
     describe_error,
     fail_feed,
+    find_published_artifact,
     get_feed_state,
     mark_imported,
     mark_unchanged,
@@ -245,7 +246,7 @@ def synchronize_public_opinions(
     except OSError as error:
         return _fail(state, error, correlation_id)
 
-    checksum = _corpus_checksum(drafts)
+    checksum, canonical_size = _corpus_checksum(drafts)
     _summarise(report, drafts)
 
     if previous is not None and previous.corpus_checksum == checksum:
@@ -269,6 +270,7 @@ def synchronize_public_opinions(
             state=state,
             drafts=drafts,
             checksum=checksum,
+            canonical_size=canonical_size,
             report=report,
             full=full,
             correlation_id=correlation_id,
@@ -748,8 +750,14 @@ def _carry_document(document: PublicOpinionDocument) -> _DocumentDraft:
 # --------------------------------------------------------------------------
 
 
-def _corpus_checksum(drafts: list[_PageDraft]) -> str:
-    """A checksum over what the corpus *says*, not over any response body."""
+def _corpus_checksum(drafts: list[_PageDraft]) -> tuple[str, int]:
+    """The canonical corpus document's identity: digest and byte length.
+
+    Computed over what the corpus *says*, never over any response body, so
+    markup churn cannot republish identical data. The size is the canonical
+    document's own — which is what the metadata-only artifact records, and
+    which is never zero even for an empty corpus.
+    """
     canonical = {
         "dataset": "koda-public-opinions",
         "schema_version": SCHEMA_VERSION,
@@ -778,8 +786,7 @@ def _corpus_checksum(drafts: list[_PageDraft]) -> str:
             for draft in sorted(drafts, key=lambda d: d.content_key)
         ],
     }
-    checksum, _size = canonical_checksum(canonical)
-    return checksum
+    return canonical_checksum(canonical)
 
 
 def _summarise(report: PublicOpinionReport, drafts: list[_PageDraft]) -> None:
@@ -796,18 +803,24 @@ def _summarise(report: PublicOpinionReport, drafts: list[_PageDraft]) -> None:
 
 
 def _publish(
-    *, source, state, drafts, checksum, report, full, correlation_id, actor
+    *, source, state, drafts, checksum, canonical_size, report, full, correlation_id, actor
 ) -> PublicOpinionSnapshot:
-    """One complete corpus, atomically. The artifact is metadata-only."""
+    """One complete corpus, atomically. The artifact is metadata-only.
+
+    An artifact left behind by a failed publication is reused rather than
+    re-registered, exactly like every other collector: the content identity
+    already exists under this source, and registering it twice is refused.
+    """
     collection = type(
         "Collection",
         (),
-        {"sha256": checksum, "size_bytes": sum(len(d.body_text) for d in drafts)},
+        {"sha256": checksum, "size_bytes": canonical_size},
     )()
+    existing_artifact, _already_published = find_published_artifact(source, checksum, IMPORTER_NAME)
     artifact, run = start_run(
         source,
         collection,
-        existing_artifact=None,
+        existing_artifact=existing_artifact,
         importer_name=IMPORTER_NAME,
         external_reference=EXTERNAL_REFERENCE,
         artifact_name=ARTIFACT_NAME,

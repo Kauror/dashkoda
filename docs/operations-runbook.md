@@ -57,12 +57,17 @@ identical EET/EEST offsets.
 | **06:00** | `0 3 * * *` | `0 4 * * *` | `06` | `sync_legal_archived_topics` |
 | **06:15** | `15 3 * * *` | `15 4 * * *` | `06` | `match_legal_archived_topics` |
 | **06:20** | `20 3 * * *` | `20 4 * * *` | `06` | `sync_legal_opinion_documents` |
+| **06:25** | `25 3 * * *` | `25 4 * * *` | `06` | `sync_public_opinions` |
 | **06:30** | `30 3 * * *` | `30 4 * * *` | `06` | `match_legal_opinion_documents` |
 | **06:40** | `40 3 * * *` | `40 4 * * *` | `06` | `discover_koda_event_pages` |
 | **06:50** | `50 3 * * *` | `50 4 * * *` | `06` | `match_public_event_links` |
 
 Two UTC minutes carry two jobs each. That is not a clash: in any given season
 exactly one of the pair passes its hour guard and the other exits immediately.
+
+`sync_public_opinions` is prepared in this repository but **not yet installed
+on the pilot host**: the row above is the slot it will take when the public
+opinion source is deployed, after its one-time `--full` historical walk.
 
 Order is a dependency order, not a preference. The workbook is first because
 every matcher scores against whichever legal snapshot is current when it runs;

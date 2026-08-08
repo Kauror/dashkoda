@@ -499,13 +499,15 @@ class TestPrecedence:
         with django_assert_num_queries(0):
             assert resolve_opinion_links([]) == {}
 
-    def test_resolution_costs_one_query_however_many_records(
+    def test_resolution_costs_two_queries_however_many_records(
         self, matched_world, django_assert_num_queries
     ):
+        """Two since the public corpus: matched documents, then article-only
+        confirmations for whatever those left. Never one per record."""
         every_id = list(LegalWorkItem.objects.values_list("pk", flat=True))
         assert len(every_id) > 1
 
-        with django_assert_num_queries(1):
+        with django_assert_num_queries(2):
             resolve_opinion_links(every_id)
 
 

@@ -106,6 +106,15 @@ FAMILIES: tuple[SnapshotFamily, ...] = (
         note="Deleting one never touches the PDF blobs it catalogued.",
     ),
     SnapshotFamily(
+        model="legal_work.PublicOpinionSnapshot",
+        label="Avalik arvamuskorpus",
+        cutoff_field="observed_at",
+        note=(
+            "Deleting one never touches the PDF blobs its documents point at, "
+            "and the accumulated corpus is carried whole in every snapshot."
+        ),
+    ),
+    SnapshotFamily(
         model="news.NewsSnapshot",
         label="Uudiste hetkeseis",
         cutoff_field="imported_at",
@@ -147,7 +156,7 @@ FAMILIES: tuple[SnapshotFamily, ...] = (
         model="legal_work.LegalOpinionMatchSnapshot",
         label="Arvamuste sobitamine",
         cutoff_field="generated_at",
-        pins=("legal_snapshot", "opinion_catalogue_snapshot"),
+        pins=("legal_snapshot", "opinion_catalogue_snapshot", "public_opinion_snapshot"),
     ),
     SnapshotFamily(
         model="event_programme.EventPublicMatchSnapshot",

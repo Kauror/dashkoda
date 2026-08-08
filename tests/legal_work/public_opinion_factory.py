@@ -134,8 +134,12 @@ class FakePublicSite:
         parsed = urlparse(url)
         key = parsed.path + (f"?{parsed.query}" if parsed.query else "")
         self.requested.append(key)
+        # Errors are declared by either spelling: attachment paths arrive
+        # percent-encoded, and a test keys them by the readable form.
         if key in self.errors:
             raise self.errors[key]
+        if _unquote(key) in self.errors:
+            raise self.errors[_unquote(key)]
         if key in self.pages:
             return FetchResult(
                 status_code=200,

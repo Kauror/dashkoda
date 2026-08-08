@@ -357,7 +357,8 @@ class TestLifecycle:
         synchronize_public_opinions(full=True)
         report = run_opinion_matching()
         assert report.matched == 1
-        resource = OpinionResource.objects.get(matter__decisions__legal_item=item)
+        # `.distinct()`: the join crosses one decision row per matcher run.
+        resource = OpinionResource.objects.distinct().get(matter__decisions__legal_item=item)
         assert item.pk in resolve_opinion_links([item.pk])
         relation = primary_relation()
         assert relation.entry is None and relation.public_document is not None
@@ -370,7 +371,9 @@ class TestLifecycle:
         assert OpinionDocumentBlob.objects.count() == blob_count  # same SHA reused
         relation = primary_relation()
         assert relation.entry is not None and relation.public_document is not None
-        assert OpinionResource.objects.get(matter__decisions__legal_item=item) == resource
+        assert (
+            OpinionResource.objects.distinct().get(matter__decisions__legal_item=item) == resource
+        )
         assert (
             LegalOpinionDocumentRelation.objects.filter(
                 decision__snapshot__is_current=True, is_primary=True
