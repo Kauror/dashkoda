@@ -44,11 +44,13 @@ from .text_normalisation import (
 )
 
 # 1.2: the candidate universe may now span two sources. A candidate is one
-# *blob* — the same letter filed privately and published publicly is one
-# candidate carrying both provenances, never two competitors — and a public
-# page's own publication date joins the document's dates as date evidence.
-# Weights and thresholds are deliberately unchanged from 1.1: the enlarged
-# corpus is measured against the same calibration before any retuning.
+# *letter* — the same document filed privately and published publicly is one
+# candidate carrying both provenances, never two competitors, whether the two
+# sources hold identical bytes or byte-distinct files with identical extracted
+# text (Koda.ee republishes letters as re-exports). A public page's own
+# publication date joins the document's dates as date evidence. Weights and
+# thresholds are deliberately unchanged from 1.1: the enlarged corpus is
+# measured against the same calibration before any retuning.
 MATCHER_VERSION = f"opinion-1.2-norm{NORMALISER_VERSION}-extract{EXTRACTOR_VERSION}"
 
 # --------------------------------------------------------------------------

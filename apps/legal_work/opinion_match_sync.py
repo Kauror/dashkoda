@@ -202,17 +202,28 @@ def _candidates(
     catalogue: OpinionCatalogueSnapshot,
     public_corpus: PublicOpinionSnapshot | None,
 ) -> list[Candidate]:
-    """Every document the matcher may consider, one candidate per blob.
+    """Every document the matcher may consider, one candidate per letter.
 
     Private entries build the candidate exactly as 1.1 did. A public document
-    then either **joins** an existing candidate — same blob, so the letter
-    gains public provenance and a page date without becoming a competitor —
-    or **creates** one, which is how a public-only letter enters matching.
-    Where both sources describe the same blob, the private description wins
-    every per-field tie: a filename a person typed outranks one derived from
-    an upload URL.
+    then either **joins** an existing candidate or **creates** one, which is
+    how a public-only letter enters matching. Where both sources describe the
+    same letter, the private description wins every per-field tie: a filename
+    a person typed outranks one derived from an upload URL.
+
+    A public document joins a private candidate on either of two identities:
+
+    - **the same bytes** — one blob, trivially the same document;
+    - **the same extracted text** — Koda.ee routinely publishes the letter as
+      a different file (a re-export of the same correspondence), and the
+      rehearsal against production data measured what treating those as
+      competitors does: twenty-nine letters tied their own re-publication at
+      a margin of zero and every one demoted to ambiguous. Identical
+      normalised text is the strong equivalence evidence the project demands
+      before two byte-distinct files may be called one document; anything
+      weaker — a similar title, a near date — keeps them distinct.
     """
     merged: dict[int, Candidate] = {}
+    private_by_text: dict[str, int] = {}
 
     rows = (
         OpinionCatalogueEntry.objects.filter(
@@ -238,6 +249,8 @@ def _candidates(
             first_page_text=row.extraction.first_page_text,
             is_readable=True,
         )
+        if row.extraction.text_sha256:
+            private_by_text.setdefault(row.extraction.text_sha256, row.blob_id)
 
     if public_corpus is None:
         return list(merged.values())
@@ -253,13 +266,17 @@ def _candidates(
         .select_related("blob", "extraction", "page")
     )
     for row in public_rows:
-        existing = merged.get(row.blob_id)
+        twin_blob_id = row.blob_id
+        if twin_blob_id not in merged and row.extraction.text_sha256:
+            twin_blob_id = private_by_text.get(row.extraction.text_sha256, row.blob_id)
+        existing = merged.get(twin_blob_id)
         if existing is not None:
-            merged[row.blob_id] = replace(
-                existing,
-                public_document_id=row.pk,
-                page_published_date=row.page.published_date,
-            )
+            if existing.public_document_id is None:
+                merged[twin_blob_id] = replace(
+                    existing,
+                    public_document_id=row.pk,
+                    page_published_date=row.page.published_date,
+                )
             continue
         merged[row.blob_id] = Candidate(
             blob_id=row.blob_id,

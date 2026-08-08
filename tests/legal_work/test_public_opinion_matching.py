@@ -142,6 +142,49 @@ class TestIdenticalPrivateAndPublicBytes:
         assert response.status_code == 200
 
 
+class TestTextIdenticalTwin:
+    """The same letter as a different file: one candidate, never a competitor.
+
+    Koda.ee republishes letters as re-exports — different bytes, identical
+    extracted text. The production rehearsal measured the alternative:
+    twenty-nine letters tied their own re-publication at margin zero and
+    every one demoted to ambiguous.
+    """
+
+    @pytest.fixture
+    def world(self, opinion_roots, opinion_source, imported_snapshot, patch_public_site):
+        source, _store = opinion_roots
+        item = sent_item(imported_snapshot)
+        payload = opinion_pdf(subject=SUBJECT, our_date="10.03.2026")
+        # Same document, re-exported: bytes differ, text does not.
+        twin = payload + b"\n%% koda.ee re-export\n"
+        publish_catalogue(source, [(PDF_NAME, payload), UNRELATED])
+        patch_public_site(public_site(pdf_payload=twin))
+        synchronize_public_opinions(full=True)
+        report = run_opinion_matching()
+        return item, report
+
+    def test_two_blobs_exist_but_one_candidate_matches(self, world):
+        item, report = world
+        assert OpinionDocumentBlob.objects.filter(public_documents__isnull=False).count() == 1
+        assert report.matched == 1
+
+    def test_the_relation_carries_both_provenances_and_the_private_bytes(self, world):
+        relation = primary_relation()
+        assert relation.entry is not None
+        assert relation.public_document is not None
+        assert relation.blob_id == relation.entry.blob_id
+        # The text-equivalent re-publication is provenance for the letter,
+        # visibly a different file: the ids disagree on purpose.
+        assert relation.public_document.blob_id != relation.blob_id
+
+    def test_the_margin_is_not_split_by_the_twin(self, world):
+        item, _report = world
+        decision = LegalOpinionDecision.objects.get(snapshot__is_current=True, legal_item=item)
+        assert decision.decision == MatchDecision.MATCHED
+        assert decision.score_margin >= 12
+
+
 class TestPublicOnlyDocument:
     """Phase 25: a letter Koda.ee published and the private folder never got."""
 
