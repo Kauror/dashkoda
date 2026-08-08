@@ -242,6 +242,57 @@ CHAIN: tuple[Job, ...] = (
             "Never a topic, a filename, a recipient, a subject, document text or a path."
         ],
     ),
+    Job(
+        name="discover_koda_event_pages",
+        purpose="DashKoda discovery of public Koda.ee event pages.",
+        command="discover_koda_event_pages --json",
+        tallinn="06:40",
+        ordering=(
+            "After the legal chain, and before the matcher below it. A different job\n"
+            "from `sync_koda_public --source events`: that publishes the upcoming\n"
+            "calendar, while this accumulates the addresses of pages for events that\n"
+            "have already happened."
+        ),
+        exit_codes=[
+            "0  discovered, or a successful dry run",
+            "1  the sitemap could not be read; the catalogue is exactly as it was",
+            "3  another discovery run was still going",
+        ],
+        notes=[
+            "The ordinary run reads only pages it has never seen plus those outside the\n"
+            "recheck window, which on a settled catalogue is a handful of requests. The\n"
+            "initial backfill is `--full --max-detail-pages N`, run by hand once.",
+            "Nothing is ever deleted. A page that 404s, or that a run simply did not\n"
+            "reach, keeps its row — one bad fetch must not remove a working link.",
+            "A run that hit its budget or failed a fetch reports `is_complete: false`\n"
+            "with a warning code, so a partial crawl never passes as complete history.",
+        ],
+    ),
+    Job(
+        name="match_public_event_links",
+        purpose="DashKoda matching of programme events against public Koda.ee pages.",
+        command="match_public_event_links --json",
+        tallinn="06:50",
+        ordering=(
+            "Ten minutes after discovery, so it scores against pages found this\n"
+            "morning. Still before 07:00, so everything a reader sees is published."
+        ),
+        exit_codes=[
+            "0  a new match snapshot was published, or a successful dry run",
+            "1  matching failed, or no current programme snapshot exists; the",
+            "   previous match snapshot is still published",
+            "3  the lock was already held, so a previous run is still in progress",
+        ],
+        notes=[
+            "Local and cheap: no network access, just arithmetic over rows already in\n"
+            "the database. Safe to re-run at any time.",
+            "It changes no programme field. The event-programme workbook remains the\n"
+            "authority on an event's name, date, type, delivery mode, tag, service code\n"
+            "and inclusion status; this only records which public page it points at.",
+            "The JSON is counts, a snapshot id and the matcher version. Never an event\n"
+            "name, a page title or a URL.",
+        ],
+    ),
 )
 
 TEMPLATE = """#!/bin/bash
@@ -361,7 +412,9 @@ def write_all() -> list[pathlib.Path]:
     written = []
     for job in CHAIN:
         path = HERE / f"{job.name}.sh.example"
-        path.write_text(render(job), encoding="utf-8")
+        # LF explicitly. Without it a regeneration on Windows rewrites every
+        # wrapper with CRLF and eleven files show up as changed when nothing is.
+        path.write_text(render(job), encoding="utf-8", newline=chr(10))
         written.append(path)
     return written
 
