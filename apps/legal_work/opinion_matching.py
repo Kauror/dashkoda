@@ -43,7 +43,13 @@ from .text_normalisation import (
     significant_tokens,
 )
 
-MATCHER_VERSION = f"opinion-1.1-norm{NORMALISER_VERSION}-extract{EXTRACTOR_VERSION}"
+# 1.2: the candidate universe may now span two sources. A candidate is one
+# *blob* — the same letter filed privately and published publicly is one
+# candidate carrying both provenances, never two competitors — and a public
+# page's own publication date joins the document's dates as date evidence.
+# Weights and thresholds are deliberately unchanged from 1.1: the enlarged
+# corpus is measured against the same calibration before any retuning.
+MATCHER_VERSION = f"opinion-1.2-norm{NORMALISER_VERSION}-extract{EXTRACTOR_VERSION}"
 
 # --------------------------------------------------------------------------
 # Dates
@@ -108,9 +114,19 @@ CONTRADICTION_COMPETING_CLAIM = "competing-primary-claim"
 
 @dataclass(frozen=True)
 class Candidate:
-    """One catalogue entry, reduced to what the matcher weighs."""
+    """One logical opinion document, reduced to what the matcher weighs.
 
-    entry_id: int
+    Identified by its **blob**: bytes are the document, and where they were
+    found is provenance. `entry_id` and `public_document_id` say which sources
+    supplied this candidate — either may be absent, never both. Scoring reads
+    the evidence fields and does not ask where they came from; the one
+    provenance-shaped field is `page_published_date`, which only a public
+    source can supply and which joins the document's own dates as date
+    evidence because Koda.ee publishes an opinion article within days of the
+    letter being sent.
+    """
+
+    blob_id: int
     classification: str
     filename_date: dt.date | None
     detected_date: dt.date | None
@@ -120,6 +136,13 @@ class Candidate:
     text: str
     first_page_text: str
     is_readable: bool
+    entry_id: int | None = None
+    public_document_id: int | None = None
+    extraction_id: int | None = None
+    page_published_date: dt.date | None = None
+    # Set only on the synthetic candidates the article-only page pass builds;
+    # a real document candidate never carries one.
+    page_id: int | None = None
 
 
 @dataclass
@@ -150,13 +173,19 @@ class Scored:
 def date_agreement(sent: dt.date, candidate: Candidate) -> tuple[float, int | None, str | None]:
     """How well the document's dates agree with the workbook's sent date.
 
-    Uses whichever of the two document dates is closer. They routinely differ by
-    a day, and insisting on one of them would be a coin toss about which the
-    Chamber happened to record.
+    Uses whichever available date is closest. The filename date and the
+    letter's own date routinely differ by a day, and insisting on one of them
+    would be a coin toss about which the Chamber happened to record; the
+    public article's publication date, when there is one, trails the sending
+    by a few days and earns the same treatment.
     """
     gaps = [
         abs((value - sent).days)
-        for value in (candidate.filename_date, candidate.detected_date)
+        for value in (
+            candidate.filename_date,
+            candidate.detected_date,
+            candidate.page_published_date,
+        )
         if value is not None
     ]
     if not gaps:

@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import logging
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from decimal import Decimal
 
 from django.db import transaction
@@ -40,10 +40,13 @@ from .opinion_match_models import (
     LegalOpinionDecision,
     LegalOpinionDocumentRelation,
     LegalOpinionMatchSnapshot,
+    LegalOpinionPageRelation,
     OpinionResource,
 )
 from .opinion_matching import (
     CONTRADICTION_COMPETING_CLAIM,
+    EVIDENCE_DATE_EXACT,
+    EVIDENCE_DATE_NEAR,
     MATCHER_VERSION,
     MIN_MARGIN,
     THRESHOLD_AMBIGUOUS,
@@ -55,6 +58,7 @@ from .opinion_matching import (
 )
 from .opinion_models import OpinionCatalogueEntry, OpinionCatalogueSnapshot
 from .opinion_pdf import ExtractionStatus, ValidationStatus
+from .public_opinion_models import PublicOpinionDocument, PublicOpinionSnapshot
 
 logger = logging.getLogger("dashkoda.legal_work.opinion_match_sync")
 
@@ -92,6 +96,7 @@ class MatchReport:
     unmatched: int = 0
     primary_relations: int = 0
     secondary_relations: int = 0
+    page_relations: int = 0
     identity_collisions: int = 0
     matcher_version: str = MATCHER_VERSION
 
@@ -106,6 +111,7 @@ class MatchReport:
             "unmatched": self.unmatched,
             "primary_relations": self.primary_relations,
             "secondary_relations": self.secondary_relations,
+            "page_relations": self.page_relations,
             "identity_collisions": self.identity_collisions,
             "matcher_version": self.matcher_version,
         }
@@ -133,11 +139,17 @@ class _Preview:
 
 
 def run_opinion_matching(*, dry_run: bool = False, actor=None) -> MatchReport:
-    """Match one legal snapshot against one opinion catalogue."""
+    """Match one legal snapshot against the available opinion sources.
+
+    The private catalogue is required, exactly as before. The public corpus
+    joins when one is published and its absence changes nothing: matching a
+    deployment that has never crawled Koda.ee is the 1.1 behaviour.
+    """
     correlation_id = uuid.uuid4()
 
     legal_snapshot = LegalWorkSnapshot.objects.filter(is_current=True).first()
     catalogue = OpinionCatalogueSnapshot.objects.filter(is_current=True).first()
+    public_corpus = PublicOpinionSnapshot.objects.filter(is_current=True).first()
     if legal_snapshot is None or catalogue is None:
         return MatchReport(
             result=RESULT_SKIPPED,
@@ -150,6 +162,7 @@ def run_opinion_matching(*, dry_run: bool = False, actor=None) -> MatchReport:
         published is not None
         and published.legal_snapshot_id == legal_snapshot.pk
         and published.opinion_catalogue_snapshot_id == catalogue.pk
+        and published.public_opinion_snapshot_id == (public_corpus.pk if public_corpus else None)
         and published.matcher_version == MATCHER_VERSION
     ):
         return MatchReport(
@@ -167,6 +180,7 @@ def run_opinion_matching(*, dry_run: bool = False, actor=None) -> MatchReport:
         return _generate(
             legal_snapshot=legal_snapshot,
             catalogue=catalogue,
+            public_corpus=public_corpus,
             dry_run=dry_run,
             correlation_id=correlation_id,
             actor=actor,
@@ -184,8 +198,22 @@ def run_opinion_matching(*, dry_run: bool = False, actor=None) -> MatchReport:
         return MatchReport(result=RESULT_FAILED, detail=message, dry_run=dry_run)
 
 
-def _candidates(catalogue: OpinionCatalogueSnapshot) -> list[Candidate]:
-    """Every entry the matcher may consider, reduced to what it weighs."""
+def _candidates(
+    catalogue: OpinionCatalogueSnapshot,
+    public_corpus: PublicOpinionSnapshot | None,
+) -> list[Candidate]:
+    """Every document the matcher may consider, one candidate per blob.
+
+    Private entries build the candidate exactly as 1.1 did. A public document
+    then either **joins** an existing candidate — same blob, so the letter
+    gains public provenance and a page date without becoming a competitor —
+    or **creates** one, which is how a public-only letter enters matching.
+    Where both sources describe the same blob, the private description wins
+    every per-field tie: a filename a person typed outranks one derived from
+    an upload URL.
+    """
+    merged: dict[int, Candidate] = {}
+
     rows = (
         OpinionCatalogueEntry.objects.filter(
             snapshot=catalogue,
@@ -195,9 +223,11 @@ def _candidates(catalogue: OpinionCatalogueSnapshot) -> list[Candidate]:
         .exclude(extraction__isnull=True)
         .select_related("blob", "extraction")
     )
-    return [
-        Candidate(
+    for row in rows:
+        merged[row.blob_id] = Candidate(
+            blob_id=row.blob_id,
             entry_id=row.pk,
+            extraction_id=row.extraction_id,
             classification=row.classification,
             filename_date=row.filename_date,
             detected_date=row.extraction.detected_date,
@@ -208,8 +238,46 @@ def _candidates(catalogue: OpinionCatalogueSnapshot) -> list[Candidate]:
             first_page_text=row.extraction.first_page_text,
             is_readable=True,
         )
-        for row in rows
-    ]
+
+    if public_corpus is None:
+        return list(merged.values())
+
+    public_rows = (
+        PublicOpinionDocument.objects.filter(
+            snapshot=public_corpus,
+            is_present=True,
+            blob__validation_status=ValidationStatus.VALID,
+            extraction__status=ExtractionStatus.EXTRACTED,
+        )
+        .exclude(extraction__isnull=True)
+        .select_related("blob", "extraction", "page")
+    )
+    for row in public_rows:
+        existing = merged.get(row.blob_id)
+        if existing is not None:
+            merged[row.blob_id] = replace(
+                existing,
+                public_document_id=row.pk,
+                page_published_date=row.page.published_date,
+            )
+            continue
+        merged[row.blob_id] = Candidate(
+            blob_id=row.blob_id,
+            public_document_id=row.pk,
+            extraction_id=row.extraction_id,
+            classification=row.classification,
+            filename_date=row.filename_date,
+            detected_date=row.extraction.detected_date,
+            filename_subject=row.filename_subject or row.page.title,
+            detected_subject=row.extraction.detected_subject,
+            recipient=row.filename_recipient or row.extraction.detected_recipient,
+            text=row.extraction.text,
+            first_page_text=row.extraction.first_page_text,
+            is_readable=True,
+            page_published_date=row.page.published_date,
+        )
+
+    return list(merged.values())
 
 
 def _ensure_matters(items: list[LegalWorkItem], snapshot: LegalWorkSnapshot) -> tuple[dict, int]:
@@ -306,10 +374,13 @@ def _preview_identity(items) -> tuple[dict[int, str], set[str], int]:
     return keys_by_item, collisions | already_flagged, len(collisions)
 
 
-def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> MatchReport:
+def _generate(
+    *, legal_snapshot, catalogue, public_corpus, dry_run, correlation_id, actor
+) -> MatchReport:
     items = list(opinion_eligible_items(LegalWorkItem.objects.filter(snapshot=legal_snapshot)))
-    candidates = _candidates(catalogue)
+    candidates = _candidates(catalogue, public_corpus)
     rarity = build_rarity([f"{c.filename_subject} {c.detected_subject}" for c in candidates])
+    page_candidates = _page_candidates(public_corpus)
 
     report = MatchReport(result=RESULT_GENERATED, dry_run=dry_run, considered_records=len(items))
 
@@ -355,6 +426,9 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
         for _index, _primary, secondaries in _planned_relations(preview, preview_plan):
             report.primary_relations += 1
             report.secondary_relations += len(secondaries)
+        report.page_relations = sum(
+            len(pages) for pages in _planned_page_relations(preview, page_candidates).values()
+        )
 
         report.detail = (
             f"Proovikäivitus: {len(items)} kirjet, {report.matched} seotud, "
@@ -370,6 +444,7 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
         snapshot = LegalOpinionMatchSnapshot(
             legal_snapshot=legal_snapshot,
             opinion_catalogue_snapshot=catalogue,
+            public_opinion_snapshot=public_corpus,
             matcher_version=MATCHER_VERSION,
             considered_item_count=len(items),
             is_current=False,
@@ -423,28 +498,24 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
         relations: list[LegalOpinionDocumentRelation] = []
         for index, primary, secondaries in _planned_relations(decisions, relation_plan):
             decision = decisions[index]
-            relations.append(
-                LegalOpinionDocumentRelation(
-                    decision=decision,
-                    entry_id=primary.candidate.entry_id,
-                    role=DocumentRole.PRIMARY,
-                    is_primary=True,
-                    score=primary.score,
-                    evidence_codes=sorted(primary.evidence),
-                )
-            )
+            relations.append(_relation(decision, primary, DocumentRole.PRIMARY, primary=True))
             for secondary, role in secondaries:
-                relations.append(
-                    LegalOpinionDocumentRelation(
-                        decision=decision,
-                        entry_id=secondary.candidate.entry_id,
-                        role=role,
-                        is_primary=False,
-                        score=secondary.score,
-                        evidence_codes=sorted(secondary.evidence),
+                relations.append(_relation(decision, secondary, role, primary=False))
+        LegalOpinionDocumentRelation.objects.bulk_create(relations, batch_size=200)
+
+        page_relations: list[LegalOpinionPageRelation] = []
+        for index, pages in _planned_page_relations(decisions, page_candidates).items():
+            for scored_page in pages:
+                page_relations.append(
+                    LegalOpinionPageRelation(
+                        decision=decisions[index],
+                        page_id=scored_page.candidate.page_id,
+                        score=scored_page.score,
+                        evidence_codes=sorted(scored_page.evidence),
                     )
                 )
-        LegalOpinionDocumentRelation.objects.bulk_create(relations, batch_size=200)
+        LegalOpinionPageRelation.objects.bulk_create(page_relations, batch_size=200)
+        report.page_relations = len(page_relations)
 
         snapshot_updates = LegalOpinionMatchSnapshot.objects.filter(pk=snapshot.pk)
         snapshot_updates.update(
@@ -469,10 +540,12 @@ def _generate(*, legal_snapshot, catalogue, dry_run, correlation_id, actor) -> M
                 "snapshot_id": snapshot.pk,
                 "legal_snapshot_id": legal_snapshot.pk,
                 "catalogue_snapshot_id": catalogue.pk,
+                "public_opinion_snapshot_id": public_corpus.pk if public_corpus else None,
                 "considered": len(items),
                 "matched": report.matched,
                 "ambiguous": report.ambiguous,
                 "unmatched": report.unmatched,
+                "page_relations": report.page_relations,
                 "identity_collisions": collisions,
                 "matcher_version": MATCHER_VERSION,
             },
@@ -495,7 +568,7 @@ def _resolve_competing_primaries(decisions, relation_plan, report) -> None:
     for index, scored_list in relation_plan:
         if decisions[index].decision != MatchDecision.MATCHED or not scored_list:
             continue
-        claims.setdefault(scored_list[0].candidate.entry_id, []).append(index)
+        claims.setdefault(scored_list[0].candidate.blob_id, []).append(index)
 
     for indexes in claims.values():
         if len(indexes) < 2:
@@ -518,6 +591,115 @@ def _resolve_competing_primaries(decisions, relation_plan, report) -> None:
             relation_plan[index] = (relation_plan[index][0], [])
             report.matched -= 1
             report.ambiguous += 1
+
+
+def _relation(decision, scored, role, *, primary: bool) -> LegalOpinionDocumentRelation:
+    """One relation row: the document identity plus every provenance it has."""
+    candidate = scored.candidate
+    return LegalOpinionDocumentRelation(
+        decision=decision,
+        blob_id=candidate.blob_id,
+        extraction_id=candidate.extraction_id,
+        entry_id=candidate.entry_id,
+        public_document_id=candidate.public_document_id,
+        role=role,
+        is_primary=primary,
+        score=scored.score,
+        evidence_codes=sorted(scored.evidence),
+    )
+
+
+def _page_candidates(public_corpus) -> list[Candidate]:
+    """Article-only public pages, shaped for the shared scorer.
+
+    Only pages with no attachment rows at all qualify: a page whose PDF failed
+    to download is document provenance awaiting a retry, not an article-only
+    confirmation. The page's title stands where a filename subject would and
+    its publication date is the only date evidence — which is exactly why the
+    confidence bar below insists on date agreement.
+    """
+    if public_corpus is None:
+        return []
+    pages = public_corpus.pages.filter(is_present=True, documents__isnull=True).exclude(
+        body_text=""
+    )
+    return [
+        Candidate(
+            blob_id=-page.pk,
+            page_id=page.pk,
+            classification=DocumentClassification.OPINION,
+            filename_date=None,
+            detected_date=None,
+            filename_subject=page.title,
+            detected_subject="",
+            recipient="",
+            text=page.body_text,
+            first_page_text=page.body_text[:2000],
+            is_readable=True,
+            page_published_date=page.published_date,
+        )
+        for page in pages
+    ]
+
+
+def _planned_page_relations(decisions, page_candidates) -> dict[int, list]:
+    """Confident article-only page evidence for records no document answered.
+
+    Held to the *document* match bar plus one extra condition: the page's
+    publication date must actually agree with the sent date. An article names
+    a bill the way a hundred articles name bills; without date agreement the
+    subject overlap alone is exactly the plausible-wrong-link this project
+    refuses. A page claimed confidently by two records goes to the one with
+    the stronger date agreement, and a tie attaches it to neither.
+    """
+    if not page_candidates:
+        return {}
+    rarity = build_rarity([candidate.filename_subject for candidate in page_candidates])
+
+    claims: dict[int, list[tuple[int, object]]] = {}
+    for index, decision in enumerate(decisions):
+        if decision.decision == MatchDecision.MATCHED:
+            continue
+        item = decision.legal_item
+        scored = [
+            score_candidate(
+                topic=item.topic,
+                sent_date=item.sent_date,
+                received_date=item.received_date,
+                recipient=item.recipient,
+                candidate=candidate,
+                rarity=rarity,
+            )
+            for candidate in page_candidates
+        ]
+        usable = sorted((s for s in scored if not s.blocked), key=lambda s: s.score, reverse=True)
+        if not usable:
+            continue
+        best = usable[0]
+        runner_up = usable[1].score if len(usable) > 1 else Decimal("0.00")
+        if best.score < THRESHOLD_MATCH or best.score - runner_up < MIN_MARGIN:
+            continue
+        if EVIDENCE_DATE_EXACT not in best.evidence and EVIDENCE_DATE_NEAR not in best.evidence:
+            continue
+        claims.setdefault(best.candidate.page_id, []).append((index, best))
+
+    results: dict[int, list] = {}
+    for claimants in claims.values():
+        if len(claimants) == 1:
+            index, best = claimants[0]
+            results.setdefault(index, []).append(best)
+            continue
+
+        def strength(pair):
+            index, best = pair
+            gap = date_agreement(decisions[index].legal_item.sent_date, best.candidate)[1]
+            return (-(gap if gap is not None else 10**6), best.score)
+
+        ranked = sorted(claimants, key=strength, reverse=True)
+        if strength(ranked[0]) != strength(ranked[1]):
+            index, best = ranked[0]
+            results.setdefault(index, []).append(best)
+    return results
 
 
 def _decide(item, candidates, rarity):

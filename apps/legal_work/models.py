@@ -729,6 +729,7 @@ from .opinion_match_models import (  # noqa: E402,F401  (placement is deliberate
     LegalOpinionDecision,
     LegalOpinionDocumentRelation,
     LegalOpinionMatchSnapshot,
+    LegalOpinionPageRelation,
     OpinionResource,
 )
 from .opinion_models import (  # noqa: E402,F401  (placement is deliberate)
@@ -740,4 +741,14 @@ from .opinion_models import (  # noqa: E402,F401  (placement is deliberate)
     OpinionDocumentBlob,
     OpinionDocumentExtraction,
     SourceProvider,
+)
+
+# The public Koda.ee opinion corpus: the second opinion source.
+from .public_opinion_models import (  # noqa: E402,F401  (placement is deliberate)
+    PublicFetchState,
+    PublicOpinionDocument,
+    PublicOpinionFeedState,
+    PublicOpinionPage,
+    PublicOpinionSnapshot,
+    PublicPageType,
 )

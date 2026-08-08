@@ -24,6 +24,7 @@ from .opinion_match_models import (
     LegalOpinionDecision,
     LegalOpinionDocumentRelation,
     LegalOpinionMatchSnapshot,
+    LegalOpinionPageRelation,
     OpinionResource,
 )
 
@@ -160,12 +161,61 @@ class LegalOpinionDecisionAdmin(ReadOnlyAdmin):
         return obj.snapshot.matcher_version
 
 
+class RelationProvenanceFilter(admin.SimpleListFilter):
+    """The review split staff actually need: which source supplied a link."""
+
+    title = "Päritolu"
+    parameter_name = "provenance"
+
+    def lookups(self, request, model_admin):
+        return [
+            ("private_only", "Ainult privaatne"),
+            ("public_only", "Ainult avalik"),
+            ("both", "Privaatne ja avalik"),
+        ]
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == "private_only":
+            return queryset.filter(entry__isnull=False, public_document__isnull=True)
+        if value == "public_only":
+            return queryset.filter(entry__isnull=True, public_document__isnull=False)
+        if value == "both":
+            return queryset.filter(entry__isnull=False, public_document__isnull=False)
+        return queryset
+
+
 @admin.register(LegalOpinionDocumentRelation)
 class LegalOpinionDocumentRelationAdmin(ReadOnlyAdmin):
-    list_display = ("decision", "document", "role", "is_primary", "score")
-    list_filter = ("role", "is_primary")
-    list_select_related = ("decision", "entry", "entry__blob")
+    list_display = ("decision", "document", "role", "is_primary", "provenance", "score")
+    list_filter = ("role", "is_primary", RelationProvenanceFilter)
+    list_select_related = ("decision", "blob", "entry", "public_document")
 
-    @admin.display(description="Dokument", ordering="entry__display_filename")
+    @admin.display(description="Dokument")
     def document(self, obj):
-        return obj.entry.display_filename
+        return obj.display_filename
+
+    @admin.display(description="Päritolu")
+    def provenance(self, obj):
+        if obj.entry_id and obj.public_document_id:
+            return "privaatne + avalik"
+        if obj.public_document_id:
+            return "avalik"
+        return "privaatne"
+
+
+@admin.register(LegalOpinionPageRelation)
+class LegalOpinionPageRelationAdmin(ReadOnlyAdmin):
+    """Article-only confirmations, for the review these links require."""
+
+    list_display = ("decision", "page_title", "score", "evidence")
+    list_select_related = ("decision", "page")
+    ordering = ("-score",)
+
+    @admin.display(description="Leht", ordering="page__title")
+    def page_title(self, obj):
+        return obj.page.title
+
+    @admin.display(description="Tõendid")
+    def evidence(self, obj):
+        return ", ".join(obj.evidence_codes or []) or "—"
