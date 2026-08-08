@@ -448,20 +448,28 @@ def test_fee_collection_sits_with_the_counts_it_was_read_beside(viewer, imported
     assert "€" in card
 
 
-def test_the_trend_offers_only_the_windows_this_history_can_fill(viewer, imported_internal_history):
-    """The synthetic package spans a year and five days.
+def test_the_trend_control_is_two_date_fields_bounded_by_the_history(
+    viewer, imported_internal_history
+):
+    """The synthetic package spans 10.01.2024 – 15.01.2025.
 
-    Six and twelve months sit inside that; two years is the first window that
-    covers all of it and is offered for exactly that reason. Three years would
-    draw the identical line under a different name, which reads as a button that
-    did nothing.
+    The fields advertise that span with `min`/`max`, so the browser's picker
+    greys out dates no report covers, and they open on the default window: the
+    last six months, counted back from the newest observation rather than from
+    today. The retired fixed-window buttons are gone — they are the control
+    that changed shape under the reader's pointer.
     """
     card = section(viewer.get(reverse("home")), "section-membership")
 
-    assert "6 kuud" in card
-    assert "12 kuud" in card
-    assert "2 aastat" in card
-    assert "3 aastat" not in card
+    assert 'type="date"' in card
+    assert 'name="alates"' in card
+    assert 'name="kuni"' in card
+    assert card.count('min="2024-01-10"') == 2
+    assert card.count('max="2025-01-15"') == 2
+    assert 'value="2024-07-15"' in card
+    assert 'value="2025-01-15"' in card
+    assert 'name="vahemik"' not in card
+    assert "dk-badge dk-badge-brand" not in card
 
 
 def test_a_narrower_window_draws_less_without_moving_the_latest_figures(
@@ -473,26 +481,46 @@ def test_a_narrower_window_draws_less_without_moving_the_latest_figures(
     be answering a question nobody put: the three figures above the chart are
     the most recent report either way.
     """
-    wide = section(viewer.get(reverse("home"), {"vahemik": "24"}), "section-membership")
-    narrow = section(viewer.get(reverse("home"), {"vahemik": "6"}), "section-membership")
+    wide = section(
+        viewer.get(reverse("home"), {"alates": "2024-01-01", "kuni": "2025-01-15"}),
+        "section-membership",
+    )
+    narrow = section(
+        viewer.get(reverse("home"), {"alates": "2024-07-15", "kuni": "2025-01-15"}),
+        "section-membership",
+    )
 
     # Two observations a year apart: the wide window draws both, and the short
     # one is left with a single point, which is not a trend and is not drawn.
     assert wide.count("<rect") == 2
     assert "Trendi kuvamiseks on vaja vähemalt kahte vaatlust." in narrow
     assert "<rect" not in narrow
+    # The asked-for start predates the history, so the field shows the clamped
+    # window that was actually drawn, not the raw input.
+    assert 'value="2024-01-10"' in wide
     # Both still state the same report, on the same date.
     assert "15.01.25" in wide
     assert "15.01.25" in narrow
 
 
+def test_a_bookmarked_legacy_range_key_still_means_what_it_meant(viewer, imported_internal_history):
+    """`?vahemik=24` predates the date fields and still draws its two years."""
+    card = section(viewer.get(reverse("home"), {"vahemik": "24"}), "section-membership")
+
+    assert card.count("<rect") == 2
+    # Two years back from 15.01.2025 reaches past the oldest observation, so
+    # the window folds to where the history starts.
+    assert 'value="2024-01-10"' in card
+
+
 def test_an_unknown_range_renders_the_default_rather_than_failing(
     viewer, imported_internal_history
 ):
-    response = viewer.get(reverse("home"), {"vahemik": "'; DROP TABLE"})
+    for hostile in ({"vahemik": "'; DROP TABLE"}, {"alates": "'; DROP TABLE", "kuni": "täna"}):
+        response = viewer.get(reverse("home"), hostile)
 
-    assert response.status_code == 200
-    assert "DROP TABLE" not in body(response)
+        assert response.status_code == 200
+        assert "DROP TABLE" not in body(response)
 
 
 # -- feeds --------------------------------------------------------------

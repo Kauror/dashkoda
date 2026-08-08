@@ -40,9 +40,14 @@ from .internal_selectors import (
     get_monthly_new_members,
     get_removal_reasons,
 )
-from .ranges import PAGE_CHOICES, PAGE_DEFAULT, QUERY_PARAM
-from .ranges import available as available_ranges
-from .ranges import resolve as resolve_range
+from .ranges import (
+    LEGACY_PARAM,
+    PAGE_DEFAULT_MONTHS,
+    PARAM_FROM,
+    PARAM_TO,
+    offers_choice,
+    resolve_window,
+)
 from .selectors import get_membership_summary
 
 
@@ -52,29 +57,31 @@ def membership_overview(request):
     latest = get_internal_membership_latest()
     quality = get_internal_membership_quality_summary()
 
-    # The offered windows come from `ranges.py`, which the overview card also
-    # reads, so the two pages describe the same window with the same words. A
-    # window the history cannot fill is not offered, and an unrecognised key
-    # falls back to the default rather than raising — the control cannot be used
-    # to ask for an unbounded or arbitrary query.
-    offered_ranges = available_ranges(
-        PAGE_CHOICES,
+    # The window comes from `ranges.py`, which the overview card also reads, so
+    # the two pages describe the same window with the same words. Whatever the
+    # query string says is folded back inside the observation span, and
+    # anything unreadable — a malformed date, a stale `?vahemik=` bookmark —
+    # falls back to the default rather than raising, so the control cannot be
+    # used to ask for an unbounded or arbitrary query.
+    window = resolve_window(
+        request.GET.get(PARAM_FROM),
+        request.GET.get(PARAM_TO),
         earliest=quality.earliest_observation_date,
         latest=quality.latest_observation_date,
-    )
-    trend_range = resolve_range(
-        request.GET.get(QUERY_PARAM), available=offered_ranges, default=PAGE_DEFAULT
+        legacy_key=request.GET.get(LEGACY_PARAM),
+        default_months=PAGE_DEFAULT_MONTHS,
     )
 
     trend = get_internal_membership_trend(
-        date_from=trend_range.start_from(quality.latest_observation_date)
+        date_from=window.start if window else None,
+        date_to=window.end if window else None,
     )
 
     charts = []
     if trend.has_data:
         charts.append(total_and_paid_chart(trend))
 
-        fee_rows = get_fee_collection_trend(date_from=trend.date_from)
+        fee_rows = get_fee_collection_trend(date_from=trend.date_from, date_to=trend.date_to)
         if fee_rows:
             charts.append(fee_collection_chart(fee_rows))
 
@@ -108,11 +115,15 @@ def membership_overview(request):
             # Charts are only built when they have something to draw, so the
             # template renders no empty figures.
             "charts": charts,
-            "trend_range": trend_range,
-            "trend_ranges": offered_ranges,
-            # One button is not a choice: a history too short to fill a second
-            # window renders no control rather than one that changes nothing.
-            "has_range_choice": len(offered_ranges) > 1,
+            "trend_window": window,
+            "trend_earliest": quality.earliest_observation_date,
+            "trend_latest": quality.latest_observation_date,
+            # A history of one date has one drawable window: two fields that
+            # cannot change anything render no control rather than a broken one.
+            "has_range_choice": offers_choice(
+                earliest=quality.earliest_observation_date,
+                latest=quality.latest_observation_date,
+            ),
         },
     )
 

@@ -5,23 +5,25 @@ and before this module existed they had no vocabulary in common: the card drew a
 fixed 365 days it never named, and the page offered "Viimased 5 aastat" against
 "Kogu ajalugu". Two controls, two sets of words, one dataset.
 
-The choices, their labels, the query parameter, the validation and the rule for
-which windows may be offered all live here. A page decides two things only:
-which subset of the choices it shows, and which one it opens on.
+The control is a pair of plain date fields — `alates` and `kuni` — submitted by
+an ordinary GET form. It used to be a row of fixed-window buttons submitting
+`?vahemik=`; those keys are still honoured so a stale bookmark keeps meaning
+what it meant, but they are a spelling of a window, not the vocabulary. The
+vocabulary is two dates.
 
 Three rules make a window honest, and none of them belongs in a view:
 
-- **the window is measured from the newest observation, not from today.** The
-  board report arrives when it arrives; anchoring to today would let a report
-  four days late shorten every window by four days and silently drop its oldest
-  point;
-- **a window the history cannot fill is not offered.** Two buttons drawing the
-  identical line invite a reader to believe the second one failed. The first
-  window that covers the whole history is offered — that one shows all of it —
-  and everything longer is left out;
-- **an unknown key is not an error.** A stale bookmark or a typed URL falls back
-  to the page's default rather than raising, and the fallback is always a window
-  the data can actually fill.
+- **the default window is measured from the newest observation, not from
+  today.** The board report arrives when it arrives; anchoring to today would
+  let a report four days late shorten the window by four days and silently drop
+  its oldest point;
+- **a window is clamped to the history.** The fields advertise the span with
+  `min`/`max`, but attributes are advice and a URL is typed by hand, so whatever
+  arrives is folded back inside the observations. The control cannot be used to
+  ask for an unbounded or arbitrary query;
+- **unreadable input is not an error.** A malformed date, an unknown legacy key
+  and no input at all all end at a window that can be drawn, so a stale bookmark
+  or a typed URL still renders the page.
 
 Nothing here reads the database. A caller passes in the span it already knows
 from its own selectors, which is what keeps this module testable without
@@ -31,62 +33,45 @@ PostgreSQL.
 from __future__ import annotations
 
 from calendar import monthrange
-from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
 
-# The name the control submits under, on both pages.
-QUERY_PARAM = "vahemik"
+# The names the two date fields submit under, on both pages.
+PARAM_FROM = "alates"
+PARAM_TO = "kuni"
+
+# The name the retired button control submitted under. Still read, never
+# rendered: a bookmarked `?vahemik=24` keeps drawing the two years it always
+# drew, it simply arrives as dates in the fields now.
+LEGACY_PARAM = "vahemik"
+
+# What each legacy key meant, in months back from the newest observation.
+# `None` is the whole history — deliberately not a very large number of months,
+# because "everything there is" and "the last two hundred years" are different
+# statements and only the first one is true.
+LEGACY_WINDOW_MONTHS: dict[str, int | None] = {
+    "6": 6,
+    "12": 12,
+    "24": 24,
+    "36": 36,
+    "60": 60,
+    "koik": None,
+}
+
+# What each page opens on when a reader has chosen nothing. The card's default
+# was asked for outright: the last six months. The page keeps the five years it
+# already drew — adding a finer control is not a reason to change what a reader
+# who chooses nothing is shown.
+CARD_DEFAULT_MONTHS = 6
+PAGE_DEFAULT_MONTHS = 60
 
 
 @dataclass(frozen=True)
-class TrendRange:
-    """One offered window.
+class DateWindow:
+    """One resolved window: two dates, both inside the history."""
 
-    `months` is `None` for the whole history. That is deliberately not a very
-    large number of months: "everything there is" and "the last two hundred
-    years" are different statements, and only the first one is true.
-    """
-
-    key: str
-    months: int | None
-    label: str
-
-    @property
-    def is_everything(self) -> bool:
-        return self.months is None
-
-    def start_from(self, latest: date | None) -> date | None:
-        """The first day the window covers, or `None` for the whole history."""
-        if self.months is None or latest is None:
-            return None
-        return months_before(latest, self.months)
-
-
-# Labelled as the board says them: months up to a year, years beyond it. A
-# reader asked for "kaks aastat" and was offered "24 kuud", which is the same
-# window described in the wrong unit.
-RANGE_6 = TrendRange("6", 6, "6 kuud")
-RANGE_12 = TrendRange("12", 12, "12 kuud")
-RANGE_24 = TrendRange("24", 24, "2 aastat")
-RANGE_36 = TrendRange("36", 36, "3 aastat")
-RANGE_60 = TrendRange("60", 60, "5 aastat")
-RANGE_ALL = TrendRange("koik", None, "Kogu ajalugu")
-
-CHOICES: tuple[TrendRange, ...] = (RANGE_6, RANGE_12, RANGE_24, RANGE_36, RANGE_60, RANGE_ALL)
-
-# The overview card draws a server-rendered polyline inside a card, so its
-# longest window is three years — beyond that the points crowd into a smudge at
-# card width. The Liikmeskond page draws the same data at full width and keeps
-# the long windows the board already had.
-CARD_CHOICES: tuple[TrendRange, ...] = (RANGE_6, RANGE_12, RANGE_24, RANGE_36)
-PAGE_CHOICES: tuple[TrendRange, ...] = CHOICES
-
-# What each page opens on. The card's default is the year it already drew; the
-# page's is the five years it already drew. Adding finer windows is not a reason
-# to change what either one shows to a reader who chooses nothing.
-CARD_DEFAULT = RANGE_12
-PAGE_DEFAULT = RANGE_60
+    start: date
+    end: date
 
 
 def months_before(day: date, months: int) -> date:
@@ -101,50 +86,78 @@ def months_before(day: date, months: int) -> date:
     return date(year, month, min(day.day, monthrange(year, month)[1]))
 
 
-def available(
-    offered: Sequence[TrendRange],
+def parse_iso_date(raw: str | None) -> date | None:
+    """The date a form field submitted, or `None` for anything else.
+
+    A date input submits `YYYY-MM-DD` and nothing but, so that is the one shape
+    read. Anything else — an empty field, a hand-typed URL, an injection
+    attempt — is not a date and resolves to "no date given" rather than to an
+    error page.
+    """
+    if not raw:
+        return None
+    try:
+        return date.fromisoformat(raw)
+    except ValueError:
+        return None
+
+
+def offers_choice(*, earliest: date | None, latest: date | None) -> bool:
+    """Whether there is a choice worth rendering a control for.
+
+    A history of one date has one drawable window; a control over it would be
+    two fields that cannot change anything, which reads as a control that is
+    broken.
+    """
+    return earliest is not None and latest is not None and earliest < latest
+
+
+def resolve_window(
+    raw_from: str | None,
+    raw_to: str | None,
     *,
     earliest: date | None,
     latest: date | None,
-) -> tuple[TrendRange, ...]:
-    """The windows this history can actually fill.
+    legacy_key: str | None = None,
+    default_months: int,
+) -> DateWindow | None:
+    """The window the request asked for, folded inside the history.
 
-    Walks the offered windows from shortest to longest and stops at the first
-    one that reaches past the oldest observation — that window is included,
-    because it is the one that draws the whole history, and every longer window
-    would draw the identical line.
+    Named `resolve` rather than `parse` because it never fails. In order:
 
-    Returns nothing when there is no history to bound, and may return a single
-    window, which callers treat as "no choice to offer" rather than as a control
-    with one button.
+    - no history at all resolves to `None`, and the caller renders its empty
+      state rather than a control over nothing;
+    - two readable dates are taken as given, swapped if reversed — a reader who
+      filled the fields backwards asked for that span, not for an error;
+    - one readable date keeps the other side of the default window, so touching
+      a single field never silently moves both ends;
+    - no readable date falls back to the legacy `?vahemik=` key when one
+      arrived, and otherwise to the page's default months, measured back from
+      the newest observation;
+    - finally both ends are clamped into the observation span, so nothing a URL
+      can say produces a query the history cannot answer.
     """
     if earliest is None or latest is None:
-        return ()
+        return None
 
-    chosen: list[TrendRange] = []
-    for choice in offered:
-        chosen.append(choice)
-        start = choice.start_from(latest)
-        if start is None or start <= earliest:
-            break
-    return tuple(chosen)
+    start = parse_iso_date(raw_from)
+    end = parse_iso_date(raw_to)
 
+    if start is None and end is None:
+        if legacy_key in LEGACY_WINDOW_MONTHS:
+            months = LEGACY_WINDOW_MONTHS[legacy_key]
+        else:
+            months = default_months
+        start = earliest if months is None else months_before(latest, months)
+        end = latest
+    else:
+        if end is None:
+            end = latest
+        if start is None:
+            start = months_before(end, default_months)
+        if end < start:
+            start, end = end, start
 
-def resolve(
-    key: str | None,
-    *,
-    available: Sequence[TrendRange],
-    default: TrendRange,
-) -> TrendRange:
-    """The requested window, or the nearest sensible one.
-
-    Named `resolve` rather than `parse` because it never fails: an unknown key,
-    a key for a window this history cannot fill, and no key at all all end at a
-    window that can be drawn.
-    """
-    for choice in available:
-        if choice.key == key:
-            return choice
-    if default in available:
-        return default
-    return available[-1] if available else default
+    start = min(max(start, earliest), latest)
+    end = min(max(end, earliest), latest)
+    return DateWindow(start=start, end=end)

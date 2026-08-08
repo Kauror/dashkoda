@@ -59,15 +59,10 @@ from apps.membership.internal_selectors import (
     get_internal_observation_span,
 )
 from apps.membership.ranges import (
-    CARD_CHOICES,
-    CARD_DEFAULT,
-    TrendRange,
-)
-from apps.membership.ranges import (
-    available as available_ranges,
-)
-from apps.membership.ranges import (
-    resolve as resolve_range,
+    CARD_DEFAULT_MONTHS,
+    DateWindow,
+    offers_choice,
+    resolve_window,
 )
 from apps.membership.selectors import (
     CHANGE_WINDOW_DAYS,
@@ -238,18 +233,19 @@ class MembershipCard:
     change: MembershipChange
     paid_share_pct: Decimal | None = None
     chart: TrendChart | None = None
-    trend_range: TrendRange | None = None
-    trend_ranges: tuple[TrendRange, ...] = ()
+    trend_window: DateWindow | None = None
+    trend_earliest: date | None = None
+    trend_latest: date | None = None
 
     @property
     def has_range_choice(self) -> bool:
         """Whether there is a choice worth offering.
 
-        One button is not a choice. A history too short to fill a second window
-        renders no control at all rather than a control that cannot change what
-        is drawn.
+        A history of one observation date has one drawable window; a pair of
+        date fields over it could not change what is drawn, and a control that
+        changes nothing reads as a control that is broken.
         """
-        return len(self.trend_ranges) > 1
+        return offers_choice(earliest=self.trend_earliest, latest=self.trend_latest)
 
     @property
     def has_any_data(self) -> bool:
@@ -290,7 +286,16 @@ class OverviewPage:
     channels: tuple[ChannelSlot, ...]
 
 
-def build_overview(*, legal_work, membership, news, events, trend_range_key=None) -> OverviewPage:
+def build_overview(
+    *,
+    legal_work,
+    membership,
+    news,
+    events,
+    trend_from=None,
+    trend_to=None,
+    trend_range_key=None,
+) -> OverviewPage:
     """Read every connected module once and shape it for the page.
 
     The channel band is the one part assembled elsewhere: `apps.visibility` owns
@@ -298,9 +303,10 @@ def build_overview(*, legal_work, membership, news, events, trend_range_key=None
     restating any of that here would let the overview and the Nähtavus page drift
     apart about the same number.
 
-    `trend_range_key` is whatever arrived in the query string. It is never
-    trusted and never reaches a query: `apps.membership.ranges` maps it onto one
-    of a fixed set of windows, or onto the default.
+    `trend_from`, `trend_to` and the legacy `trend_range_key` are whatever
+    arrived in the query string. None of them is trusted and none reaches a
+    query: `apps.membership.ranges` folds them into a window the observation
+    history can actually answer, or into the default.
     """
     today = timezone.localdate()
     window_start = today - timedelta(days=ACTIVITY_WINDOW_DAYS)
@@ -366,6 +372,8 @@ def build_overview(*, legal_work, membership, news, events, trend_range_key=None
             change=change,
             internal_latest=internal_latest,
             internal_connection=internal_connection,
+            trend_from=trend_from,
+            trend_to=trend_to,
             trend_range_key=trend_range_key,
         ),
         legal_work=legal_connection,
@@ -543,7 +551,7 @@ def _euros(amount: Decimal) -> str:
 
 
 def _build_membership_card(
-    *, change, internal_latest, internal_connection, trend_range_key
+    *, change, internal_latest, internal_connection, trend_from, trend_to, trend_range_key
 ) -> MembershipCard:
     """The board report's own figures, and only two of them are charted.
 
@@ -574,13 +582,19 @@ def _build_membership_card(
     paid_value = None
     total_value = None
     span = get_internal_observation_span()
-    offered = available_ranges(CARD_CHOICES, earliest=span.earliest, latest=span.latest)
-    trend_range = resolve_range(trend_range_key, available=offered, default=CARD_DEFAULT)
-    if internal_latest is not None:
-        # Anchored to the newest observation rather than to today: a report that
-        # arrives late would otherwise shorten the window by however late it was
-        # and quietly drop its oldest point.
-        trend = get_internal_membership_trend(date_from=trend_range.start_from(span.latest))
+    # The default window is anchored to the newest observation rather than to
+    # today: a report that arrives late would otherwise shorten the window by
+    # however late it was and quietly drop its oldest point.
+    window = resolve_window(
+        trend_from,
+        trend_to,
+        earliest=span.earliest,
+        latest=span.latest,
+        legacy_key=trend_range_key,
+        default_months=CARD_DEFAULT_MONTHS,
+    )
+    if internal_latest is not None and window is not None:
+        trend = get_internal_membership_trend(date_from=window.start, date_to=window.end)
         total_series = trend.series("total_members")
         paid_series = trend.series("paid_members")
         paid_share = internal_latest.paid_member_share_pct
@@ -619,8 +633,9 @@ def _build_membership_card(
                 _trend_source(internal, style="dashed"),
             )
         ),
-        trend_range=trend_range,
-        trend_ranges=offered,
+        trend_window=window,
+        trend_earliest=span.earliest,
+        trend_latest=span.latest,
     )
 
 

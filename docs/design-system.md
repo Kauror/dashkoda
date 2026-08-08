@@ -242,9 +242,9 @@ that would stretch any glyph inside it. They are hidden below `sm`, where twelve
 month names cannot fit a phone-width card; the stated range and the tables
 carry the same window in words.
 
-Every observation is **hoverable, with no JavaScript**. Three attribute-only
-decisions carry that, and each of them is what it is because of the stretched
-viewBox or the Content Security Policy:
+Every observation is **hoverable, with no JavaScript required**. Three
+attribute-only decisions carry that, and each of them is what it is because of
+the stretched viewBox or the Content Security Policy:
 
 - the hit target is a full-height strip per observation date, drawn **first** so
   its hover fill sits behind the lines rather than over them. Everything drawn
@@ -261,8 +261,17 @@ viewBox or the Content Security Policy:
   `vector-effect="non-scaling-stroke"` is measured in screen pixels and stays
   round at any card width.
 
-A tooltip is a pointer affordance and reaches neither a keyboard nor a touch
-screen, which is exactly why the data table below is not optional.
+The native `<title>` tooltip is the floor: browsers show it after their own
+delay, only while the pointer holds still, and never on touch.
+`frontend/src/trend-tooltip.js` — part of the app bundle, mounted on
+`[data-trend-chart]` — lifts each `<title>` out of the live document and shows
+the same reading in one shared `.dk-chart-tip` element that follows the pointer
+instantly and also answers a tap. Its coordinates are CSSOM assignments, which
+`style-src 'self'` permits; nothing writes a style attribute into markup. With
+the bundle blocked the `<title>`s simply stay.
+
+Neither tooltip reaches a keyboard, which is exactly why the data table below
+is not optional.
 
 Geometry inside an attribute is written with `stringformat`, never
 `floatformat`. The dashboard renders in Estonian, `floatformat` is localised,
