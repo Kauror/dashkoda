@@ -174,3 +174,15 @@ class EventFeedState(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.slug}: {self.get_last_result_display()}"
+
+
+# The durable catalogue of public Koda.ee event pages and its discovery runs.
+# Imported here, at the foot, so Django discovers them as ordinary `events`
+# models while the definitions stay in their own module. The import is last
+# because those models refer back to the ones above.
+from .public_models import (  # noqa: E402,F401  (placement is deliberate)
+    DiscoveryMode,
+    DiscoveryOrigin,
+    PublicEventDiscoverySnapshot,
+    PublicEventResource,
+)

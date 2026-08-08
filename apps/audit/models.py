@@ -103,6 +103,14 @@ class AuditAction(models.TextChoices):
         "events.sync_failed",
         "Sündmuste sünkroonimine ebaõnnestus",
     )
+    # Discovery of the durable public event-page catalogue. Separate from the
+    # calendar actions above because it is a different job on a different
+    # schedule: that one publishes what is upcoming, this one accumulates
+    # addresses for events that have already happened.
+    EVENT_PAGES_DISCOVERED = (
+        "events.pages_discovered",
+        "Avalikud sündmuste lehed läbi vaadatud",
+    )
     # The Chamber's own event programme, prepared from the operational service-code
     # workbook. A different dataset from the public Koda.ee listing above, so it
     # gets its own actions rather than reusing them and making the trail ambiguous.
