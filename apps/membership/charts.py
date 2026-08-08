@@ -31,18 +31,32 @@ from apps.core.formatting import (
     euros,
     integer,
     long_date,
+    month_name,
     percent,
     percentage,
     percentage_points,
     signed_integer,
+    signed_percent,
 )
 
-from .analytics import compare_with, pick_comparable, share_change, value_domain
+from .analytics import (
+    change,
+    compare_with,
+    cumulative,
+    elapsed_total,
+    mean_of_complete_years,
+    pick_comparable,
+    share_change,
+    value_domain,
+)
 from .internal_selectors import InternalTrend, MonthlyValue
 from .models import QualityStatus, SizeBand
 
-# Board reports number their months in Roman numerals, and the monthly chart
-# keeps that convention so the axis matches the source people are used to.
+# Board reports number their months in Roman numerals. The **table** keeps that
+# convention, so a reader checking a figure against the report they came from
+# sees the same month naming. The chart axis does not: a reader should not have
+# to translate a numeral before they can read a graphic, and the axis is where
+# comprehension matters more than matching the source's typography.
 MONTH_LABELS: tuple[str, ...] = (
     "I",
     "II",
@@ -426,82 +440,378 @@ def _trend_readouts(trend: InternalTrend, provisional: frozenset[date]) -> tuple
 # --------------------------------------------------------------------------
 
 
-def monthly_new_members_chart(by_year: dict[int, tuple[MonthlyValue, ...]]) -> ChartPayload:
-    """One series per selected year across months I–XII.
+# The two things a reader can ask this chart for. Both are query-string values,
+# so a view survives a bookmark and a shared link.
+VIEW_MONTHLY = "kuu"
+VIEW_CUMULATIVE = "kumulatiivne"
+VIEWS = (VIEW_MONTHLY, VIEW_CUMULATIVE)
 
-    A conflicted month and a month nobody reported are both simply absent. This
-    is the chart where substituting zero would do the most damage, because a
-    zero here reads as "nobody joined that month", which no source ever said.
+BENCHMARK_PREVIOUS = "eelmine"
+BENCHMARK_AVERAGE = "keskmine"
+BENCHMARKS = (BENCHMARK_PREVIOUS, BENCHMARK_AVERAGE)
+
+# How many complete years the averaged benchmark is drawn from.
+BENCHMARK_YEARS = 3
+
+
+def _months(values: tuple[MonthlyValue, ...]) -> tuple[tuple[int, int | None], ...]:
+    """Twelve months, each a number or nothing.
+
+    A conflict and a month nobody reported both arrive as `None`; an explicitly
+    reported `0` stays a zero. This is the distinction the whole chart rests on,
+    so it is made once here rather than at each place a month is read.
     """
-    series = []
+    known = {value.calendar_month: value for value in values}
+    months = []
+    for month in range(1, 13):
+        value = known.get(month)
+        months.append((month, value.new_members if value and value.is_chartable else None))
+    return tuple(months)
+
+
+def _last_complete_month(months: tuple[tuple[int, int | None], ...]) -> int | None:
+    """The last month up to which every month is known.
+
+    A year-to-date figure that skipped an unreported March would be a total of
+    "everything except the month we lost", presented as if it were the year.
+    """
+    through = 0
+    for month, value in months:
+        if value is None:
+            break
+        through = month
+    return through or None
+
+
+def available_benchmarks(by_year: dict[int, tuple[MonthlyValue, ...]]) -> tuple[str, ...]:
+    """Which comparisons the history can actually support.
+
+    A selector offering a benchmark that draws nothing is a control with no
+    effect, and the reader is left to guess whether they broke it. The page asks
+    this before it renders the choice.
+    """
+    years = sorted(by_year)
+    if not years:
+        return ()
+    current_year = years[-1]
+    supported = []
+    for benchmark in BENCHMARKS:
+        _, months = _benchmark_series(by_year, current_year=current_year, benchmark=benchmark)
+        if any(value is not None for _, value in months):
+            supported.append(benchmark)
+    return tuple(supported)
+
+
+def _benchmark_series(
+    by_year: dict[int, tuple[MonthlyValue, ...]],
+    *,
+    current_year: int,
+    benchmark: str,
+) -> tuple[str, tuple[tuple[int, Decimal | int | None], ...]]:
+    """The comparison line: last year, or an average of complete years.
+
+    The average withdraws for any month one of its years did not report, so the
+    line has a gap there rather than quietly averaging fewer years at that
+    point. A benchmark whose meaning changes from month to month is several
+    series wearing one name.
+    """
+    if benchmark == BENCHMARK_AVERAGE:
+        years = tuple(range(current_year - BENCHMARK_YEARS, current_year))
+        months = {year: _months(by_year.get(year, ())) for year in years}
+        return (
+            f"{BENCHMARK_YEARS} a keskmine",
+            tuple(
+                (month, mean_of_complete_years(months, period=month, years=years))
+                for month in range(1, 13)
+            ),
+        )
+    previous = current_year - 1
+    return str(previous), _months(by_year.get(previous, ()))
+
+
+def monthly_new_members_chart(
+    by_year: dict[int, tuple[MonthlyValue, ...]],
+    *,
+    view: str = VIEW_MONTHLY,
+    benchmark: str = BENCHMARK_PREVIOUS,
+) -> ChartPayload:
+    """Is new-member recruitment stronger or weaker than usual?
+
+    The chart used to draw one equally weighted line per year across months
+    numbered I–XII, which asked a reader to translate the axis before they could
+    read it and then to pick their own year out of a bundle of similar lines.
+
+    Now the current year is the subject — bars, in front — and exactly one
+    historical benchmark sits behind it as a line. Roman numerals are gone from
+    the axis; the board reports still use them and the table still names the
+    month the way the source does.
+
+    `Kumulatiivselt` answers the other half of the question — are we ahead of
+    last year — and it stops at the first month nobody reported rather than
+    carrying on as though that month were zero.
+    """
+    years = sorted(by_year)
+    if not years:
+        return _empty_monthly_chart(view, benchmark)
+
+    current_year = years[-1]
+    current_months = _months(by_year[current_year])
+    benchmark_label, benchmark_months = _benchmark_series(
+        by_year, current_year=current_year, benchmark=benchmark
+    )
+
+    cumulative_view = view == VIEW_CUMULATIVE
+    if cumulative_view:
+        current_running = cumulative(current_months)
+        benchmark_running = cumulative(benchmark_months)
+        current_points = dict(current_running.values)
+        benchmark_points = dict(benchmark_running.values)
+        stopped_at = current_running.stopped_at
+    else:
+        current_points = {month: value for month, value in current_months if value is not None}
+        benchmark_points = {month: value for month, value in benchmark_months if value is not None}
+        stopped_at = None
+
+    def data(points: dict) -> list:
+        return [
+            ({"value": _number(points[month]), "tip": str(month)} if month in points else None)
+            for month in range(1, 13)
+        ]
+
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {"type": "category", "data": list(MONTH_ABBREVIATIONS)},
+            "yAxis": {
+                "type": "value",
+                "name": "Uusi liikmeid" if not cumulative_view else "Uusi liikmeid kokku",
+                # Counts of arrivals genuinely start at nothing, so zero is the
+                # honest floor. Nothing here is a level far from the origin.
+                "min": 0,
+            },
+            "tooltip": {"trigger": "axis"},
+            "series": [
+                {
+                    "name": benchmark_label,
+                    "type": "line",
+                    "showSymbol": True,
+                    "symbolSize": 5,
+                    "connectNulls": False,
+                    "lineStyle": {"width": 1.5, "type": "dashed", "opacity": 0.7},
+                    "itemStyle": {"opacity": 0.7},
+                    "z": 2,
+                    "data": data(benchmark_points),
+                },
+                {
+                    "name": str(current_year),
+                    # Bars for the subject year: a month's recruitment is a
+                    # quantity in that month rather than a level moving through
+                    # it, and a bar says so where a line implies travel between
+                    # the points.
+                    "type": "line" if cumulative_view else "bar",
+                    "connectNulls": False,
+                    "showSymbol": True,
+                    "lineStyle": {"width": 2.5},
+                    "z": 3,
+                    "data": data(current_points),
+                },
+            ],
+            "dashkoda": {
+                "tooltip": _monthly_tooltips(
+                    current_year=current_year,
+                    current_points=current_points,
+                    benchmark_label=benchmark_label,
+                    benchmark_points=benchmark_points,
+                    cumulative_view=cumulative_view,
+                )
+            },
+        }
+    )
+
     rows = []
     provisional_seen = False
     conflict_seen = False
-
-    for year in sorted(by_year):
-        values = {value.calendar_month: value for value in by_year[year]}
-        data = []
+    for year in years:
+        known = {value.calendar_month: value for value in by_year[year]}
         for month in range(1, 13):
-            value = values.get(month)
-            if value is None or not value.is_chartable:
-                if value is not None and value.is_conflict:
-                    conflict_seen = True
-                data.append(None)
-                continue
-            if value.is_provisional:
-                provisional_seen = True
-            data.append(value.new_members)
-        series.append(
-            {
-                "name": str(year),
-                "type": "line",
-                "showSymbol": True,
-                "connectNulls": False,
-                "data": data,
-            }
-        )
-
-        for month in range(1, 13):
-            value = values.get(month)
+            value = known.get(month)
             if value is None:
                 continue
+            if value.is_conflict:
+                conflict_seen = True
+            if value.is_provisional:
+                provisional_seen = True
             rows.append(
-                (
-                    year,
-                    MONTH_LABELS[month - 1],
-                    value.new_members,
-                    _monthly_status_label(value),
-                )
+                (year, MONTH_LABELS[month - 1], value.new_members, _monthly_status_label(value))
             )
-
-    option = _base_option()
-    option.update(
-        {
-            "xAxis": {"type": "category", "data": list(MONTH_LABELS)},
-            "yAxis": {"type": "value", "name": "Uusi liikmeid"},
-            "series": series,
-        }
-    )
 
     footnotes = []
     if provisional_seen:
         footnotes.append("Jooksva kuu väärtus on esialgne.")
     if conflict_seen:
         footnotes.append("Vastuolulisi kuid ei kuvata graafikul ja neid ei asendata nulliga.")
+    if not benchmark_points:
+        footnotes.append(
+            f"Võrdlust „{benchmark_label}“ ei saa kuvada, sest selle perioodi kohta "
+            "puuduvad täielikud andmed."
+        )
+    if stopped_at is not None:
+        footnotes.append(
+            f"Kumulatiivne joon lõpeb enne kuud {MONTH_ABBREVIATIONS[stopped_at - 1]}, "
+            "mille kohta andmed puuduvad — puuduvat kuud ei loeta nulliks."
+        )
 
     return ChartPayload(
         payload_id="internal-membership-monthly",
-        title="Uusi liikmeid kuude lõikes",
+        title=(
+            "Uusi liikmeid kuude lõikes" if not cumulative_view else "Uusi liikmeid kumulatiivselt"
+        ),
+        question="Kas uute liikmete lisandumine on tugevam või nõrgem kui tavaliselt?",
         option=option,
+        size="medium",
+        readouts=_monthly_readouts(
+            current_year=current_year,
+            current_months=current_months,
+            by_year=by_year,
+        ),
         table_headers=("Aasta", "Kuu", "Uusi liikmeid", "Olek"),
         table_rows=tuple(rows),
         summary=(
-            f"Joongraafik {len(series)} aasta kohta kuude I–XII lõikes. "
+            f"{current_year}. aasta uued liikmed kuude kaupa, taustaks {benchmark_label}. "
             "Puuduvad ja vastuolulised kuud on välja jäetud."
         ),
         empty_message="Kuude kaupa andmeid ei ole veel imporditud.",
         footnotes=tuple(footnotes),
     )
+
+
+def _empty_monthly_chart(view: str, benchmark: str) -> ChartPayload:
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {"type": "category", "data": list(MONTH_ABBREVIATIONS)},
+            "yAxis": {"type": "value", "name": "Uusi liikmeid", "min": 0},
+            "series": [],
+        }
+    )
+    return ChartPayload(
+        payload_id="internal-membership-monthly",
+        title="Uusi liikmeid kuude lõikes",
+        question="Kas uute liikmete lisandumine on tugevam või nõrgem kui tavaliselt?",
+        option=option,
+        size="medium",
+        table_headers=("Aasta", "Kuu", "Uusi liikmeid", "Olek"),
+        table_rows=(),
+        summary="Kuude kaupa andmeid ei ole.",
+        empty_message="Kuude kaupa andmeid ei ole veel imporditud.",
+    )
+
+
+def _monthly_tooltips(
+    *,
+    current_year: int,
+    current_points: dict,
+    benchmark_label: str,
+    benchmark_points: dict,
+    cumulative_view: bool,
+) -> dict:
+    tooltips = {}
+    for month in range(1, 13):
+        if month not in current_points and month not in benchmark_points:
+            continue
+        rows = []
+        if month in current_points:
+            rows.append(
+                {
+                    "label": f"{current_year} kokku" if cumulative_view else str(current_year),
+                    "value": integer(current_points[month]),
+                    "emphasis": True,
+                }
+            )
+        if month in benchmark_points:
+            rows.append(
+                {
+                    "label": (
+                        f"{benchmark_label} sama periood" if cumulative_view else benchmark_label
+                    ),
+                    "value": integer(benchmark_points[month]),
+                    "emphasis": False,
+                }
+            )
+        if month in current_points and month in benchmark_points:
+            absolute, relative = change(current_points[month], benchmark_points[month])
+            # The rate qualifies the difference rather than standing beside it,
+            # so they share one row: an empty label would leave the readout with
+            # a value nothing names.
+            difference = signed_integer(absolute)
+            if relative is not None:
+                difference = f"{difference} ({signed_percent(relative)})"
+            rows.append({"label": "Erinevus", "value": difference, "emphasis": False})
+        tooltips[str(month)] = {
+            "title": f"{month_name(month).capitalize()} {current_year}",
+            "rows": rows,
+            "note": "",
+        }
+    return tooltips
+
+
+def _monthly_readouts(
+    *,
+    current_year: int,
+    current_months: tuple[tuple[int, int | None], ...],
+    by_year: dict[int, tuple[MonthlyValue, ...]],
+) -> tuple[Readout, ...]:
+    """This year's arrivals so far, against the same stretch of last year.
+
+    "So far" is the run of months from January that are all known. A total that
+    jumped over an unreported month would be a different quantity presented as
+    the same one, and comparing it with a full previous year would be the
+    collapse this refuses to draw.
+    """
+    through = _last_complete_month(current_months)
+    if through is None:
+        return (
+            Readout(
+                label=f"Uusi liikmeid {current_year}",
+                value="",
+                note="Selle aasta kuude kohta ei ole veel katkematut rida.",
+            ),
+        )
+
+    total = elapsed_total(current_months, through=through)
+    readouts = [
+        Readout(
+            label=f"Uusi liikmeid {current_year}",
+            value=integer(total),
+            note=f"jaanuar–{month_name(through)}",
+        )
+    ]
+
+    previous = elapsed_total(_months(by_year.get(current_year - 1, ())), through=through)
+    if previous is None:
+        readouts.append(
+            Readout(
+                label=f"Sama periood {current_year - 1}",
+                value="",
+                note="Eelmise aasta sama perioodi kohta ei ole katkematut rida.",
+            )
+        )
+        return tuple(readouts)
+
+    absolute, relative = change(total, previous)
+    readouts.append(
+        Readout(
+            label=f"Sama periood {current_year - 1}",
+            value=integer(previous),
+            change=signed_integer(absolute),
+            change_label=(
+                f"{signed_integer(absolute)}"
+                + (f" ({signed_percent(relative)})" if relative is not None else "")
+            ),
+            direction=_direction(absolute),
+        )
+    )
+    return tuple(readouts)
 
 
 def _monthly_status_label(value: MonthlyValue) -> str:
