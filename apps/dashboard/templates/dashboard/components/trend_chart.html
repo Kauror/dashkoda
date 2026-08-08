@@ -32,7 +32,7 @@ into one table on a shared date column, because they are two sources that report
 on their own days and a blank cell would read as a missing measurement.
 
 Hovering a month shows what was read that month, and does it with no JavaScript
-at all. Three attribute-only decisions carry that:
+required. Three attribute-only decisions carry that:
 
   - the hit target is a full-height strip per observation date, painted **first**
     so its hover fill sits behind the lines rather than over them. Everything
@@ -47,11 +47,19 @@ at all. Three attribute-only decisions carry that:
     `vector-effect="non-scaling-stroke"` is measured in screen pixels and stays
     round at any card width.
 
-The tooltip is a pointer affordance and does not reach a keyboard or a touch
-screen. That is why the table below is not optional: it is the same numbers, in
-the document, for every reader.
+The native `<title>` tooltip is the floor, not the experience: browsers show it
+only after their own delay, only while the pointer holds perfectly still, and
+never on touch. `data-trend-chart` is where `frontend/src/trend-tooltip.js`
+picks the figure up and replaces that with an instant styled readout that also
+answers a tap — lifting each `<title>` out of the live document so the two
+tooltips cannot stack. With the bundle blocked the `<title>`s simply stay, and
+this figure is exactly what it always was. The figure is `relative` because the
+script positions the readout inside it.
+
+Neither tooltip reaches a keyboard. That is why the table below is not
+optional: it is the same numbers, in the document, for every reader.
 {% endcomment %}
-<figure class="flex min-w-0 flex-col gap-2">
+<figure data-trend-chart class="relative flex min-w-0 flex-col gap-2">
   <svg viewBox="0 0 100 40"
        preserveAspectRatio="none"
        class="h-24 w-full"

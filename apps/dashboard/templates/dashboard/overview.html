@@ -238,29 +238,43 @@ None of them reached this file.
           </div>
 
           {% comment %}
-          How much history the two lines draw. A plain GET form, the same idiom
-          as the Liikmeskond page's own control and built from the same
-          vocabulary in `apps/membership/ranges.py`, so the two pages cannot end
-          up naming the same window two ways.
+          How much history the two lines draw: two date fields, submitted as a
+          plain GET form. The same control as the Liikmeskond page's own, built
+          from the same vocabulary in `apps/membership/ranges.py`, so the two
+          pages cannot end up naming the same window two ways.
 
-          Only windows the history can actually fill are offered, and a history
-          that fills only one of them renders no control at all — two buttons
-          drawing the identical line would read as one of them being broken.
+          `min`/`max` advertise the observation span so the browser's picker
+          greys out dates no report covers — advice only; the server clamps
+          whatever actually arrives. The fields carry the resolved window, not
+          the raw input, so what the control shows is always what the chart
+          drew. A history of a single date renders no control at all: two
+          fields that cannot change anything read as a control that is broken.
 
           The action carries `#section-membership`, which a GET submission keeps,
           so choosing a range returns the reader to this card instead of to the
           top of the page.
           {% endcomment %}
           {% if page.membership.has_range_choice %}
-            <form method="get" action="{% url 'home' %}#section-membership" class="flex flex-wrap items-center gap-2">
-              <span class="dk-meta">Vahemik:</span>
-              {% for option in page.membership.trend_ranges %}
-                {% if option.key == page.membership.trend_range.key %}
-                  <span class="dk-badge dk-badge-brand" aria-current="true">{{ option.label }}</span>
-                {% else %}
-                  <button type="submit" name="vahemik" value="{{ option.key }}" class="dk-button dk-button-secondary">{{ option.label }}</button>
-                {% endif %}
-              {% endfor %}
+            <form method="get" action="{% url 'home' %}#section-membership" class="flex flex-wrap items-end gap-x-3 gap-y-2">
+              <label class="flex flex-col gap-1">
+                <span class="dk-meta">Alates</span>
+                <input type="date"
+                       name="alates"
+                       value="{{ page.membership.trend_window.start|date:'Y-m-d' }}"
+                       min="{{ page.membership.trend_earliest|date:'Y-m-d' }}"
+                       max="{{ page.membership.trend_latest|date:'Y-m-d' }}"
+                       class="dk-input dk-input-date">
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="dk-meta">Kuni</span>
+                <input type="date"
+                       name="kuni"
+                       value="{{ page.membership.trend_window.end|date:'Y-m-d' }}"
+                       min="{{ page.membership.trend_earliest|date:'Y-m-d' }}"
+                       max="{{ page.membership.trend_latest|date:'Y-m-d' }}"
+                       class="dk-input dk-input-date">
+              </label>
+              <button type="submit" class="dk-button dk-button-secondary">Rakenda</button>
             </form>
           {% endif %}
 
