@@ -77,9 +77,18 @@ ACCEPT_SCORE = 0.70
 #: name, and the honest answer there is "ambiguous", not a coin toss.
 SCORE_MARGIN = 0.20
 
-#: An event whose name carries fewer content tokens than this cannot be matched
-#: on text at all. `"Pärnu 2021"` is a real workbook row and matches nothing
-#: safely.
+#: An event whose name carries fewer content tokens than this is not matched on
+#: text at all. The real cases are recurring one-word courses — *"Seminar:
+#: Eelarvestamine"* reduces to `eelarvestamine` and runs several times a year.
+#:
+#: Unlike the constants above this one is **not** settled by the ground truth.
+#: Lowering it to 1 produced no wrong match and four more links, but almost none
+#: of those 24 events carry a workbook URL, so there was nothing to check them
+#: against: "no wrong match" there means unverified, not verified safe. A single
+#: token is also the weakest evidence this matcher can act on, because
+#: containment scores any page whose title happens to include that one word at
+#: 1.0. Four events out of 859 is not worth spending precision on, so the floor
+#: stays at 2 until there is data that can actually judge it.
 MINIMUM_TOKENS = 2
 
 

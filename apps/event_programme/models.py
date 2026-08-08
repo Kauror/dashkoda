@@ -334,3 +334,13 @@ class EventProgrammeFeedState(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.slug}: {self.get_last_result_display()}"
+
+
+# The event matcher's output. Imported here, at the foot, so Django discovers
+# them as ordinary `event_programme` models while the definitions stay in their
+# own module. The import is last because those models refer back to the ones
+# above.
+from .event_match_models import (  # noqa: E402,F401  (placement is deliberate)
+    EventPublicMatch,
+    EventPublicMatchSnapshot,
+)
