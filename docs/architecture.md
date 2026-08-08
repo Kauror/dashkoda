@@ -398,7 +398,7 @@ configuration alone never makes the page claim a connection.
 Press coverage, the newsletter itself and event history once an event has passed
 remain entirely unconnected, and no model is capable of holding those.
 
-The 05:30–06:30 chain is **documented here as a template**; this repository installs
+The 05:30–06:50 chain is **documented here as a template**; this repository installs
 no schedule. An administrator has installed it on the pilot host. See
 [deployment-status.md](deployment-status.md).
 

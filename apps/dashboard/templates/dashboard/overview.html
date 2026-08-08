@@ -315,8 +315,8 @@ None of them reached this file.
               title width, and drags the whole page's scroll area sideways —
               which is invisible until a real title is long enough to truncate.
               {% endcomment %}
-              {% if item.public_url %}
-                <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.public_url }}" rel="noopener noreferrer">
+              {% if item.public_link %}
+                <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.public_link.url }}" rel="noopener noreferrer">
                   {{ item.event_name }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
                 </a>
               {% else %}

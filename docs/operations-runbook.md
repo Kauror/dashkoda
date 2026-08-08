@@ -37,7 +37,7 @@ uncompressed, and the log recorded `exit=0 … 3 nightly archives retained`.
 <!-- Generated from ops/unraid/generate_examples.py. Do not edit by hand:
      tests/core/test_ops_wrappers.py fails if this drifts from the wrappers. -->
 
-The whole chain runs **05:30–06:30 Europe/Tallinn**, so every figure on the
+The whole chain runs **05:30–06:50 Europe/Tallinn**, so every figure on the
 dashboard is fresh before anyone looks at it at 07:00.
 
 The pilot host cannot express Tallinn time — `/etc/localtime` is absent and both
@@ -58,6 +58,8 @@ identical EET/EEST offsets.
 | **06:15** | `15 3 * * *` | `15 4 * * *` | `06` | `match_legal_archived_topics` |
 | **06:20** | `20 3 * * *` | `20 4 * * *` | `06` | `sync_legal_opinion_documents` |
 | **06:30** | `30 3 * * *` | `30 4 * * *` | `06` | `match_legal_opinion_documents` |
+| **06:40** | `40 3 * * *` | `40 4 * * *` | `06` | `discover_koda_event_pages` |
+| **06:50** | `50 3 * * *` | `50 4 * * *` | `06` | `match_public_event_links` |
 
 Two UTC minutes carry two jobs each. That is not a clash: in any given season
 exactly one of the pair passes its hour guard and the other exits immediately.
@@ -66,6 +68,15 @@ Order is a dependency order, not a preference. The workbook is first because
 every matcher scores against whichever legal snapshot is current when it runs;
 each collector precedes the matcher that reads it; and the archive collection
 gets fifteen minutes rather than five because a full walk is 143 pages.
+
+The two event-link jobs close the chain. `discover_koda_event_pages` is a
+different job from `sync_koda_public --source events`: that one publishes the
+upcoming calendar, while this accumulates the addresses of pages for events
+that have already happened, so the programme's 2018 rows can be linked. Its
+ordinary run reads only unknown and stale pages — a handful of requests. The
+**initial backfill is 1,510 pages and is run by hand once**, with
+`--full --max-detail-pages N`; it is deliberately larger than any scheduled run
+is allowed to be.
 
 The nightly database backup sits outside this chain at **00:30 UTC**, anchored
 to UTC rather than to Tallinn — see "The database backup" above.

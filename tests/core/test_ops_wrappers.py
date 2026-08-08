@@ -77,7 +77,9 @@ class TestTheChainIsCoherent:
 
         assert minutes == sorted(minutes), "CHAIN is not in running order"
         assert minutes[0] >= 5 * 60 + 30, "the chain starts before 05:30"
-        assert minutes[-1] <= 6 * 60 + 30, "the chain finishes after 06:30"
+        # The invariant is the reader at 07:00, not any particular end time. The
+        # chain grew past 06:30 when event-link discovery and matching joined it.
+        assert minutes[-1] < 7 * 60, "the chain finishes at or after 07:00"
 
     def test_no_two_jobs_share_a_minute(self):
         slots = [job.tallinn for job in CHAIN]
@@ -94,6 +96,8 @@ class TestTheChainIsCoherent:
             ("sync_legal_current_topics", "match_legal_current_topics"),
             ("sync_legal_archived_topics", "match_legal_archived_topics"),
             ("sync_legal_opinion_documents", "match_legal_opinion_documents"),
+            ("sync_event_programme", "match_public_event_links"),
+            ("discover_koda_event_pages", "match_public_event_links"),
         ]:
             assert at[collector] < at[matcher], f"{matcher} runs before {collector}"
 
