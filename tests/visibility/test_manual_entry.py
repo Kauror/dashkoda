@@ -79,8 +79,7 @@ def test_the_form_shows_the_fixed_public_profile_links(staff_client):
     assert "https://www.linkedin.com/company/ecci/" in body
     assert "https://www.instagram.com/kaubanduskoda" in body
     assert "https://www.youtube.com/user/Kaubanduskoda" in body
-    assert 'rel="noopener noreferrer"' in body
-    assert 'target="_blank"' not in body
+    assert 'target="_blank" rel="noopener noreferrer"' in body
 
 
 def test_the_form_shows_the_latest_stored_value_beside_each_input(submit, staff_client, today):

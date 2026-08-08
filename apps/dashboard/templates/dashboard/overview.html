@@ -11,14 +11,20 @@ Everything it renders comes from `apps.dashboard.overview.build_overview`, which
 reads PostgreSQL through each module's own selectors. The template chooses
 layout and nothing else.
 
-Three things are deliberate and should stay that way:
+Four things are deliberate and should stay that way:
 
   - a figure with no connected source renders its empty state, never a zero;
   - the membership chart draws the board report's total against its own paid
     count — one source, one definition, one reading date, so the gap between
     the lines is the paid share and nothing else. The koda.ee directory count
-    is a different definition on a different cadence: it leads the headline
-    strip and never appears on those axes;
+    is a different definition on a different cadence and never appears on those
+    axes, even though it is now the total both the headline strip and the
+    Liikmeskond card state;
+  - a link that leaves the application opens in a new tab: every koda.ee page,
+    every public profile, and the opinion PDFs, which are served by this
+    application but are files rather than pages. Links that stay inside the
+    dashboard — the "Vaata …" links, the headline counts, navigation, filters
+    and pagination — replace the current page as they always have;
   - each headline cell carries its own module's counts, and every count states
     the period it was measured over. There is no separate strip repeating those
     same movements underneath.
@@ -113,11 +119,18 @@ None of them reached this file.
         </div>
 
         {% comment %}
-        Every open record, ordered by deadline, soonest first, so the topic
-        nearest to going out leads. A record with no deadline trails the dated
-        ones; it says so rather than borrowing a date it does not have.
+        The most urgent open records, ordered by deadline, soonest first, so the
+        topic nearest to going out leads. A record with no deadline trails the
+        dated ones; it says so rather than borrowing a date it does not have.
+        This is a preview of at most seven; the full Õigusloome page lists every
+        open record.
+
+        Both panels reserve the height of a full seven-row list, so the tab with
+        fewer records does not pull the freshness row up the page when the
+        reader switches to it. `dk-preview-reserve` is a minimum: the short list
+        simply ends, leaving empty surface rather than filler rows.
         {% endcomment %}
-        <div id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="firstSelected" class="flex-1">
+        <div id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="firstSelected" class="dk-preview-reserve flex-1">
           <h3 class="sr-only">Töös olevad teemad</h3>
           <ul class="divide-y divide-border">
             {% for row in page.legal_work_open %}
@@ -135,7 +148,7 @@ None of them reached this file.
           </ul>
         </div>
 
-        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="secondSelected" class="flex-1">
+        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="secondSelected" class="dk-preview-reserve flex-1">
           <h3 class="sr-only">Viimati välja läinud</h3>
           <ul class="divide-y divide-border">
             {% for row in page.legal_work_sent %}
@@ -161,16 +174,20 @@ None of them reached this file.
 
     {# -------- Liikmeskond -------- #}
     {% comment %}
-    The board report's own figures: its member total, its paid count and the fee
-    collection those two are read alongside. Every figure here comes off one
-    monthly report and says so beneath itself.
+    The member total, the board report's paid count, and the fee collection that
+    paid count is read alongside.
 
-    The koda.ee directory total is not repeated here. It is a different
-    definition on a different cadence, it leads the headline strip, and stating
-    it twice on one page is what invites a reader to subtract one total from the
-    other. The paid share is computed inside the
-    board report alone — dividing the internal paid count by the public directory
-    total would be a ratio between two different definitions and is never shown.
+    The total is the koda.ee directory count — the same reading, on the same day,
+    as the one leading the headline strip. One member total on the page, and it
+    is the daily public one. The board report's own total is no longer printed
+    beside it: two identically labelled totals, months apart, is what invites a
+    reader to subtract one from the other. It is still drawn by the chart, under
+    a label naming whose total it is.
+
+    The paid share is computed inside the board report alone — dividing the
+    internal paid count by the public directory total would be a ratio between
+    two different definitions and is never shown. That is why the paid figure
+    names its report underneath: its denominator is not the number beside it.
 
     Both trends run on one pair of axes, as a solid and a dashed line. The board
     reads this card to see the gap between the two, and two separate drawings
@@ -198,13 +215,13 @@ None of them reached this file.
             Liikmeskond page still names it in full.
             {% endcomment %}
             <div class="min-w-0">
-              <h3 class="text-sm text-text-secondary">{{ page.membership.internal_total.label }}</h3>
-              {% if page.membership.internal_total.value is not None %}
-                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.internal_total.value }}</p>
+              <h3 class="text-sm text-text-secondary">{{ page.membership.public_total.label }}</h3>
+              {% if page.membership.public_total.value is not None %}
+                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.public_total.value }}</p>
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.internal_total.as_of|date:"j.m.y" }}</p>
+              <p class="dk-meta">{{ page.membership.public_total.as_of|date:"j.m.y" }}</p>
             </div>
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">{{ page.membership.internal.label }}</h3>
@@ -218,7 +235,13 @@ None of them reached this file.
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
-              <p class="dk-meta">{{ page.membership.internal.as_of|date:"j.m.y" }}</p>
+              {% comment %}
+              This figure's neighbour is now the koda.ee directory count, so the
+              board report is named here. Without it the share beside the paid
+              count reads as a share of the number to its left, and it is not:
+              the denominator is the report's own total, which the chart draws.
+              {% endcomment %}
+              <p class="dk-meta">{{ page.membership.internal.as_of|date:"j.m.y" }} · {{ page.membership.internal.note }}</p>
             </div>
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">Liikmemaksude laekumine</h3>
@@ -316,8 +339,8 @@ None of them reached this file.
               which is invisible until a real title is long enough to truncate.
               {% endcomment %}
               {% if item.public_link %}
-                <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.public_link.url }}" rel="noopener noreferrer">
-                  {{ item.event_name }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
+                <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.public_link.url }}" target="_blank" rel="noopener noreferrer">
+                  {{ item.event_name }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
                 </a>
               {% else %}
                 <span class="min-w-0 flex-1 truncate text-sm text-text">{{ item.event_name }}</span>
@@ -340,10 +363,11 @@ None of them reached this file.
 
     {# -------- Viimased uudised -------- #}
     {% comment %}
-    The design shows three tabs here. Only the Chamber's own news feed exists;
-    press coverage and the newsletter have no source at all, so they are named
-    as unconnected instead of being drawn as empty tabs a reader could mistake
-    for "nothing published".
+    The Chamber's own news feed. Press coverage and the newsletter have no source
+    at all; the card used to name them as unconnected in a footer strip, and the
+    board asked for that strip to go. Nothing is claimed on their behalf either
+    way — they are simply not on this card. `planned_module` is still how a
+    module with no source at all is stated where one is actually promised.
     {% endcomment %}
     <section aria-labelledby="section-news" class="dk-section flex flex-col">
       <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
@@ -366,8 +390,8 @@ None of them reached this file.
               title width, and drags the whole page's scroll area sideways —
               which is invisible until a real title is long enough to truncate.
               {% endcomment %}
-              <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" rel="noopener noreferrer">
-                {{ item.title }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
+              <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer">
+                {{ item.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
               </a>
               {% if item.category %}
                 {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
@@ -383,11 +407,6 @@ None of them reached this file.
           {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Uudised ilmuvad siia pärast esimest edukat kontrolli." only %}
         </div>
       {% endif %}
-      <div class="flex flex-wrap items-center gap-2 border-t border-border px-4 py-2 sm:px-5">
-        <span class="dk-meta">Veel siia planeeritud:</span>
-        <span class="dk-badge dk-badge-neutral">Meediakajastused · ühendamata</span>
-        <span class="dk-badge dk-badge-neutral">Uudiskiri · ühendamata</span>
-      </div>
     </section>
 
   </div>

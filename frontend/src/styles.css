@@ -356,6 +356,34 @@
     @apply border-brand-border bg-brand-soft font-semibold text-text;
   }
 
+  /* A tab panel that reserves the height of a full preview list.
+   *
+   * The Õigusloome card previews at most seven records per tab, and its two
+   * tabs seldom hold seven each. Without a reserved height the card is as tall
+   * as whichever tab is showing, so switching to the shorter one drags the
+   * freshness row — and everything below it — up the page.
+   *
+   * The reserve is derived from the row rather than measured off a rendered
+   * card: one `text-sm` line box inside `py-2.5`, and the `divide-y` hairline
+   * between each pair of rows. Restyling the row therefore carries the reserved
+   * height with it instead of leaving a stale pixel count behind.
+   *
+   * It is a floor and not a fixed height. A row that grows — a wrapping title,
+   * a larger type scale — still expands the card, and the unused part of a
+   * short list stays plain empty surface: no filler rows, no blank titles, no
+   * separators pretending to be records. */
+  .dk-preview-reserve {
+    --dk-preview-rows: 7;
+    --dk-preview-row-height: calc(
+      var(--text-sm) * var(--text-sm--line-height) + var(--spacing) * 5
+    );
+    --dk-preview-row-rule: 1px;
+    min-height: calc(
+      var(--dk-preview-rows) * var(--dk-preview-row-height) +
+        (var(--dk-preview-rows) - 1) * var(--dk-preview-row-rule)
+    );
+  }
+
   .dk-section {
     @apply rounded-lg border border-border bg-surface;
   }

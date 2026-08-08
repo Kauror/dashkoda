@@ -79,12 +79,15 @@ def candidate():
 
 @pytest.fixture
 def three_list_item(imported_snapshot, publish_current_topics, make_workbook, register_workbook):
-    """A record the Õigusloome page draws in three different lists.
+    """A record the Õigusloome page draws in more than one list.
 
-    Open, received recently and carrying a deadline inside the horizon, so it is
-    listed under `Lähenevad tähtajad`, in the `Hetkel töös` table and in
-    `Uusimad sisse tulnud`. Cross-list consistency is only testable against a
-    record that genuinely appears more than once.
+    Open and carrying a deadline inside the horizon, so it is listed both under
+    `Lähenevad tähtajad` and in the `Hetkel töös` table. Cross-list consistency
+    is only testable against a record that genuinely appears more than once.
+
+    It used to appear three times; `Uusimad sisse tulnud` was removed because a
+    record that has just arrived is active work and Hetkel töös already lists
+    it. Two lists is still two chances for one mapping to disagree with itself.
     """
     import datetime as dt
 
@@ -180,7 +183,7 @@ def test_a_matched_open_record_renders_its_koda_page_as_a_link(
     markup = page(viewer)
 
     assert links_to(markup, candidate.canonical_url) >= 1
-    assert "(avaneb uuel lehel)" in markup
+    assert "(avaneb uuel vahelehel)" in markup
 
 
 def test_an_ambiguous_record_stays_plain_text(viewer, open_item, candidate, published):
@@ -329,19 +332,19 @@ def test_a_match_for_a_different_record_never_links_this_one(
 def test_one_record_is_linked_identically_in_every_list_it_appears_in(
     viewer, three_list_item, candidate
 ):
-    """A record can appear in three of this page's lists at once.
+    """A record can appear in two of this page's lists at once.
 
-    `Lähenevad tähtajad`, the `Hetkel töös` table and `Uusimad sisse tulnud` all
-    draw the same row. All three agree because one mapping feeds them, and this
-    asserts the agreement rather than merely counting anchors: every rendering of
-    the topic is a link to the same address, and none of them is a bare span.
+    `Lähenevad tähtajad` and the `Hetkel töös` table draw the same row. Both
+    agree because one mapping feeds them, and this asserts the agreement rather
+    than merely counting anchors: every rendering of the topic is a link to the
+    same address, and neither is a bare span.
     """
     force_decision(three_list_item, decision=MatchDecision.MATCHED, candidate=candidate)
 
     markup = page(viewer)
 
     linked = linked_renderings(markup, three_list_item.topic, candidate.canonical_url)
-    assert linked == 3, "expected the deadline strip, the open table and the received table"
+    assert linked == 2, "expected the deadline strip and the open table"
     assert plain_renderings(markup, three_list_item.topic) == 0
 
 
@@ -351,7 +354,7 @@ def test_a_record_with_no_link_is_plain_text_in_every_list(viewer, three_list_it
     markup = page(viewer)
 
     assert linked_renderings(markup, three_list_item.topic, candidate.canonical_url) == 0
-    assert plain_renderings(markup, three_list_item.topic) == 3
+    assert plain_renderings(markup, three_list_item.topic) == 2
 
 
 def test_the_overview_card_links_the_same_record_as_the_legal_page(

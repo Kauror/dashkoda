@@ -71,9 +71,9 @@ and the information hierarchy are unchanged.
     {% if primary %}
       <a class="dk-card flex min-w-0 items-center gap-3 p-4 transition-colors hover:border-border-strong"
          href="{{ primary.href }}"
-         {% if primary.is_external %}rel="noopener noreferrer"{% endif %}>
+         target="_blank" rel="noopener noreferrer">
         <span class="min-w-0 flex-1 truncate text-sm text-text">
-          {{ primary.label }}
+          {{ primary.label }}<span class="sr-only"> ({% if primary.is_external %}koda.ee{% else %}PDF{% endif %}, avaneb uuel vahelehel)</span>
         </span>
         {% if primary.is_external %}
           <span class="dk-badge dk-badge-neutral shrink-0">Koda.ee</span>
@@ -84,7 +84,8 @@ and the information hierarchy are unchanged.
       </a>
       {% if primary.fallback_href %}
         <p class="text-xs text-text-secondary">
-          <a class="underline" href="{{ primary.fallback_href }}">Ava koopia DashKodas</a>
+          <a class="underline" href="{{ primary.fallback_href }}"
+             target="_blank" rel="noopener noreferrer">Ava koopia DashKodas<span class="sr-only"> (PDF, avaneb uuel vahelehel)</span></a>
         </p>
       {% endif %}
     {% elif article_url %}
@@ -100,9 +101,9 @@ and the information hierarchy are unchanged.
     <section class="flex flex-col gap-3">
       <h2 class="text-base font-semibold text-text">Koda.ee kajastus</h2>
       <a class="dk-card flex min-w-0 items-center gap-3 p-4 transition-colors hover:border-border-strong"
-         href="{{ article_url }}" rel="noopener noreferrer">
+         href="{{ article_url }}" target="_blank" rel="noopener noreferrer">
         <span class="min-w-0 flex-1 truncate text-sm text-text">
-          Vaata arvamust Koda.ee-s
+          Vaata arvamust Koda.ee-s<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
         </span>
         <span class="dk-badge dk-badge-neutral shrink-0">Artikkel</span>
       </a>
@@ -117,12 +118,12 @@ and the information hierarchy are unchanged.
           <li>
             <a class="dk-card flex min-w-0 items-center gap-3 p-3 transition-colors hover:border-border-strong"
                href="{{ document.href }}"
-               {% if document.is_external %}rel="noopener noreferrer"{% endif %}>
+               target="_blank" rel="noopener noreferrer">
               <span class="dk-badge dk-badge-neutral shrink-0">
                 {{ document.role_display }}
               </span>
               <span class="min-w-0 flex-1 truncate text-sm text-text">
-                {{ document.label }}
+                {{ document.label }}<span class="sr-only"> ({% if document.is_external %}koda.ee{% else %}PDF{% endif %}, avaneb uuel vahelehel)</span>
               </span>
             </a>
           </li>

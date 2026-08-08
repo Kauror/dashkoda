@@ -105,10 +105,10 @@ import error rather than a link pointing somewhere unintended.
 Nothing fetches them. No page render, no command and no scraper touches a social
 platform.
 
-Viewer links follow the established DashKoda pattern: `rel="noopener noreferrer"`,
-same tab, and a visually-hidden note that the destination is outside DashKoda.
-`target="_blank"` is not used, because the design system has no approved
-accessible new-tab pattern.
+Viewer links follow the established DashKoda pattern for a link that leaves the
+application: `target="_blank" rel="noopener noreferrer"` and a visually-hidden
+note naming both the outside destination and the new tab. `docs/design-system.md`
+holds the rule.
 
 The newsletter metrics deliberately have **no** link. The only URL would be a
 Smaily account login, and sending a board member to a login screen is not

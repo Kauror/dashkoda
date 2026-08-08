@@ -144,7 +144,7 @@ def test_an_outbound_link_says_it_leaves_dashkoda(submit, viewer_client):
 
     page = body(viewer_client.get(reverse("home")))
 
-    assert "avaneb välisel lehel" in page
+    assert "väline leht, avaneb uuel vahelehel" in page
 
 
 def test_no_search_index_linkedin_figure_is_hard_coded():

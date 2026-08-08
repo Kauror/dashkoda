@@ -66,7 +66,7 @@ def test_the_component_renders_a_link_when_given_one():
 
     assert 'href="https://www.koda.ee/et/meie-moju/hetkel-kasil/alpha"' in rendered
     assert 'rel="noopener noreferrer"' in rendered
-    assert "(avaneb uuel lehel)" in rendered
+    assert "(avaneb uuel vahelehel)" in rendered
 
 
 def test_the_component_keeps_its_default_layout_classes():

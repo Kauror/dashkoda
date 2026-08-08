@@ -43,24 +43,72 @@ def test_without_data_the_page_shows_truthful_empty_states(client, authenticate_
     assert "Ühendamata" in content
 
 
-def test_with_data_the_page_shows_all_three_sections(
-    client, authenticate_viewer, imported_snapshot
-):
+def test_with_data_the_page_shows_its_sections(client, authenticate_viewer, imported_snapshot):
     authenticate_viewer(client)
 
     content = client.get(PAGE_URL).content.decode()
 
     assert "Hetkel töös" in content
     assert "Viimati välja läinud" in content
-    assert "Uusimad sisse tulnud" in content
     assert "Andmete seis" in content
     assert "Sünteetiline avatud teema" in content
+
+
+def test_arrivals_are_no_longer_a_section_of_their_own(
+    client, authenticate_viewer, imported_snapshot
+):
+    """A record that has just come in is active work, and Hetkel töös is where
+    active work is listed. The arrivals table repeated those same rows under a
+    second heading, so it is gone — table, heading and anchor together, rather
+    than left behind as an empty section or a dead fragment link."""
+    authenticate_viewer(client)
+
+    content = client.get(PAGE_URL).content.decode()
+
+    assert "Uusimad sisse tulnud" not in content
+    assert 'id="section-received"' not in content
+    # The arrival count itself is still measured; it is the table that went.
+    assert "Sisse tulnud" in content
+
+
+def test_the_workbook_row_total_is_not_a_headline_figure(
+    client, authenticate_viewer, imported_snapshot
+):
+    """ "Kirjeid kokku" answers how big the file is, not how much work there is.
+
+    It stays in Andmete seis, which is the section about the published snapshot;
+    it is no longer one of the figures the page leads with.
+    """
+    authenticate_viewer(client)
+
+    content = client.get(PAGE_URL).content.decode()
+    figures = content.split('id="section-figures"', 1)[1].split("</section>", 1)[0]
+
+    assert "Kirjeid kokku" not in figures
+    assert "Hetkel töös" in figures
+    assert "Kirjeid kokku" in content, "the data-state section still describes the file"
+
+
+def test_the_open_table_no_longer_carries_the_next_step_column(
+    client, authenticate_viewer, imported_snapshot
+):
+    authenticate_viewer(client)
+
+    content = client.get(PAGE_URL).content.decode()
+    table = content.split('id="section-open"', 1)[1].split("</table>", 1)[0]
+
+    assert "Järgmiseks" not in table
+    assert "Hetkeseis" in table, "the columns that stayed are still there"
 
 
 def test_every_section_the_overview_links_to_exists_on_this_page(
     client, authenticate_viewer, imported_snapshot
 ):
-    """The overview's three Õigusloome counts link into this page by anchor.
+    """The Õigusloome counts that link into this page do so by anchor.
+
+    Two of the three link now: the arrivals count went to plain text with the
+    section that listed its rows, because no remaining section holds exactly the
+    records it counts.
 
     The ids are named in `apps/legal_work/sections.py`, but the template still
     writes its own `heading_id`, so nothing but this test stops the two drifting

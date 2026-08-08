@@ -113,7 +113,7 @@ test("tag filtering keeps only that tag", async ({ page }) => {
 
 test("combined filters narrow together", async ({ page }) => {
   oncePerRun();
-  await open_(page, "?year=all&delivery_mode=online&public_link=unlinked");
+  await open_(page, "?year=all&review=required&public_link=unlinked");
 
   const before = await rows(page).count();
   await page.goto(`${PAGE}?year=all`);
@@ -201,8 +201,9 @@ test("a very long linked event name does not widen the page", async ({ page }) =
   /*
    * The shape of a defect that shipped once. `sr-only` is absolutely positioned,
    * and an absolutely positioned box is only contained by an ancestor that is its
-   * containing block — so an unpositioned anchor let the hidden "(avaneb koda.ee
-   * lehel)" note settle at the full text width and widen the whole page.
+   * containing block — so an unpositioned anchor let the hidden
+   * "(koda.ee, avaneb uuel vahelehel)" note settle at the full text width and
+   * widen the whole page.
    *
    * The row's own width is not the invariant: a wide table legitimately scrolls
    * inside its container. The document not scrolling sideways is.

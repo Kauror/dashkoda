@@ -16,13 +16,11 @@ from __future__ import annotations
 
 # Hetkel töös — every open topic.
 SECTION_OPEN = "section-open"
-# Uusimad sisse tulnud — the arrivals, newest first.
-SECTION_RECEIVED = "section-received"
 # Viimati välja läinud — the opinions that have gone out.
 SECTION_SENT = "section-sent"
 
 # Every anchor the overview links to, for the test that holds the page to them.
-LINKED_SECTIONS: tuple[str, ...] = (SECTION_OPEN, SECTION_RECEIVED, SECTION_SENT)
+LINKED_SECTIONS: tuple[str, ...] = (SECTION_OPEN, SECTION_SENT)
 
 
 def anchor(page_url: str, section_id: str) -> str:

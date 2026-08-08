@@ -26,14 +26,17 @@ inspected in the read-only admin.
 {% block content %}
 <div class="flex flex-col gap-6">
 
-  <header class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Sündmused</h1>
-      <p class="text-sm text-text-secondary">Koja sündmuste programm ja ajalugu</p>
-    </div>
-    <div class="rounded-lg border border-border bg-surface px-4 py-3">
-      {% include "dashboard/components/feed_state.html" with summary=summary observed_label="Eksport seisuga" only %}
-    </div>
+  {% comment %}
+  The export's connection state used to sit under the title as its own strip:
+  synchronised-at, checked-at and whether anything had changed. The board asked
+  for it off this page. Nothing about the data's provenance is claimed instead —
+  every figure and the table still carry the export's own as-of date, and the
+  shell's freshness row still speaks for the module — so the page states less
+  about the feed's plumbing without stating anything untrue about the data.
+  {% endcomment %}
+  <header class="flex flex-col gap-1">
+    <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Sündmused</h1>
+    <p class="text-sm text-text-secondary">Koja sündmuste programm ja ajalugu</p>
   </header>
 
   {% if page.has_data %}
@@ -95,26 +98,6 @@ inspected in the read-only admin.
                 <option value="">Kõik sildid</option>
                 {% for option in page.options.tags %}
                   <option value="{{ option.value }}"{% if option.value == page.filters.tag %} selected{% endif %}>{{ option.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-type" class="dk-meta">Tüüp</label>
-              <select id="filter-type" name="event_type" class="dk-input">
-                <option value="">Kõik tüübid</option>
-                {% for option in page.options.event_types %}
-                  <option value="{{ option.value }}"{% if option.value == page.filters.event_type %} selected{% endif %}>{{ option.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-delivery" class="dk-meta">Toimumisviis</label>
-              <select id="filter-delivery" name="delivery_mode" class="dk-input">
-                <option value="">Kõik viisid</option>
-                {% for option in page.options.delivery_modes %}
-                  <option value="{{ option.value }}"{% if option.value == page.filters.delivery_mode %} selected{% endif %}>{{ option.label }}</option>
                 {% endfor %}
               </select>
             </div>
@@ -191,10 +174,7 @@ inspected in the read-only admin.
                 <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kuupäev</th>
                 <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sündmus</th>
                 <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Silt</th>
-                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tüüp</th>
-                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Toimumisviis</th>
                 <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Seisund</th>
-                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teenuse kood</th>
               </tr>
             </thead>
             <tbody>
@@ -219,16 +199,14 @@ inspected in the read-only admin.
                       block — without a positioned anchor it settles at the
                       untruncated text width and widens the page.
                       {% endcomment %}
-                      <a class="dk-link relative" href="{{ item.public_link.url }}" rel="noopener noreferrer">
-                        {{ item.event_name }}<span class="sr-only"> (avaneb koda.ee lehel)</span>
+                      <a class="dk-link relative" href="{{ item.public_link.url }}" target="_blank" rel="noopener noreferrer">
+                        {{ item.event_name }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
                       </a>
                     {% else %}
                       {{ item.event_name }}
                     {% endif %}
                   </td>
                   <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.tag_label|default:"—" }}</td>
-                  <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.event_type_label|default:"—" }}</td>
-                  <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">{{ item.get_delivery_mode_display|default:"—" }}</td>
                   <td class="border-b border-border px-4 py-2">
                     <span class="flex flex-wrap items-center gap-1.5">
                       {% include "dashboard/components/status_badge.html" with label=item.get_event_status_display variant="neutral" only %}
@@ -237,7 +215,6 @@ inspected in the read-only admin.
                       {% endif %}
                     </span>
                   </td>
-                  <td class="border-b border-border px-4 py-2 whitespace-nowrap tabular-nums text-text-secondary">{{ item.service_code }}</td>
                 </tr>
               {% endfor %}
             </tbody>

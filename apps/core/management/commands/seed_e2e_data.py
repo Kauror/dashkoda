@@ -725,7 +725,7 @@ def _seed_events(today: dt.date) -> str:
         )
 
     # The overflow candidate: a very long linked title carrying the visually
-    # hidden "(avaneb koda.ee lehel)" suffix.
+    # hidden "(koda.ee, avaneb uuel vahelehel)" suffix.
     add(1, title=LONG_TITLE, starts_on=today + dt.timedelta(days=2))
     # A multi-day range, so the date column renders two dates.
     add(

@@ -45,7 +45,7 @@ NEWSLETTER_LABEL = "Uudiskirjad"
 
 #: Appended to every outbound profile link for screen-reader users, because the
 #: link text alone does not say the destination is outside DashKoda.
-EXTERNAL_LINK_NOTE = "avaneb välisel lehel"
+EXTERNAL_LINK_NOTE = "väline leht, avaneb uuel vahelehel"
 
 
 @dataclass(frozen=True)

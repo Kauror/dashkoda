@@ -11,8 +11,9 @@ nothing behind.
 
 The profile links beside the social labels are display links. They are fixed
 application configuration, they are never editable here, and nothing in DashKoda
-fetches them. They carry `rel="noopener noreferrer"` and open in the same tab,
-because the design system has no approved accessible new-tab pattern.
+fetches them. They open in a new tab, carrying
+`target="_blank" rel="noopener noreferrer"` and a visually hidden note saying so,
+because leaving a half-typed form to look at a profile would lose the entry.
 {% endcomment %}
 
 {% block breadcrumbs %}
@@ -89,7 +90,7 @@ because the design system has no approved accessible new-tab pattern.
         {% if spec.profile_url %}
           <p class="help">
             Avalik leht:
-            <a href="{{ spec.profile_url }}" rel="noopener noreferrer">{{ spec.profile_url }}</a>
+            <a href="{{ spec.profile_url }}" target="_blank" rel="noopener noreferrer">{{ spec.profile_url }}</a>
           </p>
         {% endif %}
         {% include "visibility/admin/_latest_value.html" with reading=reading only %}

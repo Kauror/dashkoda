@@ -30,7 +30,6 @@ from .selectors import (
     count_sent_since,
     get_latest_sent_items,
     get_legal_work_summary,
-    get_newest_received_items,
     get_open_items,
     get_upcoming_deadlines,
 )
@@ -57,11 +56,15 @@ def legal_work_overview(request):
     # Materialised first, because the link lookup needs to know every record the
     # page will draw before it runs. A record listed both as in-work and as an
     # approaching deadline is asked about once and answered once.
+    #
+    # Arrivals are not a list of their own here any more. A record that has just
+    # come in is active work and is already in Hetkel töös; `received_recent`
+    # below still counts the window, because how much arrived is a real
+    # measurement even without a table repeating the rows.
     open_items = list(get_open_items(snapshot))
     sent_items = list(get_latest_sent_items(snapshot, limit=DEFAULT_RECENT_LIMIT))
-    received_items = list(get_newest_received_items(snapshot, limit=DEFAULT_RECENT_LIMIT))
     deadlines = get_upcoming_deadlines(snapshot) if snapshot else ()
-    links = resolve_links_for(open_items, sent_items, received_items, deadlines)
+    links = resolve_links_for(open_items, sent_items, deadlines)
 
     return render(
         request,
@@ -76,7 +79,6 @@ def legal_work_overview(request):
             "summary": summary,
             "open_items": present_topics(open_items, links),
             "sent_items": present_topics(sent_items, links),
-            "received_items": present_topics(received_items, links),
             # Counters are `None` rather than `0` when no snapshot is published,
             # so an unconnected source never reads as a quiet month. The summary
             # itself reports 0 for an absent snapshot, which is the right answer

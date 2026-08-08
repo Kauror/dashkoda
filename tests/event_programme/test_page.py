@@ -14,6 +14,8 @@ Three properties are the point of this module:
 from __future__ import annotations
 
 import datetime as dt
+import html
+import re
 
 import pytest
 from django.db import connection
@@ -22,6 +24,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
 
+from apps.event_programme.models import EventProgrammeItem
 from apps.event_programme.selectors import PAGE_SIZE, get_current_event_programme_snapshot
 
 from .conftest import SYNTHETIC_URL, programme_years, synthetic_programme
@@ -32,6 +35,9 @@ pytestmark = pytest.mark.django_db
 PAGE_URL = "/sundmused/"
 
 PROGRAMME_ROWS = 9
+
+# Kuupäev, Sündmus, Silt, Seisund — the name is the second cell.
+NAME_CELL = 1
 
 
 @pytest.fixture
@@ -69,19 +75,62 @@ def table_body(response) -> str:
     return page.split("<tbody>")[1].split("</tbody>")[0]
 
 
-def rendered_codes(response) -> list[str]:
-    """Service codes in the order the table rendered them.
+# The visually hidden destination note that rides inside a linked event name.
+# It is part of the accessible name and not part of the event's name, so reading
+# the column has to drop it — leaving it in makes every linked row unmatchable.
+SR_ONLY_NOTE = re.compile(r'<span class="sr-only">.*?</span>', re.S)
 
-    Read from the last cell of each row rather than from a class name, so a
+
+def rendered_names(response) -> list[str]:
+    """Event names in the order the table rendered them.
+
+    Read from the name cell of each row rather than from a class name, so a
     styling change does not silently make every assertion here vacuous.
+
+    Two details the markup forces. A linked name carries a hidden
+    `(koda.ee, avaneb uuel vahelehel)` note inside its anchor, which is dropped
+    here; an unlinked one is bare text. And the cell is unescaped, because
+    `strip_tags` removes tags without decoding the entities Django wrote for the
+    characters inside them.
     """
-    codes = []
+    names = []
     for row in table_body(response).split("<tr>")[1:]:
         cells = row.split("<td")[1:]
-        if not cells:
+        if len(cells) < NAME_CELL + 1:
             continue
-        last = cells[-1].split(">", 1)[1].split("</td>")[0]
-        codes.append(strip_tags(last).strip())
+        cell = cells[NAME_CELL].split(">", 1)[1].split("</td>")[0]
+        text = strip_tags(SR_ONLY_NOTE.sub("", cell))
+        names.append(" ".join(html.unescape(text).split()))
+    return names
+
+
+def rendered_codes(response) -> list[str]:
+    """The same rows, named by the service code the fixtures identify them by.
+
+    The service code is no longer a column — the board asked for it off the
+    table — so the rows are read by name and translated back here, against the
+    published snapshot rather than against a copy of the fixture data. The
+    assertions stay written in codes because that is how the fixtures name their
+    rows, and a name is the wrong thing to assert on when the point is which
+    record was selected.
+
+    Both lookups are assertions rather than fallbacks. A name the snapshot does
+    not hold means this helper has stopped reading the column correctly, and
+    quietly returning the unmatched string would turn every caller into a
+    comparison of names against codes that simply never matches.
+    """
+    snapshot = get_current_event_programme_snapshot()
+    by_name: dict[str, str] = {}
+    for name, code in EventProgrammeItem.objects.filter(snapshot=snapshot).values_list(
+        "event_name", "service_code"
+    ):
+        assert name not in by_name, f"two rows share the name {name!r}; read them another way"
+        by_name[name] = code
+
+    codes = []
+    for name in rendered_names(response):
+        assert name in by_name, f"the table rendered {name!r}, which no published row is named"
+        codes.append(by_name[name])
     return codes
 
 
@@ -152,8 +201,6 @@ def test_every_year_is_one_explicit_choice(viewer, programme):
     ("query", "expected"),
     [
         ({"year": "all", "tag": "konverents"}, {"8002", "8007"}),
-        ({"year": "all", "event_type": "conference"}, {"8002", "8007"}),
-        ({"year": "all", "delivery_mode": "hybrid"}, {"8003", "8007"}),
         ({"year": "all", "status": "upcoming"}, {"8005"}),
         ({"year": "all", "public_link": "linked"}, {"8001", "8005"}),
         ({"year": "all", "review": "required"}, {"8003", "8004"}),
@@ -164,6 +211,70 @@ def test_each_filter_narrows_the_table(viewer, programme, query, expected):
     response = viewer.get(PAGE_URL, query)
 
     assert set(rendered_codes(response)) == expected
+
+
+@pytest.mark.parametrize("param", ["event_type", "delivery_mode"])
+def test_a_withdrawn_filter_cannot_be_switched_on_from_the_query_string(viewer, programme, param):
+    """Tüüp and Toimumisviis are gone from the page, controls and columns alike.
+
+    The selector can still filter on either, and a query string is the one way
+    left to ask for it. The page does not ask: a filter that narrows the table
+    with nowhere on screen to say it is on would leave a reader looking at a
+    short list for no visible reason.
+    """
+    values = {"event_type": "conference", "delivery_mode": "hybrid"}
+
+    response = viewer.get(PAGE_URL, {"year": "all", param: values[param]})
+
+    assert len(rendered_codes(response)) == PROGRAMME_ROWS
+
+
+def test_the_table_no_longer_carries_the_type_mode_or_code_columns(viewer, programme):
+    response = viewer.get(PAGE_URL, {"year": "all"})
+    head = programme_section(response).split("<thead>", 1)[1].split("</thead>", 1)[0]
+
+    for heading in ("Tüüp", "Toimumisviis", "Teenuse kood"):
+        assert heading not in head
+    for heading in ("Kuupäev", "Sündmus", "Silt", "Seisund"):
+        assert heading in head
+
+
+def test_the_filter_block_no_longer_offers_type_or_delivery_mode(viewer, programme):
+    page = body(viewer.get(PAGE_URL))
+
+    assert 'name="event_type"' not in page
+    assert 'name="delivery_mode"' not in page
+    assert 'name="tag"' in page, "the filters that stayed still render"
+    assert 'name="status"' in page
+
+
+def test_a_service_code_is_still_searchable_without_its_column(viewer, programme):
+    """The column went; the code did not stop identifying a row. The search box
+    still says it matches a code, so it still has to."""
+    response = viewer.get(PAGE_URL, {"year": "all", "q": "8008"})
+
+    assert set(rendered_codes(response)) == {"8008"}
+
+
+def test_the_page_no_longer_carries_the_export_connection_strip(viewer, programme):
+    """The synchronisation state came off this page. What replaced it is
+    nothing — the figures and the table still carry the export's own as-of
+    date, so no provenance was invented to fill the gap."""
+    page = body(viewer.get(PAGE_URL))
+
+    assert "Eksport seisuga" not in page
+    assert "Viimane edukas sünkroonimine" not in page
+
+
+def test_the_figure_strip_no_longer_counts_events_with_a_public_page(viewer, programme):
+    """It described the workbook's link column rather than the programme, and
+    the Avalik leht filter is where a reader acts on it."""
+    page = body(viewer.get(PAGE_URL))
+    figures = page.split('id="section-figures"', 1)[1].split("</section>", 1)[0]
+
+    assert "Avaliku lehega" not in figures
+    assert "Sündmusi perioodil" in figures
+    assert 'name="public_link"' in page, "the filter it duplicated is still offered"
 
 
 def test_the_month_filter_narrows_the_table(viewer, programme):
@@ -258,7 +369,7 @@ def test_a_linked_event_links_its_name_with_the_project_wording(viewer, programm
     rows = table_body(viewer.get(PAGE_URL, {"year": "all", "public_link": "linked"}))
 
     assert f'href="{SYNTHETIC_URL}"' in rows
-    assert "(avaneb koda.ee lehel)" in rows
+    assert "(koda.ee, avaneb uuel vahelehel)" in rows
     assert 'rel="noopener noreferrer"' in rows
 
 
@@ -267,7 +378,7 @@ def test_an_unlinked_event_renders_its_name_as_plain_text(viewer, programme):
 
     assert "Sünteetiline mai konverents" in strip_tags(rows)
     assert "<a " not in rows, "no anchor in a row the workbook did not link"
-    assert "(avaneb koda.ee lehel)" not in rows
+    assert "(koda.ee, avaneb uuel vahelehel)" not in rows
 
 
 def test_no_link_is_inferred_from_a_matching_title_or_date(viewer, programme):
@@ -390,14 +501,13 @@ def test_the_second_page_still_honours_the_year_filter(viewer, long_programme):
 def test_a_pagination_link_carries_every_active_filter(viewer, long_programme):
     _old_year, mid_year = programme_years()
 
-    response = viewer.get(
-        PAGE_URL, {"year": mid_year, "q": "Sünteetiline", "delivery_mode": "onsite"}
-    )
+    # Both filters keep the whole year's rows, so page two still exists to link
+    # to. A filter narrow enough to fit on one page would make this vacuous.
+    response = viewer.get(PAGE_URL, {"year": mid_year, "q": "Sünteetiline"})
     page = body(response)
 
     assert f"year={mid_year}" in page
     assert "q=S%C3%BCnteetiline" in page
-    assert "delivery_mode=onsite" in page
     assert "page=2" in page
 
 

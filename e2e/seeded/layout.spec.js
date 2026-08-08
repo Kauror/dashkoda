@@ -42,8 +42,8 @@ test("a long linked title with a hidden suffix does not widen the page", async (
    * The exact shape of the shipped defect. `sr-only` is absolutely positioned,
    * and an absolutely positioned box is only clipped by an ancestor's
    * `overflow: hidden` when that ancestor is its containing block — so an
-   * untruncated anchor let the hidden "(avaneb koda.ee lehel)" note settle at
-   * the full text width and widen the whole page.
+   * untruncated anchor let the hidden "(koda.ee, avaneb uuel vahelehel)" note
+   * settle at the full text width and widen the whole page.
    */
   await signIn(page);
   await page.goto("/uudised/");
@@ -107,5 +107,98 @@ test("wide tables scroll inside their own container, not the page", async ({ pag
 
   expect(unscrollable).toBe(0);
   // And whatever the tables do, the document itself must not scroll sideways.
+  await expectNoHorizontalOverflow(page);
+});
+
+/*
+ * The Õigusloome card is a preview of at most seven records per tab, and its
+ * two tabs almost never hold seven each. Whichever tab is shorter must not pull
+ * the card's footer — and the whole right-hand column below it — up the page.
+ *
+ * Both panels reserve the height of a seven-row list in CSS. These tests
+ * measure the rendered card rather than the declaration, because a reserve
+ * derived from theme variables silently stops applying if one of them goes
+ * away, and the symptom is exactly the collapse this prevents.
+ */
+const LEGAL_CARD = 'section[aria-labelledby="section-legislation"]';
+// Sub-pixel layout rounding is not a collapse. One shorter row would be tens of
+// pixels, so this tolerance cannot hide the defect.
+const HEIGHT_TOLERANCE = 2;
+
+async function cardHeight(page) {
+  return (await page.locator(LEGAL_CARD).boundingBox()).height;
+}
+
+/** The top of the card's "Seisuga:" row — what a collapsing card drags upwards. */
+async function freshnessTop(page) {
+  return (await page.locator(`${LEGAL_CARD} dl`).last().boundingBox()).y;
+}
+
+test("the legal card keeps its height when the shorter tab is selected", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/");
+
+  const openRows = page.locator("#panel-open li");
+  const sentRows = page.locator("#panel-sent li");
+  await expect(openRows).toHaveCount(7);
+
+  // The assertion means nothing unless the other tab really is shorter.
+  const sent = await sentRows.count();
+  expect(sent).toBeLessThan(7);
+
+  const before = await cardHeight(page);
+  const footerBefore = await freshnessTop(page);
+
+  await page.getByRole("tab", { name: "Välja läinud" }).click();
+  await expect(sentRows.first()).toBeVisible();
+
+  expect(Math.abs((await cardHeight(page)) - before)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
+  expect(Math.abs((await freshnessTop(page)) - footerBefore)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
+});
+
+test("the legal card keeps its height on the way back to the fuller tab", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/");
+
+  await page.getByRole("tab", { name: "Välja läinud" }).click();
+  await expect(page.locator("#panel-sent li").first()).toBeVisible();
+  const shortTab = await cardHeight(page);
+
+  await page.getByRole("tab", { name: "Töös" }).click();
+  await expect(page.locator("#panel-open li").first()).toBeVisible();
+
+  expect(Math.abs((await cardHeight(page)) - shortTab)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
+});
+
+test("the reserved list height is seven real rows, not a guessed number", async ({ page }) => {
+  /*
+   * What makes the reserve survive a tab holding three records, or none: it is
+   * the height of seven of this card's own rows. Measuring it against the rows
+   * the browser actually drew is what keeps the CSS honest if the row is ever
+   * restyled.
+   */
+  await signIn(page);
+  await page.goto("/");
+
+  const reserved = await page.locator("#panel-open").evaluate((node) => {
+    const declared = getComputedStyle(node).minHeight;
+    return declared.endsWith("px") ? parseFloat(declared) : NaN;
+  });
+  expect(Number.isNaN(reserved)).toBe(false);
+
+  const sevenRows = await page.locator("#panel-open li").evaluateAll((nodes) => {
+    const rows = nodes.slice(0, 7);
+    const first = rows[0].getBoundingClientRect();
+    const last = rows[rows.length - 1].getBoundingClientRect();
+    return last.bottom - first.top;
+  });
+
+  expect(Math.abs(reserved - sevenRows)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
+  // Both tabs reserve it, or switching still jumps.
+  const sentReserved = await page
+    .locator("#panel-sent")
+    .evaluate((node) => parseFloat(getComputedStyle(node).minHeight));
+  expect(Math.abs(sentReserved - reserved)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
+
   await expectNoHorizontalOverflow(page);
 });
