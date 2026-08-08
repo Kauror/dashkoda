@@ -111,10 +111,17 @@ export function mountChart(figure) {
     renderer: "canvas",
     useDirtyRect: true,
   });
+  /*
+   * `animation` is applied after the payload, not before it. Spread the other
+   * way round and a payload carrying its own `animation: true` — which every
+   * server-built option did — silently overrode the reduced-motion preference,
+   * so the setting looked respected in this file and was not respected on the
+   * page. The reader's preference is the last word, so it is written last.
+   */
   instance.setOption({
     ...chartTheme(),
-    animation: !prefersReducedMotion(),
     ...payload,
+    animation: payload.animation !== false && !prefersReducedMotion(),
   });
 
   if (typeof ResizeObserver === "function") {
