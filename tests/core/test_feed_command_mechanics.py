@@ -118,6 +118,10 @@ class TestTheLockedResult:
                 "apps.legal_work.management.commands.sync_oigusloome_public",
                 "sync_oigusloome_public",
             ),
+            (
+                "apps.events.management.commands.discover_koda_event_pages",
+                "discover_koda_event_pages",
+            ),
         ],
     )
     def test_it_exits_three_and_reports_locked(self, monkeypatch, module_path, command_name):

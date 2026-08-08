@@ -309,6 +309,54 @@ KODA_ARCHIVE_KNOWN_PAGES_BEFORE_STOP = 2
 
 KODA_ARCHIVE_BODY_MAX_LENGTH = 6000
 
+# The durable catalogue of public Koda.ee **event pages**.
+#
+# A fifth public, anonymous, read-only Koda.ee endpoint, and a different job
+# from `KODA_EVENTS_*` above. That one publishes the upcoming calendar and drops
+# events once they finish; this one accumulates event *pages* and keeps them, so
+# the event programme — which reaches back to 2018 — can be given a public link
+# long after the event happened.
+#
+# It exists only to attach an address. It never supplies an event's name, date,
+# type, delivery mode, tag, service code or inclusion status: the event
+# programme workbook remains the sole authority on all of those.
+KODA_EVENT_PAGES_SOURCE_SLUG = "koda-public-event-pages"
+
+# Discovery reads the sitemap rather than walking the listing. The listing
+# publishes upcoming events only, and `/et/sundmused/arhiiv` is paginated prose;
+# the sitemap names every event page directly. Verified against the live site:
+# 1,516 event URLs, and all 54 sampled archive entries were present in it.
+KODA_EVENT_PAGES_SITEMAP_URL = "https://www.koda.ee/et/sitemap.xml"
+KODA_EVENT_PAGES_PATH_PREFIX = "/et/sundmused/"
+
+# The sitemap is an index of child sitemaps. Both are XML and small; the caps
+# bound a hostile or broken index long before anything is parsed.
+KODA_EVENT_PAGES_SITEMAP_MAX_BYTES = 8 * 1024 * 1024
+KODA_EVENT_PAGES_MAX_SITEMAPS = 60
+# A sitemap listing far more event URLs than the site has is a source or parsing
+# fault. Refused rather than truncated, so a bad read never looks like a crawl.
+KODA_EVENT_PAGES_MAX_URLS = 10000
+
+# **Category listings share the event path prefix.** `/et/sundmused/koolitused`
+# and `/et/sundmused/liikmeuritused` are category pages, not events. They are
+# rejected the same way the calendar collector rejects them — by requiring the
+# detail page to actually present `Event` structured data — never by a hardcoded
+# list of slugs, which would rot the moment a category is added.
+#
+# Detail requests one run may make. A full backfill is resumable: resources are
+# cumulative, so the next run simply continues with the URLs still unknown.
+KODA_EVENT_PAGES_MAX_DETAIL_PAGES_PER_RUN = 150
+
+# How long a known page is trusted before an incremental run re-reads it. Past
+# events do not change, so re-reading is about catching corrections on pages for
+# events that have not happened yet; the window below is generous for that and
+# keeps the daily job small.
+KODA_EVENT_PAGES_RECHECK_AFTER_DAYS = 30
+
+# Pacing, as for the archive backfill: this is a long run of requests to a third
+# party and nothing about it is time-critical.
+KODA_EVENT_PAGES_REQUEST_PAUSE_SECONDS = 0.5
+
 # --------------------------------------------------------------------------
 # Chamber opinion documents
 # --------------------------------------------------------------------------

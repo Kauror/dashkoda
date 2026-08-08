@@ -210,7 +210,7 @@ def collect_events(*, url: str | None = None, session=None, **_ignored) -> Event
     skipped_past = 0
 
     for candidate in candidates[: settings.KODA_EVENTS_MAX_DETAIL_FETCHES]:
-        if not _is_koda_url(candidate["url"]):
+        if not is_koda_url(candidate["url"]):
             skipped_non_events += 1
             continue
         try:
@@ -223,7 +223,7 @@ def collect_events(*, url: str | None = None, session=None, **_ignored) -> Event
             continue
         details += 1
 
-        parsed = _parse_detail(detail_html, candidate["url"])
+        parsed = parse_event_detail(detail_html, candidate["url"])
         if parsed is None:
             # A category listing, not an event.
             skipped_non_events += 1
@@ -237,7 +237,7 @@ def collect_events(*, url: str | None = None, session=None, **_ignored) -> Event
 
         entries.append(
             EventEntry(
-                stable_key=_stable_key(candidate["url"]),
+                stable_key=stable_key_for_url(candidate["url"]),
                 title=(title or candidate["title"] or "").strip(),
                 canonical_url=candidate["url"],
                 category=to_plain_text(candidate.get("category", ""), limit=120),
@@ -348,7 +348,7 @@ def _find_event(html: str) -> dict | None:
     return None
 
 
-def _parse_detail(html: str, url: str):
+def parse_event_detail(html: str, url: str):
     """Return dates, title and location, or `None` when this is not an event."""
     event = _find_event(html)
     title = ""
@@ -431,9 +431,15 @@ def _fallback_date(html: str) -> dt.date | None:
         return None
 
 
-def _stable_key(url: str) -> str:
+# The three names below are public because `public_discovery` reads the same
+# pages from a different direction and must reach them the same way. Two
+# readings of one page that disagreed about its key, its dates or whether its
+# host is allowed would be worse than the duplication.
+
+
+def stable_key_for_url(url: str) -> str:
     return urlparse(url).path.rstrip("/").rsplit("/", 1)[-1][:200]
 
 
-def _is_koda_url(value: str) -> bool:
+def is_koda_url(value: str) -> bool:
     return is_allowed_public_url(value, allowed_hosts=settings.KODA_ALLOWED_HOSTS)
