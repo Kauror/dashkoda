@@ -8,15 +8,17 @@ what the command prints to a scheduler that only reads one line.
 from __future__ import annotations
 
 import json
+from contextlib import contextmanager
 
 import pytest
 from django.core.management import call_command
 
 from apps.audit.models import AuditAction, AuditEvent
-from apps.core.feeds import advisory_lock
+from apps.core.feeds import FeedLocked
+from apps.events.management.commands import discover_koda_event_pages as command_module
 from apps.events.public_discovery import WARN_DETAIL_CAP, DiscoveryTally
 from apps.events.public_models import DiscoveryMode, PublicEventDiscoverySnapshot
-from apps.events.public_sync import LOCK_NAME, discover_event_pages
+from apps.events.public_sync import LOCKED_MESSAGE, discover_event_pages
 
 COMMAND = "discover_koda_event_pages"
 
@@ -148,12 +150,27 @@ def test_the_json_line_is_counts_only(db, patch_discovery, capsys):
     }
 
 
-def test_a_held_lock_is_reported_rather_than_waited_on(db, patch_discovery):
+def test_a_held_lock_stops_the_crawl_before_it_starts(db, patch_discovery, monkeypatch):
+    """A contended run must not reach koda.ee at all.
+
+    The lock is replaced rather than actually taken: `pg_try_advisory_lock` is
+    session-level and re-entrant, so a test holding it on the same connection
+    the command uses would be granted it a second time and prove nothing.
+
+    The exit code and the JSON shape are the shared feed-command contract,
+    covered for this command in `tests/core/test_feed_command_mechanics.py`.
+    """
     run = patch_discovery(fake_discovery())
 
-    with advisory_lock(LOCK_NAME):
-        with pytest.raises(SystemExit) as exit_info:
-            call_command(COMMAND)
+    @contextmanager
+    def held(*args, **kwargs):
+        raise FeedLocked(LOCKED_MESSAGE)
+        yield  # pragma: no cover
+
+    monkeypatch.setattr(command_module, "advisory_lock", held)
+
+    with pytest.raises(SystemExit) as exit_info:
+        call_command(COMMAND)
 
     assert exit_info.value.code == 3
     assert run.calls == []
