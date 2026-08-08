@@ -18,6 +18,7 @@ into any of it.
 
 from __future__ import annotations
 
+import datetime as dt
 import logging
 import uuid
 from dataclasses import dataclass, field, replace
@@ -49,12 +50,14 @@ from .opinion_matching import (
     EVIDENCE_DATE_NEAR,
     MATCHER_VERSION,
     MIN_MARGIN,
+    TEXT_TWIN_WINDOW_DAYS,
     THRESHOLD_AMBIGUOUS,
     THRESHOLD_MATCH,
     Candidate,
     build_rarity,
     date_agreement,
     score_candidate,
+    texts_are_same_letter,
 )
 from .opinion_models import OpinionCatalogueEntry, OpinionCatalogueSnapshot
 from .opinion_pdf import ExtractionStatus, ValidationStatus
@@ -213,17 +216,18 @@ def _candidates(
     A public document joins a private candidate on either of two identities:
 
     - **the same bytes** — one blob, trivially the same document;
-    - **the same extracted text** — Koda.ee routinely publishes the letter as
-      a different file (a re-export of the same correspondence), and the
-      rehearsal against production data measured what treating those as
-      competitors does: twenty-nine letters tied their own re-publication at
-      a margin of zero and every one demoted to ambiguous. Identical
-      normalised text is the strong equivalence evidence the project demands
-      before two byte-distinct files may be called one document; anything
-      weaker — a similar title, a near date — keeps them distinct.
+    - **the same letter re-exported** — Koda.ee routinely publishes the
+      letter it sent as a different file, and the rehearsal against
+      production data measured what treating those as competitors does:
+      twenty-nine letters tied their own re-publication at a margin of zero
+      and every one demoted to ambiguous. Equivalence is decided by the
+      whole document — near-identical extracted text with a document date in
+      the same week (`texts_are_same_letter`) — never by a similar title or
+      a near date alone, which keep two files distinct.
     """
     merged: dict[int, Candidate] = {}
     private_by_text: dict[str, int] = {}
+    private_by_date: dict[dt.date, list[int]] = {}
 
     rows = (
         OpinionCatalogueEntry.objects.filter(
@@ -251,6 +255,9 @@ def _candidates(
         )
         if row.extraction.text_sha256:
             private_by_text.setdefault(row.extraction.text_sha256, row.blob_id)
+        for value in (row.filename_date, row.extraction.detected_date):
+            if value is not None:
+                private_by_date.setdefault(value, []).append(row.blob_id)
 
     if public_corpus is None:
         return list(merged.values())
@@ -269,6 +276,8 @@ def _candidates(
         twin_blob_id = row.blob_id
         if twin_blob_id not in merged and row.extraction.text_sha256:
             twin_blob_id = private_by_text.get(row.extraction.text_sha256, row.blob_id)
+        if twin_blob_id not in merged:
+            twin_blob_id = _text_twin(row, merged, private_by_date) or row.blob_id
         existing = merged.get(twin_blob_id)
         if existing is not None:
             if existing.public_document_id is None:
@@ -608,6 +617,34 @@ def _resolve_competing_primaries(decisions, relation_plan, report) -> None:
             relation_plan[index] = (relation_plan[index][0], [])
             report.matched -= 1
             report.ambiguous += 1
+
+
+def _text_twin(row, merged, private_by_date) -> int | None:
+    """The private candidate this public document re-exports, if any.
+
+    Bounded on purpose: only private letters dated within a week of the
+    public document are read at all, and the whole-text similarity bar in
+    `texts_are_same_letter` decides. The date bucket is what keeps this
+    O(few) per document rather than a quadratic sweep of both corpora.
+    """
+    dates = [d for d in (row.filename_date, row.extraction.detected_date) if d is not None]
+    if not dates:
+        return None
+    seen: set[int] = set()
+    best: int | None = None
+    for anchor in dates:
+        for offset in range(-TEXT_TWIN_WINDOW_DAYS, TEXT_TWIN_WINDOW_DAYS + 1):
+            for blob_id in private_by_date.get(anchor + dt.timedelta(days=offset), []):
+                if blob_id in seen:
+                    continue
+                seen.add(blob_id)
+                candidate = merged.get(blob_id)
+                if candidate is None or candidate.entry_id is None:
+                    continue
+                if texts_are_same_letter(candidate.text, row.extraction.text):
+                    if best is None or blob_id < best:
+                        best = blob_id
+    return best
 
 
 def _relation(decision, scored, role, *, primary: bool) -> LegalOpinionDocumentRelation:

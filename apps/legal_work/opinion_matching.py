@@ -94,6 +94,35 @@ MIN_MARGIN = Decimal("12.00")
 
 GENERIC_TOKEN_DAMPING = 0.2
 
+# --------------------------------------------------------------------------
+# When two byte-distinct files are one letter
+# --------------------------------------------------------------------------
+#
+# Koda.ee publishes the letter it sent as a re-export: same correspondence,
+# different bytes, and usually not even identical extracted text — the
+# measured production pair agreed on 94.7% of the text, the whole difference
+# being a dropped letterhead banner. Equivalence therefore needs the whole
+# document to agree, not a title: near-identical full text, and a document
+# date within a re-export's plausible window. A follow-up letter or a second
+# round on the same bill shares vocabulary, not body, and stays distinct.
+TEXT_TWIN_SIMILARITY = 0.90
+TEXT_TWIN_WINDOW_DAYS = 7
+TEXT_TWIN_PREFIX_CHARS = 6000
+
+
+def texts_are_same_letter(left: str, right: str) -> bool:
+    """Whether two extractions read as the same piece of correspondence."""
+    if not left or not right:
+        return False
+    from difflib import SequenceMatcher
+
+    matcher = SequenceMatcher(None, left[:TEXT_TWIN_PREFIX_CHARS], right[:TEXT_TWIN_PREFIX_CHARS])
+    # `real_quick_ratio` is an upper bound: refuse cheaply before diffing.
+    if matcher.real_quick_ratio() < TEXT_TWIN_SIMILARITY:
+        return False
+    return matcher.ratio() >= TEXT_TWIN_SIMILARITY
+
+
 EVIDENCE_DATE_EXACT = "date-exact"
 EVIDENCE_DATE_NEAR = "date-near"
 EVIDENCE_SUBJECT_STRONG = "subject-strong"
