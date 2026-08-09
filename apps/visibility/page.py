@@ -37,7 +37,6 @@ from .selectors import (
     NewsletterSummary,
     VisibilitySummary,
     WebsiteTraffic,
-    get_visibility_history,
     get_visibility_series,
     get_visibility_summary,
     get_website_traffic,
@@ -269,7 +268,6 @@ class VisibilityPage:
     social: tuple[MetricReading, ...]
     trends: tuple[ChannelTrend, ...]
     channels: tuple[ChannelSlot, ...]
-    history: tuple
     ga4: Ga4ConnectionStatus
     today: date
 
@@ -313,24 +311,8 @@ def build_visibility_page(*, detail_url: str = "", today: date | None = None) ->
         social=summary.social,
         trends=trends,
         channels=build_channel_band(summary=summary, ga4_status=ga4_status, detail_url=detail_url),
-        history=_history_rows(),
         ga4=ga4_status,
         today=today,
-    )
-
-
-def _history_rows():
-    """Every published observation, newest first, for the page's table.
-
-    Superseded rows are included and marked. Hiding them would make the table
-    disagree with the audit trail about what the Chamber was once told.
-    """
-    from .models import VisibilityObservation
-
-    return tuple(
-        VisibilityObservation.objects.select_related(
-            "source", "batch", "batch__created_by"
-        ).order_by("-observation_date", "metric", "-id")
     )
 
 
@@ -345,5 +327,4 @@ __all__ = [
     "VisibilityPage",
     "build_channel_band",
     "build_visibility_page",
-    "get_visibility_history",
 ]

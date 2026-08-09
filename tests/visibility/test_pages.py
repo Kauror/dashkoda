@@ -287,16 +287,24 @@ def test_the_page_states_each_social_definition(viewer_client):
     assert "jälgijate arv" in page.lower()
 
 
-def test_the_page_lists_every_observation_including_superseded_ones(submit, viewer_client, today):
+def test_a_correction_replaces_the_figure_rather_than_appearing_beside_it(
+    submit, viewer_client, today
+):
+    """The observation-history table is gone, so a corrected figure has to be
+    unambiguous: the page shows what is true now and not both readings.
+
+    The superseded row is not deleted — it is still stored, still marked, and
+    still readable in the admin, which is where a correction gets audited. This
+    asserts only that the page stopped printing it."""
     submit(facebook_followers=4200)
     submit(facebook_followers=4250)
 
     page = body(viewer_client.get(PAGE_URL))
 
-    assert "Vaatluste ajalugu" in page
-    assert "4200" in page
     assert "4250" in page
-    assert "Asendatud" in page
+    assert "4200" not in page
+    assert "Vaatluste ajalugu" not in page
+    assert "Asendatud" not in page
 
 
 def test_a_trend_needs_at_least_two_observations(submit, viewer_client, days_ago):
@@ -386,7 +394,17 @@ def test_the_page_says_google_analytics_is_not_connected(viewer_client):
 
 
 def test_an_empty_page_says_so_rather_than_showing_zeros(viewer_client):
+    """An unentered metric has to read as unmeasured, never as a zero.
+
+    This used to lean on the observation-history table's empty state as well.
+    That table is gone, so the guarantee now rests where it belongs: on the
+    cards themselves, each of which says it has nothing rather than showing 0.
+    """
     page = body(viewer_client.get(PAGE_URL))
 
     assert "Andmed puuduvad." in page
-    assert "Vaatlusi ei ole veel sisestatud." in page
+    # Every card shows the muted em-dash placeholder and none shows a figure.
+    # Checking the element rather than the text "0": a card that rendered a zero
+    # would use the value span, whatever the digits happened to be.
+    assert "text-metric font-semibold tracking-tight text-text-muted" in page
+    assert 'tabular-nums text-text">' not in page
