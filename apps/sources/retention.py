@@ -342,8 +342,8 @@ def plan_retention(*, days: int = DEFAULT_RETENTION_DAYS, now=None) -> list[Fami
 
 __all__ = [
     "DEFAULT_RETENTION_DAYS",
-    "NEVER_PRUNED",
     "FAMILIES",
+    "NEVER_PRUNED",
     "FamilyPlan",
     "SnapshotFamily",
     "family_model",
