@@ -41,6 +41,7 @@ from .selectors import (
     get_visibility_summary,
     get_website_traffic,
 )
+from .traffic_page import TrafficSection, build_traffic_section
 
 WEBSITE_LABEL = "Kodulehe külastused"
 NEWSLETTER_LABEL = "Uudiskirjad"
@@ -269,6 +270,7 @@ class VisibilityPage:
     trends: tuple[ChannelTrend, ...]
     channels: tuple[ChannelSlot, ...]
     ga4: Ga4ConnectionStatus
+    traffic: TrafficSection
     today: date
 
     @property
@@ -298,7 +300,9 @@ def _trend(reading: MetricReading) -> ChannelTrend:
     )
 
 
-def build_visibility_page(*, detail_url: str = "", today: date | None = None) -> VisibilityPage:
+def build_visibility_page(
+    *, detail_url: str = "", today: date | None = None, period_key: str | None = None
+) -> VisibilityPage:
     """Read every metric once and shape it for the page."""
     today = today or timezone.localdate()
     summary = get_visibility_summary(today=today)
@@ -312,6 +316,7 @@ def build_visibility_page(*, detail_url: str = "", today: date | None = None) ->
         trends=trends,
         channels=build_channel_band(summary=summary, ga4_status=ga4_status, detail_url=detail_url),
         ga4=ga4_status,
+        traffic=build_traffic_section(period_key=period_key, today=today),
         today=today,
     )
 

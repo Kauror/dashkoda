@@ -239,32 +239,43 @@ Four things are deliberate and should stay that way:
     </dl>
   </section>
 
-  {# ---------------- 5. Google Analytics ---------------- #}
-  <section aria-labelledby="section-ga4" class="dk-section">
-    {% comment %}
-    This section described the connection as unbuilt — "DashKoda makes no
-    Google Analytics queries and holds no Google credential" — and went on
-    saying it after the connection was made. A page that states the opposite of
-    what the deployment does is worse than one that says nothing, so the wording
-    follows the connection state rather than being fixed in the markup.
-    {% endcomment %}
-    {% if page.ga4.is_connected %}
-      {% include "dashboard/components/section_header.html" with title="Kodulehe külastused" heading_id="section-ga4" description="Veebistatistika seis." only %}
+  {# ---------------- 5. Kodulehe külastused ---------------- #}
+  {% comment %}
+  This section used to be a paragraph explaining that the connection did not
+  exist, and then — after it did — a paragraph explaining that it did. Neither
+  is what a board member comes here for. It is now the history itself, and the
+  sentence about what is collected sits underneath it where it belongs: as a
+  note on the data, not in place of it.
+  {% endcomment %}
+  {% if page.ga4.is_connected %}
+    {% include "visibility/_traffic.html" with traffic=page.traffic only %}
+    <section aria-labelledby="section-ga4-method" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Kuidas külastusi loetakse" heading_id="section-ga4-method" only %}
       <div class="dk-section-body">
         <p class="text-sm text-text-secondary">
-          Külastusi loeb Google Analytics. DashKoda pärib üks kord ööpäevas eelmise
-          lõppenud päeva koondnäitajad kirjutusõiguseta teenusekontoga ja salvestab
-          neist ainult seansside, kasutajate ja lehevaatamiste arvu. Ühtegi üksikut
-          külastajat ei salvestata ega päringu vastust ei säilitata.
+          Külastusi loeb Google Analytics. DashKoda pärib kord ööpäevas viimase
+          kaheksa lõppenud päeva koondnäitajad kirjutusõiguseta teenusekontoga —
+          kaheksa, sest Google täpsustab hiljutisi päevi veel mitu päeva pärast
+          nende lõppu, ja muutunud päev avaldatakse uue redaktsioonina, mis
+          nimetab asendatud redaktsiooni. Salvestatakse päeva koondarvud ja
+          lehekülgede kaupa lehevaatamised. Ühtegi üksikut külastajat ei
+          salvestata ega päringu vastust ei säilitata.
+        </p>
+        <p class="dk-meta mt-2">
+          Lehevaatamine ei ole lugeja: sama inimene võib ühe loo kaks korda
+          avada. Kasutajate arv on alati ühe päeva oma — erinevate päevade
+          kasutajaid ei saa liita, sest suur osa neist on samad inimesed.
         </p>
       </div>
-    {% else %}
+    </section>
+  {% else %}
+    <section aria-labelledby="section-ga4" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="Kodulehe külastused" heading_id="section-ga4" description="Veebistatistika seis." badge_label="Lisamisel" badge_variant="neutral" only %}
       <div class="dk-section-body">
         {% include "dashboard/components/empty_state.html" with message=page.ga4.message detail=page.ga4.detail only %}
       </div>
-    {% endif %}
-  </section>
+    </section>
+  {% endif %}
 
 </div>
 {% endblock %}

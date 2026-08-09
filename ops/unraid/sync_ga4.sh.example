@@ -1,81 +1,76 @@
 #!/bin/bash
 #
-# DashKoda Google Analytics website-traffic collection.
+# DashKoda Google Analytics reconciliation of recent reporting days.
 #
-# ---------------------------------------------------------------------------
-# THIS IS NOT INSTALLED, AND GA4 IS NOT ENABLED.
+# GENERATED FILE — edit `ops/unraid/generate_examples.py` and re-run it.
+# The schedule is described once there; these examples and the documented times
+# are checked against each other by `tests/core/test_ops_wrappers.py`.
 #
-# The application carries a complete, tested GA4 collector. The deployment
-# carries none of what it needs to run:
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
 #
-#   * no GA4_PROPERTY_ID
-#   * no GA4_CREDENTIALS_FILE and no mounted service-account key
-#   * no copy of this wrapper on the host
-#   * no cron entry
+#   cp sync_ga4.sh.example \
+#     /boot/config/plugins/user.scripts/sync_ga4.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_ga4.sh
 #
-# That is deliberate. Enabling GA4 is a decision, not a side effect of the code
-# existing, and nothing in this repository installs or schedules anything. Do
-# not copy this file to the host until enabling website traffic is actually
-# intended. See docs/deployment-status.md.
-# ---------------------------------------------------------------------------
+# Run it by hand once before scheduling it, and check the exit code. The guard
+# below would otherwise skip it outside its own hour:
 #
-# To enable it later:
+#   DASHKODA_FORCE=1 DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#     /boot/config/plugins/user.scripts/sync_ga4.sh; echo "exit=$?"
 #
-#   1. create a Google Cloud service account with **viewer** access to the GA4
-#      property and nothing else, and download its JSON key;
-#   2. put the key somewhere the web container can read and nowhere a web
-#      server serves, and mount it read-only;
-#   3. set GA4_PROPERTY_ID and GA4_CREDENTIALS_FILE in the deployment's own
-#      environment file — never in this repository, never on a command line;
-#   4. copy this file, set the deployment directory, make it executable:
+# Intended schedule — 05:15 every day, Europe/Tallinn.
 #
-#        cp sync_ga4.sh.example /boot/config/plugins/user.scripts/sync_ga4.sh
-#        chmod +x /boot/config/plugins/user.scripts/sync_ga4.sh
+# The pilot host cannot express Tallinn time: `/etc/localtime` is absent, so the
+# clock and crond both run on UTC. The job is installed as a PAIR of UTC entries
+# and the hour guard runs only the occurrence that is 05:15 in Tallinn:
 #
-#   5. run it by hand once with --dry-run and check the exit code, then once
-#      live, and only then schedule it:
+#   15 2 * * * /boot/config/plugins/user.scripts/sync_ga4.sh &> /dev/null
+#   15 3 * * * /boot/config/plugins/user.scripts/sync_ga4.sh &> /dev/null
 #
-#        DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
-#          /boot/config/plugins/user.scripts/sync_ga4.sh; echo "exit=$?"
+#   summer (EEST, UTC+3): the 02:15 UTC entry runs, the 03:15 one skips
+#   winter (EET,  UTC+2): the 03:15 UTC entry runs, the 02:15 one skips
 #
-# Intended schedule — **none. This job is not scheduled and GA4 is not enabled.**
+# The skipped occurrence is a no-op. `Europe/Tallinn` is missing from that host's
+# trimmed zoneinfo, so the guard reads `Europe/Athens`, which has identical
+# EET/EEST offsets. On a host that really is on Europe/Tallinn, install a single
+# entry at `15 5 * * *` and the guard passes anyway.
 #
-# When it is enabled, it must NOT go at 06:00 Tallinn. That slot is inside the
-# feed chain, between the archive collection at 06:00 and its matcher at 06:15.
-# An earlier version of this file suggested exactly that, from before the chain
-# was compacted into 05:30–06:30.
+# The whole chain runs 05:30–06:30, so every figure is fresh before 07:00.
+# `docs/operations-runbook.md` lists it in order.
 #
-# The free slots either side of the chain are before 05:30 or after 06:30.
-# **05:00 Tallinn** is the recommendation: GA4 finalises a day some hours after
-# it ends, this job collects the *previous* completed day, and running it ahead
-# of the chain keeps the chain's own ordering untouched.
+# First of the morning, fifteen minutes before the chain. It shares
+# nothing with the feeds — no snapshot, no lock, no source — so it neither
+# waits for them nor holds them up, and the traffic figures are published
+# before anything else starts writing.
 #
-#   0 2 * * * /boot/config/plugins/user.scripts/sync_ga4.sh &> /dev/null
-#   0 3 * * * /boot/config/plugins/user.scripts/sync_ga4.sh &> /dev/null
+# This reconciles the last eight completed days, not just yesterday. GA4
+# keeps adjusting a day for about a week after it ends, and a day whose
+# figures have changed is republished as a new revision that names the one
+# it replaces. A day that has not changed publishes nothing at all.
 #
-#   summer (EEST, UTC+3): the 02:00 UTC entry runs, the 03:00 one skips
-#   winter (EET,  UTC+2): the 03:00 UTC entry runs, the 02:00 one skips
+# It is three API requests. The five-year historical import is the same
+# command with a date range and is run by hand, once — never from here.
 #
-# The guard below is already set to 05 for that slot. Change both the guard and
-# the pair together if you choose a different time — `docs/operations-runbook.md`
-# lists what else is running.
+# The property ID and the service-account key file are read from the
+# container's own environment, so neither can enter shell history or a
+# process listing. The key is mounted read-only and belongs to a
+# credential that can only read.
 #
-
-# This job takes its own PostgreSQL advisory lock, distinct from every other
-# feed's, so it can neither block nor be blocked by them. The flock below is
-# host-side defence in depth against two copies of this script overlapping.
-#
-# **A failure here cannot affect anything else.** GA4 is its own source with its
-# own state row. If collection fails, the previously published observation stays
-# current, every other page is untouched, and the website card keeps saying what
-# it said before. With GA4 unconfigured the command fails immediately, naming
-# the missing variables and publishing nothing.
+# The JSON is counts and a date window. Never a page path, a property ID,
+# a credential path or any part of Google's response.
 #
 # Expected exit codes:
 #
-#   0  imported, unchanged, or a successful dry run
-#   1  collection failed; the previous observation is still published
-#   3  the lock was already held, so a previous run is still in progress
+#   0  days were published, nothing had changed, or a successful dry run
+#   1  failed — every day already published stays published and the
+#      dashboard says the last check failed
+#   3  another collection was still running
+#
+# This job takes its own PostgreSQL advisory lock, so it can neither block nor
+# be blocked by another feed. The flock below is host-side defence in depth
+# against two copies of this script overlapping.
 
 set -euo pipefail
 
@@ -111,11 +106,6 @@ fi
 
 # Targets the Compose service by name rather than a generated container name,
 # so a recreated container does not silently break the schedule.
-#
-# `--json` emits one line of aggregate counts and identifiers. It never contains
-# the property ID, the credential path, an access token or any part of Google's
-# response. The three figures are `null` — not `0` — on a day GA4 reported no
-# rows, which is the difference between no traffic measured and zero measured.
 exec flock --nonblock /tmp/dashkoda-sync-ga4.lock \
   docker compose "${COMPOSE_FILES[@]}" exec -T web \
     python manage.py sync_ga4 --json
