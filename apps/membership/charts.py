@@ -79,7 +79,12 @@ GRID = {"left": 56, "right": 24, "top": 32, "bottom": 40, "containLabel": True}
 # label in. With the ordinary right margin the label is drawn past the edge of
 # the canvas and clipped mid-word, which is worse than no label: "Liit" names
 # nothing.
-GRID_WITH_END_LABELS = {**GRID, "right": 116}
+#
+# Sized for the longest label these charts draw — "Tasunud 3 156" — at the
+# weight and size the browser gives an end label, plus its chip padding and its
+# distance from the point. 116 was measured against the 12px unstyled default
+# and stopped being enough the moment the label became legible.
+GRID_WITH_END_LABELS = {**GRID, "right": 140}
 
 # How a value drawn at the end of a bar is set.
 #
@@ -1084,8 +1089,10 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
     floor = min(FEE_AXIS_FLOOR_CEILING, max(0, int((lowest - FEE_AXIS_HEADROOM_PCT) // 10) * 10))
 
     option = _base_option(legend=False)
-    # The year labels are short, but they still need somewhere to sit.
-    option["grid"] = {**GRID, "right": 56}
+    # The year labels are short, but they still need somewhere to sit — and
+    # since the end label became a chip with a border and padding rather than
+    # four bare digits, "somewhere" is wider than four digits.
+    option["grid"] = {**GRID, "right": 76}
     option.update(
         {
             "xAxis": {
