@@ -292,6 +292,44 @@ export function mountChart(figure) {
   }
 
   /*
+   * End labels are what these charts have instead of a legend: each line is
+   * named at its own last point, so nothing has to be matched to a swatch in a
+   * corner. That only works if the name can be read.
+   *
+   * ECharts draws an end label in the series colour, at 12px, with nothing
+   * behind it. On this canvas that is thin mid-blue text sitting on the dark
+   * plot area with gridlines running through it — the label was there and the
+   * board could not read it. It gets the same treatment as the tooltip, from
+   * the same tokens: foreground text colour rather than the line colour, and
+   * the elevated surface behind it so a gridline cannot cross a digit.
+   *
+   * The server's own keys are spread last and win. `formatter` and `distance`
+   * are decided where the chart is built; only the styling is settled here,
+   * because this is the only side that can read a CSS custom property.
+   */
+  if (Array.isArray(option.series)) {
+    option.series = option.series.map((series) =>
+      series && series.endLabel && series.endLabel.show === true
+        ? {
+            ...series,
+            endLabel: {
+              color: token("--color-text", "#e8edf2"),
+              fontSize: 13,
+              fontWeight: 600,
+              backgroundColor: token("--color-elevated", "#1e242b"),
+              borderColor: token("--color-border-strong", "#3d4954"),
+              borderWidth: 1,
+              borderRadius: 4,
+              padding: [3, 6],
+              distance: 8,
+              ...series.endLabel,
+            },
+          }
+        : series,
+    );
+  }
+
+  /*
    * `animation` is applied after the payload, not before it. Spread the other
    * way round and a payload carrying its own `animation: true` — which every
    * server-built option did — silently overrode the reduced-motion preference,
