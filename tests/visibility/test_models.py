@@ -16,11 +16,12 @@ from django.utils import timezone
 from apps.visibility.bootstrap import ensure_facebook_source, ensure_linkedin_source
 from apps.visibility.models import (
     CollectionMethod,
+    Ga4DailySnapshot,
+    Ga4PageDaily,
     VisibilityEntryBatch,
     VisibilityMetric,
     VisibilityObservation,
     VisibilityRecordImmutable,
-    WebsiteTrafficObservation,
 )
 from apps.visibility.registry import METRICS, spec_for
 
@@ -269,21 +270,21 @@ def test_an_observation_cannot_supersede_one_of_a_different_metric(submit):
     assert "supersedes" in error.value.message_dict
 
 
-# -- website traffic ----------------------------------------------------
+# -- Google Analytics reporting days -------------------------------------
 
 
-def test_website_traffic_starts_empty():
-    """Nothing but the configured `sync_ga4` command ever writes this table,
-    so with no collector run it is empty by design."""
-    assert WebsiteTrafficObservation.objects.count() == 0
+def test_the_ga4_history_starts_empty():
+    """Nothing but the `sync_ga4` command ever writes these tables."""
+    assert Ga4DailySnapshot.objects.count() == 0
+    assert Ga4PageDaily.objects.count() == 0
 
 
-def _synthetic_traffic_provenance():
-    """A source, artifact and import run for the traffic constraint tests.
+def _synthetic_ga4_provenance():
+    """A source, artifact and import run for the constraint tests.
 
-    Built here rather than by any application code: nothing publishes website
-    traffic yet, and this exists only so the constraints can be exercised
-    against a row that is otherwise complete.
+    Built here rather than by application code: these tests exercise what the
+    database refuses, and going through the publication service would test the
+    service instead.
     """
     from apps.sources.services import build_import_run, register_external_reference
     from apps.visibility.bootstrap import ensure_ga4_source
@@ -300,63 +301,113 @@ def _synthetic_traffic_provenance():
     run = build_import_run(
         artifact=artifact,
         importer_name="synthetic_traffic_test",
-        schema_version="1.0",
+        schema_version="2.0",
         dry_run=False,
     )
     return source, artifact, run
 
 
-def test_a_traffic_period_may_not_end_before_it_starts(today):
-    source, artifact, run = _synthetic_traffic_provenance()
-
-    with pytest.raises(IntegrityError):
-        with transaction.atomic():
-            WebsiteTrafficObservation.objects.create(
-                source=source,
-                artifact=artifact,
-                import_run=run,
-                observed_at=timezone.now(),
-                period_start=today,
-                period_end=today - timedelta(days=1),
-            )
-
-
-def test_a_coherent_traffic_period_is_accepted_and_then_immutable(today):
-    source, artifact, run = _synthetic_traffic_provenance()
-
-    observation = WebsiteTrafficObservation.objects.create(
+def _day(source, artifact, run, *, report_date, current=False, revision=1, **figures):
+    return Ga4DailySnapshot.objects.create(
         source=source,
         artifact=artifact,
         import_run=run,
+        report_date=report_date,
         observed_at=timezone.now(),
-        period_start=today - timedelta(days=7),
-        period_end=today,
-        sessions=1234,
-        is_current=True,
+        checksum="b" * 64,
+        revision=revision,
+        is_current_for_date=current,
+        **figures,
     )
 
-    observation.sessions = 1
+
+def test_a_published_day_is_immutable_apart_from_which_revision_is_current(today):
+    source, artifact, run = _synthetic_ga4_provenance()
+
+    day = _day(source, artifact, run, report_date=today, current=True, sessions=1234)
+
+    day.sessions = 1
     with pytest.raises(VisibilityRecordImmutable):
-        observation.save()
+        day.save()
     with pytest.raises(VisibilityRecordImmutable):
-        observation.delete()
+        day.delete()
+
+    # The one field that may move, and the reason it may: a revision retires.
+    day.refresh_from_db()
+    day.is_current_for_date = False
+    day.save(update_fields=["is_current_for_date"])
 
 
-def test_only_one_traffic_observation_may_be_current_per_source(today):
-    source, artifact, run = _synthetic_traffic_provenance()
-    for index in range(2):
-        try:
-            with transaction.atomic():
-                WebsiteTrafficObservation.objects.create(
-                    source=source,
-                    artifact=artifact,
-                    import_run=run,
-                    observed_at=timezone.now(),
-                    period_start=today - timedelta(days=7 * (index + 1)),
-                    period_end=today - timedelta(days=7 * index),
-                    is_current=True,
-                )
-        except IntegrityError:
-            assert index == 1, "the first current observation must be accepted"
-            return
-    raise AssertionError("a second current observation should have been refused")
+def test_two_revisions_of_one_day_may_not_both_be_current(today):
+    """The invariant the whole history rests on. Two current revisions would be
+    a day with two truths, and every chart crossing it would count it twice."""
+    source, artifact, run = _synthetic_ga4_provenance()
+    _day(source, artifact, run, report_date=today, current=True)
+
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            _day(source, artifact, run, report_date=today, current=True, revision=2)
+
+
+def test_two_days_may_each_have_their_own_current_revision(today):
+    """What the retired model could not do: `is_current` was unique per source,
+    so publishing yesterday retired the day before it."""
+    source, artifact, run = _synthetic_ga4_provenance()
+
+    _day(source, artifact, run, report_date=today, current=True)
+    _day(source, artifact, run, report_date=today - timedelta(days=1), current=True)
+
+    assert Ga4DailySnapshot.objects.filter(is_current_for_date=True).count() == 2
+
+
+def test_a_superseded_revision_stays_readable_beside_the_current_one(today):
+    source, artifact, run = _synthetic_ga4_provenance()
+
+    first = _day(source, artifact, run, report_date=today, sessions=100)
+    second = _day(source, artifact, run, report_date=today, current=True, revision=2, sessions=140)
+    second.supersedes = second.supersedes  # no-op; the link is set at publication
+
+    assert Ga4DailySnapshot.objects.filter(report_date=today).count() == 2
+    first.refresh_from_db()
+    assert first.sessions == 100, "the earlier reading keeps its figures"
+
+
+def test_a_page_row_cannot_be_rewritten(today):
+    source, artifact, run = _synthetic_ga4_provenance()
+    day = _day(source, artifact, run, report_date=today, current=True)
+
+    row = Ga4PageDaily.objects.create(
+        snapshot=day, report_date=today, path="/et/uudised/a", page_views=10
+    )
+
+    row.page_views = 11
+    with pytest.raises(VisibilityRecordImmutable):
+        row.save()
+
+
+def test_a_path_appears_once_per_day(today):
+    """Canonicalisation folds `/x`, `/x/` and `/x?utm=…` into one row before
+    they reach here; this is the database refusing what would slip through."""
+    source, artifact, run = _synthetic_ga4_provenance()
+    day = _day(source, artifact, run, report_date=today, current=True)
+    Ga4PageDaily.objects.create(
+        snapshot=day, report_date=today, path="/et/uudised/a", page_views=10
+    )
+
+    with pytest.raises(IntegrityError):
+        with transaction.atomic():
+            Ga4PageDaily.objects.create(
+                snapshot=day, report_date=today, path="/et/uudised/a", page_views=5
+            )
+
+
+def test_the_engagement_rate_is_derived_and_absent_when_there_is_nothing_to_divide(today):
+    """Not a column: a stored quotient is a second answer to a question the two
+    counts already answer, and the two drift."""
+    source, artifact, run = _synthetic_ga4_provenance()
+
+    engaged = _day(source, artifact, run, report_date=today, sessions=200, engaged_sessions=120)
+    assert engaged.engagement_rate == pytest.approx(0.6)
+
+    quiet = _day(source, artifact, run, report_date=today - timedelta(days=1), sessions=0)
+    assert quiet.engagement_rate is None, "no sessions is not an engagement rate of zero"

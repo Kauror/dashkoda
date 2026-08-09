@@ -594,14 +594,16 @@ def get_website_traffic() -> WebsiteTraffic:
 
     Two rather than one because a single number answers "how many" and nothing
     else; the board reads this band for movement. Only `is_current` rows are
-    considered, so a superseded correction never becomes the comparison.
+    considered, so a superseded revision of a day never becomes the
+    comparison — GA4 revises recent days, and the retired reading stays in the
+    table for provenance rather than for arithmetic.
     """
-    from .models import WebsiteTrafficObservation
+    from .models import Ga4DailySnapshot
 
     rows = list(
-        WebsiteTrafficObservation.objects.filter(is_current=True)
-        .order_by("-period_end")
-        .values("period_end", "sessions", "active_users", "page_views")[:2]
+        Ga4DailySnapshot.objects.filter(is_current_for_date=True)
+        .order_by("-report_date")
+        .values("report_date", "sessions", "active_users", "page_views")[:2]
     )
     if not rows:
         return WebsiteTraffic()
@@ -609,10 +611,10 @@ def get_website_traffic() -> WebsiteTraffic:
     latest = rows[0]
     earlier = rows[1] if len(rows) > 1 else {}
     return WebsiteTraffic(
-        period_end=latest["period_end"],
+        period_end=latest["report_date"],
         sessions=latest["sessions"],
         active_users=latest["active_users"],
         page_views=latest["page_views"],
-        previous_period_end=earlier.get("period_end"),
+        previous_period_end=earlier.get("report_date"),
         previous_sessions=earlier.get("sessions"),
     )

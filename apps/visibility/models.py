@@ -33,7 +33,7 @@ import uuid
 from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import models
-from django.db.models import F, Q
+from django.db.models import Q
 
 from apps.core.feeds import FeedResult
 from apps.sources.models import DataSource
@@ -342,98 +342,279 @@ class VisibilityObservation(models.Model):
         raise VisibilityRecordImmutable("A visibility observation cannot be deleted.")
 
 
-class WebsiteTrafficObservation(models.Model):
-    """Website traffic for one reporting period.
+class Ga4DailySnapshot(models.Model):
+    """One immutable GA4 revision of one reporting day.
 
-    The `sync_ga4` command is the only writer, and there is no manual entry
-    route: unlike every other figure in this module, this one is collected.
-    That collection is **not enabled in production** — no property ID, no
-    service-account key, no schedule — so in practice the table is empty and
-    the website card says so. Configuration alone never claims a connection;
-    only a published observation does.
+    The unit is a **reporting day**, not "the latest reading". GA4 revises
+    recent days for up to about a week as late hits and identity resolution
+    settle, so the same date can be measured several times and the figures can
+    legitimately differ. This model keeps every measurement and marks one of
+    them current.
 
-    The three figures are nullable because a reporting API that omits one has
-    not reported zero, and this application does not invent the difference. A
-    period GA4 returns no rows for publishes all three as `None` for the same
-    reason: no rows is an absence of measurement, not a measured zero.
+    That is why it replaced `WebsiteTrafficObservation`, whose `is_current` was
+    unique per *source*: one current row in the whole table, meaning one day. It
+    could hold today or history, never both, and re-reading a day would have had
+    to overwrite a published fact.
+
+    Two invariants:
+
+    - **exactly one current revision per date.** A partial unique index says so,
+      so no bug can produce a day with two truths or a chart that counts a
+      Tuesday twice;
+    - **a revision is written once.** Only `is_current_for_date` moves after
+      publication; a revised day is a *new* row naming the one it replaces, and
+      the replaced row keeps its figures for anyone asking what the board was
+      shown last month.
+
+    Every metric is nullable because an API that omits one has not reported
+    zero. A day GA4 returns no rows for publishes a revision whose figures are
+    all absent — an absence of measurement, never a measured zero.
+
+    `engagement_rate` is deliberately **not** a column. It is
+    `engaged_sessions / sessions`, and storing a rounded copy of a quotient
+    invites two answers to one question; the selectors derive it.
     """
 
     source = models.ForeignKey(
         DataSource,
         on_delete=models.PROTECT,
-        related_name="website_traffic_observations",
+        related_name="ga4_daily_snapshots",
         verbose_name="Andmeallikas",
     )
     artifact = models.ForeignKey(
         "sources.SourceArtifact",
         on_delete=models.PROTECT,
-        related_name="website_traffic_observations",
+        related_name="ga4_daily_snapshots",
         verbose_name="Algfail",
     )
     import_run = models.ForeignKey(
         "sources.ImportRun",
         on_delete=models.PROTECT,
-        related_name="website_traffic_observations",
-        verbose_name="Impordikäivitus",
+        related_name="ga4_daily_snapshots",
+        verbose_name="Impordikaivitus",
     )
-    observed_at = models.DateTimeField(db_index=True, verbose_name="Vaatluse aeg")
-    period_start = models.DateField(verbose_name="Perioodi algus")
-    period_end = models.DateField(verbose_name="Perioodi lõpp")
+    report_date = models.DateField(db_index=True, verbose_name="Aruandepaev")
+    observed_at = models.DateTimeField(verbose_name="Kogumise aeg")
+    checksum = models.CharField(
+        max_length=64,
+        verbose_name="Kontrollsumma",
+        help_text="SHA-256 normaliseeritud paevakomplektist, mitte Google'i vastusest.",
+    )
+    revision = models.PositiveIntegerField(default=1, verbose_name="Redaktsioon")
+    supersedes = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="superseded_by",
+        verbose_name="Asendab",
+    )
+    is_current_for_date = models.BooleanField(default=False, verbose_name="Kehtiv sel paeval")
+
     sessions = models.PositiveIntegerField(null=True, blank=True, verbose_name="Seansid")
     active_users = models.PositiveIntegerField(
         null=True, blank=True, verbose_name="Aktiivsed kasutajad"
     )
+    new_users = models.PositiveIntegerField(null=True, blank=True, verbose_name="Uued kasutajad")
     page_views = models.PositiveIntegerField(null=True, blank=True, verbose_name="Lehevaatamised")
-    is_current = models.BooleanField(default=False, verbose_name="Kehtiv")
+    engaged_sessions = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Kaasatud seansid"
+    )
+    user_engagement_seconds = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Kaasatuse kestus (s)"
+    )
+
+    has_page_detail = models.BooleanField(
+        default=False,
+        verbose_name="Lehekaupa kogutud",
+        help_text=(
+            "Kas selle paeva kohta koguti lehtede kaupa read. Vaar tahendab, et "
+            "lehtede andmeid ei kusitud - mitte seda, et lehevaatamisi ei olnud."
+        ),
+    )
+    has_channel_detail = models.BooleanField(
+        default=False,
+        verbose_name="Kanalite kaupa kogutud",
+        help_text="Sama vahe: kusimata jaanud ei ole sama mis moodetud null.",
+    )
+
     imported_at = models.DateTimeField(auto_now_add=True, verbose_name="Imporditud")
 
-    MUTABLE_FIELDS = frozenset({"is_current"})
+    MUTABLE_FIELDS = frozenset({"is_current_for_date"})
+
+    #: Every site-wide figure, for validation and for the canonical payload.
+    METRIC_FIELDS = (
+        "sessions",
+        "active_users",
+        "new_users",
+        "page_views",
+        "engaged_sessions",
+        "user_engagement_seconds",
+    )
 
     class Meta:
-        ordering = ("-period_end", "-id")
-        verbose_name = "Veebiliikluse vaatlus"
-        verbose_name_plural = "Veebiliikluse vaatlused"
+        ordering = ("-report_date", "-revision", "-id")
+        verbose_name = "Google Analyticsi paev"
+        verbose_name_plural = "Google Analyticsi paevad"
         constraints = [
-            models.CheckConstraint(
-                condition=Q(period_end__gte=F("period_start")),
-                name="websitetraffic_period_end_not_before_start",
-            ),
-            models.CheckConstraint(
-                condition=Q(sessions__isnull=True) | Q(sessions__gte=0),
-                name="websitetraffic_sessions_non_negative",
-            ),
-            models.CheckConstraint(
-                condition=Q(active_users__isnull=True) | Q(active_users__gte=0),
-                name="websitetraffic_active_users_non_negative",
-            ),
-            models.CheckConstraint(
-                condition=Q(page_views__isnull=True) | Q(page_views__gte=0),
-                name="websitetraffic_page_views_non_negative",
-            ),
             models.UniqueConstraint(
-                fields=["source"],
-                condition=Q(is_current=True),
-                name="websitetraffic_one_current_per_source",
+                fields=["source", "report_date"],
+                condition=Q(is_current_for_date=True),
+                name="ga4daily_one_current_per_date",
+            ),
+            models.CheckConstraint(
+                condition=Q(revision__gte=1),
+                name="ga4daily_revision_positive",
             ),
         ]
         indexes = [
-            models.Index(fields=["source", "-period_end"]),
+            models.Index(fields=["source", "-report_date"]),
+            models.Index(
+                fields=["report_date"],
+                condition=Q(is_current_for_date=True),
+                name="ga4daily_current_by_date",
+            ),
         ]
 
     def __str__(self) -> str:
-        return f"{self.period_start:%d.%m.%Y}–{self.period_end:%d.%m.%Y}"
+        return f"GA4 {self.report_date:%d.%m.%Y} (r{self.revision})"
+
+    @property
+    def engagement_rate(self) -> float | None:
+        """Engaged sessions as a share of sessions, or `None`.
+
+        Derived rather than stored, and `None` rather than `0.0` when there is
+        nothing to divide: no sessions is not an engagement rate of zero.
+        """
+        if not self.sessions or self.engaged_sessions is None:
+            return None
+        return self.engaged_sessions / self.sessions
 
     def save(self, *args, **kwargs):
         if self.pk is not None and not self._state.adding:
             update_fields = kwargs.get("update_fields")
             if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
                 raise VisibilityRecordImmutable(
-                    "A published website traffic observation may only change its is_current field."
+                    "A published GA4 daily snapshot may only change its is_current_for_date field."
                 )
         return super().save(*args, **kwargs)
 
     def delete(self, *args, **kwargs):
-        raise VisibilityRecordImmutable("A website traffic observation cannot be deleted.")
+        raise VisibilityRecordImmutable("A GA4 daily snapshot cannot be deleted.")
+
+
+class Ga4PageDaily(models.Model):
+    """One page's traffic on one reporting day, inside one revision.
+
+    `report_date` is duplicated from the parent deliberately. Every question
+    this table answers - an article's first week, the last thirty days, the top
+    content of a quarter - filters by date across many pages, and carrying the
+    date here keeps that an index range scan rather than a join back to the
+    parent for every row. It is written once, in the same transaction as the
+    parent, and never moves.
+
+    `path` is canonical (see `apps.visibility.ga4_paths`): no host, no query
+    string, no fragment, no trailing slash. `raw_path` keeps what GA4 actually
+    said when it differed, so a surprising match can be explained later without
+    another API call.
+
+    `active_users` is stored **per page per day** and must never be summed along
+    either axis. Two days' users are not twice one day's users, and two pages'
+    users are not their sum - the same person read both.
+    """
+
+    snapshot = models.ForeignKey(
+        Ga4DailySnapshot,
+        on_delete=models.CASCADE,
+        related_name="pages",
+        verbose_name="Paev",
+    )
+    report_date = models.DateField(verbose_name="Aruandepaev")
+    path = models.CharField(max_length=500, verbose_name="Lehe tee")
+    raw_path = models.CharField(
+        max_length=500,
+        blank=True,
+        verbose_name="Algne tee",
+        help_text="Taidetud ainult siis, kui Google'i tee erines kanoonilisest.",
+    )
+    page_views = models.PositiveIntegerField(verbose_name="Lehevaatamised")
+    active_users = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Aktiivsed kasutajad"
+    )
+    user_engagement_seconds = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Kaasatuse kestus (s)"
+    )
+
+    class Meta:
+        ordering = ("-report_date", "-page_views", "path")
+        verbose_name = "Google Analyticsi lehepaev"
+        verbose_name_plural = "Google Analyticsi lehepaevad"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snapshot", "path"],
+                name="ga4page_unique_path_per_snapshot",
+            ),
+        ]
+        indexes = [
+            # The shape every content query has: one path, a date range.
+            models.Index(fields=["path", "report_date"]),
+            models.Index(fields=["report_date"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.report_date:%d.%m.%Y} {self.path}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise VisibilityRecordImmutable("A GA4 page row cannot be changed.")
+        return super().save(*args, **kwargs)
+
+
+class Ga4ChannelDaily(models.Model):
+    """Where one day's sessions came from, inside one revision.
+
+    Session-scoped, so the counts are additive across days: a session belongs to
+    exactly one channel. `active_users` is deliberately not stored here for the
+    same reason it is never summed anywhere else - a channel's users overlap
+    other channels', and a column inviting a `SUM()` is a column that will get
+    one.
+    """
+
+    snapshot = models.ForeignKey(
+        Ga4DailySnapshot,
+        on_delete=models.CASCADE,
+        related_name="channels",
+        verbose_name="Paev",
+    )
+    report_date = models.DateField(verbose_name="Aruandepaev")
+    channel = models.CharField(max_length=120, verbose_name="Kanal")
+    sessions = models.PositiveIntegerField(verbose_name="Seansid")
+    engaged_sessions = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Kaasatud seansid"
+    )
+
+    class Meta:
+        ordering = ("-report_date", "-sessions", "channel")
+        verbose_name = "Google Analyticsi kanalipaev"
+        verbose_name_plural = "Google Analyticsi kanalipaevad"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snapshot", "channel"],
+                name="ga4channel_unique_channel_per_snapshot",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["report_date"]),
+            models.Index(fields=["channel", "report_date"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.report_date:%d.%m.%Y} {self.channel}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise VisibilityRecordImmutable("A GA4 channel row cannot be changed.")
+        return super().save(*args, **kwargs)
 
 
 class Ga4FeedState(models.Model):
@@ -492,13 +673,13 @@ class Ga4FeedState(models.Model):
         verbose_name="Viimane kogutud päev",
         help_text="Millise aruandepäevani on andmed kogutud.",
     )
-    current_observation = models.ForeignKey(
-        WebsiteTrafficObservation,
+    current_snapshot = models.ForeignKey(
+        Ga4DailySnapshot,
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="+",
-        verbose_name="Kehtiv vaatlus",
+        verbose_name="Viimane avaldatud paev",
     )
     updated_at = models.DateTimeField(auto_now=True, verbose_name="Muudetud")
 
