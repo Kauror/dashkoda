@@ -27,7 +27,7 @@ BEFORE = dt.date(2026, 8, 7)
 def connected(has_observation: bool = True) -> Ga4ConnectionStatus:
     return Ga4ConnectionStatus(
         configuration=Ga4Configuration(
-            property_id="384525786", credentials_file="/run/secrets/dashkoda/ga4.json"
+            property_id="123456789", credentials_file="/run/secrets/dashkoda/ga4.json"
         ),
         has_observation=has_observation,
     )

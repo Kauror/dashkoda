@@ -7,8 +7,8 @@ the same number differently. The templates lay out; neither holds a rule.
 Three things are decided here and nowhere else:
 
 - **the website slot stays planned until data exists.** It becomes a real card
-  only when a `WebsiteTrafficObservation` actually exists — configuration for
-  the `sync_ga4` collector alone is not data, so an unconfigured or not-yet-run
+  only when a collected reporting day actually exists — configuration for the
+  `sync_ga4` collector alone is not data, so an unconfigured or not-yet-run
   deployment carries no value, links nowhere and says why;
 - **the newsletter slot lists each newsletter and never totals them.** The
   Chamber sends three, to three lists, and nobody has counted how many people

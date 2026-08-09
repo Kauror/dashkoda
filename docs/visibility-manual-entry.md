@@ -406,11 +406,13 @@ ordinary shared-PIN viewer never sees an editing control they cannot use.
 
 ## Google Analytics website traffic
 
-A daily collector exists and is **off until the deployment configures it**.
+A daily collector runs in production as of 2026-08-09. The full account is in
+[website-analytics.md](website-analytics.md); what matters here is that it is
+the one figure in this module nobody types.
 
-- `WebsiteTrafficObservation` stores a reporting period with sessions, active
-  users and page views. All three are nullable, because an API that omits a
-  metric has not reported zero;
+- `Ga4DailySnapshot` stores one immutable revision of one reporting day, with
+  page and channel rows beside it. Every site figure is nullable, because an API
+  that omits a metric has not reported zero;
 - `apps/visibility/ga4.py` holds the configuration status, a
   `Ga4NotConfigured` exception, the `WebsiteTrafficReading` normalisation
   contract and `Ga4ApiCollector`, which reads one completed day from the GA4

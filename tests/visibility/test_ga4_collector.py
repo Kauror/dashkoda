@@ -22,7 +22,11 @@ from apps.visibility.ga4 import (
 DAY = dt.date(2026, 8, 8)
 NEXT = dt.date(2026, 8, 9)
 
-CONFIGURED = Ga4Configuration(property_id="384525786", credentials_file="/run/secrets/ga4.json")
+#: Deliberately not the Chamber's own property. A property ID is not a
+#: credential, but it is operational detail and a public test suite is a poor
+#: place to keep it. The assertions below are about whether an error message
+#: echoes the *configured* ID, which any value proves just as well.
+CONFIGURED = Ga4Configuration(property_id="123456789", credentials_file="/run/secrets/ga4.json")
 
 
 class FakeResponse:
@@ -109,7 +113,7 @@ def test_an_unconfigured_collector_refuses_to_be_built():
 
 def test_the_error_never_echoes_the_credential_path():
     with pytest.raises(Ga4NotConfigured) as error:
-        Ga4ApiCollector(Ga4Configuration(property_id="384525786", credentials_file=""))
+        Ga4ApiCollector(Ga4Configuration(property_id="123456789", credentials_file=""))
 
     assert "/run/secrets" not in str(error.value)
 
@@ -368,12 +372,12 @@ def test_retries_are_bounded():
 def test_an_error_never_carries_google_s_response_body():
     """The body names the property and, on an auth failure, part of the
     credential."""
-    made, _ = collector(FakeResponse({"error": {"message": "property 384525786 denied"}}, 403))
+    made, _ = collector(FakeResponse({"error": {"message": "property 123456789 denied"}}, 403))
 
     with pytest.raises(Ga4ResponseError) as error:
         made.collect_range(start=DAY, end=DAY)
 
-    assert "384525786" not in str(error.value)
+    assert "123456789" not in str(error.value)
     assert "denied" not in str(error.value)
 
 

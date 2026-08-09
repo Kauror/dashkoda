@@ -497,10 +497,8 @@ def get_article_views(
     recent_start = today - timedelta(days=RECENT_WINDOW_DAYS - 1)
     recent = _sum_views(paths, start=recent_start, end=today)
 
-    first_7: dict[str, int] = {}
-    first_30: dict[str, int] = {}
-    # One query per window across all paths, with the per-article date range
-    # expressed as a filter over (path, report_date) pairs.
+    # One query per window across every article, with each article's own date
+    # range expressed as a (path, report_date) pair inside a single filter.
     first_7 = _sum_views_from_publication(published, days=FIRST_WINDOW_DAYS)
     first_30 = _sum_views_from_publication(published, days=SECOND_WINDOW_DAYS)
 

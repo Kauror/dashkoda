@@ -405,7 +405,7 @@ def test_a_failure_leaves_the_previously_published_day_exactly_where_it_was():
 
 def test_a_failed_run_records_why_without_quoting_google():
     synchronize_ga4(
-        collector=FakeCollector({}, error=OSError("HTTP 403 for property 384525786")),
+        collector=FakeCollector({}, error=OSError("HTTP 403 for property 123456789")),
         start=DAY,
         end=DAY,
         today=TODAY,
@@ -413,7 +413,7 @@ def test_a_failed_run_records_why_without_quoting_google():
 
     summary = Ga4FeedState.objects.get().last_error_summary
     assert summary
-    assert "384525786" not in summary
+    assert "123456789" not in summary
 
 
 # -- provenance ----------------------------------------------------------
