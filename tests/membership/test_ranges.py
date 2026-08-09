@@ -44,7 +44,7 @@ def resolve(raw_from=None, raw_to=None, **overrides):
 def test_the_default_window_is_counted_back_from_the_newest_observation():
     """Anchored to the report, not to today: a report four days late must not
     shorten the window by four days and silently drop its oldest point."""
-    assert resolve() == DateWindow(dt.date(2025, 12, 4), LATEST)
+    assert resolve(default_months=3) == DateWindow(dt.date(2026, 3, 4), LATEST)
     assert resolve(default_months=PAGE_DEFAULT_MONTHS) == DateWindow(dt.date(2025, 6, 4), LATEST)
 
 
@@ -52,6 +52,14 @@ def test_the_page_opens_on_one_year_of_history():
     """Five years drew five repetitions of the same annual cycle and squeezed
     the current year into a fifth of the plot."""
     assert PAGE_DEFAULT_MONTHS == 12
+
+
+def test_the_card_opens_on_the_same_year_the_page_does():
+    """The card and the page draw the same two series. Opening on different
+    windows made one line look like two different stories, depending on which
+    surface a reader happened to be looking at."""
+    assert CARD_DEFAULT_MONTHS == PAGE_DEFAULT_MONTHS == 12
+    assert resolve() == resolve(default_months=PAGE_DEFAULT_MONTHS)
 
 
 def test_a_new_report_rolls_the_window_forward_by_itself():
@@ -98,7 +106,7 @@ def test_one_date_keeps_the_other_side_of_the_default_window():
     # Only a start: the window runs to the newest observation.
     assert resolve("2024-02-10", None) == DateWindow(dt.date(2024, 2, 10), LATEST)
     # Only an end: the default months are counted back from that end.
-    assert resolve(None, "2025-11-05") == DateWindow(dt.date(2025, 5, 5), dt.date(2025, 11, 5))
+    assert resolve(None, "2025-11-05") == DateWindow(dt.date(2024, 11, 5), dt.date(2025, 11, 5))
 
 
 def test_a_window_is_folded_back_inside_the_history():
