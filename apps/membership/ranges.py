@@ -63,7 +63,19 @@ LEGACY_WINDOW_MONTHS: dict[str, int | None] = {
 # already drew — adding a finer control is not a reason to change what a reader
 # who chooses nothing is shown.
 CARD_DEFAULT_MONTHS = 6
-PAGE_DEFAULT_MONTHS = 60
+
+# The page opens on the last twelve months.
+#
+# It opened on sixty, which drew five years of an annual cycle at once: the paid
+# line dives every February and recovers by December, so five repetitions of
+# that swing squeezed the movement of the current year into a fifth of the plot.
+# A year shows one cycle, which is the shape a reader is actually comparing
+# against.
+#
+# Counted back from the newest observation rather than from today, so the window
+# rolls forward on its own: when a report arrives the window ends on it and
+# starts twelve months earlier, with no date anywhere to keep up to date.
+PAGE_DEFAULT_MONTHS = 12
 
 
 @dataclass(frozen=True)
