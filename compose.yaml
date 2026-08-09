@@ -39,6 +39,18 @@ services:
       # variable that is never referenced under `environment:` does not reach the
       # container and the command fails with "missing" however correct the file is.
       EVENT_PROGRAMME_PUBLIC_URL: ${EVENT_PROGRAMME_PUBLIC_URL:-}
+      # Google Analytics website traffic. Both optional and blank by default, on
+      # the same terms as the two sharing links above: the application starts
+      # without them, every page renders without them, and only `sync_ga4` needs
+      # them. Named here as well as in the environment file for the reason
+      # spelled out immediately above.
+      #
+      # `GA4_PROPERTY_ID` is the numeric property, which is not a secret.
+      # `GA4_CREDENTIALS_FILE` is a path *inside the container*; the key it
+      # points at is mounted read-only by the deployment and is never in the
+      # image, in Git, or in any log.
+      GA4_PROPERTY_ID: ${GA4_PROPERTY_ID:-}
+      GA4_CREDENTIALS_FILE: ${GA4_CREDENTIALS_FILE:-}
     volumes:
       - source_artifacts:/srv/dashkoda/source-artifacts
     depends_on:
