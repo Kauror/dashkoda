@@ -557,3 +557,62 @@ __all__ = [
     "newsletter_metric_keys",
     "social_metric_keys",
 ]
+
+
+@dataclass(frozen=True)
+class WebsiteTraffic:
+    """The newest website reading, and the one before it.
+
+    Separate from `MetricReading` because that describes a figure a person
+    typed: its vocabulary says `Käsitsi sisestatud` and its staleness is
+    measured against a cadence somebody is expected to keep. Website traffic is
+    the one automated series, arrives daily on its own, and has to say so.
+    """
+
+    period_end: date | None = None
+    sessions: int | None = None
+    active_users: int | None = None
+    page_views: int | None = None
+    previous_period_end: date | None = None
+    previous_sessions: int | None = None
+
+    @property
+    def has_data(self) -> bool:
+        # `is not None`, not truthiness: a day with no visits is a real reading.
+        return self.sessions is not None
+
+    @property
+    def change(self) -> int | None:
+        """Against the previous reading, when both exist."""
+        if self.sessions is None or self.previous_sessions is None:
+            return None
+        return self.sessions - self.previous_sessions
+
+
+def get_website_traffic() -> WebsiteTraffic:
+    """The two most recent published readings, newest first.
+
+    Two rather than one because a single number answers "how many" and nothing
+    else; the board reads this band for movement. Only `is_current` rows are
+    considered, so a superseded correction never becomes the comparison.
+    """
+    from .models import WebsiteTrafficObservation
+
+    rows = list(
+        WebsiteTrafficObservation.objects.filter(is_current=True)
+        .order_by("-period_end")
+        .values("period_end", "sessions", "active_users", "page_views")[:2]
+    )
+    if not rows:
+        return WebsiteTraffic()
+
+    latest = rows[0]
+    earlier = rows[1] if len(rows) > 1 else {}
+    return WebsiteTraffic(
+        period_end=latest["period_end"],
+        sessions=latest["sessions"],
+        active_users=latest["active_users"],
+        page_views=latest["page_views"],
+        previous_period_end=earlier.get("period_end"),
+        previous_sessions=earlier.get("sessions"),
+    )

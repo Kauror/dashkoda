@@ -26,18 +26,21 @@ from datetime import date
 
 from django.utils import timezone
 
+from apps.core.formatting import short_date, signed_integer
 from apps.dashboard.sparkline import Sparkline, build_sparkline
 
 from .ga4 import Ga4ConnectionStatus, get_connection_status
-from .models import VisibilityMetric
+from .models import CollectionMethod, VisibilityMetric
 from .registry import SOCIAL_METRICS, VisibilityMetricSpec
 from .selectors import (
     MetricReading,
     NewsletterSummary,
     VisibilitySummary,
+    WebsiteTraffic,
     get_visibility_history,
     get_visibility_series,
     get_visibility_summary,
+    get_website_traffic,
 )
 
 WEBSITE_LABEL = "Kodulehe külastused"
@@ -103,18 +106,46 @@ class ChannelSlot:
         return EXTERNAL_LINK_NOTE
 
 
-def _website_slot(status: Ga4ConnectionStatus) -> ChannelSlot:
-    """The website slot. Planned until a real observation exists.
+def _website_slot(status: Ga4ConnectionStatus, traffic: WebsiteTraffic) -> ChannelSlot:
+    """The website slot: planned until a reading exists, then the reading.
 
-    It deliberately links nowhere. A link to Google Analytics would send a board
-    member to a login screen for a property this application has never read.
+    The planned branch is what shows before anything has been collected, and it
+    is not a placeholder for a number — it is the honest statement that nothing
+    has measured this yet. It stayed on the page after collection began, because
+    this returned it unconditionally while the docstring claimed otherwise: the
+    traffic was collected, stored and audited, and the card went on saying the
+    source was not connected.
+
+    It deliberately links nowhere either way. A link to Google Analytics would
+    send a board member to a login screen.
     """
+    if not (status.is_connected and traffic.has_data):
+        return ChannelSlot(
+            label=WEBSITE_LABEL,
+            is_planned=True,
+            state_label="Lisamisel",
+            state_variant="neutral",
+            promise=f"{status.message} {status.detail}".strip(),
+        )
+
+    # Sessions, because the card is labelled `Kodulehe külastused` — visits, not
+    # people. Users and page views are a different question and are kept for the
+    # Nähtavus page rather than crowded into one cell.
+    secondary = ""
+    if traffic.change is not None:
+        secondary = (
+            f"{signed_integer(traffic.change)} võrreldes {short_date(traffic.previous_period_end)}"
+        )
     return ChannelSlot(
         label=WEBSITE_LABEL,
-        is_planned=True,
-        state_label="Lisamisel",
+        value=traffic.sessions,
+        unit="seanssi",
+        secondary=secondary,
+        as_of=traffic.period_end,
+        # The one automated figure on this band. Saying it was typed would be
+        # false in the opposite direction from every other card here.
+        state_label=CollectionMethod.AUTOMATIC.label,
         state_variant="neutral",
-        promise=f"{status.message} {status.detail}".strip(),
     )
 
 
@@ -193,8 +224,9 @@ def build_channel_band(
     """
     summary = summary if summary is not None else get_visibility_summary()
     ga4_status = ga4_status if ga4_status is not None else get_connection_status()
+    traffic = get_website_traffic()
     return (
-        _website_slot(ga4_status),
+        _website_slot(ga4_status, traffic),
         _newsletter_slot(summary.newsletter, detail_url=detail_url),
         *(_social_slot(reading, detail_url=detail_url) for reading in summary.social),
     )
