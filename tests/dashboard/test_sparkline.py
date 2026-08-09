@@ -21,6 +21,9 @@ from apps.dashboard.sparkline import (
     meter_width,
 )
 
+# The separator `group_thousands` writes, spelled out so it is visible here.
+NBSP = "\u00a0"
+
 DAY = dt.date(2026, 1, 1)
 
 
@@ -357,11 +360,54 @@ def test_one_band_per_observation_date_covers_the_whole_drawing():
 
 def test_a_band_reads_out_every_line_that_reported_that_day():
     """The card is read as one reading — the total, the paid count and the gap
-    between them. A tooltip per line would make that two hovers and a memory."""
+    between them. A tooltip per line would make that two hovers and a memory.
+
+    A date, then one line per series. It used to be all of that joined with
+    ` · `, which collapsed the moment a series was named `Liikmeid kokku · koja
+    aruanne`: the separator then appeared inside a label as well as between
+    fields, and nothing marked where a label ended and its number began.
+    """
     chart = build_trend_chart(public_and_internal())
 
-    assert chart.bands[0].readout == "1.08.25 · Liikmeid kokku 3300 · Tasunud liikmeid 2600"
-    assert chart.bands[-1].readout == "1.11.25 · Liikmeid kokku 3412 · Tasunud liikmeid 2798"
+    assert chart.bands[0].readout.splitlines() == [
+        "1.08.25",
+        f"Liikmeid kokku 3{NBSP}300",
+        f"Tasunud liikmeid 2{NBSP}600",
+    ]
+    assert chart.bands[-1].readout.splitlines() == [
+        "1.11.25",
+        f"Liikmeid kokku 3{NBSP}412",
+        f"Tasunud liikmeid 2{NBSP}798",
+    ]
+
+
+def test_a_reading_is_grouped_so_four_digits_are_read_not_counted():
+    """`3412` was the last number on either chart still written bare."""
+    chart = build_trend_chart(public_and_internal())
+
+    assert "3\u00a0412" in chart.bands[-1].readout
+    assert "3412" not in chart.bands[-1].readout
+
+
+def test_a_label_containing_the_old_separator_no_longer_makes_it_ambiguous():
+    """One line per reading needs no separator between fields at all."""
+    chart = build_trend_chart(
+        (
+            TrendSource(
+                label="Liikmeid kokku · koja aruanne",
+                style="solid",
+                source="Sünteetiline",
+                # Two observations, because one point is not a trend and
+                # `build_trend_chart` declines to draw it at all.
+                series=((DAY, 3366), (DAY + dt.timedelta(days=1), 3370)),
+            ),
+        )
+    )
+
+    assert chart.bands[0].readout.splitlines() == [
+        "1.01.26",
+        f"Liikmeid kokku · koja aruanne 3{NBSP}366",
+    ]
 
 
 def test_a_line_with_nothing_on_a_date_contributes_no_phrase_and_no_zero():
@@ -383,9 +429,13 @@ def test_a_line_with_nothing_on_a_date_contributes_no_phrase_and_no_zero():
     )
 
     first, second, third = chart.bands
-    assert first.readout == "1.01.26 · Mõlemal päeval 10"
-    assert second.readout == "2.01.26 · Mõlemal päeval 20 · Ainult hiljem 30"
-    assert third.readout == "3.01.26 · Ainult hiljem 40"
+    assert first.readout.splitlines() == ["1.01.26", "Mõlemal päeval 10"]
+    assert second.readout.splitlines() == [
+        "2.01.26",
+        "Mõlemal päeval 20",
+        "Ainult hiljem 30",
+    ]
+    assert third.readout.splitlines() == ["3.01.26", "Ainult hiljem 40"]
     # The absent line is not named with a zero beside it, and not named at all.
     assert "Ainult hiljem" not in first.readout
     assert "Mõlemal päeval" not in third.readout

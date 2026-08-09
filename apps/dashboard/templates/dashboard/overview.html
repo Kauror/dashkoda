@@ -1,4 +1,5 @@
 {% extends "dashboard/shell.html" %}
+{% load membership_format %}
 
 {% comment %}
 Ülevaade — the board's landing page.
@@ -217,7 +218,7 @@ None of them reached this file.
             <div class="min-w-0">
               <h3 class="text-sm text-text-secondary">{{ page.membership.public_total.label }}</h3>
               {% if page.membership.public_total.value is not None %}
-                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.public_total.value }}</p>
+                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.public_total.value|group_thousands }}</p>
               {% else %}
                 <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
               {% endif %}
@@ -227,7 +228,7 @@ None of them reached this file.
               <h3 class="text-sm text-text-secondary">{{ page.membership.internal.label }}</h3>
               {% if page.membership.internal.value is not None %}
                 <p class="flex flex-wrap items-baseline gap-x-2">
-                  <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.internal.value }}</span>
+                  <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.internal.value|group_thousands }}</span>
                   {% if page.membership.paid_share_pct is not None %}
                     <span class="dk-meta tabular-nums">· {{ page.membership.paid_share_pct }} %</span>
                   {% endif %}
