@@ -108,12 +108,17 @@ class Command(FeedCommandOutputMixin, BaseCommand):
 
     def handle(self, *args, **options):
         as_json = options["as_json"]
-        start, end = self._window(options)
 
+        # Validated before the window is resolved, not after: `--days 0` reaches
+        # `reconciliation_window` first and raises `ValueError`, which an
+        # operator sees as a traceback rather than as the sentence naming what
+        # they got wrong.
         if options["chunk_days"] < 1:
             raise CommandError("--chunk-days peab olema vähemalt 1.")
         if options["days"] < 1:
             raise CommandError("--days peab olema vähemalt 1.")
+
+        start, end = self._window(options)
 
         try:
             with advisory_lock(LOCK_NAME):
