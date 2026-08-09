@@ -169,7 +169,15 @@ function tooltipFormatter(readouts) {
         return tooltipNode(readouts[key]);
       }
     }
-    return "";
+    /*
+     * A hover that landed on the line rather than on one of its points. There
+     * is no reading to state — the pointer is between observations — but the
+     * reader still asked a question by hovering, and on a chart of several
+     * years the question is almost always "which year is this one". Naming the
+     * series answers it; saying nothing leaves the hover looking broken.
+     */
+    const named = points.find((point) => point && point.seriesName);
+    return named ? tooltipNode({ title: named.seriesName, rows: [] }) : "";
   };
 }
 
