@@ -207,61 +207,20 @@ Four things are deliberate and should stay that way:
     </div>
   </section>
 
-  {# ---------------- 4. Vaatluste ajalugu ---------------- #}
   {% comment %}
-  Every observation ever published, including the ones a correction superseded.
-  Those are marked rather than hidden: what the Chamber was told in June is part
-  of the record.
+  There is no observation-history table here any more.
 
-  This is a viewer page, so it names no user. Who entered a figure is a staff
-  detail and lives in the admin history instead.
+  It printed every observation ever published — six rows per submission, most of
+  them repeating a figure the cards above already show, with `Näitaja` and
+  `Allikas` carrying the same channel name twice per row. It pushed the source
+  definitions off the screen and answered a question nobody asked on a dashboard.
+
+  The record itself is untouched: superseded observations are still stored, still
+  marked, and still readable in the admin, which is where a correction gets
+  audited. Nothing was deleted to make this page shorter.
   {% endcomment %}
-  <section aria-labelledby="section-history" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Vaatluste ajalugu" heading_id="section-history" description="Kõik sisestatud väärtused, uuemad ees. Parandatud kirjed on märgitud." only %}
-    {% if page.history %}
-      <div class="dk-section-body w-full overflow-x-auto">
-        <table class="w-full min-w-max border-collapse text-sm">
-          <caption class="sr-only">Kõik nähtavuse vaatlused</caption>
-          <thead>
-            <tr>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kuupäev</th>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Näitaja</th>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Väärtus</th>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kogumisviis</th>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Olek</th>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Allikas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for observation in page.history %}
-              <tr>
-                <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium whitespace-nowrap text-text">{{ observation.observation_date|date:"j.m.y" }}</th>
-                <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ observation.get_metric_display }}</td>
-                <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">{{ observation.value }}</td>
-                <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ observation.get_collection_method_display }}</td>
-                <td class="border-b border-border px-3 py-1.5 text-text-secondary">
-                  {% if not observation.is_current_for_date %}
-                    Asendatud
-                  {% elif observation.supersedes_id %}
-                    Parandatud väärtus
-                  {% else %}
-                    Kehtiv
-                  {% endif %}
-                </td>
-                <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ observation.source.name }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="dk-section-body">
-        {% include "dashboard/components/empty_state.html" with message="Vaatlusi ei ole veel sisestatud." detail="Iga sisestatud väärtus ilmub siia koos oma kuupäeva ja allikaga." only %}
-      </div>
-    {% endif %}
-  </section>
 
-  {# ---------------- 5. Allikate määratlused ---------------- #}
+  {# ---------------- 4. Allikate määratlused ---------------- #}
   <section aria-labelledby="section-definitions" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Allikate määratlused" heading_id="section-definitions" description="Mida iga näitaja täpselt loendab ja kust see pärineb." only %}
     <dl class="divide-y divide-border">
@@ -280,7 +239,7 @@ Four things are deliberate and should stay that way:
     </dl>
   </section>
 
-  {# ---------------- 6. Google Analytics ---------------- #}
+  {# ---------------- 5. Google Analytics ---------------- #}
   <section aria-labelledby="section-ga4" class="dk-section">
     {% comment %}
     This section described the connection as unbuilt — "DashKoda makes no
