@@ -122,6 +122,39 @@ function tooltipNode(readout) {
   return root;
 }
 
+/*
+ * Estonian number formatting for axis ticks.
+ *
+ * ECharts formats a value-axis tick with English grouping, so 3820 is drawn as
+ * `3,820` — which an Estonian reader parses as three point eight two. The
+ * separator has to be a space and the decimal mark a comma, the same as
+ * everywhere else on the page.
+ *
+ * The server names a format; this implements the finite set of names. No
+ * business rule crosses over, only how a number is spelled.
+ */
+const GROUP = " ";
+
+function groupThousands(value) {
+  const whole = Math.round(Math.abs(value));
+  return String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, GROUP);
+}
+
+const AXIS_FORMATS = {
+  /* A plain count. */
+  integer: (value) => (value < 0 ? "−" : "") + groupThousands(value),
+  /* A share of a budget. */
+  percent: (value) => groupThousands(value) + "%",
+  /*
+   * A diverging bar chart draws departures as negative numbers so the bars
+   * extend leftwards. That negation is geometry, and an axis tick reading
+   * `−40` states it as a business quantity — nobody reports minus forty
+   * members leaving. The axis shows the magnitude, which is what both sides of
+   * the chart actually measure.
+   */
+  absolute: (value) => groupThousands(value),
+};
+
 /**
  * An axis-trigger formatter that looks each point's readout up by the key the
  * server attached to the datum itself. Deriving the key from the axis value
@@ -199,10 +232,39 @@ export function mountChart(figure) {
     };
   }
 
+  /*
+   * Axis tick spelling, where the server named a format.
+   */
+  for (const axis of ["xAxis", "yAxis"]) {
+    const format = (dashkoda.axisFormat || {})[axis === "xAxis" ? "x" : "y"];
+    const formatter = AXIS_FORMATS[format];
+    if (!formatter || Array.isArray(option[axis])) {
+      continue;
+    }
+    option[axis] = {
+      ...(option[axis] || {}),
+      axisLabel: { ...((option[axis] || {}).axisLabel || {}), formatter },
+    };
+  }
+
   if (dashkoda.tooltip) {
     option.tooltip = {
       ...(option.tooltip || {}),
       formatter: tooltipFormatter(dashkoda.tooltip),
+      /*
+       * The tooltip container is ECharts' own element, not ours, and its
+       * default is a near-white panel with dark text. On this dark interface
+       * that put our light readout text on a light panel and made every
+       * tooltip on the page unreadable — the numbers were correct and nobody
+       * could see them. The surface is set from the same tokens the rest of
+       * the interface uses so it cannot drift out of the theme again.
+       */
+      backgroundColor: token("--color-elevated", "#1e242b"),
+      borderColor: token("--color-border-strong", "#3d4954"),
+      borderWidth: 1,
+      padding: [10, 12],
+      textStyle: { color: token("--color-text", "#e8edf2") },
+      extraCssText: "box-shadow: 0 2px 6px rgb(0 0 0 / 0.4);",
       // A tooltip that runs off the edge of a phone is a tooltip nobody can
       // read. ECharts keeps it inside the canvas when told to confine it.
       confine: true,

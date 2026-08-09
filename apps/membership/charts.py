@@ -75,6 +75,12 @@ MONTH_LABELS: tuple[str, ...] = (
 
 GRID = {"left": 56, "right": 24, "top": 32, "bottom": 40, "containLabel": True}
 
+# A chart that labels its series at the last point needs the margin to put the
+# label in. With the ordinary right margin the label is drawn past the edge of
+# the canvas and clipped mid-word, which is worse than no label: "Liit" names
+# nothing.
+GRID_WITH_END_LABELS = {**GRID, "right": 116}
+
 
 @dataclass(frozen=True)
 class Readout:
@@ -309,6 +315,7 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
         y_axis["max"] = _number(domain.maximum)
 
     option = _base_option(legend=False)
+    option["grid"] = dict(GRID_WITH_END_LABELS)
     option.update(
         {
             "xAxis": {"type": "time"},
@@ -321,7 +328,7 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
                     "showSymbol": show_symbols,
                     "symbolSize": 6,
                     "lineStyle": {"width": 2.5},
-                    "endLabel": {"show": True, "formatter": "{a}"},
+                    "endLabel": {"show": True, "formatter": _end_label("Kokku", total_series)},
                     # Absent values are not in the data at all, so there is
                     # nothing to connect across. This flag makes that explicit.
                     "connectNulls": False,
@@ -336,12 +343,15 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
                     # stay separable in greyscale and for a reader who cannot
                     # tell the hues apart.
                     "lineStyle": {"width": 2, "type": "dashed"},
-                    "endLabel": {"show": True, "formatter": "{a}"},
+                    "endLabel": {"show": True, "formatter": _end_label("Tasunud", paid_series)},
                     "connectNulls": False,
                     "data": paid,
                 },
             ],
-            "dashkoda": {"tooltip": _trend_tooltips(trend, provisional)},
+            "dashkoda": {
+                "tooltip": _trend_tooltips(trend, provisional),
+                "axisFormat": {"y": "integer"},
+            },
         }
     )
 
@@ -386,6 +396,19 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
         empty_message="Sisemise aruande vaatlusi ei ole veel imporditud.",
         footnotes=tuple(footnotes),
     )
+
+
+def _end_label(name: str, series: tuple) -> str:
+    """A series' label at its last point: what it is, and what it now reads.
+
+    A short name and the latest figure together, because the reader is looking
+    at the end of the line anyway and the two answers they want there are which
+    line this is and where it ended up. The full series name would be legible
+    only by taking a sixth of the plot width away from the drawing.
+    """
+    if not series:
+        return name
+    return f"{name} {integer(series[-1][1])}"
 
 
 def _trend_tooltips(trend: InternalTrend, provisional: frozenset[date]) -> dict:
@@ -679,13 +702,14 @@ def monthly_new_members_chart(
                 },
             ],
             "dashkoda": {
+                "axisFormat": {"y": "integer"},
                 "tooltip": _monthly_tooltips(
                     current_year=current_year,
                     current_points=current_points,
                     benchmark_label=benchmark_label,
                     benchmark_points=benchmark_points,
                     cumulative_view=cumulative_view,
-                )
+                ),
             },
         }
     )
@@ -1007,6 +1031,8 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
     )
 
     option = _base_option(legend=False)
+    # The year labels are short, but they still need somewhere to sit.
+    option["grid"] = {**GRID, "right": 56}
     option.update(
         {
             "xAxis": {
@@ -1030,6 +1056,7 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
             "series": series,
             "dashkoda": {
                 "tooltip": _fee_tooltips(by_year, current_year),
+                "axisFormat": {"y": "percent"},
                 # A finite list the browser indexes into. No date logic crosses
                 # over; the axis is 0–11 and these are its twelve labels.
                 "axisLabels": {"x": list(MONTH_ABBREVIATIONS)},
@@ -1229,7 +1256,14 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
                     "data": [bar(row, "joined", negate=False) for row in rows],
                 },
             ],
-            "dashkoda": {"tooltip": _movement_tooltips(rows, observation_date)},
+            "dashkoda": {
+                "tooltip": _movement_tooltips(rows, observation_date),
+                # The bars extend leftwards because the removed count is drawn
+                # negative. An axis tick reading `−40` would state that geometry
+                # as a business quantity, which is the same defect the tooltip
+                # already refuses to repeat.
+                "axisFormat": {"x": "absolute"},
+            },
         }
     )
 
@@ -1378,7 +1412,10 @@ def removal_reasons_chart(rows: tuple[dict, ...], *, observation_date: date | No
                     ],
                 }
             ],
-            "dashkoda": {"tooltip": _reason_tooltips(ordered, observation_date)},
+            "dashkoda": {
+                "tooltip": _reason_tooltips(ordered, observation_date),
+                "axisFormat": {"x": "integer"},
+            },
         }
     )
 
