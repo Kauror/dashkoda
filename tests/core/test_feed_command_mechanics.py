@@ -203,4 +203,8 @@ class TestTheMixinOwnsNoPayload:
 
         assert set(topics) != set(ga4)
         assert "item_count" in topics
-        assert "figures_reported" in ga4
+        # GA4's payload is counts over a window of reporting days, not one
+        # reading: the command reconciles eight days at a time and an operator
+        # reads it to find out how many of them changed.
+        assert "days_examined" in ga4
+        assert "window_end" in ga4

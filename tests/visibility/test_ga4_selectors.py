@@ -322,8 +322,8 @@ def test_many_articles_cost_a_fixed_number_of_queries(day, django_assert_num_que
     day(START, sessions=1, pages=pages)
     items = [Item(f"https://www.koda.ee/et/uudised/{index}", START) for index in range(50)]
 
-    # One coverage aggregate, one page-row count, and one query per window.
-    with django_assert_num_queries(6):
+    # One coverage aggregate and one query per window.
+    with django_assert_num_queries(5):
         views = get_article_views(items)
 
     assert len(views) == 50

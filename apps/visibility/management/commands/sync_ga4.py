@@ -175,11 +175,26 @@ class Command(FeedCommandOutputMixin, BaseCommand):
         response — and no page list either. A scheduler log is not where a
         thousand URLs belong, and the counts are what an operator reads to know
         whether the run did anything.
+
+        Every key is named here rather than copied out of `outcome.extra`. The
+        JSON is a contract a scheduler and a human both read, and one assembled
+        from whatever a particular code path happened to attach would gain and
+        lose fields depending on how the run ended.
         """
-        payload = {
+        return {
             "result": outcome.result,
             "detail": outcome.detail,
             "dry_run": outcome.dry_run,
+            "window_start": outcome.extra.get("window_start"),
+            "window_end": outcome.extra.get("window_end"),
+            "days_examined": outcome.extra.get("days_examined", 0),
+            "days_imported": outcome.extra.get("days_imported", 0),
+            "days_revised": outcome.extra.get("days_revised", 0),
+            "days_unchanged": outcome.extra.get("days_unchanged", 0),
+            "days_kept": outcome.extra.get("days_kept", 0),
+            "page_rows_written": outcome.extra.get("page_rows_written", 0),
+            "channel_rows_written": outcome.extra.get("channel_rows_written", 0),
+            "chunks": outcome.extra.get("chunks", 0),
+            "api_requests": outcome.extra.get("api_requests", 0),
+            "api_retries": outcome.extra.get("api_retries", 0),
         }
-        payload.update(outcome.extra)
-        return payload

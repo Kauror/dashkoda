@@ -84,7 +84,6 @@ class Coverage:
     latest: date | None = None
     days_covered: int = 0
     days_with_pages: int = 0
-    page_rows: int = 0
 
     @property
     def has_data(self) -> bool:
@@ -108,7 +107,7 @@ class Coverage:
 
 
 def get_coverage() -> Coverage:
-    """One aggregate query for the span, one for the page rows."""
+    """One aggregate query. Called on every page that shows analytics."""
     span = current_days().aggregate(
         earliest=Min("report_date"),
         latest=Max("report_date"),
@@ -122,8 +121,18 @@ def get_coverage() -> Coverage:
         latest=span["latest"],
         days_covered=span["days"] or 0,
         days_with_pages=span["with_pages"] or 0,
-        page_rows=current_pages().count(),
     )
+
+
+def count_page_rows() -> int:
+    """How many page/day rows are stored. **Not** part of `get_coverage`.
+
+    It was, and that was a `COUNT` over every page row — a hundred thousand of
+    them once the history is filled — on every render of both the Nähtavus page
+    and the news list, to produce a number neither page shows. It is an
+    operator's figure, so `ga4_status` asks for it and nothing else does.
+    """
+    return current_pages().count()
 
 
 def missing_dates(start: date, end: date) -> tuple[date, ...]:
@@ -573,6 +582,7 @@ __all__ = [
     "current_pages",
     "get_article_views",
     "get_channel_totals",
+    "count_page_rows",
     "get_coverage",
     "get_page_series",
     "get_top_pages",

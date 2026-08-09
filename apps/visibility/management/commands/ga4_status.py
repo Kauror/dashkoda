@@ -21,7 +21,7 @@ from django.core.management.base import BaseCommand
 
 from apps.core.feed_commands import FeedCommandOutputMixin
 from apps.visibility.ga4 import get_configuration
-from apps.visibility.ga4_selectors import get_coverage, missing_dates
+from apps.visibility.ga4_selectors import count_page_rows, get_coverage, missing_dates
 from apps.visibility.ga4_sync import RECONCILIATION_DAYS, reconciliation_window
 from apps.visibility.models import Ga4DailySnapshot, Ga4FeedState
 
@@ -73,7 +73,7 @@ class Command(FeedCommandOutputMixin, BaseCommand):
             "days_missing": len(gaps),
             "missing_dates_sample": [day.isoformat() for day in gaps[:MAX_NAMED_GAPS]],
             "days_with_page_detail": coverage.days_with_pages,
-            "page_rows": coverage.page_rows,
+            "page_rows": count_page_rows(),
             "revisions_total": Ga4DailySnapshot.objects.count(),
             "revisions_superseded": Ga4DailySnapshot.objects.filter(
                 is_current_for_date=False

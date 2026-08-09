@@ -21,11 +21,10 @@ import pytest
 from django.core.management import call_command
 
 from apps.audit.models import AuditAction, AuditEvent
-from apps.core.feeds import FeedResult, advisory_lock
+from apps.core.feeds import FeedResult
 from apps.sources.models import ImportRun, ImportStatus
 from apps.visibility.ga4 import ChannelRow, DayReading, Ga4NotConfigured, PageRow, RangeCollection
 from apps.visibility.ga4_sync import (
-    LOCK_NAME,
     RECONCILIATION_DAYS,
     chunks,
     last_completed_day,
@@ -37,7 +36,11 @@ from apps.visibility.models import Ga4ChannelDaily, Ga4DailySnapshot, Ga4FeedSta
 pytestmark = pytest.mark.django_db
 
 DAY = dt.date(2026, 7, 1)
-TODAY = dt.date(2026, 7, 3)
+#: Comfortably after every date these tests publish, so a window is never
+#: clamped by accident. `2026-07-03` was not: a range ending on the 3rd loses
+#: its last day to the rule that today has not finished, which is the code
+#: behaving correctly and the test asking the wrong question.
+TODAY = dt.date(2026, 7, 10)
 
 
 class FakeCollector:
@@ -403,7 +406,14 @@ def test_a_failure_leaves_the_previously_published_day_exactly_where_it_was():
     assert Ga4FeedState.objects.get().last_result == FeedResult.FAILED
 
 
-def test_a_failed_run_records_why_without_quoting_google():
+def test_a_failed_run_records_why_without_quoting_the_failure():
+    """A transport error carries the request URL, and the URL carries the
+    property ID. `requests` raises exactly this shape, and the text was reaching
+    `last_error_summary` — a field the admin renders — and the log beside it.
+
+    Only the exception type is recorded now: enough to say whether to look at
+    the network or the credential, and incapable of quoting the request.
+    """
     synchronize_ga4(
         collector=FakeCollector({}, error=OSError("HTTP 403 for property 123456789")),
         start=DAY,
@@ -414,6 +424,24 @@ def test_a_failed_run_records_why_without_quoting_google():
     summary = Ga4FeedState.objects.get().last_error_summary
     assert summary
     assert "123456789" not in summary
+    assert "OSError" in summary
+
+
+def test_our_own_refusal_is_recorded_in_full():
+    """`Ga4ResponseError` messages are written in `ga4.py` and name nothing the
+    caller supplied, so they are worth keeping verbatim."""
+    from apps.visibility.ga4 import Ga4ResponseError
+
+    synchronize_ga4(
+        collector=FakeCollector(
+            {}, error=Ga4ResponseError("Google Analytics tagastas ootamatu ridade kuju.")
+        ),
+        start=DAY,
+        end=DAY,
+        today=TODAY,
+    )
+
+    assert "ootamatu ridade kuju" in Ga4FeedState.objects.get().last_error_summary
 
 
 # -- provenance ----------------------------------------------------------
@@ -483,10 +511,32 @@ def test_the_command_refuses_a_reversed_range():
         call(start_date="2026-07-10", end_date="2026-07-01")
 
 
-def test_a_locked_feed_exits_three_without_publishing():
-    with advisory_lock(LOCK_NAME):
-        with pytest.raises(SystemExit) as exit_code:
-            call(as_json=True)
+def test_a_locked_feed_exits_three_without_publishing(monkeypatch):
+    """The output contract for a skipped run, without needing a real race.
+
+    Taking the advisory lock in the test does **not** make the command see it
+    held: it is a PostgreSQL session lock and the test shares the command's
+    connection, so it is re-entrant and the run proceeds. What is being pinned
+    here is what the command does when the lock *is* held, so the lock is
+    replaced rather than contended. True cross-connection overlap is covered by
+    the transactional test below.
+    """
+    from contextlib import contextmanager
+
+    from apps.core.feeds import FeedLocked
+    from apps.visibility.management.commands import sync_ga4 as command_module
+
+    @contextmanager
+    def locked(name):
+        raise FeedLocked(f"Allika {name} sünkroonimine juba käib.")
+        yield  # pragma: no cover - never reached
+
+    monkeypatch.setattr(command_module, "advisory_lock", locked)
+
+    out = StringIO()
+    with pytest.raises(SystemExit) as exit_code:
+        call_command("sync_ga4", "--json", stdout=out, stderr=StringIO())
 
     assert exit_code.value.code == 3
+    assert json.loads(out.getvalue().strip())["result"] == "locked"
     assert Ga4DailySnapshot.objects.count() == 0

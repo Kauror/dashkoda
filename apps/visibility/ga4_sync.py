@@ -47,7 +47,6 @@ from django.utils import timezone
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
-    describe_error,
     fail_feed,
     get_feed_state,
     mark_imported,
@@ -265,9 +264,10 @@ def synchronize_ga4(
     try:
         collect = collector if collector is not None else Ga4ApiCollector(get_configuration())
     except Ga4NotConfigured as error:
+        # Names the missing settings and never their values.
         return _fail(state, str(error), correlation_id)
     except Exception as error:  # noqa: BLE001 - unattended job; nothing may escape
-        return _fail(state, describe_error(error), correlation_id)
+        return _fail(state, _transport_failure(error), correlation_id)
 
     report = SyncReport(first_date=start, last_date=end)
 
@@ -282,12 +282,13 @@ def synchronize_ga4(
             )
         except Ga4NotConfigured as error:
             return _fail(state, str(error), correlation_id)
-        except (OSError, ValueError, Ga4ResponseError) as error:
-            # Our own message, never Google's body. Every chunk already
-            # published stays published; the range is resumable by re-running.
+        except Ga4ResponseError as error:
+            # Our own sentence, written in `ga4.py`, safe to record verbatim.
+            # Every chunk already published stays published; the range is
+            # resumable by re-running.
             return _fail(state, str(error), correlation_id, report=report)
         except Exception as error:  # noqa: BLE001
-            return _fail(state, describe_error(error), correlation_id, report=report)
+            return _fail(state, _transport_failure(error), correlation_id, report=report)
 
         report.counts.absorb(collection.counts)
 
@@ -304,7 +305,7 @@ def synchronize_ga4(
                     counts=report.counts,
                 )
             except Exception as error:  # noqa: BLE001
-                return _fail(state, describe_error(error), correlation_id, report=report)
+                return _fail(state, _transport_failure(error), correlation_id, report=report)
             report.days.append(outcome)
 
     if not dry_run:
@@ -544,6 +545,23 @@ def _publish_day(
     else:
         counts.days_imported += 1
     return DayOutcome(report_date=day, action=action, snapshot_id=snapshot.pk)
+
+
+def _transport_failure(error: Exception) -> str:
+    """A failure sentence that cannot carry what the failure was talking about.
+
+    `describe_error` renders `f"{type(error).__name__}: {error}"`, which is right
+    for a feed whose exceptions are its own. GA4's are not: a transport error
+    raised inside `requests` carries the **request URL**, and that URL contains
+    the property ID. `OSError("HTTP 403 for property …")` is exactly the shape,
+    and it was reaching `Ga4FeedState.last_error_summary` — a field rendered in
+    the admin — and the log line beside it.
+
+    So only the exception's type is recorded. An operator gets the class name,
+    which is what tells them whether to look at the network or at the
+    credential, and `ga4_status` tells them the rest.
+    """
+    return f"Google Analyticsi päring ebaõnnestus ({type(error).__name__})."
 
 
 def _would_lose_detail(current: Ga4DailySnapshot, reading: DayReading) -> bool:
