@@ -127,6 +127,21 @@ def test_a_chart_that_labels_its_last_point_leaves_room_for_the_label(every_char
         assert option["grid"]["right"] > 24, f"{name} has no room for its end label"
 
 
+def test_every_labelled_series_can_drop_a_label_that_would_collide(every_chart):
+    """`hideOverlap` is a series option, and every series that draws a label
+    needs it — not just the bar charts where the collision was first noticed.
+
+    Three of the fee chart's four years finish within a few points of the
+    budget, so their year labels land on each other at the right edge; the
+    trend's two converge whenever the paid count approaches the total.
+    """
+    for name in ("trend", "fees", "movement", "reasons"):
+        option = every_chart[name].option
+        assert "labelLayout" not in option, f"{name} sets it where ECharts ignores it"
+        for series in option["series"]:
+            assert series["labelLayout"]["hideOverlap"] is True, name
+
+
 def test_a_chart_without_end_labels_keeps_the_ordinary_margin(every_chart):
     """Room taken from the plot is only worth it where something is drawn in it."""
     assert every_chart["monthly"].option["grid"]["right"] == 24
