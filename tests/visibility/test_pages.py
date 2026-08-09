@@ -136,7 +136,10 @@ def test_each_social_card_links_to_the_correct_public_page(submit, viewer_client
     assert 'href="https://www.instagram.com/kaubanduskoda"' in page
     assert 'href="https://www.youtube.com/user/Kaubanduskoda"' in page
     assert 'rel="noopener noreferrer"' in page
-    assert 'target="_blank"' not in page
+    # Opened in a new tab, at the board's request: every link that leaves
+    # DashKoda does. The `rel="noopener noreferrer"` asserted above is what
+    # makes that safe, and the card's own `sr-only` note is what announces it.
+    assert 'target="_blank"' in page
 
 
 def test_an_outbound_link_says_it_leaves_dashkoda(submit, viewer_client):

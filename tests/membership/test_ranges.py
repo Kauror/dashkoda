@@ -15,11 +15,11 @@ from apps.membership.ranges import (
     CARD_DEFAULT_MONTHS,
     PAGE_DEFAULT_MONTHS,
     DateWindow,
-    months_before,
     offers_choice,
     parse_iso_date,
     range_presets,
     resolve_window,
+    window_start,
 )
 
 # The observation span in these tests: a long history ending on the reporting
@@ -43,9 +43,12 @@ def resolve(raw_from=None, raw_to=None, **overrides):
 
 def test_the_default_window_is_counted_back_from_the_newest_observation():
     """Anchored to the report, not to today: a report four days late must not
-    shorten the window by four days and silently drop its oldest point."""
-    assert resolve() == DateWindow(dt.date(2025, 12, 4), LATEST)
-    assert resolve(default_months=PAGE_DEFAULT_MONTHS) == DateWindow(dt.date(2025, 6, 4), LATEST)
+    shorten the window by four days and silently drop its oldest point.
+
+    The month is what is counted back, so a window of N months holds N months
+    of reports rather than N months and one day's worth of a further one."""
+    assert resolve(default_months=3) == DateWindow(dt.date(2026, 4, 1), LATEST)
+    assert resolve(default_months=PAGE_DEFAULT_MONTHS) == DateWindow(dt.date(2025, 7, 1), LATEST)
 
 
 def test_the_page_opens_on_one_year_of_history():
@@ -54,14 +57,22 @@ def test_the_page_opens_on_one_year_of_history():
     assert PAGE_DEFAULT_MONTHS == 12
 
 
+def test_the_card_opens_on_the_same_year_the_page_does():
+    """The card and the page draw the same two series. Opening on different
+    windows made one line look like two different stories, depending on which
+    surface a reader happened to be looking at."""
+    assert CARD_DEFAULT_MONTHS == PAGE_DEFAULT_MONTHS == 12
+    assert resolve() == resolve(default_months=PAGE_DEFAULT_MONTHS)
+
+
 def test_a_new_report_rolls_the_window_forward_by_itself():
     """The window ends on the newest observation and starts a year before it, so
     nothing has to be edited when a report arrives."""
     before = resolve(latest=dt.date(2026, 6, 4), default_months=PAGE_DEFAULT_MONTHS)
     after = resolve(latest=dt.date(2026, 7, 4), default_months=PAGE_DEFAULT_MONTHS)
 
-    assert before == DateWindow(dt.date(2025, 6, 4), dt.date(2026, 6, 4))
-    assert after == DateWindow(dt.date(2025, 7, 4), dt.date(2026, 7, 4))
+    assert before == DateWindow(dt.date(2025, 7, 1), dt.date(2026, 6, 4))
+    assert after == DateWindow(dt.date(2025, 8, 1), dt.date(2026, 7, 4))
 
 
 def test_a_default_the_history_cannot_fill_starts_where_the_history_does():
@@ -70,11 +81,15 @@ def test_a_default_the_history_cannot_fill_starts_where_the_history_does():
     assert window == DateWindow(dt.date(2026, 3, 1), LATEST)
 
 
-def test_stepping_back_a_month_lands_on_a_date_that_exists():
-    """One month before 31 March is the end of February, not the 31st of it."""
-    assert months_before(dt.date(2026, 3, 31), 1) == dt.date(2026, 2, 28)
-    assert months_before(dt.date(2024, 3, 31), 1) == dt.date(2024, 2, 29)
-    assert months_before(dt.date(2026, 1, 15), 1) == dt.date(2025, 12, 15)
+def test_a_window_begins_at_the_start_of_its_first_month():
+    """A window of N months holds N months of reports. Counting back the same
+    day of the month reaches one day into a further month and picks up its
+    report too — thirteen points under a control offering `1 aasta`."""
+    # A window is measured in whole months and starts at the beginning of one,
+    # so the day of the month never has to be clamped to a shorter one.
+    assert window_start(dt.date(2026, 3, 31), 1) == dt.date(2026, 3, 1)
+    assert window_start(dt.date(2026, 1, 15), 2) == dt.date(2025, 12, 1)
+    assert window_start(dt.date(2026, 6, 4), 12) == dt.date(2025, 7, 1)
 
 
 # -- what a reader typed into the fields ---------------------------------
@@ -98,7 +113,7 @@ def test_one_date_keeps_the_other_side_of_the_default_window():
     # Only a start: the window runs to the newest observation.
     assert resolve("2024-02-10", None) == DateWindow(dt.date(2024, 2, 10), LATEST)
     # Only an end: the default months are counted back from that end.
-    assert resolve(None, "2025-11-05") == DateWindow(dt.date(2025, 5, 5), dt.date(2025, 11, 5))
+    assert resolve(None, "2025-11-05") == DateWindow(dt.date(2024, 12, 1), dt.date(2025, 11, 5))
 
 
 def test_a_window_is_folded_back_inside_the_history():
@@ -132,8 +147,11 @@ def test_parse_reads_what_a_date_field_submits_and_nothing_else():
 # -- the retired button control's bookmarks ------------------------------
 
 
-def test_a_legacy_key_still_draws_the_window_it_always_drew():
-    assert resolve(legacy_key="24") == DateWindow(dt.date(2024, 6, 4), LATEST)
+def test_a_legacy_key_still_draws_the_window_it_names():
+    """`?vahemik=24` is two years and still resolves to two years. It is now
+    twenty-four whole months rather than the same day two years earlier, which
+    is the same change every other window took."""
+    assert resolve(legacy_key="24") == DateWindow(dt.date(2024, 7, 1), LATEST)
     assert resolve(legacy_key="koik") == DateWindow(EARLIEST, LATEST)
 
 
@@ -174,9 +192,9 @@ def test_a_preset_resolves_to_the_same_two_dates_the_fields_carry():
     presets = range_presets(earliest=dt.date(2016, 1, 31), latest=dt.date(2026, 7, 31), active=None)
     year = next(item for item in presets if item.label == "1 aasta")
 
-    assert year.window.start == dt.date(2025, 7, 31)
+    assert year.window.start == dt.date(2025, 8, 1)
     assert year.window.end == dt.date(2026, 7, 31)
-    assert year.query == "alates=2025-07-31&kuni=2026-07-31"
+    assert year.query == "alates=2025-08-01&kuni=2026-07-31"
 
 
 def test_presets_the_history_cannot_fill_are_not_offered():
@@ -212,7 +230,7 @@ def test_a_single_observation_offers_no_presets_at_all():
 
 
 def test_exactly_one_preset_is_marked_active_for_a_resolved_window():
-    window = DateWindow(start=dt.date(2021, 7, 31), end=dt.date(2026, 7, 31))
+    window = DateWindow(start=dt.date(2021, 8, 1), end=dt.date(2026, 7, 31))
     presets = range_presets(
         earliest=dt.date(2016, 1, 31), latest=dt.date(2026, 7, 31), active=window
     )

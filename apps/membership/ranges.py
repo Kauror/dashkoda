@@ -32,7 +32,6 @@ PostgreSQL.
 
 from __future__ import annotations
 
-from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date
 
@@ -58,11 +57,18 @@ LEGACY_WINDOW_MONTHS: dict[str, int | None] = {
     "koik": None,
 }
 
-# What each page opens on when a reader has chosen nothing. The card's default
-# was asked for outright: the last six months. The page keeps the five years it
-# already drew — adding a finer control is not a reason to change what a reader
-# who chooses nothing is shown.
-CARD_DEFAULT_MONTHS = 6
+# What the overview card opens on when a reader has chosen nothing.
+#
+# Six, once, because six was asked for outright. Twelve now, for the reason the
+# page moved to twelve and for one the page does not have: the card and the page
+# draw the same two series, and a reader who looks at the card and then opens the
+# page has to be looking at the same stretch of history. Two different default
+# windows made the same line look like two different stories.
+#
+# Deliberately the same number as `PAGE_DEFAULT_MONTHS` rather than a reference
+# to it. They answer for different surfaces and either may be asked to change on
+# its own; what must not happen is one of them drifting silently.
+CARD_DEFAULT_MONTHS = 12
 
 # The page opens on the last twelve months.
 #
@@ -86,16 +92,22 @@ class DateWindow:
     end: date
 
 
-def months_before(day: date, months: int) -> date:
-    """The same day of the month, `months` earlier, clamped to a real date.
+def window_start(end: date, months: int) -> date:
+    """Where a window of `months` months ending in `end`'s month begins.
 
-    Clamping matters at one boundary and is invisible everywhere else: one month
-    before 31 March is 28 or 29 February, not a date that does not exist.
+    The first day of the month `months - 1` earlier, so "the last twelve months"
+    means twelve calendar months — July 2025 through June 2026 — and draws
+    twelve monthly points.
+
+    The same day of the month a year earlier, which is what this used to be,
+    reaches back into June 2025 and picks up that month's report as well. The
+    card then drew thirteen points and labelled itself `viimased 13 kuud`, under
+    a control that offers `1 aasta`. The window was a year long and the chart
+    was not a year of reports, which is the mismatch a reader actually sees.
     """
-    total = (day.year * 12 + day.month - 1) - months
+    total = (end.year * 12 + end.month - 1) - (months - 1)
     year, month = divmod(total, 12)
-    month += 1
-    return date(year, month, min(day.day, monthrange(year, month)[1]))
+    return date(year, month + 1, 1)
 
 
 def parse_iso_date(raw: str | None) -> date | None:
@@ -160,13 +172,13 @@ def resolve_window(
             months = LEGACY_WINDOW_MONTHS[legacy_key]
         else:
             months = default_months
-        start = earliest if months is None else months_before(latest, months)
+        start = earliest if months is None else window_start(latest, months)
         end = latest
     else:
         if end is None:
             end = latest
         if start is None:
-            start = months_before(end, default_months)
+            start = window_start(end, default_months)
         if end < start:
             start, end = end, start
 
@@ -230,7 +242,7 @@ def range_presets(
 
     presets: list[RangePreset] = []
     for label, months in PRESET_MONTHS:
-        start = months_before(latest, months)
+        start = window_start(latest, months)
         if start <= earliest:
             # This preset reaches past the beginning, so it and everything
             # longer draw the whole history. "Kõik" says that honestly.

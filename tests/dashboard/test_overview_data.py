@@ -175,6 +175,18 @@ def section(response, heading_id: str) -> str:
     return body(response).split(f'aria-labelledby="{heading_id}"')[1].split("</section>")[0]
 
 
+def hover_bands(card: str) -> int:
+    """How many observations the drawn chart offers a reading for.
+
+    Counts hover groups rather than `<rect>` elements. A band is two rectangles
+    now — a narrow mark that lights up under the pointer and a wide invisible
+    hit area — because one rectangle doing both jobs painted a third of the
+    chart on hover. That is a drawing detail; the number of observations is
+    what these tests are actually about.
+    """
+    return card.count('<g class="group">')
+
+
 def kpi_strip(response) -> str:
     return section(response, "section-kpi")
 
@@ -482,7 +494,13 @@ def test_each_legal_count_links_to_the_section_that_lists_its_rows(viewer, legal
     strip = kpi_strip(viewer.get(reverse("home")))
 
     assert f'href="{page_url}#section-open" class="dk-link-quiet">teemasid töös</a>' in strip
-    assert f'href="{page_url}#section-received" class="dk-link-quiet">uusi teemasid' in strip
+    # `uusi teemasid` is deliberately not a link any more. The section that
+    # listed those rows was removed from the Õigusloome page at the board's
+    # request, and `apps/legal_work/sections.py` states the rule: a count with
+    # no matching section stays plain text, because a link landing on a
+    # different set of rows than the number claims is worse than no link.
+    assert "uusi teemasid" in strip
+    assert "#section-received" not in strip
     assert f'href="{page_url}#section-sent" class="dk-link-quiet">välja läinud teemasid' in strip
     # Three links in the whole strip and no more. The Sündmused counts stay
     # plain: that page lists the programme, not the two windows this strip
@@ -599,7 +617,10 @@ def test_the_page_states_one_member_total_and_it_is_the_daily_public_one(
     card = section(response, "section-membership")
 
     assert "3400" in kpi_strip(response)
-    assert "3400" in card
+    # Grouped on the card, where every neighbouring figure is grouped too.
+    # The strip prints it ungrouped, which is why the two assertions in this
+    # test differ in spelling and not in value.
+    assert "3\u00a0400" in card
     assert "Liikmeid kokku" in card
 
 
@@ -616,9 +637,10 @@ def test_the_board_reports_own_total_is_no_longer_a_figure_on_the_card(
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
 
     # An explicit window wide enough that the chart is actually drawn. The
-    # package's two comparable observations are a year apart, so the default
-    # six-month window leaves a single point, which is not a trend and is not
-    # drawn — and an assertion about the drawing would then hold vacuously.
+    # package's two comparable observations are a year apart, and the default
+    # window is twelve months back from the newest one's month, which leaves a
+    # single point — not a trend, not drawn, and an assertion about the drawing
+    # would then hold vacuously.
     card = section(
         viewer.get(reverse("home"), {"alates": "2024-01-01", "kuni": "2025-01-15"}),
         "section-membership",
@@ -630,7 +652,7 @@ def test_the_board_reports_own_total_is_no_longer_a_figure_on_the_card(
         "Liikmemaksude laekumine",
     ]
     # Drawn, and the drawing says whose total it is.
-    assert card.count("<rect") == 2, "the window must be one where a chart exists"
+    assert hover_bands(card) == 2, "the window must be one where a chart exists"
     assert "Liikmeid kokku · koja aruanne" in card
 
 
@@ -668,8 +690,8 @@ def test_the_trend_control_is_two_date_fields_bounded_by_the_history(
 
     The fields advertise that span with `min`/`max`, so the browser's picker
     greys out dates no report covers, and they open on the default window: the
-    last six months, counted back from the newest observation rather than from
-    today. The retired fixed-window buttons are gone — they are the control
+    last twelve months, counted back from the newest observation's month rather
+    than from today. The retired fixed-window buttons are gone — they are the control
     that changed shape under the reader's pointer.
     """
     card = section(viewer.get(reverse("home")), "section-membership")
@@ -679,7 +701,10 @@ def test_the_trend_control_is_two_date_fields_bounded_by_the_history(
     assert 'name="kuni"' in card
     assert card.count('min="2024-01-10"') == 2
     assert card.count('max="2025-01-15"') == 2
-    assert 'value="2024-07-15"' in card
+    # Twelve whole months ending in the newest observation's month, so the
+    # window opens on 1 February rather than on the same day a year earlier —
+    # which would reach back into January 2024 and draw thirteen months.
+    assert 'value="2024-02-01"' in card
     assert 'value="2025-01-15"' in card
     assert 'name="vahemik"' not in card
     assert "dk-badge dk-badge-brand" not in card
@@ -705,9 +730,9 @@ def test_a_narrower_window_draws_less_without_moving_the_latest_figures(
 
     # Two observations a year apart: the wide window draws both, and the short
     # one is left with a single point, which is not a trend and is not drawn.
-    assert wide.count("<rect") == 2
+    assert hover_bands(wide) == 2
     assert "Trendi kuvamiseks on vaja vähemalt kahte vaatlust." in narrow
-    assert "<rect" not in narrow
+    assert hover_bands(narrow) == 0
     # The asked-for start predates the history, so the field shows the clamped
     # window that was actually drawn, not the raw input.
     assert 'value="2024-01-10"' in wide
@@ -720,7 +745,7 @@ def test_a_bookmarked_legacy_range_key_still_means_what_it_meant(viewer, importe
     """`?vahemik=24` predates the date fields and still draws its two years."""
     card = section(viewer.get(reverse("home"), {"vahemik": "24"}), "section-membership")
 
-    assert card.count("<rect") == 2
+    assert hover_bands(card) == 2
     # Two years back from 15.01.2025 reaches past the oldest observation, so
     # the window folds to where the history starts.
     assert 'value="2024-01-10"' in card
