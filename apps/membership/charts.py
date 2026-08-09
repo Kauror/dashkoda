@@ -346,6 +346,7 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
                     "symbolSize": 6,
                     "lineStyle": {"width": 2.5},
                     "endLabel": {"show": True, "formatter": _end_label("Kokku", total_series)},
+                    "labelLayout": dict(LABEL_LAYOUT),
                     # Absent values are not in the data at all, so there is
                     # nothing to connect across. This flag makes that explicit.
                     "connectNulls": False,
@@ -361,6 +362,7 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
                     # tell the hues apart.
                     "lineStyle": {"width": 2, "type": "dashed"},
                     "endLabel": {"show": True, "formatter": _end_label("Tasunud", paid_series)},
+                    "labelLayout": dict(LABEL_LAYOUT),
                     "connectNulls": False,
                     "data": paid,
                 },
@@ -1028,6 +1030,9 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
                 ),
                 "itemStyle": {} if is_current else {"opacity": 0.6},
                 "endLabel": {"show": True, "formatter": "{a}", "distance": 8},
+                # Three of four years finish within a few points of the budget,
+                # so without this their labels are drawn on top of each other.
+                "labelLayout": dict(LABEL_LAYOUT),
                 "z": 3 if is_current else 2,
                 # The line itself answers a pointer, not only the dots on it.
                 # Four sparse years of dots is a lot of aiming for a reader who
