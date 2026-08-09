@@ -379,8 +379,11 @@ A preset the history cannot fill is not offered, for the same reason a
 never-drawable window was never offered: two controls drawing the identical line
 invite a reader to believe the second one failed. An eight-month history offers
 only `Kõik`. The card opens on the last six
-months, the page on the last five years — both counted back from the newest
-observation.
+months and the page on the last twelve — both counted back from the newest
+observation, so both roll forward on their own as reports arrive and neither
+carries a date that has to be kept up to date. The page opened on five years
+until it was clear that drew five repetitions of the same annual cycle, with
+the current year squeezed into a fifth of the plot.
 
 It replaced a row of fixed-window buttons that submitted `?vahemik=`. Those
 keys (`6`, `12`, `24`, `36`, `60`, `koik`) are still read so a stale bookmark

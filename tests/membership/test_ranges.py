@@ -45,7 +45,23 @@ def test_the_default_window_is_counted_back_from_the_newest_observation():
     """Anchored to the report, not to today: a report four days late must not
     shorten the window by four days and silently drop its oldest point."""
     assert resolve() == DateWindow(dt.date(2025, 12, 4), LATEST)
-    assert resolve(default_months=PAGE_DEFAULT_MONTHS) == DateWindow(dt.date(2021, 6, 4), LATEST)
+    assert resolve(default_months=PAGE_DEFAULT_MONTHS) == DateWindow(dt.date(2025, 6, 4), LATEST)
+
+
+def test_the_page_opens_on_one_year_of_history():
+    """Five years drew five repetitions of the same annual cycle and squeezed
+    the current year into a fifth of the plot."""
+    assert PAGE_DEFAULT_MONTHS == 12
+
+
+def test_a_new_report_rolls_the_window_forward_by_itself():
+    """The window ends on the newest observation and starts a year before it, so
+    nothing has to be edited when a report arrives."""
+    before = resolve(latest=dt.date(2026, 6, 4), default_months=PAGE_DEFAULT_MONTHS)
+    after = resolve(latest=dt.date(2026, 7, 4), default_months=PAGE_DEFAULT_MONTHS)
+
+    assert before == DateWindow(dt.date(2025, 6, 4), dt.date(2026, 6, 4))
+    assert after == DateWindow(dt.date(2025, 7, 4), dt.date(2026, 7, 4))
 
 
 def test_a_default_the_history_cannot_fill_starts_where_the_history_does():
