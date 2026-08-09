@@ -10,6 +10,9 @@ from django.template.loader import render_to_string
 from apps.dashboard.connections import planned
 from apps.dashboard.navigation import NavItem
 
+# The separator `group_thousands` writes, spelled out so it is visible here.
+NBSP = "\u00a0"
+
 
 def render(name: str, context: dict) -> str:
     return render_to_string(f"dashboard/components/{name}.html", context)
@@ -369,8 +372,11 @@ def test_trend_chart_makes_every_observation_hoverable_without_a_script():
     assert html.count('vector-effect="non-scaling-stroke"') == 6
     # One hit strip per date, each reading out the whole observation.
     assert html.count("<rect") == 2
-    assert "<title>1.11.25 · Liikmeid kokku 3300 · Tasunud liikmeid 2600</title>" in html
-    assert "<title>1.01.26 · Liikmeid kokku 3412 · Tasunud liikmeid 2798</title>" in html
+    # A date and then one line per series. Joining them with ` · ` broke as
+    # soon as a series was named `Liikmeid kokku · koja aruanne`, because the
+    # separator then appeared inside a label as well as between fields.
+    assert f"<title>1.11.25\nLiikmeid kokku 3{NBSP}300\nTasunud liikmeid 2{NBSP}600</title>" in html
+    assert f"<title>1.01.26\nLiikmeid kokku 3{NBSP}412\nTasunud liikmeid 2{NBSP}798</title>" in html
     # The strip is what the pointer meets; everything drawn over it steps aside.
     assert html.count('pointer-events="none"') == 6
     assert html.count('pointer-events="all"') == 2

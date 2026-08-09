@@ -29,7 +29,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 
-from apps.core.formatting import short_date
+from apps.core.formatting import group_thousands, short_date
 
 # The drawing box. A wide, short viewBox scaled with `preserveAspectRatio="none"`
 # lets one set of coordinates serve every card width.
@@ -331,23 +331,36 @@ def _bands(lines: tuple[TrendLine, ...], *, start: date, span_days: int) -> tupl
 
 
 def _readout(when: date, readings: Sequence[tuple[str, float]]) -> str:
-    """One observation as a single line of text.
+    """One observation, as a date and then one line per series.
 
-    Built here rather than in the template because it is read from an SVG
-    `<title>`, which holds text and not markup: a template loop would put its
-    own newlines and indentation inside the tooltip. The date is written the way
-    every viewer template writes one, through `apps.core.formatting`.
+    Was a single run-on line joining the date and every reading with ` · `.
+    That fell apart the moment a series was named `Liikmeid kokku · koja
+    aruanne`: the separator appeared inside a label as well as between fields,
+    so the readout became four dot-separated fragments with nothing marking
+    where a label ended and its number began.
+
+    One line per reading needs no separator at all. Built here rather than in
+    the template because it is read from an SVG `<title>`, which holds text and
+    not markup, and a template loop would put its own indentation inside the
+    tooltip.
     """
-    parts = [short_date(when)]
-    parts.extend(f"{label} {_readable(value)}" for label, value in readings)
-    return " · ".join(parts)
+    lines = [short_date(when)]
+    lines.extend(f"{label} {_readable(value)}" for label, value in readings)
+    return "\n".join(lines)
 
 
 def _readable(value: float) -> str:
-    """A charted value as a reader sees it: no trailing `.0`, decimal comma."""
+    """A charted value as a reader sees it.
+
+    Grouped, so a four-digit membership is read at a glance rather than counted
+    digit by digit, and with the decimal comma Estonian writes. `3366` was the
+    only number on either chart still written the bare way.
+    """
     if value == int(value):
-        return str(int(value))
-    return f"{value:.1f}".replace(".", ",")
+        return group_thousands(int(value))
+    whole, _, fraction = f"{abs(value):.1f}".partition(".")
+    sign = "-" if value < 0 else ""
+    return f"{sign}{group_thousands(int(whole))},{fraction}"
 
 
 def _observations(series: Sequence[Point]) -> tuple[tuple[date, float], ...]:

@@ -209,7 +209,12 @@
      readout from stealing the hover that is showing it. */
   .dk-chart-tip {
     @apply pointer-events-none absolute z-10 rounded-md border border-border-strong
-      bg-elevated px-2.5 py-1.5 text-micro whitespace-nowrap text-text shadow-raised;
+      bg-elevated px-2.5 py-1.5 text-micro text-text shadow-raised;
+    /* The readout is a date and then one line per series. `pre-line` keeps
+       those line breaks — `nowrap` used to fold them into one run-on string,
+       which is what made a three-value reading unreadable — while still
+       collapsing the indentation an SVG `<title>` inevitably carries. */
+    white-space: pre-line;
   }
 
   /* Ordinary in-content link. Referenced by the news, events and overview

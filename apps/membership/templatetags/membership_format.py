@@ -10,9 +10,22 @@ from __future__ import annotations
 
 from django import template
 
-from apps.core.formatting import percentage, whole_euros
+from apps.core.formatting import group_thousands, percentage, whole_euros
 
 register = template.Library()
+
+
+@register.filter(name="group_thousands")
+def group_thousands_filter(value):
+    """A whole count, grouped so four digits are read rather than counted.
+
+    The card printed its member totals raw while the euro amounts beside them
+    were grouped, so one figure in the same row read as `3402` and another as
+    `1 276 101 €`.
+    """
+    if value is None:
+        return ""
+    return group_thousands(value)
 
 
 @register.filter(name="whole_euros")
