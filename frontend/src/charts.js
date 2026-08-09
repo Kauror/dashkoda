@@ -204,10 +204,21 @@ export function mountChart(figure) {
     empty.hidden = true;
   }
 
-  const instance = echarts.init(canvas, null, {
-    renderer: "canvas",
-    useDirtyRect: true,
-  });
+  /*
+   * Full repaints, not dirty rectangles.
+   *
+   * `useDirtyRect` repaints only the regions ECharts believes changed. Moving
+   * the pointer across a chart sweeps a narrow strip, and the strip it repaints
+   * does not always cover the grid line that ran through it — so the line is
+   * erased and not redrawn, and the reader watches pale vertical gaps open up
+   * across the plot as they hover.
+   *
+   * It is an optimisation for charts with thousands of elements. These have
+   * dozens, and a whole repaint of a 900×420 canvas is not something anyone can
+   * perceive. Correct drawing is worth more than an optimisation nobody asked
+   * for on a chart this size.
+   */
+  const instance = echarts.init(canvas, null, { renderer: "canvas" });
   /*
    * `dashkoda` carries what ECharts must not receive as option: the
    * server-rendered tooltip readouts, keyed by the `tip` each datum holds. It is
