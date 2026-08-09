@@ -44,20 +44,26 @@ Four things are deliberate and should stay that way:
 
   {# ---------------- 1. Praegune seis ---------------- #}
   <section aria-labelledby="section-current" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Praegune seis" heading_id="section-current" description="Viimased sisestatud väärtused iga kanali kohta." only %}
+    {% include "dashboard/components/section_header.html" with title="Praegune seis" heading_id="section-current" description="Viimane väärtus iga kanali kohta." only %}
     <div class="dk-kpi-strip dk-kpi-strip-wide">
       {% for slot in page.channels %}
-        {% include "dashboard/components/channel_card.html" with slot=slot flush=True only %}
+        {% include "dashboard/components/channel_card.html" with slot=slot flush=True show_state=False only %}
       {% endfor %}
     </div>
   </section>
 
   {# ---------------- 2. Uudiskiri ---------------- #}
   <section aria-labelledby="section-newsletter" class="dk-section">
-    {# Named for what it lists rather than for the channel. The overview band
-       already carries an "Uudiskirjad" card heading, and two headings sharing one
-       accessible name leave anyone navigating by heading unable to tell them
-       apart. #}
+    {% comment %}
+    Named for what it lists rather than for the channel. The overview band
+    already carries an "Uudiskirjad" card heading, and two headings sharing one
+    accessible name leave anyone navigating by heading unable to tell them
+    apart.
+
+    `{# #}` and not `{% comment %}` printed this whole paragraph onto the page:
+    the short form is single-line only, so Django never recognised it as a
+    comment at all.
+    {% endcomment %}
     {% include "dashboard/components/section_header.html" with title="Uudiskirjade nimekirjad" heading_id="section-newsletter" description="Iga uudiskirja nimekirja suurus eraldi." only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% if page.newsletter.has_any_data %}
@@ -276,15 +282,29 @@ Four things are deliberate and should stay that way:
 
   {# ---------------- 6. Google Analytics ---------------- #}
   <section aria-labelledby="section-ga4" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kodulehe külastused" heading_id="section-ga4" description="Veebistatistika seis." badge_label="Lisamisel" badge_variant="neutral" only %}
-    <div class="dk-section-body">
-      {% include "dashboard/components/empty_state.html" with message=page.ga4.message detail=page.ga4.detail only %}
-      <p class="dk-meta mt-2">
-        DashKoda ei tee Google Analyticsi päringuid ega hoia ühtegi Google’i mandaati.
-        Ühendamine on eraldi töö, mis nõuab kirjutusõiguseta teenusekontot ja
-        ajastatud kogumist.
-      </p>
-    </div>
+    {% comment %}
+    This section described the connection as unbuilt — "DashKoda makes no
+    Google Analytics queries and holds no Google credential" — and went on
+    saying it after the connection was made. A page that states the opposite of
+    what the deployment does is worse than one that says nothing, so the wording
+    follows the connection state rather than being fixed in the markup.
+    {% endcomment %}
+    {% if page.ga4.is_connected %}
+      {% include "dashboard/components/section_header.html" with title="Kodulehe külastused" heading_id="section-ga4" description="Veebistatistika seis." only %}
+      <div class="dk-section-body">
+        <p class="text-sm text-text-secondary">
+          Külastusi loeb Google Analytics. DashKoda pärib üks kord ööpäevas eelmise
+          lõppenud päeva koondnäitajad kirjutusõiguseta teenusekontoga ja salvestab
+          neist ainult seansside, kasutajate ja lehevaatamiste arvu. Ühtegi üksikut
+          külastajat ei salvestata ega päringu vastust ei säilitata.
+        </p>
+      </div>
+    {% else %}
+      {% include "dashboard/components/section_header.html" with title="Kodulehe külastused" heading_id="section-ga4" description="Veebistatistika seis." badge_label="Lisamisel" badge_variant="neutral" only %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message=page.ga4.message detail=page.ga4.detail only %}
+      </div>
+    {% endif %}
   </section>
 
 </div>
