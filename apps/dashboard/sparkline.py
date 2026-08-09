@@ -187,6 +187,10 @@ class TrendBand:
 
     x: float
     width: float
+    # Where the observation itself sits. The strip around it is wide on purpose
+    # — it is what a pointer has to hit — but it is not where the reading is,
+    # and painting the whole of it was the defect this separates out.
+    point_x: float
     when: date
     readout: str
 
@@ -302,6 +306,12 @@ def _bands(lines: tuple[TrendLine, ...], *, start: date, span_days: int) -> tupl
     nearest to it and no gap between strips can swallow a pointer. The first and
     last strips extend to the edges of the box for the same reason.
 
+    That makes a strip as wide as the gap around its date, which for a series
+    reporting twice in five months is a third of the drawing. It is the right
+    shape for a *hit* area and quite wrong for a highlight: filling it turned a
+    hover into a slab covering half the chart. Each band therefore carries the
+    position of its own observation as well, and the drawing marks that.
+
     Dates come from **all** lines together. Two lines usually report on the same
     day and produce one strip, but a date only one of them has still gets its
     own, and its reading names only the line that has it.
@@ -323,6 +333,7 @@ def _bands(lines: tuple[TrendLine, ...], *, start: date, span_days: int) -> tupl
         TrendBand(
             x=edges[index],
             width=edges[index + 1] - edges[index],
+            point_x=positions[index],
             when=when,
             readout=_readout(when, by_date[when]),
         )

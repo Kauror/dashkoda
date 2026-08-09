@@ -70,15 +70,33 @@ optional: it is the same numbers, in the document, for every reader.
     renders in Estonian, `floatformat` is localised, and `12,34` in a `points`
     or `d` attribute is not a coordinate.
     {% endcomment %}
+    {% comment %}
+    Two rectangles per observation, in one hoverable group.
+
+    The wide one is the hit area: it runs halfway to each neighbour so a pointer
+    anywhere near a date finds it. The narrow one is the mark, drawn on the
+    observation itself. They used to be the same rectangle, which meant hovering
+    lit up everything from one midpoint to the next — a third of the drawing for
+    a series that reports twice in five months, which reads as a broken block
+    rather than as "you are here".
+    {% endcomment %}
     {% for band in chart.bands %}
-      <rect x="{{ band.x|stringformat:'.2f' }}"
-            y="0"
-            width="{{ band.width|stringformat:'.2f' }}"
-            height="40"
-            pointer-events="all"
-            class="fill-transparent hover:fill-elevated">
-        <title>{{ band.readout }}</title>
-      </rect>
+      <g class="group">
+        <rect x="{{ band.point_x|stringformat:'.2f' }}"
+              y="0"
+              width="0.9"
+              height="40"
+              pointer-events="none"
+              class="fill-transparent group-hover:fill-elevated"></rect>
+        <rect x="{{ band.x|stringformat:'.2f' }}"
+              y="0"
+              width="{{ band.width|stringformat:'.2f' }}"
+              height="40"
+              pointer-events="all"
+              class="fill-transparent">
+          <title>{{ band.readout }}</title>
+        </rect>
+      </g>
     {% endfor %}
     {% for line in chart.lines %}
       {% if line.style == "dashed" %}

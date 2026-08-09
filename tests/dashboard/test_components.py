@@ -370,15 +370,23 @@ def test_trend_chart_makes_every_observation_hoverable_without_a_script():
     # cap: a <circle> would be squashed into an ellipse by the stretched viewBox.
     assert html.count('l0,0"') == 4
     assert html.count('vector-effect="non-scaling-stroke"') == 6
-    # One hit strip per date, each reading out the whole observation.
-    assert html.count("<rect") == 2
+    # Two rectangles per date in one hoverable group: the wide hit area that a
+    # pointer has to find, and the narrow mark drawn on the observation itself.
+    # They used to be one rectangle, so hovering filled everything from one
+    # midpoint to the next — a third of the drawing on a sparse series.
+    assert html.count("<rect") == 4
+    assert html.count('<g class="group">') == 2
+    assert html.count('pointer-events="all"') == 2, "only the hit area takes the pointer"
+    assert html.count("group-hover:fill-elevated") == 2, "only the mark is painted"
     # A date and then one line per series. Joining them with ` · ` broke as
     # soon as a series was named `Liikmeid kokku · koja aruanne`, because the
     # separator then appeared inside a label as well as between fields.
     assert f"<title>1.11.25\nLiikmeid kokku 3{NBSP}300\nTasunud liikmeid 2{NBSP}600</title>" in html
     assert f"<title>1.01.26\nLiikmeid kokku 3{NBSP}412\nTasunud liikmeid 2{NBSP}798</title>" in html
-    # The strip is what the pointer meets; everything drawn over it steps aside.
-    assert html.count('pointer-events="none"') == 6
+    # The hit strip is what the pointer meets; everything else steps aside —
+    # the six drawn elements, and now the two marks as well, which must not
+    # take the pointer away from the strip that carries the reading.
+    assert html.count('pointer-events="none"') == 8
     assert html.count('pointer-events="all"') == 2
     # No script, no inline style: as served, the tooltip is the browser's own,
     # from <title>. The marker is where the bundled enhancement picks the
