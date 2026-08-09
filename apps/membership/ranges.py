@@ -58,11 +58,18 @@ LEGACY_WINDOW_MONTHS: dict[str, int | None] = {
     "koik": None,
 }
 
-# What each page opens on when a reader has chosen nothing. The card's default
-# was asked for outright: the last six months. The page keeps the five years it
-# already drew — adding a finer control is not a reason to change what a reader
-# who chooses nothing is shown.
-CARD_DEFAULT_MONTHS = 6
+# What the overview card opens on when a reader has chosen nothing.
+#
+# Six, once, because six was asked for outright. Twelve now, for the reason the
+# page moved to twelve and for one the page does not have: the card and the page
+# draw the same two series, and a reader who looks at the card and then opens the
+# page has to be looking at the same stretch of history. Two different default
+# windows made the same line look like two different stories.
+#
+# Deliberately the same number as `PAGE_DEFAULT_MONTHS` rather than a reference
+# to it. They answer for different surfaces and either may be asked to change on
+# its own; what must not happen is one of them drifting silently.
+CARD_DEFAULT_MONTHS = 12
 
 # The page opens on the last twelve months.
 #
