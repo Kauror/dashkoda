@@ -177,9 +177,36 @@ def test_the_movement_chart_states_its_observation_date_rather_than_a_range(move
 
 
 def test_overlapping_labels_are_dropped_rather_than_printed_on_each_other(movement):
+    """`labelLayout` belongs to the series, not to the root of the option.
+
+    Set at the root it is silently ignored — which is how the two labels on a
+    one-member band came to be printed over each other on the deployed page.
+    """
     option = size_movement_chart(movement, observation_date=WHEN).option
 
-    assert option["labelLayout"]["hideOverlap"] is True
+    assert "labelLayout" not in option, "the root is not where ECharts reads this"
+    for series in option["series"]:
+        assert series["labelLayout"]["hideOverlap"] is True
+
+
+def test_a_bar_end_value_is_set_apart_from_the_bar_it_labels(movement):
+    """Half over the fill and half over the surface, the default label reads as
+    neither."""
+    label = size_movement_chart(movement, observation_date=WHEN).option["series"][0]["data"][0][
+        "label"
+    ]
+
+    assert label["fontWeight"] == 600
+    assert label["distance"] > 0
+
+
+def test_the_axis_name_is_centred_so_it_is_not_clipped(movement):
+    """Left at its default the name is drawn past the last tick and cut off by
+    the edge of the canvas, which turned `Liikmeid` into `Li`."""
+    axis = size_movement_chart(movement, observation_date=WHEN).option["xAxis"]
+
+    assert axis["nameLocation"] == "middle"
+    assert axis["nameGap"] > 0
 
 
 def test_no_observation_leaves_an_empty_state():
@@ -214,7 +241,9 @@ def test_each_bar_states_its_count_and_share_without_a_hover(reasons):
         ]
     ]
 
-    assert labels[0] == "120  44,3%"
+    # A separator, not two spaces: runs of spaces collapse when a label is
+    # drawn to a canvas, so `120  44,3%` arrived as `12044,3%`.
+    assert labels[0] == "120 · 44,3%"
 
 
 def test_there_is_no_legend_for_a_single_series(reasons):
