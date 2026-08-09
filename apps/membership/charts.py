@@ -916,6 +916,18 @@ def _monthly_status_label(value: MonthlyValue) -> str:
 # The reference line every year is read against.
 BUDGET_TARGET_PCT = 100
 
+# The deepest the completion axis is ever drawn.
+#
+# Collection does begin each year at nothing, which is why this axis started at
+# zero. But the board reports start in February at three quarters of the budget,
+# so the bottom half of the plot was empty every year and the twenty points that
+# matter were squeezed into the top third. The axis now starts below the lowest
+# reading rather than below the year, and never higher than this — so the
+# reference line at 100% is always in view with room beneath it, and a year that
+# genuinely collapses still gets an axis that reaches it.
+FEE_AXIS_FLOOR_CEILING = 50
+FEE_AXIS_HEADROOM_PCT = 10
+
 # How far apart two observations may sit in the calendar year and still be
 # called the same point in it. The same reasoning as the year-over-year
 # tolerance: close enough to be the same season, far enough to survive a report
@@ -998,8 +1010,19 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
                     else {"width": 1.5, "type": "dashed", "opacity": 0.6}
                 ),
                 "itemStyle": {} if is_current else {"opacity": 0.6},
-                "endLabel": {"show": True, "formatter": "{a}"},
+                "endLabel": {"show": True, "formatter": "{a}", "distance": 8},
                 "z": 3 if is_current else 2,
+                # The line itself answers a pointer, not only the dots on it.
+                # Four sparse years of dots is a lot of aiming for a reader who
+                # just wants to know which year a line is.
+                "triggerLineEvent": True,
+                "emphasis": {
+                    # Hovering one year lifts it and fades the others, which is
+                    # the whole question this chart asks: where is this year
+                    # against the ones before it.
+                    "focus": "series",
+                    "lineStyle": {"width": 3},
+                },
                 "data": [
                     {
                         "value": [
@@ -1015,7 +1038,13 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
                         "markLine": {
                             "silent": True,
                             "symbol": "none",
-                            "label": {"formatter": "Aastaeelarve"},
+                            # At the left. The series label themselves sit at
+                            # the right end of each line, and the target label
+                            # was landing on top of them.
+                            "label": {
+                                "formatter": "Aastaeelarve",
+                                "position": "insideStartTop",
+                            },
                             "data": [{"yAxis": BUDGET_TARGET_PCT}],
                         }
                     }
@@ -1025,10 +1054,12 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
             }
         )
 
-    highest = max(
-        [_number(row["computed_pct"]) for row in drawable] + [float(BUDGET_TARGET_PCT)],
-        default=float(BUDGET_TARGET_PCT),
-    )
+    drawn_values = [_number(row["computed_pct"]) for row in drawable]
+    highest = max(drawn_values + [float(BUDGET_TARGET_PCT)], default=float(BUDGET_TARGET_PCT))
+    lowest = min(drawn_values, default=float(BUDGET_TARGET_PCT))
+    # Down to a ten-point step below the lowest reading, and never so high that
+    # the target loses its context.
+    floor = min(FEE_AXIS_FLOOR_CEILING, max(0, int((lowest - FEE_AXIS_HEADROOM_PCT) // 10) * 10))
 
     option = _base_option(legend=False)
     # The year labels are short, but they still need somewhere to sit.
@@ -1045,11 +1076,10 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
             "yAxis": {
                 "type": "value",
                 "name": "Eelarve täitmine",
-                # Zero is the right floor here, unlike the membership trend:
-                # completion is a proportion of a budget and starts the year at
-                # nothing. The ceiling clears the target so exceeding it is
-                # visible rather than clipped.
-                "min": 0,
+                # Not zero: see FEE_AXIS_FLOOR_CEILING. The ceiling still
+                # clears the target so exceeding it is visible rather than
+                # clipped.
+                "min": floor,
                 "max": max(BUDGET_TARGET_PCT + 10, int(highest) + 10),
             },
             "tooltip": {"trigger": "item"},

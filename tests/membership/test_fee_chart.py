@@ -94,10 +94,68 @@ def test_the_annual_budget_is_a_labelled_reference_line(two_years):
     assert marks[0]["data"] == [{"yAxis": BUDGET_TARGET_PCT}]
 
 
-def test_the_axis_starts_at_zero_because_completion_starts_at_nothing(two_years):
-    """Unlike the membership trend, where zero would flatten every change: a
-    budget genuinely begins the year unfilled."""
-    assert fee_collection_chart(two_years).option["yAxis"]["min"] == 0
+def test_the_axis_starts_below_the_readings_rather_than_below_the_year(two_years):
+    """Collection does begin each year at nothing, and this axis used to start
+    there. But the reports begin in February at three quarters of the budget, so
+    the bottom half of every plot was empty and the readings that matter were
+    squeezed into the top third."""
+    axis = fee_collection_chart(two_years).option["yAxis"]
+    lowest_drawn = min(
+        point["value"][1]
+        for series in fee_collection_chart(two_years).option["series"]
+        for point in series["data"]
+    )
+
+    assert axis["min"] < lowest_drawn, "no reading may fall off the bottom"
+    assert axis["min"] > 0
+
+
+def test_the_floor_never_rises_far_enough_to_lose_the_target():
+    """100% has to stay in view with room beneath it, or the reference line
+    stops being a reference."""
+    rows = (row(dt.date(2026, 11, 30), "1010000"),)
+
+    axis = fee_collection_chart(rows).option["yAxis"]
+
+    assert axis["min"] <= 50
+    assert axis["max"] > BUDGET_TARGET_PCT
+
+
+def test_a_year_that_genuinely_collapses_still_gets_an_axis_that_reaches_it():
+    """The shallower floor is a response to where the readings are, not a fixed
+    window that would clip a bad year off the bottom."""
+    rows = (row(dt.date(2026, 3, 5), "150000"),)
+
+    assert fee_collection_chart(rows).option["yAxis"]["min"] == 0
+
+
+def test_hovering_a_line_lifts_it_and_fades_the_others(two_years):
+    """Which year am I looking at, and where is it against the rest — that is
+    the whole question, and it is answered by pointing at a line."""
+    series = fee_collection_chart(two_years).option["series"]
+
+    for item in series:
+        assert item["emphasis"]["focus"] == "series"
+        assert item["emphasis"]["lineStyle"]["width"] > item["lineStyle"]["width"]
+
+
+def test_the_line_answers_a_pointer_and_not_only_its_dots(two_years):
+    """Four sparse years of dots is a lot of aiming for a reader who just wants
+    to know which year a line is."""
+    for item in fee_collection_chart(two_years).option["series"]:
+        assert item["triggerLineEvent"] is True
+
+
+def test_the_target_label_does_not_sit_where_the_series_labels_are(two_years):
+    """`Aastaeelarve` was drawn at the right end of its line, on top of the year
+    labels that sit at the right end of theirs."""
+    marks = [
+        item["markLine"]
+        for item in fee_collection_chart(two_years).option["series"]
+        if "markLine" in item
+    ]
+
+    assert marks[0]["label"]["position"].startswith("insideStart")
 
 
 def test_collection_above_the_budget_is_visible_rather_than_clipped():
