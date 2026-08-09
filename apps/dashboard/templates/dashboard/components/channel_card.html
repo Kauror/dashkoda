@@ -37,7 +37,17 @@ destination and the new tab.
         {{ slot.label }}
       {% endif %}
     </h3>
-    {% if slot.state_label %}
+    {% comment %}
+    `show_state` is how a caller says the badge would be repeating itself.
+
+    On the overview band it stays: that page states provenance nowhere else, and
+    a figure a person typed sitting on a dashboard of synchronised feeds has to
+    say which it is. On the Nähtavus page it does not, because `Allikate
+    määratlused` further down names every source and its collection method per
+    channel in full sentences — six chips all reading `Käsitsi sisestatud`
+    above that said the same thing a seventh time and crowded out the figures.
+    {% endcomment %}
+    {% if slot.state_label and show_state|default_if_none:True %}
       {% include "dashboard/components/status_badge.html" with label=slot.state_label variant=slot.state_variant only %}
     {% endif %}
   </div>
