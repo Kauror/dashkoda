@@ -81,6 +81,23 @@ GRID = {"left": 56, "right": 24, "top": 32, "bottom": 40, "containLabel": True}
 # nothing.
 GRID_WITH_END_LABELS = {**GRID, "right": 116}
 
+# How a value drawn at the end of a bar is set.
+#
+# ECharts' default label is the chart's body size in the chart's body colour,
+# which on a bar end — half over the fill, half over the surface — reads as
+# neither. These are figures a reader is meant to take straight off the drawing,
+# so they get their own weight and sit clear of the bar.
+BAR_LABEL = {
+    "fontSize": 12,
+    "fontWeight": 600,
+    "distance": 6,
+}
+
+# `hideOverlap` belongs to the **series**, not to the root of the option. Set at
+# the root it is silently ignored, which is how two labels on a one-member bar
+# came to be printed on top of each other.
+LABEL_LAYOUT = {"hideOverlap": True}
+
 
 @dataclass(frozen=True)
 class Readout:
@@ -1256,6 +1273,7 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
             "tip": row["band"],
             # The label states the count, never the drawn geometry.
             "label": {
+                **BAR_LABEL,
                 "show": True,
                 "position": "left" if negate else "right",
                 "formatter": integer(value),
@@ -1265,24 +1283,30 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
     option = _base_option(legend=False)
     option.update(
         {
-            "xAxis": {"type": "value", "name": "Liikmeid"},
+            # The axis name sits under the middle of the axis. Left at its
+            # default it is drawn past the last tick and clipped by the edge of
+            # the canvas, which turned `Liikmeid` into `Li`.
+            "xAxis": {
+                "type": "value",
+                "name": "Liikmeid",
+                "nameLocation": "middle",
+                "nameGap": 28,
+            },
             "yAxis": {"type": "category", "data": labels, "inverse": True},
             "tooltip": {"trigger": "item"},
-            # Bar-end values so the chart is readable without hovering, and
-            # `hideOverlap` so a narrow screen drops the ones that would collide
-            # rather than printing them on top of each other.
-            "labelLayout": {"hideOverlap": True},
             "series": [
                 {
                     "name": "Lahkunud",
                     "type": "bar",
                     "stack": "movement",
+                    "labelLayout": dict(LABEL_LAYOUT),
                     "data": [bar(row, "removed", negate=True) for row in rows],
                 },
                 {
                     "name": "Liitunud",
                     "type": "bar",
                     "stack": "movement",
+                    "labelLayout": dict(LABEL_LAYOUT),
                     "data": [bar(row, "joined", negate=False) for row in rows],
                 },
             ],
@@ -1412,27 +1436,37 @@ def removal_reasons_chart(rows: tuple[dict, ...], *, observation_date: date | No
     option = _base_option(legend=False)
     option.update(
         {
-            "xAxis": {"type": "value", "name": "Liikmeid"},
+            "xAxis": {
+                "type": "value",
+                "name": "Liikmeid",
+                "nameLocation": "middle",
+                "nameGap": 28,
+            },
             "yAxis": {
                 "type": "category",
                 "data": [row["label"] for row in ordered],
                 "inverse": True,
             },
             "tooltip": {"trigger": "item"},
-            "labelLayout": {"hideOverlap": True},
             "series": [
                 {
                     "name": "Lahkunuid",
                     "type": "bar",
+                    "labelLayout": dict(LABEL_LAYOUT),
                     "data": [
                         {
                             "value": _number(row["count"]),
                             "tip": row["key"],
                             "label": {
+                                **BAR_LABEL,
                                 "show": True,
                                 "position": "right",
+                                # Two runs of spaces between a count and its
+                                # share collapse when the label is drawn to a
+                                # canvas, so `52  54,7%` arrived as `5254,7%`.
+                                # A separator cannot collapse.
                                 "formatter": (
-                                    f"{integer(row['count'])}  {percent(row['share_pct'])}"
+                                    f"{integer(row['count'])} · {percent(row['share_pct'])}"
                                     if row["share_pct"] is not None
                                     else integer(row["count"])
                                 ),
