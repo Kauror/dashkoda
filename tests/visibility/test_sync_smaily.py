@@ -313,7 +313,11 @@ def test_a_dry_run_publishes_nothing():
 
 def test_the_command_emits_json_carrying_no_secret():
     stdout = StringIO()
-    call_command("sync_smaily", "--dry-run", "--json", stdout=stdout)
+    # No credential is configured in the test settings, so the run fails and the
+    # command exits non-zero. That is the point: the JSON contract has to hold
+    # on the failure path too, which is the path a misconfigured deployment sees.
+    with pytest.raises(SystemExit):
+        call_command("sync_smaily", "--dry-run", "--json", stdout=stdout)
     payload = json.loads(stdout.getvalue())
 
     assert set(payload) == {

@@ -445,7 +445,7 @@ def _publish_newsletter_metrics(
             # revision every day a list did not move would fill the history with
             # supersessions that record nothing.
             continue
-        observation = VisibilityObservation.objects.create(
+        observation = VisibilityObservation(
             batch=None,
             source=source,
             artifact=artifact,
@@ -454,8 +454,17 @@ def _publish_newsletter_metrics(
             value=audience.total,
             collection_method=CollectionMethod.AUTOMATIC,
             observation_date=day,
+            # Set here and not only on `publish_observation`: the field is
+            # immutable, so it has to be right on the first save or the
+            # correction never names what it replaced.
+            supersedes=current,
+            is_current_for_date=False,
             created_by=actor,
         )
+        # Enforces metric-to-source agreement, which no database constraint can
+        # express: a newsletter figure filed under a social source is refused.
+        observation.full_clean(exclude=["published_at"])
+        observation.save()
         publish_observation(
             observation,
             supersedes=current,

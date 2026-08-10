@@ -96,7 +96,7 @@ class TestTheChainIsCoherent:
         # run earlier and are deliberately excluded: no matcher reads either of
         # them, and requiring the workbook to be the earliest job in the file
         # would forbid scheduling anything independent before it for no reason.
-        independent = {"sync_ga4", "sync_smaily"}
+        independent = {"sync_ga4", "sync_smaily", "sync_smaily_campaigns"}
         feeding = {name: minute for name, minute in at.items() if name not in independent}
         assert at["sync_oigusloome_public"] == min(feeding.values()), (
             "the workbook must be first: every matcher scores against the current legal snapshot"

@@ -111,7 +111,18 @@ def test_a_campaign_is_catalogued_with_its_classification():
 def test_a_campaign_that_is_not_a_newsletter_is_catalogued_unclassified():
     """It is kept — it is real history — but it reaches no newsletter figure."""
     outcome = sync(
-        collector=FakeCollector((campaign(9001, template="Ürituste kalender 04.08.26"),))
+        collector=FakeCollector(
+            (
+                campaign(
+                    9001,
+                    template="Ürituste kalender 04.08.26",
+                    # The subject too: it is the fallback the classifier uses
+                    # when a template was deleted, so leaving the default
+                    # "E-Teataja" here would have classified this by accident.
+                    name="Kaubanduskoja sündmuste kalender",
+                ),
+            )
+        )
     )
 
     row = SmailyCampaign.objects.get()
@@ -336,7 +347,11 @@ def test_a_dry_run_writes_nothing():
 
 def test_the_command_emits_json_carrying_no_campaign_name():
     stdout = StringIO()
-    call_command("sync_smaily_campaigns", "--dry-run", "--json", stdout=stdout)
+    # No credential is configured in the test settings, so the run fails and the
+    # command exits non-zero. That is the point: the JSON contract has to hold
+    # on the failure path too, which is the path a misconfigured deployment sees.
+    with pytest.raises(SystemExit):
+        call_command("sync_smaily_campaigns", "--dry-run", "--json", stdout=stdout)
     payload = json.loads(stdout.getvalue())
 
     assert set(payload) == {
