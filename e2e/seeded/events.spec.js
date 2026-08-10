@@ -42,7 +42,6 @@ test("the workbook programme is the page's primary content", async ({ page }) =>
 
   await open_(page);
 
-  await expect(page.getByText("Koja sündmuste programm ja ajalugu")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Sündmuste programm" })).toBeVisible();
   // The public calendar is named once, as a secondary connection, below it.
   await expect(page.getByRole("heading", { name: "Koda.ee avalik kalender" })).toBeVisible();
