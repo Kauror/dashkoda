@@ -26,6 +26,10 @@ from urllib.parse import urlencode
 from django.core.paginator import Paginator
 from django.urls import reverse
 
+from apps.visibility.ga4_paths import canonical_path
+from apps.visibility.ga4_selectors import get_coverage, get_page_view_totals
+from apps.visibility.item_analytics import attach_page_views, event_url
+
 from .models import EventStatus
 from .public_links import attach_public_links
 from .selectors import (
@@ -39,6 +43,9 @@ from .selectors import (
     REVIEW_CLEAR,
     REVIEW_REQUIRED,
     REVIEW_VALUES,
+    SORT_CHOICES,
+    SORT_DATE,
+    SORT_VIEWS,
     YEAR_ALL,
     EventProgrammeSummary,
     FilterOptions,
@@ -107,6 +114,20 @@ class Pagination:
 
 
 @dataclass(frozen=True)
+class SortOption:
+    """One ordering choice, as a link that keeps every active filter.
+
+    Rebuilt from validated state rather than echoed from the request, which is
+    the same rule the filters follow: nothing a reader types is reflected back
+    into a URL this page emits.
+    """
+
+    label: str
+    url: str
+    is_active: bool
+
+
+@dataclass(frozen=True)
 class QualityLink:
     """A data-quality count that opens the table on exactly those records."""
 
@@ -125,6 +146,9 @@ class ProgrammePage:
     items: tuple = ()
     pagination: Pagination = Pagination()
     result_count: int = 0
+    sort_options: tuple[SortOption, ...] = ()
+    #: Stated once under the table, never per row.
+    coverage_start: object = None
     quality: tuple[QualityLink, ...] = ()
     clear_url: str = ""
     all_years_value: str = YEAR_ALL
@@ -170,6 +194,9 @@ def parse_filters(params, options: FilterOptions) -> ProgrammeFilters:
         status=_allowed(params.get("status"), options.statuses),
         public_link=_one_of(params.get("public_link"), LINK_VALUES, LINK_ALL),
         review=_one_of(params.get("review"), REVIEW_VALUES, REVIEW_ALL),
+        # Chronological unless asked otherwise, and an unknown value is
+        # chronological too rather than an error page.
+        sort=_one_of(params.get("sort"), SORT_CHOICES, SORT_DATE),
     )
 
 
@@ -217,6 +244,8 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
         )
 
     rows = get_filtered_event_programme_items(snapshot, filters=filters)
+    if filters.sort == SORT_VIEWS:
+        rows = _ranked_by_views(rows)
     paginator = Paginator(rows, PAGE_SIZE)
     page = paginator.get_page(params.get("page"))
 
@@ -226,12 +255,59 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
         options=options,
         period_label=str(filters.year) if filters.year is not None else ALL_YEARS_LABEL,
         figures=_figures(snapshot, filters),
-        items=tuple(attach_public_links(page.object_list)),
+        items=tuple(attach_page_views(attach_public_links(page.object_list), url_of=event_url)),
         pagination=_pagination(page, filters),
         result_count=paginator.count,
+        sort_options=_sort_options(filters),
+        coverage_start=get_coverage().earliest,
         quality=_quality_links(snapshot),
         clear_url=reverse("events"),
     )
+
+
+def _sort_options(filters: ProgrammeFilters) -> tuple[SortOption, ...]:
+    """`Kuupäev` and `Enim vaadatud`, each carrying the current filters."""
+    from dataclasses import replace
+
+    return tuple(
+        SortOption(
+            label=label,
+            url=_url(replace(filters, sort=mode)),
+            is_active=filters.sort == mode,
+        )
+        for mode, label in ((SORT_DATE, "Kuupäev"), (SORT_VIEWS, "Enim vaadatud"))
+    )
+
+
+def _ranked_by_views(rows) -> list:
+    """The whole filtered set ordered by measured traffic, before pagination.
+
+    Ranking a page of results would rank whichever twenty-five rows happened to
+    be on it, which is not a ranking. So the population is resolved first — its
+    public links, then one bulk total for those paths — and ordered whole.
+
+    Bounded on purpose. The programme is on the order of a thousand rows and
+    each carries one link, so this is a small in-memory sort rather than a query
+    that reimplements the link precedence in SQL. If the programme ever grows by
+    an order of magnitude this is the thing to revisit.
+
+    **An unmeasured event is not a zero-traffic event.** Measured rows come
+    first, most-viewed first; unmeasured ones keep their chronological order
+    behind them rather than being sorted as though they had scored nothing.
+    """
+    population = attach_public_links(list(rows))
+    totals = get_page_view_totals(event_url(item) for item in population)
+
+    measured, unmeasured = [], []
+    for item in population:
+        path = canonical_path(event_url(item))
+        views = totals.get(path) if path else None
+        (measured if views is not None else unmeasured).append((views, item))
+
+    # `event_id` breaks ties so equal-traffic events hold their order between
+    # renders and pagination stays stable.
+    measured.sort(key=lambda pair: (-pair[0].total, pair[1].event_id))
+    return [item for _, item in measured] + [item for _, item in unmeasured]
 
 
 def _figures(snapshot, filters: ProgrammeFilters) -> tuple[Figure, ...]:
@@ -346,6 +422,8 @@ def _url(filters: ProgrammeFilters, *, page: int | None = None) -> str:
         query.append(("public_link", filters.public_link))
     if filters.review != REVIEW_ALL:
         query.append(("review", filters.review))
+    if filters.sort != SORT_DATE:
+        query.append(("sort", filters.sort))
     if page is not None and page > 1:
         query.append(("page", str(page)))
     return f"{reverse('events')}?{urlencode(query)}"

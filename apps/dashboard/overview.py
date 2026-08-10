@@ -70,6 +70,7 @@ from apps.membership.selectors import (
     get_membership_change_over,
 )
 from apps.news.selectors import get_latest_news
+from apps.visibility.item_analytics import attach_page_views, event_url, news_url
 from apps.visibility.page import ChannelSlot, build_channel_band
 
 from .connections import (
@@ -380,13 +381,24 @@ def build_overview(
         legal_work_open=legal_open,
         legal_work_sent=legal_sent,
         events=events_connection,
+        # Links first, then analytics: the traffic belongs to whichever public
+        # page the link precedence resolved to, and that resolution is not
+        # repeated here.
         upcoming_events=tuple(
-            attach_public_links(
-                get_upcoming_programme_events(events.snapshot, limit=EVENTS_PREVIEW_LIMIT)
+            attach_page_views(
+                attach_public_links(
+                    get_upcoming_programme_events(events.snapshot, limit=EVENTS_PREVIEW_LIMIT)
+                ),
+                url_of=event_url,
             )
         ),
         news=news_connection,
-        latest_news=tuple(get_latest_news(news.snapshot, limit=NEWS_PREVIEW_LIMIT)),
+        # One bulk lookup per list. Five rows and fifty rows cost the same.
+        latest_news=tuple(
+            attach_page_views(
+                get_latest_news(news.snapshot, limit=NEWS_PREVIEW_LIMIT), url_of=news_url
+            )
+        ),
         channels=build_channel_band(detail_url=reverse("visibility")),
     )
 
