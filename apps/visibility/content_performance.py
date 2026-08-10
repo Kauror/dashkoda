@@ -25,11 +25,15 @@ exactly as authoritative as a real title.
 `PublicEventResource` is a durable catalogue: it keeps a public event page after
 the event has passed, so an event path from 2023 still resolves to its title.
 
-News is not durable in the same way. The Koda.ee feed is a rolling window and
-retired snapshots are pruned weekly, so DashKoda knows the titles of the current
-items and nothing about articles that have rolled out. Those rank correctly and
-display as paths. Fixing that means giving news a durable catalogue of its own,
-which is a larger change than this one.
+News now has one too. `apps.news.catalogue` records every article the feed has
+ever shown, so an item that scrolled out of the ten-item window years ago is
+still nameable long after its snapshot was pruned. Before that existed, a
+three-year ranking could count an article's views exactly and then label the row
+with its URL.
+
+A path still shows as a path when nothing in the catalogue matches it — an
+article published before DashKoda started watching, or a page that is not
+content at all. That is the honest answer, just a rarer one now.
 """
 
 from __future__ import annotations
@@ -75,22 +79,19 @@ class ContentPerformanceRow:
 
 
 def _news_titles(paths: Sequence[str]) -> dict[str, tuple[str, date | None]]:
-    """Titles for the news paths DashKoda still holds, in one query."""
-    from apps.news.models import NewsItem
-    from apps.news.selectors import get_current_news_snapshot
+    """Titles for news paths, from the durable catalogue, in one query.
 
-    snapshot = get_current_news_snapshot()
-    if snapshot is None:
-        return {}
+    `apps.news.catalogue` keeps a row per article from the first snapshot that
+    ever showed it, so an article that scrolled out of the ten-item feed two
+    years ago is still nameable. Before it existed this read the current
+    snapshot, which meant a three-year ranking could count an article's views
+    exactly and then label the row with its URL.
+    """
+    from apps.news.catalogue import titles_for
 
     found: dict[str, tuple[str, date | None]] = {}
-    for item in NewsItem.objects.filter(snapshot=snapshot).only(
-        "canonical_url", "title", "published_at"
-    ):
-        path = canonical_path(item.canonical_url)
-        if path in paths and path not in found:
-            moment = item.published_at
-            found[path] = (item.title, moment.date() if moment else None)
+    for path, (title, published_at) in titles_for(paths).items():
+        found[path] = (title, published_at.date() if published_at else None)
     return found
 
 

@@ -157,3 +157,8 @@ class NewsFeedState(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.slug}: {self.get_last_result_display()}"
+
+
+# The durable catalogue lives beside the snapshot models, as the events app
+# does it, so `apps.news.models` remains the one place Django discovers them.
+from .public_models import NewsResource, NewsResourceImmutable, TitleOrigin  # noqa: E402,F401

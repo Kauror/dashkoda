@@ -30,6 +30,7 @@ from apps.core.feeds import FeedResult, SourceOutcome
 from apps.sources.services import complete_import_run, fail_import_run
 
 from .bootstrap import ensure_news_source
+from .catalogue import record_feed_items
 from .collector import NORMALISED_SCHEMA_VERSION, NewsCollectionError, collect_news
 from .models import NewsFeedState, NewsItem, NewsSnapshot
 
@@ -119,6 +120,10 @@ def synchronize_news(*, dry_run: bool = False, actor=None, collector=None) -> So
                     for entry in collection.entries
                 ]
             )
+            # The catalogue is written inside the same transaction as the
+            # snapshot: an article DashKoda has published a snapshot about is an
+            # article it must still be able to name in three years.
+            record_feed_items(snapshot.items.all())
             publish_current(snapshot)
             complete_import_run(run, rows_added=len(collection.entries), actor=actor)
             record_event(
