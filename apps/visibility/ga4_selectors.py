@@ -29,7 +29,7 @@ from datetime import date, timedelta
 from django.db.models import Count, Max, Min, Q, QuerySet, Sum
 from django.db.models.functions import TruncMonth, TruncWeek
 
-from .ga4_paths import canonical_path
+from .ga4_paths import canonical_path, canonical_paths
 from .models import Ga4ChannelDaily, Ga4DailySnapshot, Ga4PageDaily
 
 #: A period is drawn at one of these grains. Which one is chosen by span, not by
@@ -361,6 +361,70 @@ def get_top_pages(
     )
 
 
+@dataclass(frozen=True)
+class PageViews:
+    """Total measured page views for one canonical path.
+
+    **All of GA4's coverage, not a chosen period.** This is the figure that sits
+    beside an item — an article, an event — and answers "how much traffic has
+    this page had". The period-filtered figure is a different question with a
+    different answer, and `get_top_pages` is what asks it.
+
+    `coverage_start` travels with the number because the two are only meaningful
+    together: 291 views on a page published in 2019 is 291 views *since GA4
+    started measuring*, which is not the same claim as 291 views ever.
+    """
+
+    path: str
+    total: int
+    coverage_start: date | None = None
+    coverage_end: date | None = None
+
+    def covers(self, published_on: date | None) -> bool:
+        """Whether measurement was already running when this page appeared.
+
+        False makes `total` a partial figure, and the interface has to stop
+        short of calling it a lifetime.
+        """
+        if published_on is None or self.coverage_start is None:
+            return False
+        return self.coverage_start <= published_on
+
+
+def get_page_view_totals(
+    urls_or_paths: Iterable[str], *, coverage: Coverage | None = None
+) -> dict[str, PageViews]:
+    """Total measured views for many pages, in **one** grouped query.
+
+    The shared answer to "how much traffic has this page had", used by news,
+    events, the overview and anything added later. Each module resolving its own
+    `SUM(page_views)` is how two surfaces end up printing different totals for
+    one article.
+
+    Input may be canonical URLs or bare paths, in any mixture: both go through
+    `canonical_path`, which is the only join key this application uses. A path
+    with no stored rows is **absent from the result**, never present with a
+    zero — nobody measuring a page is not the same as a page nobody visited.
+    """
+    paths = canonical_paths(urls_or_paths)
+    if not paths:
+        return {}
+
+    coverage = coverage if coverage is not None else get_coverage()
+    rows = current_pages().filter(path__in=paths).values("path").annotate(total=Sum("page_views"))
+    return {
+        row["path"]: PageViews(
+            path=row["path"],
+            # `Sum` of an empty group cannot happen here — a row exists — but a
+            # measured zero can, and it is a reading rather than an absence.
+            total=row["total"] or 0,
+            coverage_start=coverage.earliest,
+            coverage_end=coverage.latest,
+        )
+        for row in rows
+    }
+
+
 def get_page_series(
     *, path: str, start: date, end: date, grain: str | None = None
 ) -> TrafficSeries:
@@ -502,7 +566,13 @@ def get_article_views(
     paths = tuple(published)
     today = today or coverage.latest
 
-    totals = _sum_views(paths)
+    # The total comes from the shared selector rather than from a second `SUM`
+    # written here. One source of truth: the figure beside an article on the
+    # news page, on the overview and in any later module is the same number
+    # produced by the same query, because there is only one query.
+    totals = {
+        path: views.total for path, views in get_page_view_totals(paths, coverage=coverage).items()
+    }
     recent_start = today - timedelta(days=RECENT_WINDOW_DAYS - 1)
     recent = _sum_views(paths, start=recent_start, end=today)
 
@@ -575,6 +645,7 @@ __all__ = [
     "ChannelTotal",
     "Coverage",
     "PageTotal",
+    "PageViews",
     "TrafficPoint",
     "TrafficSeries",
     "current_channels",
@@ -585,6 +656,7 @@ __all__ = [
     "count_page_rows",
     "get_coverage",
     "get_page_series",
+    "get_page_view_totals",
     "get_top_pages",
     "get_traffic_series",
     "grain_for",
