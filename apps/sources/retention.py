@@ -186,6 +186,12 @@ NEVER_PRUNED: dict[str, str] = {
         "seven-day cleanup would delete the entire chart. Superseded revisions "
         "are kept too: they are what a corrected day is corrected *from*."
     ),
+    "visibility.SmailyAudienceSnapshot": (
+        "Smaily readings are the *only* record of how the newsletter lists have "
+        "grown. Smaily itself reports what a list holds today and nothing about "
+        "what it held last year, so a pruned reading is not re-collectable from "
+        "anywhere — deleting one destroys that day permanently."
+    ),
 }
 
 

@@ -69,10 +69,11 @@ from .models import (
 from .publishing import lock_current, publish_observation
 from .registry import (
     ARTIFACT_REFERENCE_PREFIXES,
-    MANUAL_SOURCE_SLUGS,
     METRICS,
     NEWSLETTER_METRICS,
+    SUBMISSION_SOURCE_SLUGS,
     VisibilityMetricSpec,
+    manual_metrics,
     metrics_for_source,
     spec_for,
 )
@@ -382,7 +383,7 @@ def build_preview(
     newsletter = NewsletterEntries(
         rows=tuple(
             (spec_for(metric).label, _effective_value(submission, metric))
-            for metric in NEWSLETTER_METRICS
+            for metric in manual_metrics(NEWSLETTER_METRICS)
         )
     )
 
@@ -522,7 +523,7 @@ def publish_submission(
 
         sources = ensure_manual_visibility_sources(actor=actor, correlation_id=batch.correlation_id)
         written = 0
-        for slug in MANUAL_SOURCE_SLUGS:
+        for slug in SUBMISSION_SOURCE_SLUGS:
             written += _publish_source(submission, batch=batch, source=sources[slug], actor=actor)
 
         record_event(

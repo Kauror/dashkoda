@@ -80,16 +80,23 @@ never be able to change what the source said.
 
 ### Communication-channel figures
 
-The newsletter and social audience sizes widen the write surface by one form and
-nothing else:
+The social audience sizes widen the write surface by one form and nothing else:
 
-- **no social-platform credential exists.** There is no Smaily, Meta, LinkedIn,
+- **no social-platform credential exists.** There is no Meta, LinkedIn,
   Instagram or YouTube client, no token, no OAuth flow and no model field
   capable of holding one;
 - **nothing is fetched.** No page render, command or background job contacts a
   social platform. The four public profile URLs are fixed application
   configuration used as display links; they are never fetched, never editable and
   never stored as an artifact reference;
+- **the newsletter figures are the one exception, and are read-only.** The
+  scheduled `sync_smaily` command holds a Smaily API credential in the
+  deployment environment. Smaily's API users have no permission model, so the
+  integration's inability to write is enforced by our code rather than by the
+  credential: one request function, a literal `GET`, and an endpoint looked up in
+  a fixed set. No address, subscriber or per-recipient statistic is ever
+  requested or stored. See
+  [newsletter-audience.md](newsletter-audience.md);
 - **no personal data is stored.** These are aggregate counts. No subscriber
   address, no individual follower and no per-person record exists in the schema;
 - the optional note is bounded to 500 characters, is plain text, is escaped

@@ -40,9 +40,14 @@ uncompressed, and the log recorded `exit=0 … 3 nightly archives retained`.
 The whole chain runs **05:15–06:50 Europe/Tallinn**, so every figure on the
 dashboard is fresh before anyone looks at it at 07:00.
 
-`sync_ga4` leads it by fifteen minutes and is not part of the dependency
-ordering: it shares no snapshot, no advisory lock and no source with the feeds,
-so nothing waits for it and it waits for nothing.
+`sync_ga4`, `sync_smaily` and `sync_smaily_campaigns` lead it and are not part
+of the dependency ordering: none of them shares a snapshot, an advisory lock or
+a source with the feeds, so nothing waits for them and they wait for nothing.
+
+`sync_smaily` is the one job whose missed runs cannot be made up. Smaily reports
+what a mailing list holds *now* and has no endpoint for what it held last year,
+so a day this job does not run is a day of newsletter history that no later run
+can recover. Every other collector in this table can be re-run over a range.
 
 The pilot host cannot express Tallinn time — `/etc/localtime` is absent and both
 the clock and `crond` run on UTC — so each job is installed as a **pair** of UTC
@@ -54,6 +59,8 @@ identical EET/EEST offsets.
 | Tallinn | UTC (summer, EEST) | UTC (winter, EET) | Guard | Job |
 | --- | --- | --- | --- | --- |
 | **05:15** | `15 2 * * *` | `15 3 * * *` | `05` | `sync_ga4` |
+| **05:20** | `20 2 * * *` | `20 3 * * *` | `05` | `sync_smaily` |
+| **05:25** | `25 2 * * *` | `25 3 * * *` | `05` | `sync_smaily_campaigns` |
 | **05:30** | `30 2 * * *` | `30 3 * * *` | `05` | `sync_oigusloome_public` |
 | **05:35** | `35 2 * * *` | `35 3 * * *` | `05` | `sync_event_programme` |
 | **05:40** | `40 2 * * *` | `40 3 * * *` | `05` | `sync_koda_public` |

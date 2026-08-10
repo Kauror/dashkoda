@@ -27,7 +27,7 @@ from django.utils import timezone
 
 from .manual import VisibilitySubmission
 from .models import MAX_NOTE_LENGTH, VisibilityEntryBatch
-from .registry import METRICS, NEWSLETTER_METRICS, SOCIAL_METRICS, spec_for
+from .registry import METRICS, NEWSLETTER_METRICS, SOCIAL_METRICS, manual_metrics, spec_for
 
 METRIC_PREFIX = "metric_"
 
@@ -105,7 +105,9 @@ class VisibilityEntryForm(forms.Form):
     # ------------------------------------------------------------------
 
     def _rows(self, keys):
-        return [(spec_for(key), self[f"{METRIC_PREFIX}{key}"]) for key in keys]
+        # Only the metrics that still have a field. A collected metric has no
+        # box on this form, and asking the form for one would raise.
+        return [(spec_for(key), self[f"{METRIC_PREFIX}{key}"]) for key in manual_metrics(keys)]
 
     @property
     def newsletter_rows(self):

@@ -268,6 +268,21 @@ class AuditAction(models.TextChoices):
         "visibility.ga4_sync_failed",
         "Veebiliikluse kogumine ebaõnnestus",
     )
+    # Smaily newsletter audiences: the second collected figure in this module.
+    # The summaries carry segment counts and withheld metric keys, never an
+    # address, a subscriber or a credential.
+    SMAILY_OBSERVATION_IMPORTED = (
+        "visibility.smaily_observation_imported",
+        "Uudiskirjade lugemine imporditud",
+    )
+    SMAILY_SYNC_UNCHANGED = (
+        "visibility.smaily_sync_unchanged",
+        "Uudiskirjade kogumine: muutusteta",
+    )
+    SMAILY_SYNC_FAILED = (
+        "visibility.smaily_sync_failed",
+        "Uudiskirjade kogumine ebaõnnestus",
+    )
     # Retention. The one scheduled action that deletes published rows, so it
     # leaves a permanent record of exactly how many and from which family.
     SNAPSHOTS_PRUNED = (

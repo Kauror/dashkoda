@@ -109,6 +109,69 @@ CHAIN: tuple[Job, ...] = (
         ],
     ),
     Job(
+        name="sync_smaily",
+        purpose="DashKoda Smaily newsletter list sizes.",
+        command="sync_smaily --json",
+        tallinn="05:20",
+        ordering=(
+            "Five minutes after the traffic reconciliation and ten before the chain.\n"
+            "It shares nothing with either — its own lock, its own source — so the\n"
+            "offset is for readable logs rather than for correctness."
+        ),
+        exit_codes=[
+            "0  the reading was published, nothing had changed, or a successful dry run",
+            "1  failed — the last good reading stays published and the dashboard",
+            "   says the last check failed",
+            "3  another collection was still running",
+        ],
+        notes=[
+            "One API request. It reads the size of every segment in the account and\n"
+            "publishes a reading only when a list has actually changed size.",
+            "There is no backfill and there cannot be one. Smaily reports what a list\n"
+            "holds now and has no endpoint for what it held last year, so newsletter\n"
+            "history starts on the day this schedule started and grows forward. A\n"
+            "missed day is a day nobody can recover.",
+            "Every request is a GET. The integration cannot create, send, modify or\n"
+            "delete anything — not because the credential is limited, but because no\n"
+            "code path exists that would build such a request.",
+            "The subdomain, API user and password are read from the container's own\n"
+            "environment, so none can enter shell history or a process listing.",
+            "The JSON is counts and, when a newsletter has no figure, the metric key\n"
+            "and DashKoda's own sentence explaining why. Never an address, a\n"
+            "subscriber, a segment name or any part of Smaily's response.",
+        ],
+    ),
+    Job(
+        name="sync_smaily_campaigns",
+        purpose="DashKoda Smaily campaign catalogue and aggregate statistics.",
+        command="sync_smaily_campaigns --json",
+        tallinn="05:25",
+        ordering=(
+            "Five minutes after the list sizes. It takes a different lock and could\n"
+            "safely overlap; the offset keeps one account's API traffic sequential\n"
+            "and the logs readable."
+        ),
+        exit_codes=[
+            "0  campaigns were catalogued, nothing had changed, or a successful dry run",
+            "1  failed — everything already catalogued stays, and the newsletter",
+            "   subscriber figures are untouched",
+            "3  another collection was still running",
+        ],
+        notes=[
+            "One request to list campaigns, then one per campaign whose figures are\n"
+            "still moving. Opens and clicks accrue for about a fortnight after a send\n"
+            "and then stop, so settled campaigns are never re-read.",
+            "The run is bounded twice: a cap on how many campaigns may be read per\n"
+            "run, and a checksum that publishes nothing for a campaign whose numbers\n"
+            "have not changed.",
+            "Statistics are aggregate totals over a whole send. `detailed=1` returns\n"
+            "per-recipient rows — who opened, who clicked, from which address — and is\n"
+            "never sent; a response carrying them is refused rather than stored.",
+            "The JSON is counts. Never a campaign name, a subject line, a recipient or\n"
+            "any part of Smaily's response.",
+        ],
+    ),
+    Job(
         name="sync_oigusloome_public",
         purpose="DashKoda legal-work synchronisation over the public read-only OneDrive link.",
         command="sync_oigusloome_public --json",

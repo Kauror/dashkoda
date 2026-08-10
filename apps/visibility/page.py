@@ -14,9 +14,10 @@ Three things are decided here and nowhere else:
   Chamber sends three, to three lists, and nobody has counted how many people
   are on more than one. A sum would silently claim that overlap is zero, so the
   card shows the lists and no headline figure at all;
-- **manual never reads as automatic.** Every populated card carries
-  `Käsitsi sisestatud` and its observation date, and no card anywhere says
-  synchronised, connected or automatically updated.
+- **neither kind ever reads as the other.** The website and newsletter cards are
+  collected and say `Automaatselt kogutud`; the four social cards are typed and
+  never say synchronised, connected or automatically updated. Every populated
+  card carries its observation date whichever it is.
 """
 
 from __future__ import annotations
@@ -31,6 +32,7 @@ from apps.dashboard.sparkline import Sparkline, build_sparkline
 
 from .ga4 import Ga4ConnectionStatus, get_connection_status
 from .models import CollectionMethod, VisibilityMetric
+from .newsletter_page import NewsletterSection, build_newsletter_section
 from .registry import SOCIAL_METRICS, VisibilityMetricSpec
 from .selectors import (
     MetricReading,
@@ -142,8 +144,9 @@ def _website_slot(status: Ga4ConnectionStatus, traffic: WebsiteTraffic) -> Chann
         unit="seanssi",
         secondary=secondary,
         as_of=traffic.period_end,
-        # The one automated figure on this band. Saying it was typed would be
-        # false in the opposite direction from every other card here.
+        # One of the two automated figures on this band, the other being the
+        # newsletters. Saying it was typed would be false in the opposite
+        # direction from the four social cards.
         state_label=CollectionMethod.AUTOMATIC.label,
         state_variant="neutral",
     )
@@ -185,7 +188,9 @@ def _newsletter_slot(summary: NewsletterSummary, *, detail_url: str) -> ChannelS
         as_of=summary.as_of,
         source_label=first.source_label,
         method_label=first.method_label,
-        state_label="Vajab uuendamist" if summary.is_stale else "Käsitsi sisestatud",
+        # Collected, not typed. Saying a person entered these would be false in
+        # the same way saying the social figures were synchronised would be.
+        state_label=("Vajab uuendamist" if summary.is_stale else CollectionMethod.AUTOMATIC.label),
         state_variant="warning" if summary.is_stale else "neutral",
         detail_url=detail_url,
     )
@@ -271,6 +276,7 @@ class VisibilityPage:
     channels: tuple[ChannelSlot, ...]
     ga4: Ga4ConnectionStatus
     traffic: TrafficSection
+    newsletters: NewsletterSection
     today: date
 
     @property
@@ -306,6 +312,7 @@ def build_visibility_page(
     today: date | None = None,
     period_key: str | None = None,
     section_key: str | None = None,
+    newsletter_key: str | None = None,
 ) -> VisibilityPage:
     """Read every metric once and shape it for the page."""
     today = today or timezone.localdate()
@@ -321,6 +328,7 @@ def build_visibility_page(
         channels=build_channel_band(summary=summary, ga4_status=ga4_status, detail_url=detail_url),
         ga4=ga4_status,
         traffic=build_traffic_section(period_key=period_key, section_key=section_key, today=today),
+        newsletters=build_newsletter_section(newsletter_key=newsletter_key),
         today=today,
     )
 

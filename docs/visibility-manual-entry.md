@@ -2,12 +2,15 @@
 
 How many people the Chamber currently reaches, entered by hand.
 
-**No channel audience figure is collected automatically.** There is no Smaily,
-Meta, LinkedIn, Instagram or YouTube client anywhere in this repository, no
-credential that would let one exist, and no model field capable of holding a
-token. A staff user reads a figure off a platform's own statistics screen and
-types it in. The one automated exception is website traffic: the optional
-`sync_ga4` command described [below](#google-analytics-website-traffic).
+**The four social audience figures are typed in.** There is no Meta, LinkedIn,
+Instagram or YouTube client anywhere in this repository, no credential that
+would let one exist, and no model field capable of holding a token. A staff user
+reads a figure off a platform's own statistics screen and types it in.
+
+Two channels are collected instead and have no box on this form: website traffic
+through `sync_ga4`, described [below](#google-analytics-website-traffic), and
+the three newsletter list sizes through `sync_smaily`, described in
+[newsletter-audience.md](newsletter-audience.md).
 
 That is a deliberate first step, not a shortcut. A typed value publishes through
 the same path a collector would use — canonical JSON, SHA-256 content identity,
@@ -51,9 +54,12 @@ second series that looks like the first one.
 
 ## Metric definitions
 
-**Newsletter figures count list membership.** They are the number of *active
-recipients on a list*, read from Smaily. They are not emails sent, not delivered
-emails, not opens and not clicks, and the labels never say otherwise.
+**Newsletter figures count list membership.** They are the subscriber count
+Smaily reports for a list, collected daily rather than typed. They are not
+emails sent, not delivered emails, not opens and not clicks, and the labels
+never say otherwise. The word "active" is deliberately avoided: `list.php`
+returns a `subscribers_count` and does not document whether unsubscribed
+addresses are excluded from it.
 
 **Social figures are the follower or subscriber count the channel's own
 statistics show.** Not reach, not impressions, not engagement.
@@ -437,17 +443,22 @@ Publication follows the path every other source uses: canonical JSON →
 SHA-256 → metadata-only artifact → `ImportRun` → an immutable observation →
 audit event. No GA4 response body is retained.
 
-## Future automation path
+## The automation seam, now used twice
 
-The same seam would serve Smaily and the social platforms. If a collector ever
-arrives it
-writes `CollectionMethod.AUTOMATIC` rows into the **same table**, through the
-same publication service, and the form becomes one of two writers rather than
-being replaced by a migration. Historical manual rows keep their values and their
-`manual` method, so a chart never silently changes meaning.
+`CollectionMethod.AUTOMATIC` was added so a collector could write into the
+**same table** through the same publication service, making the form one of two
+writers rather than something a migration replaces. Both collectors now use it:
 
-None of that is in this pull request: no API, no OAuth, no key, no service
-account, no scraping and no schedule.
+- `sync_ga4` publishes website traffic;
+- `sync_smaily` publishes the three newsletter totals, and the entry form no
+  longer offers a box for them.
+
+Historical manual rows keep their values and their `manual` method, so a chart
+never silently changes meaning — the newsletter figures a staff user typed
+before the collector existed are still there, still marked as typed.
+
+The four social platforms remain unautomated: no API, no OAuth, no key, no
+service account, no scraping and no schedule.
 
 ## Deployment and migration
 
@@ -458,10 +469,14 @@ column to an existing table and touches no other module's data.
 docker compose exec web python manage.py migrate visibility
 ```
 
-The five manual data sources are registered on first use by
+The data sources are registered on first use by
 `apps/visibility/bootstrap.py`, so nothing has to be seeded by hand. The GA4
 source is registered too, without an artifact or an import run — there is no
-content to give one a checksum.
+content to give one a checksum. The newsletter source was renamed from
+`manual-smaily-audience` to `smaily-newsletter-audience` by
+`visibility.0006_rename_smaily_source` when its figures stopped being typed;
+`ensure_data_source` registers a source once and never updates it, so the rename
+had to be a migration.
 
 No new environment variable is **required**. `GA4_PROPERTY_ID` and
 `GA4_CREDENTIALS_FILE` may stay unset indefinitely.

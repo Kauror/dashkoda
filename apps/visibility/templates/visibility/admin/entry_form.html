@@ -65,19 +65,26 @@ because leaving a half-typed form to look at a profile would lose the entry.
 
   <fieldset class="module aligned">
     <h2>B. Uudiskiri</h2>
-    <p class="help">
-      Aktiivsete saajate arv nimekirjas. See ei ole saadetud ega kohale toimetatud
-      kirjade arv ning ei ole avamiste või klikkide arv. Unikaalse auditooriumi
-      arvutamiseks on vaja kõiki kolme väärtust.
-    </p>
-    {% for spec, field, reading in newsletter_rows %}
-      <div class="form-row">
-        {{ field.errors }}
-        {{ field.label_tag }} {{ field }}
-        <p class="help">{{ spec.definition }}</p>
-        {% include "visibility/admin/_latest_value.html" with reading=reading only %}
-      </div>
-    {% endfor %}
+    {% if newsletter_rows %}
+      <p class="help">
+        Tellijate arv nimekirjas. See ei ole saadetud ega kohale toimetatud
+        kirjade arv ning ei ole avamiste või klikkide arv.
+      </p>
+      {% for spec, field, reading in newsletter_rows %}
+        <div class="form-row">
+          {{ field.errors }}
+          {{ field.label_tag }} {{ field }}
+          <p class="help">{{ spec.definition }}</p>
+          {% include "visibility/admin/_latest_value.html" with reading=reading only %}
+        </div>
+      {% endfor %}
+    {% else %}
+      <p class="help">
+        Uudiskirjade tellijate arvud loetakse Smailyst automaatselt iga päev, seega
+        neid siin käsitsi ei sisestata. Kui number on vana, ei ole vaja seda üle
+        kirjutada — vaata Smaily andmevoo olekut allikate lehelt.
+      </p>
+    {% endif %}
   </fieldset>
 
   <fieldset class="module aligned">
@@ -153,21 +160,23 @@ because leaving a half-typed form to look at a profile would lose the entry.
         </tbody>
       </table>
 
-      <table>
-        <caption>Uudiskirjad</caption>
-        <tbody>
-          {% for label, value in preview.newsletter.rows %}
-            <tr>
-              <th scope="row">{{ label }}</th>
-              <td>{{ value|default_if_none:"–" }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      <p class="help">
-        Iga nimekiri eraldi. Neid ei liideta üheks auditooriumiks, sest nimekirjade
-        kattuvust ei ole loendatud.
-      </p>
+      {% if preview.newsletter.rows %}
+        <table>
+          <caption>Uudiskirjad</caption>
+          <tbody>
+            {% for label, value in preview.newsletter.rows %}
+              <tr>
+                <th scope="row">{{ label }}</th>
+                <td>{{ value|default_if_none:"–" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        <p class="help">
+          Iga nimekiri eraldi. Neid ei liideta üheks auditooriumiks, sest nimekirjade
+          kattuvust ei ole loendatud.
+        </p>
+      {% endif %}
 
       {% if preview.corrections %}
         <p>
