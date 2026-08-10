@@ -239,14 +239,23 @@ def test_the_share_moves_in_percentage_points(two_year_trend):
     assert readouts["Tasunute osakaal"].change.endswith("pp")
 
 
-def test_a_history_too_short_to_compare_shows_the_value_and_says_why():
-    """No fabricated year-ago figure, and no silently missing comparison."""
+def test_a_history_too_short_to_compare_shows_the_value_and_no_comparison():
+    """No fabricated year-ago figure.
+
+    The sentence explaining *why* the comparison is missing was struck out, so
+    the readout now shows the value and nothing beside it. The rule it protected
+    is the one still asserted: nothing is invented to fill the gap, and the
+    reason remains on the comparison object for anything that wants it.
+    """
     chart = total_and_paid_chart(trend(point(LATEST, total=3412, paid=3208)))
     readout = next(r for r in chart.readouts if r.label == "Liikmeid kokku")
 
     assert readout.value == f"3{GROUP_SEPARATOR}412"
     assert readout.change == ""
-    assert readout.note
+    assert readout.direction == ""
+    assert readout.note == ""
+    # Still computed, still says why — just not printed under the figure.
+    assert readout.change_label
 
 
 def test_an_empty_trend_offers_no_readouts_and_no_false_zero():
@@ -257,20 +266,33 @@ def test_an_empty_trend_offers_no_readouts_and_no_false_zero():
     assert not chart.has_data
 
 
-def test_the_chart_asks_for_the_large_frame_and_names_its_question(two_year_trend):
+def test_the_chart_asks_for_the_large_frame_and_dates_itself(two_year_trend):
+    """The question line was struck out; the observation date was not, and it
+    is the part that says what the drawing describes."""
     chart = total_and_paid_chart(two_year_trend)
 
     assert chart.size == "large"
-    assert "kasvab" in chart.question
+    assert chart.question == ""
     assert chart.observation_label == "Seisuga 31.07.2026"
 
 
-def test_a_withheld_point_is_disclosed_rather_than_quietly_dropped():
-    chart = total_and_paid_chart(
-        trend(point(LATEST, total=3412, paid=3208), withheld_metric_points=2)
-    )
+def test_a_withheld_point_is_withheld_rather_than_drawn_as_a_value():
+    """The footnote naming the withheld points was struck out on the board's
+    print-out. What it described is unchanged and is what matters: a point held
+    back for a conflict is absent from the drawing and from the table, and is
+    never replaced by a zero or by an interpolation between its neighbours.
 
-    assert any("vastuolude" in note for note in chart.footnotes)
+    The count itself survives on the trend and is reported in the page's own
+    data-quality section, which is where a reader who wants it goes.
+    """
+    withheld = trend(point(LATEST, total=3412, paid=3208), withheld_metric_points=2)
+    chart = total_and_paid_chart(withheld)
+
+    assert withheld.withheld_metric_points == 2
+    # One observation went in, so one row comes out — the withheld points did
+    # not become rows, and nothing was invented to stand in for them.
+    assert len(chart.table_rows) == 1
+    assert all(0 not in row[1:] for row in chart.table_rows)
 
 
 def test_the_table_keeps_the_exact_values_the_chart_drew(two_year_trend):

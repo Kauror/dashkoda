@@ -51,7 +51,7 @@ from .analytics import (
     value_domain,
 )
 from .internal_selectors import InternalTrend, MonthlyValue
-from .models import QualityStatus, SizeBand
+from .models import QualityStatus
 
 # Board reports number their months in Roman numerals. The **table** keeps that
 # convention, so a reader checking a figure against the report they came from
@@ -215,8 +215,14 @@ class AnalyticsSection:
     """
 
     section_id: str
+    #: Always set: it is the section landmark's accessible name even when the
+    #: heading is not drawn. Blanking it to hide a heading would take the name
+    #: away too, which is why `show_title` exists instead.
     title: str
     description: str = ""
+    #: Whether the heading is drawn. A section whose title was struck out keeps
+    #: its name for assistive technology and shows none.
+    show_title: bool = True
     charts: tuple[ChartPayload, ...] = ()
     presets: tuple = ()
     show_custom_range: bool = False
@@ -396,15 +402,16 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
         )
 
     footnotes = []
-    if trend.withheld_metric_points:
-        footnotes.append("Osad ajaloolised punktid on vastuolude tõttu graafikult välja jäetud.")
+    # The withheld-points footnote was struck out on the board's print-out. The
+    # points are still withheld — `trend.withheld_metric_points` still counts
+    # them and the quality section still reports them — the chart just no
+    # longer says so underneath itself.
     if provisional:
         footnotes.append("Esialgsed vaatlused on graafikul tühja markeriga.")
 
     return ChartPayload(
         payload_id="internal-membership-trend",
         title="Liikmeid kokku ja tasunud liikmeid",
-        question="Kas liikmeskond kasvab või kahaneb ja kui suur osa liikmetest on tasunud?",
         option=option,
         size="large",
         readouts=_trend_readouts(trend, provisional),
@@ -508,7 +515,11 @@ def _trend_readouts(trend: InternalTrend, provisional: frozenset[date]) -> tuple
                     else comparison.unavailable_reason
                 ),
                 direction=_direction(comparison.absolute) if comparison.is_available else "",
-                note="" if comparison.is_available else comparison.unavailable_reason,
+                # Struck out on the print-out. The reason is still computed
+                # and still available to `apps.membership.analytics`; what is
+                # gone is printing it under the figure, where three readouts
+                # repeated the same sentence.
+                note="",
             )
         )
 
@@ -534,7 +545,7 @@ def _trend_readouts(trend: InternalTrend, provisional: frozenset[date]) -> tuple
                     else comparison.unavailable_reason
                 ),
                 direction=_direction(points),
-                note="" if comparison.is_available else comparison.unavailable_reason,
+                note="",
             )
         )
 
@@ -739,27 +750,23 @@ def monthly_new_members_chart(
     )
 
     rows = []
-    provisional_seen = False
-    conflict_seen = False
     for year in years:
         known = {value.calendar_month: value for value in by_year[year]}
         for month in range(1, 13):
             value = known.get(month)
             if value is None:
                 continue
-            if value.is_conflict:
-                conflict_seen = True
-            if value.is_provisional:
-                provisional_seen = True
             rows.append(
                 (year, MONTH_LABELS[month - 1], value.new_members, _monthly_status_label(value))
             )
 
     footnotes = []
-    if provisional_seen:
-        footnotes.append("Jooksva kuu väärtus on esialgne.")
-    if conflict_seen:
-        footnotes.append("Vastuolulisi kuid ei kuvata graafikul ja neid ei asendata nulliga.")
+    # The provisional-month and conflicted-month footnotes were struck out, and
+    # the two flags that existed only to raise them went with them. Neither
+    # behaviour changed: a provisional month is still marked on the drawing and
+    # in the table's own status column, and a conflicted one is still withheld
+    # from the line rather than drawn as zero. `_monthly_status_label` is what
+    # states both, per row, where the value is.
     if not benchmark_points:
         footnotes.append(
             f"Võrdlust „{benchmark_label}“ ei saa kuvada, sest selle perioodi kohta "
@@ -776,7 +783,6 @@ def monthly_new_members_chart(
         title=(
             "Uusi liikmeid kuude lõikes" if not cumulative_view else "Uusi liikmeid kumulatiivselt"
         ),
-        question="Kas uute liikmete lisandumine on tugevam või nõrgem kui tavaliselt?",
         option=option,
         size="medium",
         readouts=_monthly_readouts(
@@ -807,7 +813,6 @@ def _empty_monthly_chart(view: str, benchmark: str) -> ChartPayload:
     return ChartPayload(
         payload_id="internal-membership-monthly",
         title="Uusi liikmeid kuude lõikes",
-        question="Kas uute liikmete lisandumine on tugevam või nõrgem kui tavaliselt?",
         option=option,
         size="medium",
         table_headers=("Aasta", "Kuu", "Uusi liikmeid", "Olek"),
@@ -1136,11 +1141,9 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
 
     return ChartPayload(
         payload_id="internal-membership-fees",
-        title="Liikmemaksu laekumine eelarvest",
-        question=(
-            "Kas liikmemaksu laekumine liigub aastaeelarve täitmise suunas ja kuidas "
-            "see võrdub varasemate aastatega?"
-        ),
+        # Both struck out. The section heading two lines above already says
+        # `Liikmemaksu laekumine`; this repeated it with one word added.
+        title="",
         option=option,
         size="large",
         readouts=_fee_readouts(by_year, current_year),
@@ -1333,14 +1336,13 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
         }
     )
 
+    # The supporter-member footnote was struck out; the band is still listed
+    # separately in the chart itself, which is what the sentence described.
     footnotes: tuple[str, ...] = ()
-    if any(row["band"] == SizeBand.SUPPORTER for row in rows):
-        footnotes = ("Toetajaliige ei ole töötajate arvu klass ja on loetelus eraldi.",)
 
     return ChartPayload(
         payload_id="internal-membership-size-movement",
         title="Liitunud ja lahkunud suurusklassiti",
-        question="Millistes ettevõtete suurusklassides me liikmeid võidame või kaotame?",
         option=option,
         size="categorical",
         readouts=_movement_readouts(rows),
@@ -1498,7 +1500,6 @@ def removal_reasons_chart(rows: tuple[dict, ...], *, observation_date: date | No
     return ChartPayload(
         payload_id="internal-membership-removal-reasons",
         title="Lahkumise põhjused",
-        question="Miks liikmed lahkuvad?",
         option=option,
         size="categorical",
         observation_label=(f"Seisuga {long_date(observation_date)}" if observation_date else ""),
