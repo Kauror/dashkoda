@@ -158,7 +158,13 @@ def _transport_failure(error: Exception) -> str:
     `requests` carries the request URL — which names the account's subdomain.
     Neither that nor a response body may reach the feed state, which the admin
     renders.
+
+    The traceback is written to the **container log** first. Sanitizing what is
+    stored is right; sanitizing what is *diagnosable* is not, and a bug in this
+    module once reached CI disguised as a network problem because the only trace
+    of it was this sentence.
     """
+    logger.exception("smaily sync failed with an unexpected error")
     return f"Smaily päring ebaõnnestus ({type(error).__name__})."
 
 
@@ -379,8 +385,8 @@ def _publish(
 
             complete_import_run(
                 run,
-                rows_read=len(reading.segments),
-                rows_written=len(reading.segments),
+                # One snapshot plus one row per segment.
+                rows_added=1 + len(reading.segments),
                 actor=actor,
             )
     except Exception:

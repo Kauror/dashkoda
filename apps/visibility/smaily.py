@@ -41,7 +41,7 @@ from __future__ import annotations
 import re
 import time
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from typing import Protocol, runtime_checkable
 
 import requests
@@ -277,21 +277,104 @@ class SegmentReading:
         }
 
 
+@dataclass(frozen=True)
+class CampaignRow:
+    """One completed campaign, as `campaign.php` lists it.
+
+    `template_name` matters more than it looks. Smaily's campaigns carry no tags
+    on this account — all two hundred are untagged — and the subject line is
+    written for readers, so the template name is the only field that reliably
+    says which newsletter an issue belongs to. See
+    `apps.visibility.smaily_campaigns`.
+    """
+
+    campaign_id: int
+    name: str
+    template_name: str = ""
+    status: str = ""
+    created_at: datetime | None = None
+    completed_at: datetime | None = None
+
+    def payload(self) -> dict:
+        return {
+            "campaign_id": self.campaign_id,
+            "name": self.name,
+            "template_name": self.template_name,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+        }
+
+
+@dataclass(frozen=True)
+class CampaignStatsRow:
+    """One campaign's **aggregate** statistics.
+
+    Every field is a count over the whole send. There is no per-recipient
+    anything here and there is no code path that could ask for it: Smaily
+    returns recipient detail only for `detailed=1`, which is never sent.
+
+    Smaily also returns `opened_percent`, `click_percent` and `view_percent`.
+    None of them is kept. They are quotients of the counts beside them — and
+    `opened_percent` is a share of *delivered*, not of *sent*, which is exactly
+    the kind of denominator that gets lost when a rounded copy is stored. The
+    selectors derive the rates and name their denominator.
+    """
+
+    campaign_id: int
+    total_count: int | None = None
+    delivered_count: int | None = None
+    bounce_count: int | None = None
+    opened_count: int | None = None
+    click_count: int | None = None
+    unique_click_count: int | None = None
+    view_count: int | None = None
+    unique_view_count: int | None = None
+    unsubscribe_count: int | None = None
+    complaint_count: int | None = None
+    forward_count: int | None = None
+
+    COUNT_FIELDS = (
+        "total_count",
+        "delivered_count",
+        "bounce_count",
+        "opened_count",
+        "click_count",
+        "unique_click_count",
+        "view_count",
+        "unique_view_count",
+        "unsubscribe_count",
+        "complaint_count",
+        "forward_count",
+    )
+
+    @property
+    def has_any_figure(self) -> bool:
+        return any(getattr(self, name) is not None for name in self.COUNT_FIELDS)
+
+    def payload(self) -> dict:
+        return {name: getattr(self, name) for name in self.COUNT_FIELDS}
+
+
 @dataclass
 class CollectionCounts:
     """What a collection actually did, for the command's JSON output.
 
-    Aggregates only: request counts and row counts, never a segment list. A
-    scheduler log is not a place to print the Chamber's mailing lists.
+    Aggregates only: request counts and row counts, never a segment or campaign
+    list. A scheduler log is not a place to print the Chamber's mailing lists.
     """
 
     requests: int = 0
     segment_rows: int = 0
+    campaign_rows: int = 0
+    stats_rows: int = 0
     retries: int = 0
 
     def merge(self, other: CollectionCounts) -> None:
         self.requests += other.requests
         self.segment_rows += other.segment_rows
+        self.campaign_rows += other.campaign_rows
+        self.stats_rows += other.stats_rows
         self.retries += other.retries
 
 
@@ -427,6 +510,42 @@ class SmailyApiClient:
             segments=rows,
         ).validate()
 
+    def collect_campaigns(self, *, limit: int = CAMPAIGN_PAGE_SIZE) -> tuple[CampaignRow, ...]:
+        """List completed campaigns, newest first.
+
+        Only `COMPLETED`. A draft has no statistics and a cancelled campaign was
+        never sent; neither belongs in a record of what the Chamber published.
+
+        `limit` is always a number. Smaily accepts `limit=0` for "every campaign
+        ever", which is precisely the unbounded response a scheduled job should
+        never ask a shared API for.
+        """
+        if limit < 1:
+            raise SmailyResponseError("Kampaaniate piirarv peab olema vähemalt 1.")
+        payload = self._get(
+            ENDPOINT_CAMPAIGNS,
+            status="COMPLETED",
+            limit=limit,
+            sort_order="DESC",
+        )
+        rows = _campaign_rows(payload)
+        self.counts.campaign_rows += len(rows)
+        return rows
+
+    def collect_campaign_stats(self, campaign_id: int) -> CampaignStatsRow:
+        """Read one campaign's aggregate statistics. One request.
+
+        **`detailed` is deliberately not passed.** Smaily's default is the
+        aggregate form; sending `detailed=1` would return a row per recipient,
+        which this application has no field for and no reason to hold. Omitting
+        the parameter rather than sending `detailed=0` keeps it impossible for a
+        typo to flip.
+        """
+        payload = self._get(ENDPOINT_CAMPAIGNS, id=int(campaign_id))
+        row = _campaign_stats(payload, campaign_id)
+        self.counts.stats_rows += 1
+        return row
+
 
 def _segment_rows(payload) -> tuple[SegmentRow, ...]:
     """Normalise `list.php` into rows, refusing anything unrecognisable.
@@ -456,6 +575,86 @@ def _segment_rows(payload) -> tuple[SegmentRow, ...]:
     return tuple(rows)
 
 
+def _as_optional_int(value, field_name: str) -> int | None:
+    """A count Smaily may simply not report. Absent stays absent.
+
+    A missing figure is not a measured zero, and the two must stay
+    distinguishable for the same reason they do everywhere else here.
+    """
+    if value is None or value == "":
+        return None
+    return _as_int(value, field_name)
+
+
+def _as_datetime(value) -> datetime | None:
+    """Smaily's `YYYY-MM-DD HH:MM:SS`, made aware in application time.
+
+    Naive rather than UTC: the timestamps are the Chamber's own send times as
+    Smaily's interface shows them, and reading them as UTC would move every
+    campaign two or three hours and occasionally onto the previous day.
+    """
+    if not value:
+        return None
+    text = str(value).strip().replace("T", " ")
+    for pattern in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            parsed = datetime.strptime(text, pattern)
+        except ValueError:
+            continue
+        return timezone.make_aware(parsed) if timezone.is_naive(parsed) else parsed
+    raise SmailyResponseError("Smaily kuupäev ei olnud loetavas vormingus.")
+
+
+def _campaign_rows(payload) -> tuple[CampaignRow, ...]:
+    """Normalise the campaign list, refusing anything unrecognisable."""
+    if isinstance(payload, dict):
+        payload = payload.get("campaigns") or payload.get("data") or payload.get("list")
+    if not isinstance(payload, list):
+        raise SmailyResponseError("Smaily kampaaniate vastus ei olnud loend.")
+
+    rows = []
+    for entry in payload:
+        if not isinstance(entry, dict):
+            raise SmailyResponseError("Smaily kampaania ei olnud objekt.")
+        if "id" not in entry:
+            raise SmailyResponseError("Smaily kampaanial puudus tunnus.")
+        template = entry.get("template")
+        template_name = ""
+        if isinstance(template, dict):
+            template_name = str(template.get("name") or "").strip()
+        elif isinstance(template, str):
+            template_name = template.strip()
+        rows.append(
+            CampaignRow(
+                campaign_id=_as_int(entry["id"], "id"),
+                name=str(entry.get("name") or "").strip()[:300],
+                template_name=template_name[:300],
+                status=str(entry.get("status") or "").strip()[:20],
+                created_at=_as_datetime(entry.get("created_at")),
+                completed_at=_as_datetime(entry.get("completed_at")),
+            )
+        )
+    return tuple(rows)
+
+
+def _campaign_stats(payload, campaign_id: int) -> CampaignStatsRow:
+    """Normalise one campaign's aggregate statistics."""
+    if isinstance(payload, list):
+        payload = payload[0] if payload else None
+    if not isinstance(payload, dict):
+        raise SmailyResponseError("Smaily kampaania statistika ei olnud objekt.")
+    # Belt and braces: `_get` already refuses a recipient-detail body, and this
+    # is the one endpoint that could ever produce one.
+    _reject_recipient_detail(payload)
+    return CampaignStatsRow(
+        campaign_id=campaign_id,
+        **{
+            name: _as_optional_int(payload.get(name), name)
+            for name in CampaignStatsRow.COUNT_FIELDS
+        },
+    )
+
+
 __all__ = [
     "BACKOFF_SECONDS",
     "CAMPAIGN_PAGE_SIZE",
@@ -463,6 +662,8 @@ __all__ = [
     "ENDPOINT_SEGMENTS",
     "MAX_ATTEMPTS",
     "SCHEMA_VERSION",
+    "CampaignRow",
+    "CampaignStatsRow",
     "CollectionCounts",
     "SegmentReading",
     "SegmentRow",

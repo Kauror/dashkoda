@@ -142,6 +142,36 @@ CHAIN: tuple[Job, ...] = (
         ],
     ),
     Job(
+        name="sync_smaily_campaigns",
+        purpose="DashKoda Smaily campaign catalogue and aggregate statistics.",
+        command="sync_smaily_campaigns --json",
+        tallinn="05:25",
+        ordering=(
+            "Five minutes after the list sizes. It takes a different lock and could\n"
+            "safely overlap; the offset keeps one account's API traffic sequential\n"
+            "and the logs readable."
+        ),
+        exit_codes=[
+            "0  campaigns were catalogued, nothing had changed, or a successful dry run",
+            "1  failed — everything already catalogued stays, and the newsletter",
+            "   subscriber figures are untouched",
+            "3  another collection was still running",
+        ],
+        notes=[
+            "One request to list campaigns, then one per campaign whose figures are\n"
+            "still moving. Opens and clicks accrue for about a fortnight after a send\n"
+            "and then stop, so settled campaigns are never re-read.",
+            "The run is bounded twice: a cap on how many campaigns may be read per\n"
+            "run, and a checksum that publishes nothing for a campaign whose numbers\n"
+            "have not changed.",
+            "Statistics are aggregate totals over a whole send. `detailed=1` returns\n"
+            "per-recipient rows — who opened, who clicked, from which address — and is\n"
+            "never sent; a response carrying them is refused rather than stored.",
+            "The JSON is counts. Never a campaign name, a subject line, a recipient or\n"
+            "any part of Smaily's response.",
+        ],
+    ),
+    Job(
         name="sync_oigusloome_public",
         purpose="DashKoda legal-work synchronisation over the public read-only OneDrive link.",
         command="sync_oigusloome_public --json",

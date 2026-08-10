@@ -238,3 +238,120 @@ def test_the_canonical_payload_is_order_independent():
         observed_on=DAY, segments=(SegmentRow(2, "b", 20), SegmentRow(1, "a", 10))
     )
     assert one.canonical_payload() == other.canonical_payload()
+
+
+# -- campaigns --------------------------------------------------------------
+
+CAMPAIGNS = [
+    {
+        "id": 4421,
+        "name": "E-Teataja: Riigipiiri kaitserajatiste alused",
+        "template": {"id": 9, "name": "e-Teataja 4.08 mitteliikmed", "preview_url": "x"},
+        "tags": [],
+        "status": "COMPLETED",
+        "created_at": "2026-08-04 10:24:03",
+        "completed_at": "2026-08-04 11:02:11",
+    }
+]
+
+STATS = {
+    "name": "Kaubanduskoja sündmuste kalender",
+    "status": "COMPLETED",
+    "total_count": 5235,
+    "delivered_count": 5167,
+    "bounce_count": 68,
+    "opened_count": 2628,
+    "opened_percent": 50.9,
+    "click_count": 4402,
+    "unique_click_count": 453,
+    "view_count": 4897,
+    "unique_view_count": 2462,
+    "unsubscribe_count": 4,
+    "complaint_count": 0,
+    "forward_count": 0,
+}
+
+
+def test_campaigns_are_normalised_with_their_template_name():
+    collector = client(FakeResponse(CAMPAIGNS))
+    rows = collector.collect_campaigns()
+
+    assert len(rows) == 1
+    row = rows[0]
+    assert row.campaign_id == 4421
+    assert row.template_name == "e-Teataja 4.08 mitteliikmed"
+    assert row.status == "COMPLETED"
+    assert row.completed_at is not None
+    assert row.completed_at.year == 2026
+
+
+def test_only_completed_campaigns_are_asked_for():
+    """A draft has no statistics and a cancelled campaign was never sent."""
+    collector = client(FakeResponse(CAMPAIGNS))
+    collector.collect_campaigns()
+    assert collector._session.calls[0]["params"]["status"] == "COMPLETED"
+
+
+def test_the_campaign_list_is_always_bounded():
+    """`limit=0` means "every campaign ever" to Smaily. Never sent."""
+    collector = client(FakeResponse(CAMPAIGNS))
+    collector.collect_campaigns(limit=25)
+    assert collector._session.calls[0]["params"]["limit"] == 25
+
+    with pytest.raises(SmailyResponseError):
+        client(FakeResponse(CAMPAIGNS)).collect_campaigns(limit=0)
+
+
+def test_statistics_are_aggregate_counts():
+    collector = client(FakeResponse(STATS))
+    row = collector.collect_campaign_stats(4423)
+
+    assert row.campaign_id == 4423
+    assert row.delivered_count == 5167
+    assert row.opened_count == 2628
+    assert row.unique_click_count == 453
+    assert row.has_any_figure
+
+
+def test_the_statistics_request_never_asks_for_recipient_detail():
+    """`detailed` is not sent at all, so no typo can flip it to 1."""
+    collector = client(FakeResponse(STATS))
+    collector.collect_campaign_stats(4423)
+    params = collector._session.calls[0]["params"]
+    assert params == {"id": 4423}
+    assert "detailed" not in params
+
+
+def test_a_percentage_smaily_reports_is_not_carried_into_the_row():
+    """Rates are derived from counts, with a named denominator, not stored."""
+    collector = client(FakeResponse(STATS))
+    row = collector.collect_campaign_stats(4423)
+    assert not hasattr(row, "opened_percent")
+    assert "opened_percent" not in row.payload()
+
+
+def test_a_missing_count_stays_absent_rather_than_becoming_zero():
+    collector = client(FakeResponse({"total_count": 10}))
+    row = collector.collect_campaign_stats(1)
+    assert row.total_count == 10
+    assert row.delivered_count is None
+    assert row.opened_count is None
+
+
+def test_statistics_carrying_recipient_rows_are_refused():
+    collector = client(FakeResponse({**STATS, "addresses": [{"email": "a@example.org"}]}))
+    with pytest.raises(SmailyResponseError) as error:
+        collector.collect_campaign_stats(4423)
+    assert "a@example.org" not in str(error.value)
+
+
+def test_a_campaign_without_an_identifier_is_refused():
+    collector = client(FakeResponse([{"name": "no id"}]))
+    with pytest.raises(SmailyResponseError):
+        collector.collect_campaigns()
+
+
+def test_an_unreadable_campaign_date_is_refused_rather_than_guessed():
+    collector = client(FakeResponse([{"id": 1, "completed_at": "eile"}]))
+    with pytest.raises(SmailyResponseError):
+        collector.collect_campaigns()

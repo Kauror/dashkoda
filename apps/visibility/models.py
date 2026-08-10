@@ -32,8 +32,10 @@ membership history already obeys:
   distinguishable for the rest of the application's life, which is why the
   metrics are columns of typed rows rather than keys in a JSON blob.
 
-Deliberately absent: no subscriber address, no individual follower, no post,
-no impression, no open, no click, and no platform credential.
+Deliberately absent: no subscriber address, no individual follower, no post and
+no impression. Campaign opens and clicks are stored, but **only as totals over a
+whole send** — `SmailyCampaignStats` has no per-recipient column and there is no
+code path that could request one.
 """
 
 from __future__ import annotations
@@ -925,3 +927,248 @@ class SmailyFeedState(models.Model):
 
     def __str__(self) -> str:
         return f"{self.source.slug}: {self.get_last_result_display()}"
+
+
+class SmailyCampaign(models.Model):
+    """One completed Smaily campaign, catalogued so it keeps its name.
+
+    A **catalogue row**, not a published measurement — the same kind of thing
+    `news.NewsResource` is, and updated for the same reason: Smaily's campaign
+    list is a window onto recent sends, and a campaign that scrolls out of it
+    would otherwise lose its name and its date. What is measured about a
+    campaign lives in `SmailyCampaignStats`, which *is* immutable.
+
+    `newsletter` is resolved once, when the campaign is first seen, from the
+    template name (see `apps.visibility.smaily_campaigns`). Storing it rather
+    than deriving it at read time is deliberate: a template can be renamed or
+    deleted afterwards, and a historical chart must not change shape because
+    somebody tidied a template list.
+
+    A campaign that is not an issue of one of the three newsletters — an event
+    calendar, an Enterprise Europe Network mailing, a one-off invitation — is
+    catalogued with `newsletter` blank. It is deliberately not forced into a
+    newsletter, because it would then appear in that newsletter's open rate.
+
+    Deliberately absent: recipients. No address, no name, no subscriber ID and
+    no per-recipient open, click, bounce or unsubscribe, and no column that
+    could hold one.
+    """
+
+    campaign_id = models.PositiveBigIntegerField(
+        unique=True,
+        verbose_name="Smaily kampaania tunnus",
+    )
+    name = models.CharField(max_length=300, blank=True, verbose_name="Pealkiri")
+    template_name = models.CharField(
+        max_length=300,
+        blank=True,
+        verbose_name="Malli nimi",
+        help_text="Väli, mille järgi uudiskiri tuvastatakse. Silt on kontol alati tühi.",
+    )
+    newsletter = models.CharField(
+        max_length=48,
+        blank=True,
+        choices=VisibilityMetric,
+        db_index=True,
+        verbose_name="Uudiskiri",
+        help_text="Tühi, kui saadetis ei ole ühegi kolme uudiskirja number.",
+    )
+    audience = models.CharField(
+        max_length=20,
+        blank=True,
+        verbose_name="Sihtrühm",
+        help_text="e-Teataja läheb välja kahe saadetisena: liikmed ja mitteliikmed.",
+    )
+    status = models.CharField(max_length=20, blank=True, verbose_name="Olek")
+    created_at = models.DateTimeField(null=True, blank=True, verbose_name="Loodud")
+    completed_at = models.DateTimeField(
+        null=True, blank=True, db_index=True, verbose_name="Saadetud"
+    )
+    first_seen_at = models.DateTimeField(auto_now_add=True, verbose_name="Esmakordselt nähtud")
+    last_seen_at = models.DateTimeField(auto_now=True, verbose_name="Viimati nähtud")
+
+    class Meta:
+        ordering = ("-completed_at", "-campaign_id")
+        verbose_name = "Smaily kampaania"
+        verbose_name_plural = "Smaily kampaaniad"
+        indexes = [
+            # The shape every newsletter query has: one newsletter, newest first.
+            models.Index(fields=["newsletter", "-completed_at"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.name or self.campaign_id}"
+
+    @property
+    def is_newsletter(self) -> bool:
+        return bool(self.newsletter)
+
+
+class SmailyCampaignStats(models.Model):
+    """One immutable revision of one campaign's aggregate statistics.
+
+    A campaign's figures keep moving after it is sent: opens and clicks accrue
+    for days, bounces resolve, unsubscribes trickle in. So the same campaign is
+    measured several times and the numbers legitimately differ, which is the
+    same situation `Ga4DailySnapshot` is in and gets the same treatment — every
+    measurement is kept and exactly one is current.
+
+    Every count is nullable because an API that omits a figure has not reported
+    zero.
+
+    **No rate is stored.** Smaily returns `opened_percent`, `click_percent` and
+    `view_percent`; all three are quotients of the counts beside them, and
+    `opened_percent` is a share of *delivered* rather than of *sent*. Storing a
+    rounded copy would invite two answers to one question and would lose the
+    denominator, which is the part that matters. The properties below derive
+    them and each names what it divided by.
+
+    Deliberately absent: every per-recipient field. This is a count over a whole
+    send and nothing finer exists here.
+    """
+
+    campaign = models.ForeignKey(
+        SmailyCampaign,
+        on_delete=models.CASCADE,
+        related_name="statistics",
+        verbose_name="Kampaania",
+    )
+    artifact = models.ForeignKey(
+        "sources.SourceArtifact",
+        on_delete=models.PROTECT,
+        related_name="smaily_campaign_stats",
+        verbose_name="Algfail",
+    )
+    import_run = models.ForeignKey(
+        "sources.ImportRun",
+        on_delete=models.PROTECT,
+        related_name="smaily_campaign_stats",
+        verbose_name="Impordikaivitus",
+    )
+    observed_at = models.DateTimeField(verbose_name="Kogumise aeg")
+    checksum = models.CharField(
+        max_length=64,
+        verbose_name="Kontrollsumma",
+        help_text="SHA-256 normaliseeritud arvudest, mitte Smaily vastusest.",
+    )
+    revision = models.PositiveIntegerField(default=1, verbose_name="Redaktsioon")
+    supersedes = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="superseded_by",
+        verbose_name="Asendab",
+    )
+    is_current = models.BooleanField(default=False, verbose_name="Kehtiv")
+
+    total_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Saadetud")
+    delivered_count = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Kohale toimetatud"
+    )
+    bounce_count = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Tagasi põrkunud"
+    )
+    opened_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Avamisi")
+    click_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Klikke")
+    unique_click_count = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Unikaalseid klikke"
+    )
+    view_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Vaatamisi")
+    unique_view_count = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Unikaalseid vaatamisi"
+    )
+    unsubscribe_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Loobumisi")
+    complaint_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Kaebusi")
+    forward_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Edasisaatmisi")
+
+    imported_at = models.DateTimeField(auto_now_add=True, verbose_name="Imporditud")
+
+    MUTABLE_FIELDS = frozenset({"is_current"})
+
+    COUNT_FIELDS = (
+        "total_count",
+        "delivered_count",
+        "bounce_count",
+        "opened_count",
+        "click_count",
+        "unique_click_count",
+        "view_count",
+        "unique_view_count",
+        "unsubscribe_count",
+        "complaint_count",
+        "forward_count",
+    )
+
+    class Meta:
+        ordering = ("-observed_at", "-revision", "-id")
+        verbose_name = "Smaily kampaania statistika"
+        verbose_name_plural = "Smaily kampaaniate statistika"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["campaign"],
+                condition=Q(is_current=True),
+                name="smailycampaignstats_one_current",
+            ),
+            models.CheckConstraint(
+                condition=Q(revision__gte=1),
+                name="smailycampaignstats_revision_positive",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.campaign_id} (r{self.revision})"
+
+    @property
+    def open_rate(self) -> float | None:
+        """Opens as a share of **delivered**, or `None`.
+
+        Delivered rather than sent, which is what Smaily's own `opened_percent`
+        means. A message that bounced was never open-able, so dividing by sent
+        would understate every campaign by its bounce rate.
+        """
+        if not self.delivered_count or self.opened_count is None:
+            return None
+        return self.opened_count / self.delivered_count
+
+    @property
+    def click_rate(self) -> float | None:
+        """Unique clicks as a share of **delivered**, or `None`.
+
+        Unique rather than total: total clicks counts one enthusiastic reader
+        opening six links as six, which is a measure of link count rather than
+        of interest.
+        """
+        if not self.delivered_count or self.unique_click_count is None:
+            return None
+        return self.unique_click_count / self.delivered_count
+
+    @property
+    def click_to_open_rate(self) -> float | None:
+        """Unique clicks as a share of **opens**, or `None`.
+
+        What share of the people who looked went on to follow something. Its
+        denominator is opens, and a caller that mixes it with `click_rate` is
+        comparing two different questions.
+        """
+        if not self.opened_count or self.unique_click_count is None:
+            return None
+        return self.unique_click_count / self.opened_count
+
+    @property
+    def unsubscribe_rate(self) -> float | None:
+        if not self.delivered_count or self.unsubscribe_count is None:
+            return None
+        return self.unsubscribe_count / self.delivered_count
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
+                raise VisibilityRecordImmutable(
+                    "Published Smaily campaign statistics may only change their is_current field."
+                )
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise VisibilityRecordImmutable("Smaily campaign statistics cannot be deleted.")
