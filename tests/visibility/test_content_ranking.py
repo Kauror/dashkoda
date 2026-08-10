@@ -79,6 +79,46 @@ def day():
 # -- section boundaries ---------------------------------------------------
 
 
+def test_the_section_listing_page_is_left_out_of_its_own_ranking(day):
+    """`/et/uudised` collects the traffic of everyone on their way to an
+    article, so it would sit permanently above the articles — which is not a
+    ranking of content, it is one page winning every time."""
+    from apps.visibility.content_sections import all_index_paths
+
+    day(START, pages=(("/et/uudised", 9999), ("/et/uudised/artikkel", 20)))
+
+    ranked = get_top_pages(
+        start=START,
+        end=START,
+        prefix=SECTION_NEWS.prefixes,
+        exclude=SECTION_NEWS.index_paths,
+    )
+
+    assert [row.path for row in ranked] == ["/et/uudised/artikkel"]
+    assert "/et/uudised" in all_index_paths()
+
+
+def test_every_listing_page_is_left_out_of_the_all_pages_ranking(day):
+    from apps.visibility.content_sections import all_index_paths
+
+    day(
+        START,
+        pages=(
+            ("/et/uudised", 900),
+            ("/en/news", 800),
+            ("/et/sundmused", 700),
+            ("/et/teenused", 600),
+            ("/et/pood", 500),
+        ),
+    )
+
+    ranked = get_top_pages(start=START, end=START, exclude=all_index_paths())
+
+    # The shop is not a section this registry knows, so it is not filtered:
+    # only the listing pages the registry names are left out.
+    assert [row.path for row in ranked] == ["/et/pood"]
+
+
 def test_a_section_matches_whole_segments_only(day):
     """`/et/uudiseks` shares eight characters with `/et/uudised` and is another
     section. Filing one under the other moves real traffic into the wrong

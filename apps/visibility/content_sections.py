@@ -47,6 +47,16 @@ class ContentSection:
     def is_everything(self) -> bool:
         return not self.prefixes
 
+    @property
+    def index_paths(self) -> tuple[str, ...]:
+        """The section's own listing pages.
+
+        `/et/uudised` is where the articles are listed, not one of them. It
+        collects the traffic of everyone browsing to an article and would sit
+        permanently at the top of a ranking of the articles themselves.
+        """
+        return self.prefixes
+
     def contains(self, path: str) -> bool:
         """Whether a canonical path sits in this section.
 
@@ -93,6 +103,11 @@ _BY_KEY = {section.key: section for section in CONTENT_SECTIONS}
 _CLASSIFIABLE = (SECTION_NEWS, SECTION_EVENTS, SECTION_SERVICES)
 
 
+def all_index_paths() -> tuple[str, ...]:
+    """Every section listing page, for the ranking to leave out."""
+    return tuple(path for section in CONTENT_SECTIONS for path in section.index_paths)
+
+
 def parse_section(raw: str | None) -> ContentSection:
     """The section asked for, or everything. Never raises.
 
@@ -127,6 +142,7 @@ __all__ = [
     "SECTION_NEWS",
     "SECTION_SERVICES",
     "ContentSection",
+    "all_index_paths",
     "parse_section",
     "section_of",
 ]

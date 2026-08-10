@@ -329,9 +329,17 @@ class PageTotal:
 
 
 def get_top_pages(
-    *, start: date, end: date, limit: int = 20, prefix: str | Sequence[str] = ""
+    *,
+    start: date,
+    end: date,
+    limit: int = 20,
+    prefix: str | Sequence[str] = "",
+    exclude: Sequence[str] = (),
 ) -> tuple[PageTotal, ...]:
     """The most-viewed pages of a period, aggregated in the database.
+
+    `exclude` drops exact paths — the section listing pages, which are not
+    content and would top every ranking of it.
 
     `prefix` narrows to a section, and takes either one prefix or several: a
     section is `/et/uudised` **and** `/en/news`, because a translated article is
@@ -356,6 +364,14 @@ def get_top_pages(
         section_filter |= Q(path=section) | Q(path__startswith=section + "/")
     if section_filter:
         rows = rows.filter(section_filter)
+
+    # Listing pages are left out by exact path. A section index collects the
+    # traffic of everyone on their way to an article and would otherwise sit
+    # permanently above the articles themselves, which is not a ranking of
+    # content — it is the same page winning every time.
+    left_out = tuple(canonical_path(path) for path in exclude if path)
+    if left_out:
+        rows = rows.exclude(path__in=left_out)
 
     aggregated = (
         rows.values("path")
