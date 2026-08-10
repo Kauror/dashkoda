@@ -224,50 +224,49 @@ docker compose exec web python manage.py migrate visibility
 It creates three tables and touches no existing one. The five manual data sources
 register themselves on first use, so nothing has to be seeded.
 
-### Google Analytics: complete in code, off in production
+### Google Analytics: connected, collecting, not yet backfilled
 
-The GA4 collector is **operationally complete and deliberately disabled**. Both
-halves of that sentence matter, because the repository used to describe it as
-unbuilt and the code has been ahead of the description for some time.
+GA4 was connected on **2026-08-09**. The section below used to say it was
+deliberately disabled; that stopped being true, and a deployment document that
+describes the opposite of the deployment is worse than one that says nothing.
 
-What exists in the application:
-
-- `Ga4ApiCollector`, reading one completed day through a read-only service
-  account, and refusing a response it cannot make sense of;
-- `synchronize_ga4`, with the same reliability contract as every other feed —
-  its own PostgreSQL advisory lock, a `Ga4FeedState` row, checksum-based
-  unchanged detection, sanitized failure recording and audit events;
-- `sync_ga4` with `--dry-run`, `--json`, `--date` and the standard exit codes
-  (`0` imported/unchanged/dry run, `1` failed, `3` already running);
-- `ops/unraid/sync_ga4.sh.example`, a wrapper template.
-
-What the deployment does **not** have, and is not getting in this programme:
+What is configured on the host:
 
 | | |
 | --- | --- |
-| `GA4_PROPERTY_ID` | not set |
-| `GA4_CREDENTIALS_FILE` | not set |
-| Service-account key | not created, not mounted |
-| Wrapper on the host | not copied |
-| Cron entry | not installed |
-| Live acceptance against the real property | never performed |
+| `GA4_PROPERTY_ID` | set, from the environment |
+| `GA4_CREDENTIALS_FILE` | set, key mounted read-only |
+| Service account | created, `analytics.readonly` only |
+| Wrapper on the host | `/mnt/user/appdata/dashkoda/sync_ga4.sh` |
+| Cron entry | UTC pair `15 2` / `15 3`, hour guard `05` — 05:15 Tallinn |
+| Live acceptance | performed against the real property |
 
-So no GA4 request is ever made, `WebsiteTrafficObservation` is empty, and the
-website slot says it is unconnected — which is true. Configuration alone never
-claims a connection; only a published observation does.
+The schedule is generated from `ops/unraid/generate_examples.py` like every other
+job, and `tests/core/test_ops_wrappers.py` fails if the wrapper, the cron pair
+and the runbook drift apart.
 
-Enabling it later is configuration, not development: create the service account,
-mount the key, set the two variables, run `sync_ga4 --dry-run`, then a live run,
-then install the wrapper as a UTC cron pair with an hour guard like every other
-DashKoda job. The steps are in `ops/unraid/sync_ga4.sh.example`.
+What the scheduled job does is **reconcile the last eight completed days**, not
+fetch yesterday: GA4 revises recent days for several days after they end. See
+[website-analytics.md](website-analytics.md) for the model, the metric semantics
+and the operator commands.
 
-The migration that supports this is additive: `visibility` `0003` creates one
-new `Ga4FeedState` table and touches no existing row. It is applied by the same
-`migrate visibility` above, and the table stays empty until GA4 actually runs.
+**The historical backfill has not been run.** The property carries data from
+2023-06-16 (about 1 151 days), and importing it is a one-time manual command,
+deliberately not something a schedule does:
+
+```bash
+docker compose -f compose.yaml -f compose.unraid.yaml exec web \
+  python manage.py sync_ga4 --start-date 2023-06-16 --end-date <yesterday> --json
+```
+
+Run it in pieces, checking `ga4_status` between them. It is resumable by
+re-running: a day already published produces nothing.
 
 GA4 is **not** counted in the dashboard's global freshness row. That denominator
-is the four wired modules; adding a disabled source to it would report the
-deployment as permanently one source short of healthy.
+is the four wired modules. It was excluded while GA4 was disabled, so that a
+source nobody had connected could not report the deployment as permanently one
+short of healthy; now that it is connected, including it is a reasonable change
+and a separate one.
 
 The first real figures are typed by an authorised staff user after deployment at
 `/admin/data-entry/visibility/new/`. **No production figure is committed to this

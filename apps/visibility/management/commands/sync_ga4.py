@@ -1,19 +1,22 @@
-"""Scheduled collection of one completed day of Google Analytics traffic.
+"""Scheduled reconciliation of recent Google Analytics reporting days.
 
-**Not enabled in production.** No property ID, no service-account key and no
-schedule are installed; this command exists so that enabling GA4 later is
-configuration rather than another architecture. Running it without the two
-settings fails with a message naming exactly what is missing, and publishes
-nothing.
+**What the schedule runs is the reconciliation, never the backfill.** With no
+arguments this re-reads the last eight completed days and republishes any whose
+figures GA4 has revised. That is three API requests and it is idempotent: a day
+whose normalised figures are unchanged produces nothing at all.
 
-Safe to run from the host's scheduler once it is enabled: overlapping runs are
-refused by this feed's own PostgreSQL advisory lock, the canonical checksum over
-the normalised reading decides whether anything changed, and any failure leaves
-the previously published observation exactly where it was.
+Historical import is the same command with a range, run by hand once:
+
+    python manage.py sync_ga4 --start-date 2023-06-01 --end-date 2023-12-31
+
+Re-running a range that is already imported is safe and cheap in the database —
+it re-reads from GA4 and publishes nothing — so a backfill interrupted halfway
+is resumed by running it again. Nothing is stored to make that work; it works
+because publication is decided by a checksum.
 
 There is deliberately **no `--property` and no `--credentials` option**. Both
 come from the environment, so neither can enter shell history or a process
-listing, and no argument can redirect the command at a different property.
+listing, and no argument can point the command at a different property.
 
 Exit codes:
 
@@ -29,36 +32,104 @@ from django.core.management.base import BaseCommand, CommandError
 from apps.core.feed_commands import FeedCommandOutputMixin
 from apps.core.feeds import FeedLocked, FeedResult, advisory_lock
 from apps.legal_work.sync import EXIT_FAILED
-from apps.visibility.ga4_sync import LOCK_NAME, synchronize_ga4
+from apps.visibility.ga4_sync import (
+    BACKFILL_CHUNK_DAYS,
+    LOCK_NAME,
+    RECONCILIATION_DAYS,
+    reconciliation_window,
+    synchronize_ga4,
+)
 
 
 class Command(FeedCommandOutputMixin, BaseCommand):
     help = (
-        "Collect the previous completed day of Google Analytics website traffic "
-        "and publish it as an immutable observation."
+        "Re-read the last completed Google Analytics reporting days and publish "
+        "any whose figures have changed. With a range, import history."
     )
 
     def add_arguments(self, parser):
         self.add_output_arguments(
-            parser, dry_run_help="Query and validate without publishing an observation."
+            parser, dry_run_help="Query and validate without publishing anything."
         )
         parser.add_argument(
             "--date",
-            dest="period",
+            dest="single_date",
             default=None,
             help=(
-                "Reporting day as YYYY-MM-DD. Defaults to the previous completed "
-                "day in application time. For catching up after an outage."
+                "One reporting day as YYYY-MM-DD. Shorthand for the same value "
+                "in --start-date and --end-date."
             ),
+        )
+        parser.add_argument(
+            "--start-date",
+            default=None,
+            help="First reporting day of a range, as YYYY-MM-DD.",
+        )
+        parser.add_argument(
+            "--end-date",
+            default=None,
+            help=(
+                "Last reporting day of a range, as YYYY-MM-DD. Defaults to "
+                "yesterday, and is clamped to it: today has not finished."
+            ),
+        )
+        parser.add_argument(
+            "--days",
+            type=int,
+            default=RECONCILIATION_DAYS,
+            help=(
+                f"How many completed days to reconcile when no range is given "
+                f"(default {RECONCILIATION_DAYS})."
+            ),
+        )
+        parser.add_argument(
+            "--chunk-days",
+            type=int,
+            default=BACKFILL_CHUNK_DAYS,
+            help=(
+                f"How many days to ask GA4 for at a time (default "
+                f"{BACKFILL_CHUNK_DAYS}). Lower it only if a range fails on size."
+            ),
+        )
+        parser.add_argument(
+            "--no-pages",
+            action="store_true",
+            help=(
+                "Collect site totals without page rows. A day that already has "
+                "page detail is then left alone rather than replaced by a "
+                "narrower reading."
+            ),
+        )
+        parser.add_argument(
+            "--no-channels",
+            action="store_true",
+            help="Collect without acquisition-channel rows.",
         )
 
     def handle(self, *args, **options):
         as_json = options["as_json"]
-        period = self._period(options["period"])
+
+        # Validated before the window is resolved, not after: `--days 0` reaches
+        # `reconciliation_window` first and raises `ValueError`, which an
+        # operator sees as a traceback rather than as the sentence naming what
+        # they got wrong.
+        if options["chunk_days"] < 1:
+            raise CommandError("--chunk-days peab olema vähemalt 1.")
+        if options["days"] < 1:
+            raise CommandError("--days peab olema vähemalt 1.")
+
+        start, end = self._window(options)
 
         try:
             with advisory_lock(LOCK_NAME):
-                outcome = synchronize_ga4(dry_run=options["dry_run"], period=period)
+                outcome = synchronize_ga4(
+                    dry_run=options["dry_run"],
+                    start=start,
+                    end=end,
+                    with_pages=not options["no_pages"],
+                    with_channels=not options["no_channels"],
+                    chunk_days=options["chunk_days"],
+                )
         except FeedLocked as error:
             self.exit_locked(error, as_json=as_json)
 
@@ -69,33 +140,61 @@ class Command(FeedCommandOutputMixin, BaseCommand):
 
         self.emit(as_json, payload, outcome.detail, style=self.style.SUCCESS)
 
-    def _period(self, raw: str | None) -> date | None:
+    def _window(self, options) -> tuple[date | None, date | None]:
+        """The range asked for, or `(None, None)` for the ordinary window."""
+        single = self._date(options["single_date"], "--date")
+        start = self._date(options["start_date"], "--start-date")
+        end = self._date(options["end_date"], "--end-date")
+
+        if single is not None:
+            if start is not None or end is not None:
+                raise CommandError("--date ja --start-date/--end-date on teineteist välistavad.")
+            return single, single
+
+        if start is None and end is None:
+            if options["days"] != RECONCILIATION_DAYS:
+                return reconciliation_window(days=options["days"])
+            return None, None
+
+        if start is not None and end is not None and end < start:
+            raise CommandError("--end-date ei saa olla enne --start-date väärtust.")
+        return start, end
+
+    def _date(self, raw: str | None, flag: str) -> date | None:
         if raw is None:
             return None
         try:
             return date.fromisoformat(raw)
         except ValueError as error:
-            raise CommandError(f"--date peab olema kujul YYYY-MM-DD, saadi: {raw}") from error
+            raise CommandError(f"{flag} peab olema kujul YYYY-MM-DD, saadi: {raw}") from error
 
     def _payload(self, outcome) -> dict:
-        """The whole JSON contract: aggregates and identifiers, nothing else.
+        """The whole JSON contract: counts and a window, nothing else.
 
         No property ID, no credential path, no token and no part of Google's
-        response — and no reading figures either. The session and page-view
-        counts belong on the dashboard and in the audit trail, not in a
-        scheduler log, which is the rule this command already followed in prose
-        and now follows in JSON as well.
+        response — and no page list either. A scheduler log is not where a
+        thousand URLs belong, and the counts are what an operator reads to know
+        whether the run did anything.
 
-        `figures_reported` is the one thing about the values an operator needs:
-        a day GA4 has no rows for publishes an observation whose figures are all
-        absent, and that success is otherwise indistinguishable from an ordinary
-        one.
+        Every key is named here rather than copied out of `outcome.extra`. The
+        JSON is a contract a scheduler and a human both read, and one assembled
+        from whatever a particular code path happened to attach would gain and
+        lose fields depending on how the run ended.
         """
         return {
             "result": outcome.result,
             "detail": outcome.detail,
             "dry_run": outcome.dry_run,
-            "period_end": outcome.extra.get("period_end"),
-            "observation_id": outcome.extra.get("observation_id"),
-            "figures_reported": outcome.extra.get("figures_reported"),
+            "window_start": outcome.extra.get("window_start"),
+            "window_end": outcome.extra.get("window_end"),
+            "days_examined": outcome.extra.get("days_examined", 0),
+            "days_imported": outcome.extra.get("days_imported", 0),
+            "days_revised": outcome.extra.get("days_revised", 0),
+            "days_unchanged": outcome.extra.get("days_unchanged", 0),
+            "days_kept": outcome.extra.get("days_kept", 0),
+            "page_rows_written": outcome.extra.get("page_rows_written", 0),
+            "channel_rows_written": outcome.extra.get("channel_rows_written", 0),
+            "chunks": outcome.extra.get("chunks", 0),
+            "api_requests": outcome.extra.get("api_requests", 0),
+            "api_retries": outcome.extra.get("api_retries", 0),
         }

@@ -77,6 +77,38 @@ class Job:
 #: only edit needed; the cron lines, the guard hours and the prose all follow.
 CHAIN: tuple[Job, ...] = (
     Job(
+        name="sync_ga4",
+        purpose="DashKoda Google Analytics reconciliation of recent reporting days.",
+        command="sync_ga4 --json",
+        tallinn="05:15",
+        ordering=(
+            "First of the morning, fifteen minutes before the chain. It shares\n"
+            "nothing with the feeds — no snapshot, no lock, no source — so it neither\n"
+            "waits for them nor holds them up, and the traffic figures are published\n"
+            "before anything else starts writing."
+        ),
+        exit_codes=[
+            "0  days were published, nothing had changed, or a successful dry run",
+            "1  failed — every day already published stays published and the",
+            "   dashboard says the last check failed",
+            "3  another collection was still running",
+        ],
+        notes=[
+            "This reconciles the last eight completed days, not just yesterday. GA4\n"
+            "keeps adjusting a day for about a week after it ends, and a day whose\n"
+            "figures have changed is republished as a new revision that names the one\n"
+            "it replaces. A day that has not changed publishes nothing at all.",
+            "It is three API requests. The five-year historical import is the same\n"
+            "command with a date range and is run by hand, once — never from here.",
+            "The property ID and the service-account key file are read from the\n"
+            "container's own environment, so neither can enter shell history or a\n"
+            "process listing. The key is mounted read-only and belongs to a\n"
+            "credential that can only read.",
+            "The JSON is counts and a date window. Never a page path, a property ID,\n"
+            "a credential path or any part of Google's response.",
+        ],
+    ),
+    Job(
         name="sync_oigusloome_public",
         purpose="DashKoda legal-work synchronisation over the public read-only OneDrive link.",
         command="sync_oigusloome_public --json",

@@ -172,6 +172,23 @@ FAMILIES: tuple[SnapshotFamily, ...] = (
 )
 
 
+#: Snapshot-shaped models that are **deliberately never pruned**, and why.
+#:
+#: `tests/sources/test_snapshot_retention.py` finds every model whose name ends
+#: in `Snapshot` and insists it appear either in `FAMILIES` or here. That is the
+#: point: a new snapshot model must not be able to appear without somebody
+#: deciding what happens to it. Registering one in `FAMILIES` is a decision to
+#: let it be deleted; naming it here is a decision that it is history.
+NEVER_PRUNED: dict[str, str] = {
+    "visibility.Ga4DailySnapshot": (
+        "Google Analytics reporting days are the long-term record the website "
+        "history is drawn from — five years of them, one row per day. A "
+        "seven-day cleanup would delete the entire chart. Superseded revisions "
+        "are kept too: they are what a corrected day is corrected *from*."
+    ),
+}
+
+
 def family_model(family: SnapshotFamily):
     return django_apps.get_model(family.model)
 
@@ -326,6 +343,7 @@ def plan_retention(*, days: int = DEFAULT_RETENTION_DAYS, now=None) -> list[Fami
 __all__ = [
     "DEFAULT_RETENTION_DAYS",
     "FAMILIES",
+    "NEVER_PRUNED",
     "FamilyPlan",
     "SnapshotFamily",
     "family_model",

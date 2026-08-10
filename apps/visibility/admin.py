@@ -18,10 +18,12 @@ from django.utils.html import format_html
 from apps.core.admin import ReadOnlyAdmin
 
 from .models import (
+    Ga4ChannelDaily,
+    Ga4DailySnapshot,
     Ga4FeedState,
+    Ga4PageDaily,
     VisibilityEntryBatch,
     VisibilityObservation,
-    WebsiteTrafficObservation,
 )
 
 
@@ -130,27 +132,74 @@ class VisibilityObservationAdmin(ReadOnlyAdmin):
     actions = None
 
 
-@admin.register(WebsiteTrafficObservation)
-class WebsiteTrafficObservationAdmin(ReadOnlyAdmin):
-    """Read-only view of the rows the scheduled `sync_ga4` command publishes.
+class Ga4PageDailyInline(admin.TabularInline):
+    """The pages that made up one day, on that day's own page.
 
-    Empty until the deployment configures the collector and its first run
-    publishes an observation.
+    Capped: a day carries roughly a hundred rows and an admin page that renders
+    every one of them for a five-year history is a page nobody opens twice. The
+    rest are reachable through the page-row list.
+    """
+
+    model = Ga4PageDaily
+    extra = 0
+    can_delete = False
+    fields = ("path", "page_views", "active_users", "user_engagement_seconds")
+    readonly_fields = fields
+    ordering = ("-page_views", "path")
+    max_num = 0
+    show_change_link = False
+
+
+@admin.register(Ga4DailySnapshot)
+class Ga4DailySnapshotAdmin(ReadOnlyAdmin):
+    """Read-only view of every GA4 reporting day, current and superseded.
+
+    Superseded revisions are shown rather than hidden. A day whose figures were
+    revised is exactly what an operator comes here to look at, and a list that
+    quietly dropped the earlier reading would make the revision invisible.
     """
 
     list_display = (
-        "period_start",
-        "period_end",
+        "report_date",
+        "revision",
+        "is_current_for_date",
         "sessions",
         "active_users",
         "page_views",
-        "is_current",
+        "has_page_detail",
         "imported_at",
     )
-    list_filter = ("is_current", "source")
-    date_hierarchy = "period_end"
-    ordering = ("-period_end", "-id")
-    list_select_related = ("source", "artifact", "import_run")
+    list_filter = ("is_current_for_date", "has_page_detail", "has_channel_detail", "source")
+    date_hierarchy = "report_date"
+    ordering = ("-report_date", "-revision")
+    list_select_related = ("source", "artifact", "import_run", "supersedes")
+    inlines = (Ga4PageDailyInline,)
+    actions = None
+
+
+@admin.register(Ga4PageDaily)
+class Ga4PageDailyAdmin(ReadOnlyAdmin):
+    """One page on one day. Searchable by path, which is how an operator checks
+    that an article's canonical path is the one GA4 actually reported."""
+
+    list_display = ("report_date", "path", "page_views", "active_users")
+    list_filter = ("snapshot__is_current_for_date",)
+    search_fields = ("path", "raw_path")
+    date_hierarchy = "report_date"
+    ordering = ("-report_date", "-page_views")
+    list_select_related = ("snapshot",)
+    actions = None
+
+
+@admin.register(Ga4ChannelDaily)
+class Ga4ChannelDailyAdmin(ReadOnlyAdmin):
+    """Where one day's sessions came from."""
+
+    list_display = ("report_date", "channel", "sessions", "engaged_sessions")
+    list_filter = ("channel", "snapshot__is_current_for_date")
+    date_hierarchy = "report_date"
+    ordering = ("-report_date", "-sessions")
+    list_select_related = ("snapshot",)
     actions = None
 
 
@@ -172,5 +221,5 @@ class Ga4FeedStateAdmin(ReadOnlyAdmin):
         "last_changed_at",
     )
     list_filter = ("last_result",)
-    list_select_related = ("source", "current_observation")
+    list_select_related = ("source", "current_snapshot")
     actions = None

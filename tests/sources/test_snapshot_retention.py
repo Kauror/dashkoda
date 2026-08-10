@@ -143,6 +143,8 @@ class TestTheRegistry:
         """A family nobody registered is never pruned — but should be noticed."""
         from django.apps import apps as django_apps
 
+        from apps.sources.retention import NEVER_PRUNED
+
         registered = {family.model for family in FAMILIES}
         found = {
             f"{model._meta.app_label}.{model.__name__}"
@@ -150,7 +152,12 @@ class TestTheRegistry:
             if model.__name__.endswith("Snapshot")
         }
 
-        assert found == registered, f"unregistered snapshot models: {found - registered}"
+        # A snapshot model is either prunable or deliberately permanent, and
+        # both are decisions somebody has to write down. What must never happen
+        # is a third state where nobody chose.
+        accounted = registered | set(NEVER_PRUNED)
+        assert found == accounted, f"unregistered snapshot models: {found - accounted}"
+        assert not (registered & set(NEVER_PRUNED)), "a model cannot be both prunable and permanent"
 
 
 class TestWhatIsAlwaysKept:

@@ -55,6 +55,20 @@ destination and the new tab, so neither is a surprise to a screen-reader user.
             {% if item.summary %}
               <p class="text-sm text-text-secondary">{{ item.summary }}</p>
             {% endif %}
+            {% comment %}
+            Shown only where it was measured. An article with no analytics row
+            renders exactly as it did before any of this existed — no figure, no
+            zero, no placeholder — because nobody measuring an article is not
+            the same as an article nobody read.
+
+            "Lehevaatamist", never "lugejat": one person opening an article
+            twice is two page views and one reader.
+            {% endcomment %}
+            {% if item.analytics.total_label %}
+              <p class="dk-meta">
+                {{ item.analytics.total_label }}{% if item.analytics.coverage_note %} · {{ item.analytics.coverage_note }}{% endif %}
+              </p>
+            {% endif %}
           </li>
         {% endfor %}
       </ul>

@@ -355,10 +355,16 @@ model, the quality policy and the manual workflow.
 
 `apps/visibility` is the second dataset with no remote source. Three models:
 `VisibilityEntryBatch` (one submission, one idempotency boundary, one
-correlation ID), `VisibilityObservation` (one metric on one date, immutable
-apart from `is_current_for_date`) and `WebsiteTrafficObservation`, which the
-scheduled `sync_ga4` command writes — the one collected figure in this module,
-and one the deployment has not enabled, so the table is empty in practice.
+correlation ID) and `VisibilityObservation` (one metric on one date, immutable
+apart from `is_current_for_date`).
+
+Beside them, and collected rather than typed, is the Google Analytics history:
+`Ga4DailySnapshot` (one immutable revision of one reporting day, with the
+current one unique per **date** so a revised day supersedes rather than
+overwrites), `Ga4PageDaily` and `Ga4ChannelDaily`. It replaced
+`WebsiteTrafficObservation`, whose single current row per source could hold the
+latest reading or a history but never both. See
+[website-analytics.md](website-analytics.md).
 
 The metric vocabulary is a closed `TextChoices` set of seven, deliberately not a
 JSON blob: a free-text metric name would make "was this ever reported"

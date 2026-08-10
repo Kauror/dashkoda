@@ -32,7 +32,6 @@ from generate_examples import CHAIN, render  # noqa: E402
 #: Examples that are not part of the generated chain, and why.
 UNGENERATED = {
     "backup_db.sh.example": "UTC-anchored, no hour guard, not part of the chain",
-    "sync_ga4.sh.example": "deliberately unscheduled: GA4 is not enabled",
 }
 
 
@@ -76,7 +75,11 @@ class TestTheChainIsCoherent:
         minutes = [job.hour * 60 + job.minute for job in CHAIN]
 
         assert minutes == sorted(minutes), "CHAIN is not in running order"
-        assert minutes[0] >= 5 * 60 + 30, "the chain starts before 05:30"
+        # 05:15, not 05:30: GA4 sits fifteen minutes ahead of the feed chain. It
+        # shares no snapshot, no lock and no source with any of it, so it is not
+        # part of the dependency ordering below — it is simply the first thing
+        # that runs, and the invariant here is that nothing starts in the night.
+        assert minutes[0] >= 5 * 60, "the chain starts before 05:00"
         # The invariant is the reader at 07:00, not any particular end time. The
         # chain grew past 06:30 when event-link discovery and matching joined it.
         assert minutes[-1] < 7 * 60, "the chain finishes at or after 07:00"
@@ -89,7 +92,12 @@ class TestTheChainIsCoherent:
     def test_each_collector_runs_before_the_matcher_that_reads_it(self):
         at = {job.name: job.hour * 60 + job.minute for job in CHAIN}
 
-        assert at["sync_oigusloome_public"] == min(at.values()), (
+        # First among the jobs that feed each other. GA4 runs earlier and is
+        # deliberately excluded: no matcher reads it, and requiring the workbook
+        # to be the earliest job in the file would forbid scheduling anything
+        # independent before it for no reason.
+        feeding = {name: minute for name, minute in at.items() if name != "sync_ga4"}
+        assert at["sync_oigusloome_public"] == min(feeding.values()), (
             "the workbook must be first: every matcher scores against the current legal snapshot"
         )
         for collector, matcher in [

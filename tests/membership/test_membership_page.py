@@ -187,7 +187,12 @@ def test_overview_does_not_show_two_competing_totals(
     body = viewer_client.get(reverse("home")).content.decode()
 
     assert "3555" in body, "the public directory total leads the headline strip"
-    assert "3300" in body, "the board report's own total is in its card"
+    # The board report's own total is on the card as a drawn line, labelled
+    # with whose total it is, rather than as a printed figure —
+    # `tests/dashboard/test_overview_data.py` holds the card to exactly three
+    # printed figures. What matters here is that the two definitions are not
+    # conflated and that the strip states the public directory's count.
+    assert "Liikmeid kokku · koja aruanne" in body
 
     membership = viewer_client.get(reverse("membership")).content.decode()
 

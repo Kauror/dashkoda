@@ -32,7 +32,6 @@ PostgreSQL.
 
 from __future__ import annotations
 
-from calendar import monthrange
 from dataclasses import dataclass
 from datetime import date
 
@@ -93,16 +92,22 @@ class DateWindow:
     end: date
 
 
-def months_before(day: date, months: int) -> date:
-    """The same day of the month, `months` earlier, clamped to a real date.
+def window_start(end: date, months: int) -> date:
+    """Where a window of `months` months ending in `end`'s month begins.
 
-    Clamping matters at one boundary and is invisible everywhere else: one month
-    before 31 March is 28 or 29 February, not a date that does not exist.
+    The first day of the month `months - 1` earlier, so "the last twelve months"
+    means twelve calendar months — July 2025 through June 2026 — and draws
+    twelve monthly points.
+
+    The same day of the month a year earlier, which is what this used to be,
+    reaches back into June 2025 and picks up that month's report as well. The
+    card then drew thirteen points and labelled itself `viimased 13 kuud`, under
+    a control that offers `1 aasta`. The window was a year long and the chart
+    was not a year of reports, which is the mismatch a reader actually sees.
     """
-    total = (day.year * 12 + day.month - 1) - months
+    total = (end.year * 12 + end.month - 1) - (months - 1)
     year, month = divmod(total, 12)
-    month += 1
-    return date(year, month, min(day.day, monthrange(year, month)[1]))
+    return date(year, month + 1, 1)
 
 
 def parse_iso_date(raw: str | None) -> date | None:
@@ -167,13 +172,13 @@ def resolve_window(
             months = LEGACY_WINDOW_MONTHS[legacy_key]
         else:
             months = default_months
-        start = earliest if months is None else months_before(latest, months)
+        start = earliest if months is None else window_start(latest, months)
         end = latest
     else:
         if end is None:
             end = latest
         if start is None:
-            start = months_before(end, default_months)
+            start = window_start(end, default_months)
         if end < start:
             start, end = end, start
 
@@ -237,7 +242,7 @@ def range_presets(
 
     presets: list[RangePreset] = []
     for label, months in PRESET_MONTHS:
-        start = months_before(latest, months)
+        start = window_start(latest, months)
         if start <= earliest:
             # This preset reaches past the beginning, so it and everything
             # longer draw the whole history. "Kõik" says that honestly.

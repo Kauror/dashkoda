@@ -10,6 +10,7 @@ from apps.dashboard.connections import planned
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
+from .analytics import get_news_analytics
 from .selectors import DEFAULT_LIMIT, count_published_since, get_latest_news, get_news_summary
 
 # Matches the overview's activity window so the two pages describe the same
@@ -34,6 +35,15 @@ PLANNED_SECTIONS = (
 @require_GET
 def news_overview(request):
     summary = get_news_summary()
+    items = list(get_latest_news(summary.snapshot, limit=DEFAULT_LIMIT))
+    # One bulk lookup for the whole list, then hung on each item so the template
+    # can read it without calling a method with an argument. The items are never
+    # saved — a `NewsItem` belongs to an immutable snapshot, and this attribute
+    # exists only for the length of the response.
+    analytics = get_news_analytics(items)
+    for item in items:
+        item.analytics = analytics.for_item(item)
+
     window_start = timezone.make_aware(
         datetime.combine(
             timezone.localdate() - timedelta(days=ACTIVITY_WINDOW_DAYS), datetime.min.time()
@@ -47,7 +57,8 @@ def news_overview(request):
             "active_nav": "news",
             "freshness": current_freshness(summary),
             "summary": summary,
-            "items": get_latest_news(summary.snapshot, limit=DEFAULT_LIMIT),
+            "items": items,
+            "news_analytics": analytics,
             "recent_count": (
                 count_published_since(summary.snapshot, window_start) if summary.has_data else None
             ),
