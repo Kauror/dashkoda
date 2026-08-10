@@ -301,7 +301,11 @@ def _trend(reading: MetricReading) -> ChannelTrend:
 
 
 def build_visibility_page(
-    *, detail_url: str = "", today: date | None = None, period_key: str | None = None
+    *,
+    detail_url: str = "",
+    today: date | None = None,
+    period_key: str | None = None,
+    section_key: str | None = None,
 ) -> VisibilityPage:
     """Read every metric once and shape it for the page."""
     today = today or timezone.localdate()
@@ -316,7 +320,7 @@ def build_visibility_page(
         trends=trends,
         channels=build_channel_band(summary=summary, ga4_status=ga4_status, detail_url=detail_url),
         ga4=ga4_status,
-        traffic=build_traffic_section(period_key=period_key, today=today),
+        traffic=build_traffic_section(period_key=period_key, section_key=section_key, today=today),
         today=today,
     )
 
