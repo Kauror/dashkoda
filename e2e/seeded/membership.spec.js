@@ -110,9 +110,16 @@ test("the size-movement tooltip never states a departure as a negative", async (
 
   const section = page.locator('section[aria-labelledby="section-movement"]');
   const canvas = section.locator("[data-chart-canvas] canvas").first();
+  // Scrolled into view first. `toBeVisible` does not scroll — an element below
+  // the fold satisfies it — and `boundingBox` reports viewport coordinates, so
+  // without this the mouse was sent to a y outside the viewport and never
+  // reached the chart at all. The page grew past the fold and the hover has
+  // been landing nowhere since.
+  await canvas.scrollIntoViewIfNeeded();
   const box = await canvas.boundingBox();
-  // The left half is where departures are drawn.
-  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.3);
+  // The left half is where departures are drawn, and the middle of the plotting
+  // area rather than its top edge, which on a four-class chart is axis margin.
+  await page.mouse.move(box.x + box.width * 0.25, box.y + box.height * 0.5);
 
   const tooltip = page.locator(".dk-chart-tooltip").first();
   await expect(tooltip).toBeVisible({ timeout: 5000 });

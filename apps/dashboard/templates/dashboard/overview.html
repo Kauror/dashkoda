@@ -448,7 +448,14 @@ None of them reached this file.
   here would claim the Chamber has no followers.
   {% endcomment %}
   <section aria-labelledby="section-channels" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kanalite statistika" heading_id="section-channels" description="Koja suhtluskanalite auditooriumi suurus. Väärtused on käsitsi sisestatud." only %}
+    {% comment %}
+    No provenance claim in the description. The band mixes collected and
+    typed figures — website traffic comes from Google Analytics — so a
+    single sentence saying every value was entered by hand is false for
+    part of the row. Where each figure comes from is stated per channel on
+    the Nähtavus page, under `Allikate määratlused`.
+    {% endcomment %}
+    {% include "dashboard/components/section_header.html" with title="Kanalite statistika" heading_id="section-channels" description="Koja suhtluskanalite auditooriumi suurus." only %}
     <div class="dk-kpi-strip dk-kpi-strip-wide">
       {% for slot in page.channels %}
         {% include "dashboard/components/channel_card.html" with slot=slot flush=True only %}

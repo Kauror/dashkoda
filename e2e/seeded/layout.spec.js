@@ -129,9 +129,21 @@ async function cardHeight(page) {
   return (await page.locator(LEGAL_CARD).boundingBox()).height;
 }
 
-/** The top of the card's "Seisuga:" row — what a collapsing card drags upwards. */
-async function freshnessTop(page) {
-  return (await page.locator(`${LEGAL_CARD} dl`).last().boundingBox()).y;
+/*
+ * How far the card's "Seisuga:" row sits below the card's own top — what a
+ * collapsing card drags upwards.
+ *
+ * Measured **relative to the card**, not to the viewport. `boundingBox().y` is
+ * a viewport coordinate, and Playwright scrolls an element into view before
+ * clicking it: on a narrow phone, clicking the second tab scrolls the page, and
+ * the footer's viewport `y` then differs by the scroll distance even though the
+ * card never moved. That read as a 436 px collapse on `phone-narrow` while the
+ * card's own height, measured on the line above, was unchanged.
+ */
+async function freshnessOffset(page) {
+  const card = await page.locator(LEGAL_CARD).boundingBox();
+  const footer = await page.locator(`${LEGAL_CARD} dl`).last().boundingBox();
+  return footer.y - card.y;
 }
 
 test("the legal card keeps its height when the shorter tab is selected", async ({ page }) => {
@@ -147,13 +159,15 @@ test("the legal card keeps its height when the shorter tab is selected", async (
   expect(sent).toBeLessThan(7);
 
   const before = await cardHeight(page);
-  const footerBefore = await freshnessTop(page);
+  const footerBefore = await freshnessOffset(page);
 
   await page.getByRole("tab", { name: "Välja läinud" }).click();
   await expect(sentRows.first()).toBeVisible();
 
   expect(Math.abs((await cardHeight(page)) - before)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
-  expect(Math.abs((await freshnessTop(page)) - footerBefore)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
+  expect(Math.abs((await freshnessOffset(page)) - footerBefore)).toBeLessThanOrEqual(
+    HEIGHT_TOLERANCE,
+  );
 });
 
 test("the legal card keeps its height on the way back to the fuller tab", async ({ page }) => {

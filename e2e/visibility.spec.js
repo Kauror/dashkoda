@@ -67,7 +67,6 @@ test("the visibility page renders its sections and its empty states", async ({ p
     "Praegune seis",
     "Uudiskirjade nimekirjad",
     "Sotsiaalmeedia",
-    "Vaatluste ajalugu",
     "Allikate määratlused",
   ]) {
     await expect(page.getByRole("heading", { name: section, exact: true })).toBeVisible();

@@ -1308,7 +1308,13 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
                 "nameGap": 28,
             },
             "yAxis": {"type": "category", "data": labels, "inverse": True},
-            "tooltip": {"trigger": "item"},
+            # The readout describes a whole size class — arrivals, departures
+            # and the net between them — so the axis is what triggers it. With
+            # `item` a reader had to land on one of the two bars, and a class
+            # with two departures draws a bar a few pixels wide: hovering its
+            # row returned nothing at all. `tooltipFormatter` is written for the
+            # axis trigger and reads the key off whichever datum carries it.
+            "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
             "series": [
                 {
                     "name": "Lahkunud",

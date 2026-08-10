@@ -102,11 +102,16 @@ def test_exactly_one_option_is_active():
     assert [option.label for option in options if option.is_active] == ["1 aasta"]
 
 
-def test_the_query_a_button_carries_names_the_period():
+def test_the_query_a_button_carries_names_the_period_and_keeps_the_section():
+    """A period link carries the section too.
+
+    Changing the window must not silently reset what is being ranked: a reader
+    looking at Uudised who asks for a year expects a year of Uudised.
+    """
     options = period_options(DEFAULT_PERIOD, coverage(days=1151))
     year = next(option for option in options if option.label == "1 aasta")
 
-    assert year.query == "periood=1a"
+    assert year.query == "periood=1a&sisu=koik"
 
 
 # -- the window a period resolves to -------------------------------------
