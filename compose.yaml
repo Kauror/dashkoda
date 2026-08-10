@@ -51,6 +51,21 @@ services:
       # image, in Git, or in any log.
       GA4_PROPERTY_ID: ${GA4_PROPERTY_ID:-}
       GA4_CREDENTIALS_FILE: ${GA4_CREDENTIALS_FILE:-}
+      # Smaily newsletter audiences. Optional and blank by default on the same
+      # terms as everything above: the application starts without them, every
+      # page renders without them, and only `sync_smaily` and
+      # `sync_smaily_campaigns` need them. Named here as well as in the
+      # environment file for the reason spelled out above — without these three
+      # lines the commands report every variable missing however correct `.env`
+      # is, which is exactly what a first deployment did.
+      #
+      # `SMAILY_API_PASSWORD` is equivalent to full access to the account:
+      # Smaily's API users have no permission model, so the credential that
+      # reads a list can also send campaigns and delete subscribers. It lives in
+      # the deployment environment only.
+      SMAILY_SUBDOMAIN: ${SMAILY_SUBDOMAIN:-}
+      SMAILY_API_USERNAME: ${SMAILY_API_USERNAME:-}
+      SMAILY_API_PASSWORD: ${SMAILY_API_PASSWORD:-}
     volumes:
       - source_artifacts:/srv/dashkoda/source-artifacts
     depends_on:
