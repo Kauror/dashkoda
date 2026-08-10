@@ -1,13 +1,23 @@
 """How many people the Chamber currently reaches, and when someone counted.
 
-Every row here is a **manually observed audience size**. Nothing in this module
-is collected from a platform: there is no Smaily, Meta, LinkedIn, Instagram,
-YouTube or Google Analytics client anywhere in this repository, no credential
-that would let one exist, and no field capable of holding a token. A staff user
-reads a number off a platform's own screen, types it in, and the value is
-published through the same artifact / import-run / audit path an automated
-collector would use. That is what will let a collector replace the form later
-without rewriting a single historical row.
+Every `VisibilityObservation` row here is a **manually observed audience size**.
+A staff user reads a number off a platform's own screen, types it in, and the
+value is published through the same artifact / import-run / audit path an
+automated collector uses. That is what let two collectors replace parts of the
+form without rewriting a single historical row.
+
+Two sources are now collected rather than typed, and both write into their own
+tables beside the manual ones:
+
+- **Google Analytics** — `Ga4DailySnapshot` and friends, through a read-only
+  service account. No individual visitor is stored;
+- **Smaily** — `SmailyAudienceSnapshot` and `SmailySegmentDaily`, through a
+  read-only API client. No subscriber, address, name, open or click is stored,
+  and no column here could hold one.
+
+The four social metrics remain manual: Meta, LinkedIn, Instagram and YouTube
+have no client in this repository, no credential that would let one exist, and
+no field capable of holding a token.
 
 Three rules shape the schema, and all three are the same rules the internal
 membership history already obeys:
@@ -177,9 +187,18 @@ class VisibilityObservation(models.Model):
     its content identity — stays as recorded.
     """
 
+    # Null for a collected observation. A `VisibilityEntryBatch` is one
+    # submission of the manual form — one confirmation page, one idempotency
+    # boundary — and a scheduled Smaily reading has none of those. Inventing a
+    # batch for it would put a row in the manual-entry history claiming a person
+    # typed something. `collection_method` is what tells the two apart, and the
+    # artifact and import run give a collected row the provenance a batch gives
+    # a typed one.
     batch = models.ForeignKey(
         VisibilityEntryBatch,
         on_delete=models.PROTECT,
+        null=True,
+        blank=True,
         related_name="observations",
         verbose_name="Sisestus",
     )
@@ -686,6 +705,223 @@ class Ga4FeedState(models.Model):
     class Meta:
         verbose_name = "Google Analyticsi andmevoo olek"
         verbose_name_plural = "Google Analyticsi andmevoo olekud"
+
+    def __str__(self) -> str:
+        return f"{self.source.slug}: {self.get_last_result_display()}"
+
+
+class SmailyAudienceSnapshot(models.Model):
+    """One immutable reading of every Smaily segment, on one day.
+
+    The unit is a **reading day**. Unlike a GA4 reporting day, a subscriber
+    count is not a measurement of something that happened during the day — it is
+    the size of a list at the moment somebody looked. So a day gets at most one
+    current revision, a second reading on the same day that finds a different
+    number supersedes the first, and both are kept.
+
+    Two invariants, the same two `Ga4DailySnapshot` holds:
+
+    - **exactly one current revision per date**, enforced by a partial unique
+      index, so nothing can produce a day with two truths;
+    - **a revision is written once.** Only `is_current_for_date` moves after
+      publication; a corrected day is a *new* row naming the one it replaces.
+
+    Deliberately absent: every field that could hold a subscriber. There is no
+    email address, no name, no subscriber ID and no per-recipient anything here,
+    and there is no column one could be written into. See
+    `apps.visibility.smaily` for why that is a property of the schema rather
+    than a promise about the collector.
+    """
+
+    source = models.ForeignKey(
+        DataSource,
+        on_delete=models.PROTECT,
+        related_name="smaily_audience_snapshots",
+        verbose_name="Andmeallikas",
+    )
+    artifact = models.ForeignKey(
+        "sources.SourceArtifact",
+        on_delete=models.PROTECT,
+        related_name="smaily_audience_snapshots",
+        verbose_name="Algfail",
+    )
+    import_run = models.ForeignKey(
+        "sources.ImportRun",
+        on_delete=models.PROTECT,
+        related_name="smaily_audience_snapshots",
+        verbose_name="Impordikaivitus",
+    )
+    observed_on = models.DateField(db_index=True, verbose_name="Lugemise kuupäev")
+    observed_at = models.DateTimeField(verbose_name="Kogumise aeg")
+    checksum = models.CharField(
+        max_length=64,
+        verbose_name="Kontrollsumma",
+        help_text="SHA-256 normaliseeritud lugemisest, mitte Smaily vastusest.",
+    )
+    revision = models.PositiveIntegerField(default=1, verbose_name="Redaktsioon")
+    supersedes = models.ForeignKey(
+        "self",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="superseded_by",
+        verbose_name="Asendab",
+    )
+    is_current_for_date = models.BooleanField(default=False, verbose_name="Kehtiv sel päeval")
+    imported_at = models.DateTimeField(auto_now_add=True, verbose_name="Imporditud")
+
+    MUTABLE_FIELDS = frozenset({"is_current_for_date"})
+
+    class Meta:
+        ordering = ("-observed_on", "-revision", "-id")
+        verbose_name = "Smaily auditooriumi lugemine"
+        verbose_name_plural = "Smaily auditooriumi lugemised"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "observed_on"],
+                condition=Q(is_current_for_date=True),
+                name="smailyaudience_one_current_per_date",
+            ),
+            models.CheckConstraint(
+                condition=Q(revision__gte=1),
+                name="smailyaudience_revision_positive",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["source", "-observed_on"]),
+            models.Index(
+                fields=["observed_on"],
+                condition=Q(is_current_for_date=True),
+                name="smailyaudience_current_by_date",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"Smaily {self.observed_on:%d.%m.%Y} (r{self.revision})"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
+                raise VisibilityRecordImmutable(
+                    "A published Smaily audience snapshot may only change its "
+                    "is_current_for_date field."
+                )
+        return super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise VisibilityRecordImmutable("A Smaily audience snapshot cannot be deleted.")
+
+
+class SmailySegmentDaily(models.Model):
+    """One segment's subscriber count on one reading day, inside one revision.
+
+    Every segment the account holds is stored, not only the four the dashboard
+    maps. A list the Chamber starts caring about next year then already has
+    history, and which segments make up which newsletter stays a decision
+    `apps.visibility.smaily_segments` makes at read time rather than one the
+    collector baked into what was written.
+
+    `observed_on` is duplicated from the parent for the same reason
+    `Ga4PageDaily.report_date` is: every question here is one segment across a
+    date range, and carrying the date makes that an index range scan instead of
+    a join back to the parent for every row.
+
+    `subscribers` is what Smaily reports for the segment. It is **not** the
+    number of messages a send delivered, and nothing may label it as one — the
+    delivered figure lives on a campaign and is a different number.
+    """
+
+    snapshot = models.ForeignKey(
+        SmailyAudienceSnapshot,
+        on_delete=models.CASCADE,
+        related_name="segments",
+        verbose_name="Lugemine",
+    )
+    observed_on = models.DateField(verbose_name="Lugemise kuupäev")
+    segment_id = models.PositiveIntegerField(verbose_name="Smaily segmendi tunnus")
+    name = models.CharField(max_length=200, blank=True, verbose_name="Segmendi nimi")
+    subscribers = models.PositiveIntegerField(verbose_name="Tellijaid")
+
+    class Meta:
+        ordering = ("-observed_on", "-subscribers", "segment_id")
+        verbose_name = "Smaily segmendi lugemine"
+        verbose_name_plural = "Smaily segmentide lugemised"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["snapshot", "segment_id"],
+                name="smailysegment_unique_per_snapshot",
+            ),
+        ]
+        indexes = [
+            # The shape every newsletter query has: one segment, a date range.
+            models.Index(fields=["segment_id", "observed_on"]),
+            models.Index(fields=["observed_on"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.observed_on:%d.%m.%Y} {self.name or self.segment_id}"
+
+
+class SmailyFeedState(models.Model):
+    """What the last Smaily collection attempt found.
+
+    The same shape every other feed's state row has, so "last checked", "stale
+    after a failure" and the state badge mean one thing across the application.
+
+    Deliberately holds no subdomain, no API username, no password and no
+    response body. `last_error_summary` carries only sentences this repository
+    wrote — see `apps.visibility.smaily`, where transport failures are replaced
+    with our own text precisely so this field cannot accumulate a request URL.
+    """
+
+    source = models.OneToOneField(
+        DataSource,
+        on_delete=models.PROTECT,
+        related_name="smaily_feed_state",
+        verbose_name="Andmeallikas",
+    )
+    last_checked_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Viimati kontrollitud"
+    )
+    last_successful_sync_at = models.DateTimeField(
+        null=True, blank=True, verbose_name="Viimane edukas sünkroonimine"
+    )
+    last_changed_at = models.DateTimeField(null=True, blank=True, verbose_name="Viimati muutunud")
+    last_result = models.CharField(
+        max_length=16,
+        choices=FeedResult,
+        default=FeedResult.NEVER_RUN,
+        verbose_name="Viimane tulemus",
+    )
+    last_error_summary = models.CharField(
+        max_length=MAX_ERROR_SUMMARY_LENGTH,
+        blank=True,
+        verbose_name="Viimane veateade",
+        help_text=(
+            "Puhastatud ja lühendatud. Ei sisalda API kasutajat, parooli, "
+            "alamdomeeni ega Smaily vastuse sisu."
+        ),
+    )
+    last_period_end = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Viimane kogutud päev",
+        help_text="Millise lugemispäevani on andmed kogutud.",
+    )
+    current_snapshot = models.ForeignKey(
+        SmailyAudienceSnapshot,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+        verbose_name="Viimane avaldatud lugemine",
+    )
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="Muudetud")
+
+    class Meta:
+        verbose_name = "Smaily andmevoo olek"
+        verbose_name_plural = "Smaily andmevoo olekud"
 
     def __str__(self) -> str:
         return f"{self.source.slug}: {self.get_last_result_display()}"

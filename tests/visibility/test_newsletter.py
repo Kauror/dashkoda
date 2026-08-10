@@ -107,11 +107,16 @@ def test_the_definitions_never_describe_sends_opens_or_clicks():
 
     Naming them anything else would be a claim no source has made: Smaily
     reports who is on a list, not who received, opened or clicked anything.
+
+    The word "aktiivsete" is deliberately **not** required. `list.php` returns a
+    `subscribers_count` and does not document whether unsubscribed addresses are
+    excluded from it, so calling the figure "active recipients" would assert
+    something the audit of the account did not establish.
     """
     for metric in NEWSLETTER_METRICS:
         spec = spec_for(metric)
         assert spec.unit == "saajat"
-        assert "aktiivsete saajate arv" in spec.definition.lower()
+        assert "smailys" in spec.definition.lower()
         for word in ("avamis", "klikk"):
             assert word not in spec.definition.lower()
 

@@ -12,6 +12,19 @@ PostgreSQL stores. This module decorates it and adds nothing to it: a key that
 is not a `VisibilityMetric` member cannot appear here, and `_check_registry()`
 refuses to import if one ever does.
 
+## Collected or typed
+
+Two of the seven metrics' worth of sources are read automatically and the rest
+are typed. `manual_entry` is what says which, and it is the single fact the
+entry form, its preview and its confirmation page all derive from:
+
+- the three **newsletter** figures come from Smaily through the scheduled
+  `sync_smaily` command (`apps.visibility.smaily`);
+- the **website** figures come from Google Analytics through `sync_ga4`;
+- the four **social** figures are still read off each platform's own screen and
+  typed in, because none of them offers a read-only aggregate the Chamber can
+  reach without an app review.
+
 ## The profile links
 
 Four fixed public URLs, held as application configuration. They are **not**
@@ -31,12 +44,13 @@ provenance.
 ## Staleness
 
 A social follower count is worth re-reading roughly monthly, so 45 days marks
-one clearly missed cycle. A newsletter list moves more slowly and is read from
-a different system, so it gets 90. The three newsletters are separate lists with
-separate audiences; they are never added together, because a reader subscribed
-to two of them would be counted twice. Both are thresholds for saying "vajab
-uuendamist" beside a figure — never for hiding it. An old number is still the
-last thing anybody counted.
+one clearly missed cycle. The newsletter threshold of 90 days is now a backstop
+rather than a cadence: the lists are read daily, so a newsletter figure that is
+even a week old means the schedule has stopped. The three newsletters are
+separate lists with separate audiences; they are never added together, because a
+reader subscribed to two of them would be counted twice. Both are thresholds for
+saying "vajab uuendamist" beside a figure — never for hiding it. An old number
+is still the last thing anybody counted.
 """
 
 from __future__ import annotations
@@ -57,7 +71,11 @@ from .models import VisibilityMetric
 # settings because `apps/dashboard/freshness.py` also needs them.
 # --------------------------------------------------------------------------
 
-SOURCE_SMAILY = "manual-smaily-audience"
+# Renamed from `manual-smaily-audience` when the newsletter figures stopped
+# being typed. The slug is what the admin shows beside the source, and a slug
+# reading `manual-` on an automated feed is exactly the kind of quiet untruth
+# this dashboard exists to avoid. Migration `0006` moves the existing row.
+SOURCE_SMAILY = "smaily-newsletter-audience"
 SOURCE_FACEBOOK = "manual-facebook-followers"
 SOURCE_LINKEDIN = "manual-linkedin-followers"
 SOURCE_INSTAGRAM = "manual-instagram-followers"
@@ -141,9 +159,11 @@ class VisibilityMetricSpec:
     stale_after_days: int
     #: Empty for the newsletter metrics, which have no public page.
     profile_url: str = ""
-    #: False would mean a metric only a collector may write. All seven are
-    #: currently manual; the flag exists so the form derives its fields from the
-    #: registry instead of listing them again.
+    #: False means a metric only a collector may write. The three newsletter
+    #: figures are collected from Smaily and are therefore absent from the entry
+    #: form: leaving a box beside an automated feed invites somebody to type
+    #: over it, and the dashboard would then hold two answers to one question.
+    #: The four social figures remain manual.
     manual_entry: bool = True
     #: One sentence a viewer can read to know what was counted.
     definition: str = ""
@@ -184,8 +204,10 @@ METRICS: tuple[VisibilityMetricSpec, ...] = (
         source_label=SOURCE_NAMES[SOURCE_SMAILY],
         display_order=10,
         stale_after_days=NEWSLETTER_STALE_AFTER_DAYS,
+        manual_entry=False,
         definition=(
-            "e-Teataja nimekirja aktiivsete saajate arv Smailys. "
+            "e-Teataja nimekirjade tellijate arv Smailys: liikmete ja "
+            "mitteliikmete nimekiri kokku. "
             "Ei ole saadetud ega kohale toimetatud kirjade arv."
         ),
     ),
@@ -197,8 +219,9 @@ METRICS: tuple[VisibilityMetricSpec, ...] = (
         source_label=SOURCE_NAMES[SOURCE_SMAILY],
         display_order=20,
         stale_after_days=NEWSLETTER_STALE_AFTER_DAYS,
+        manual_entry=False,
         definition=(
-            "eNewsi nimekirja aktiivsete saajate arv Smailys. "
+            "eNewsi nimekirja tellijate arv Smailys. "
             "Ei ole saadetud ega kohale toimetatud kirjade arv."
         ),
     ),
@@ -210,8 +233,9 @@ METRICS: tuple[VisibilityMetricSpec, ...] = (
         source_label=SOURCE_NAMES[SOURCE_SMAILY],
         display_order=30,
         stale_after_days=NEWSLETTER_STALE_AFTER_DAYS,
+        manual_entry=False,
         definition=(
-            "e-Vestniku nimekirja aktiivsete saajate arv Smailys. "
+            "e-Vestniku nimekirja tellijate arv Smailys. "
             "Ei ole saadetud ega kohale toimetatud kirjade arv."
         ),
     ),
@@ -266,10 +290,29 @@ METRICS_BY_KEY: MappingProxyType[str, VisibilityMetricSpec] = MappingProxyType(
     {spec.key: spec for spec in METRICS}
 )
 
-#: Every source a manual submission can publish into, in display order.
-MANUAL_SOURCE_SLUGS: tuple[str, ...] = tuple(
-    dict.fromkeys(spec.source_slug for spec in METRICS if spec.manual_entry)
+#: Every source a submission can publish into, in display order.
+#:
+#: Deliberately *not* filtered by `manual_entry`. The two are different
+#: questions: `manual_entry` says what the entry form offers a person, and this
+#: says what `publish_submission` is able to write. A collected metric still
+#: needs the second, because a published record is immutable and a correction to
+#: a wrong collected figure has to be a superseding record rather than an edit —
+#: which is the same service path a typed figure uses. No ordinary submission
+#: carries a newsletter value, because the form has no box for one.
+SUBMISSION_SOURCE_SLUGS: tuple[str, ...] = tuple(
+    dict.fromkeys(spec.source_slug for spec in METRICS)
 )
+
+
+def manual_metrics(keys: tuple[str, ...]) -> tuple[str, ...]:
+    """Those of `keys` a person may still type in, in the order given.
+
+    The entry form, its preview and its confirmation page all iterate the
+    registry rather than a list of their own, so a metric that becomes collected
+    disappears from all three at once instead of leaving one of them offering a
+    box that writes nothing.
+    """
+    return tuple(key for key in keys if METRICS_BY_KEY[key].manual_entry)
 
 
 def spec_for(metric: str) -> VisibilityMetricSpec | None:

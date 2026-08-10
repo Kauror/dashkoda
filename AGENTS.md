@@ -101,19 +101,43 @@ These rules apply to the whole repository.
 - A published domain record is immutable. A correction creates a new record that
   supersedes the old one; it never rewrites history in place, and there is no
   delete action.
-- Communication-channel audience figures are **entered by hand and nothing
-  more**. Do not add a Smaily, Meta, LinkedIn, Instagram or YouTube client,
-  credential, OAuth flow, scraper or schedule; do not store post reach,
-  impressions, engagement, opens, clicks or any individual subscriber or
-  follower. The fixed public profile URLs are display links, are application
-  configuration rather than form values, and are never fetched. Website
-  traffic is the one automated exception: the scheduled `sync_ga4` command
-  reads aggregate daily figures through a read-only Google Analytics service
-  account, and no individual visitor is ever stored.
+- **Social** audience figures — Meta, LinkedIn, Instagram, YouTube — are
+  entered by hand and nothing more. Do not add a client, credential, OAuth flow,
+  scraper or schedule for any of them, and do not store post reach, impressions,
+  engagement or any individual follower. The fixed public profile URLs are
+  display links, are application configuration rather than form values, and are
+  never fetched.
+- Two channels are collected rather than typed, and both are **read-only,
+  scheduled and aggregate-only**:
+  - `sync_ga4` reads daily website figures through a read-only Google Analytics
+    service account. No individual visitor is stored.
+  - `sync_smaily` reads newsletter list sizes and completed-campaign totals
+    through the Smaily API. No email address, name, phone number, subscriber ID,
+    per-recipient open, click, bounce or unsubscribe, IP address or device
+    identifier is ever requested or stored, and no model field is capable of
+    holding one. Smaily's detailed per-recipient statistics must never be
+    requested: `detailed=1` is not a parameter this repository sends, and a
+    response carrying recipient-level keys is rejected rather than parsed.
+- The Smaily integration is read-only as a property of our code, not of the
+  credential. Smaily API users have no permission model — the account that can
+  read a list can also delete it — so `apps/visibility/smaily.py` must remain
+  the only module that issues a request, its method must remain a literal `GET`,
+  and its endpoint must remain a lookup into a fixed set. Never add a call that
+  creates, sends, modifies or deletes a campaign, subscriber, segment or
+  template.
+- Which Smaily segment belongs to which newsletter is a registry decision in
+  `apps/visibility/smaily_segments.py`, pinned by segment ID and guarded by an
+  expected name. Do not map a newsletter onto a segment by guessing from its
+  name at collection time, and do not silently substitute one segment for
+  another: a segment that no longer matches is withheld, never replaced.
 - Manually entered data must never be worded as an automatic feed. Do not write
   `sünkroonitud`, `API-ga ühendatud` or `automaatselt uuendatud` beside a value
   a person typed, and do not add manual observations to `current_freshness()`
-  without changing what its denominator claims.
+  without changing what its denominator claims. The reverse is equally a lie:
+  do not offer a data-entry box for a metric a collector maintains, and do not
+  describe a collected figure as read off a screen. `manual_entry` in
+  `apps/visibility/registry.py` is the single fact the form, its preview and its
+  confirmation page all derive from.
 - A staff data-entry workflow belongs behind `/admin/`, wrapped in
   `admin.site.admin_view`, and is listed in `apps/core/data_entry.py`. Do not
   create a second admin site, a separate password, a new permissions system or

@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# DashKoda Smaily newsletter list sizes.
+#
+# GENERATED FILE — edit `ops/unraid/generate_examples.py` and re-run it.
+# The schedule is described once there; these examples and the documented times
+# are checked against each other by `tests/core/test_ops_wrappers.py`.
+#
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
+#
+#   cp sync_smaily.sh.example \
+#     /boot/config/plugins/user.scripts/sync_smaily.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_smaily.sh
+#
+# Run it by hand once before scheduling it, and check the exit code. The guard
+# below would otherwise skip it outside its own hour:
+#
+#   DASHKODA_FORCE=1 DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#     /boot/config/plugins/user.scripts/sync_smaily.sh; echo "exit=$?"
+#
+# Intended schedule — 05:20 every day, Europe/Tallinn.
+#
+# The pilot host cannot express Tallinn time: `/etc/localtime` is absent, so the
+# clock and crond both run on UTC. The job is installed as a PAIR of UTC entries
+# and the hour guard runs only the occurrence that is 05:20 in Tallinn:
+#
+#   20 2 * * * /boot/config/plugins/user.scripts/sync_smaily.sh &> /dev/null
+#   20 3 * * * /boot/config/plugins/user.scripts/sync_smaily.sh &> /dev/null
+#
+#   summer (EEST, UTC+3): the 02:20 UTC entry runs, the 03:20 one skips
+#   winter (EET,  UTC+2): the 03:20 UTC entry runs, the 02:20 one skips
+#
+# The skipped occurrence is a no-op. `Europe/Tallinn` is missing from that host's
+# trimmed zoneinfo, so the guard reads `Europe/Athens`, which has identical
+# EET/EEST offsets. On a host that really is on Europe/Tallinn, install a single
+# entry at `20 5 * * *` and the guard passes anyway.
+#
+# The whole chain runs 05:30–06:30, so every figure is fresh before 07:00.
+# `docs/operations-runbook.md` lists it in order.
+#
+# Five minutes after the traffic reconciliation and ten before the chain.
+# It shares nothing with either — its own lock, its own source — so the
+# offset is for readable logs rather than for correctness.
+#
+# One API request. It reads the size of every segment in the account and
+# publishes a reading only when a list has actually changed size.
+#
+# There is no backfill and there cannot be one. Smaily reports what a list
+# holds now and has no endpoint for what it held last year, so newsletter
+# history starts on the day this schedule started and grows forward. A
+# missed day is a day nobody can recover.
+#
+# Every request is a GET. The integration cannot create, send, modify or
+# delete anything — not because the credential is limited, but because no
+# code path exists that would build such a request.
+#
+# The subdomain, API user and password are read from the container's own
+# environment, so none can enter shell history or a process listing.
+#
+# The JSON is counts and, when a newsletter has no figure, the metric key
+# and DashKoda's own sentence explaining why. Never an address, a
+# subscriber, a segment name or any part of Smaily's response.
+#
+# Expected exit codes:
+#
+#   0  the reading was published, nothing had changed, or a successful dry run
+#   1  failed — the last good reading stays published and the dashboard
+#      says the last check failed
+#   3  another collection was still running
+#
+# This job takes its own PostgreSQL advisory lock, so it can neither block nor
+# be blocked by another feed. The flock below is host-side defence in depth
+# against two copies of this script overlapping.
+
+set -euo pipefail
+
+# Europe/Athens stands in for Europe/Tallinn: identical offsets, and present in
+# the trimmed zoneinfo where Tallinn is not.
+TALLINN_TZ="Europe/Athens"
+TARGET_HOUR="05"
+
+if [ "${DASHKODA_FORCE:-0}" != "1" ]; then
+  if [ "$(TZ="${TALLINN_TZ}" date +%H)" != "${TARGET_HOUR}" ]; then
+    exit 0
+  fi
+fi
+
+# Set this in the User Scripts environment, or edit the fallback below.
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+
+if [ ! -d "${DEPLOYMENT_DIRECTORY}" ]; then
+  echo "Deployment directory not found: ${DEPLOYMENT_DIRECTORY}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Both Compose files are named explicitly when the deployment has a host
+# override. Bare `docker compose` would recreate `web` without the host's bind
+# mounts on a stack that was created from both.
+COMPOSE_FILES=(-f compose.yaml)
+if [ -f compose.unraid.yaml ]; then
+  COMPOSE_FILES+=(-f compose.unraid.yaml)
+fi
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+exec flock --nonblock /tmp/dashkoda-sync-smaily.lock \
+  docker compose "${COMPOSE_FILES[@]}" exec -T web \
+    python manage.py sync_smaily --json

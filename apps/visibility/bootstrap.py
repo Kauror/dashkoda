@@ -7,12 +7,13 @@ definitions, and a single row that mixed them could never be audited back to
 what somebody actually read.
 
 The newsletter lists share one source because they genuinely come from one
-system, one login and one reading session.
+system, one account and one reading.
 
-Every manual source is registered as `SourceType.MANUAL` with
+Every **manual** source is registered as `SourceType.MANUAL` with
 `UpdateFrequency.IRREGULAR`: nothing polls them, and claiming a cadence would
-be the first step towards a page saying "synchronised". The GA4 website-traffic
-source is `SourceType.WEBSITE`, the one source with an automated collector.
+be the first step towards a page saying "synchronised". Two sources are not
+manual — GA4 website traffic and the Smaily newsletter audience — and both have
+a scheduled read-only collector.
 
 `stale_after_days` is deliberately **not** set on the `DataSource` rows. That
 field drives the source-level staleness other modules use for a *feed*, and
@@ -42,9 +43,11 @@ _MANUAL_DESCRIPTION_SUFFIX = (
 
 SOURCE_DESCRIPTIONS = {
     SOURCE_SMAILY: (
-        "Koja uudiskirjade nimekirjade aktiivsete saajate arv Smailys: e-Teataja, "
-        "eNews ja e-Vestnik, iga nimekiri eraldi. Ei ole saadetud kirjade, "
-        "avamiste ega klikkide arv. " + _MANUAL_DESCRIPTION_SUFFIX
+        "Koja uudiskirjade nimekirjade tellijate arv Smailys: e-Teataja, "
+        "eNews ja e-Vestnik, iga nimekiri eraldi. Kogutakse ajastatud käsuga "
+        "sync_smaily ainult lugemispäringutega; salvestatakse üksnes segmentide "
+        "tellijate arvud, mitte ühtegi e-posti aadressi, tellijat ega üksikut "
+        "avamist või klikki."
     ),
     SOURCE_FACEBOOK: "Koja Facebooki lehe jälgijate arv. " + _MANUAL_DESCRIPTION_SUFFIX,
     SOURCE_LINKEDIN: "Koja LinkedIni lehe jälgijate arv. " + _MANUAL_DESCRIPTION_SUFFIX,
@@ -73,8 +76,14 @@ def _ensure(slug: str, *, source_type: str, actor=None, correlation_id=None):
 
 
 def ensure_smaily_source(*, actor=None, correlation_id=None):
+    """Register the newsletter source.
+
+    `SourceType.OTHER` rather than `MANUAL`: the figures are collected. As with
+    GA4, registration alone connects nothing — the newsletter card claims a
+    connection only once `sync_smaily` has actually published a reading.
+    """
     return _ensure(
-        SOURCE_SMAILY, source_type=SourceType.MANUAL, actor=actor, correlation_id=correlation_id
+        SOURCE_SMAILY, source_type=SourceType.OTHER, actor=actor, correlation_id=correlation_id
     )
 
 
@@ -133,10 +142,10 @@ def ensure_visibility_source(slug: str, *, actor=None, correlation_id=None):
 
 
 def ensure_manual_visibility_sources(*, actor=None, correlation_id=None) -> dict:
-    """Every source a manual submission can write into, keyed by slug."""
-    from .registry import MANUAL_SOURCE_SLUGS
+    """Every source a submission can write into, keyed by slug."""
+    from .registry import SUBMISSION_SOURCE_SLUGS
 
     return {
         slug: ensure_visibility_source(slug, actor=actor, correlation_id=correlation_id)
-        for slug in MANUAL_SOURCE_SLUGS
+        for slug in SUBMISSION_SOURCE_SLUGS
     }

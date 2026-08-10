@@ -305,7 +305,7 @@ def test_the_page_shows_the_latest_value_for_each_channel(submit, viewer_client,
 def test_the_page_states_the_newsletter_definition(viewer_client):
     page = body(viewer_client.get(PAGE_URL))
 
-    assert "aktiivsete saajate arv" in page.lower()
+    assert "tellijate arv smailys" in page.lower()
     assert "ei ole saadetud" in page.lower()
 
 

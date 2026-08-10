@@ -92,11 +92,12 @@ class TestTheChainIsCoherent:
     def test_each_collector_runs_before_the_matcher_that_reads_it(self):
         at = {job.name: job.hour * 60 + job.minute for job in CHAIN}
 
-        # First among the jobs that feed each other. GA4 runs earlier and is
-        # deliberately excluded: no matcher reads it, and requiring the workbook
-        # to be the earliest job in the file would forbid scheduling anything
-        # independent before it for no reason.
-        feeding = {name: minute for name, minute in at.items() if name != "sync_ga4"}
+        # First among the jobs that feed each other. The independent collectors
+        # run earlier and are deliberately excluded: no matcher reads either of
+        # them, and requiring the workbook to be the earliest job in the file
+        # would forbid scheduling anything independent before it for no reason.
+        independent = {"sync_ga4", "sync_smaily"}
+        feeding = {name: minute for name, minute in at.items() if name not in independent}
         assert at["sync_oigusloome_public"] == min(feeding.values()), (
             "the workbook must be first: every matcher scores against the current legal snapshot"
         )

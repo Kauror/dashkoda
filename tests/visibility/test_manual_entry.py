@@ -142,27 +142,30 @@ def test_a_stray_submit_previews_rather_than_publishing(staff_client):
     assert VisibilityObservation.objects.count() == 0
 
 
-def test_preview_lists_each_newsletter_and_derives_nothing_from_them(staff_client):
-    """The preview shows what was typed, list by list.
+def test_the_form_offers_no_newsletter_boxes(staff_client):
+    """The newsletter figures are collected from Smaily, so nobody types them.
 
-    There is no total: the three go to three separate lists whose overlap
-    nobody has counted, so 2150 would be an audience figure invented here.
+    Leaving a box beside an automated feed invites somebody to type over it, and
+    the dashboard would then hold two answers to one question.
     """
-    response = staff_client.post(
-        NEW_URL,
-        preview(
-            form_data(
-                newsletter_eteataja=1200,
-                newsletter_enews=800,
-                newsletter_evestnik=150,
-            )
-        ),
-    )
-    body = response.content.decode()
+    body = staff_client.get(NEW_URL).content.decode()
 
-    for label in ("e-Teataja", "eNews", "e-Vestnik"):
-        assert label in body
-    assert "2150" not in body
+    assert "metric_facebook_followers" in body
+    for metric in ("newsletter_eteataja", "newsletter_enews", "newsletter_evestnik"):
+        assert f"metric_{metric}" not in body
+    # The section stays, and says where the numbers come from instead.
+    assert "Smailyst automaatselt" in body
+
+
+def test_a_posted_newsletter_figure_is_ignored_rather_than_published(staff_client):
+    """A hand-crafted POST must not reach a metric the form does not offer."""
+    staff_client.post(
+        NEW_URL,
+        confirm(form_data(newsletter_eteataja=1200, facebook_followers=4200)),
+    )
+
+    assert VisibilityObservation.objects.count() == 1
+    assert VisibilityObservation.objects.get().metric == VisibilityMetric.FACEBOOK_FOLLOWERS
 
 
 def test_preview_shows_the_change_against_the_previous_observation(submit, staff_client, days_ago):
@@ -190,9 +193,6 @@ def test_confirmation_publishes_every_supplied_metric(staff_client, today):
         NEW_URL,
         confirm(
             form_data(
-                newsletter_eteataja=1200,
-                newsletter_enews=800,
-                newsletter_evestnik=150,
                 facebook_followers=4200,
                 linkedin_followers=2500,
                 instagram_followers=700,
@@ -204,7 +204,7 @@ def test_confirmation_publishes_every_supplied_metric(staff_client, today):
     assert response.status_code == 302
     batch = VisibilityEntryBatch.objects.get()
     assert batch.observation_date == today
-    assert batch.observations.count() == 7
+    assert batch.observations.count() == 4
     assert all(row.is_current_for_date for row in batch.observations.all())
     assert all(row.published_at is not None for row in batch.observations.all())
 
@@ -234,25 +234,18 @@ def test_a_partial_submission_is_accepted(staff_client):
 
 
 def test_each_contributing_source_gets_its_own_artifact_and_import_run(staff_client):
-    """One reading of Smaily is one artifact, whatever it produced.
+    """Each channel is its own reading, so each gets its own provenance.
 
-    The three newsletter metrics share a source, so they share provenance; the
-    two social channels are separate readings and get their own.
+    Facebook and LinkedIn are read off two different screens at two different
+    moments; one artifact covering both would claim they were one reading.
     """
     staff_client.post(
         NEW_URL,
-        confirm(
-            form_data(
-                newsletter_eteataja=1200,
-                newsletter_enews=800,
-                facebook_followers=4200,
-                linkedin_followers=2500,
-            )
-        ),
+        confirm(form_data(facebook_followers=4200, linkedin_followers=2500)),
     )
 
-    assert SourceArtifact.objects.count() == 3
-    assert ImportRun.objects.count() == 3
+    assert SourceArtifact.objects.count() == 2
+    assert ImportRun.objects.count() == 2
     assert all(run.status == "succeeded" for run in ImportRun.objects.all())
 
 
@@ -341,17 +334,16 @@ def test_an_explicit_zero_is_stored(staff_client):
 def test_one_invalid_metric_rolls_back_the_whole_batch(staff_client):
     """One negative figure, so nothing at all is written.
 
-    Not the three valid newsletter counts beside it either: a batch is one
-    reading of the whole board, and half of one is not a state this table is
-    allowed to hold.
+    Not the three valid counts beside it either: a batch is one reading of the
+    whole board, and half of one is not a state this table is allowed to hold.
     """
     response = staff_client.post(
         NEW_URL,
         confirm(
             form_data(
-                newsletter_eteataja=100,
-                newsletter_enews=900,
-                newsletter_evestnik=500,
+                linkedin_followers=2500,
+                instagram_followers=700,
+                youtube_subscribers=60,
                 facebook_followers=-1,
             )
         ),

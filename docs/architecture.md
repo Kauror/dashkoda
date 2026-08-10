@@ -275,14 +275,15 @@ data reach the database through the same publication path and obey the same
 quality rules. That is what will let an automated route replace the form later
 without rewriting any historical row.
 
-The communication-channel figures are the second dataset of this shape, and the
-first where an automated route plausibly exists but is deliberately not built.
-The newsletter list sizes and the four social follower counts are read by a
-staff user from each platform's own statistics screen and typed in. There is no
-Smaily, Meta, LinkedIn, Instagram or YouTube client in this repository, no
-credential that would let one exist and no field capable of holding a token; a
-page render never touches a social platform, and the fixed profile URLs are
-display links only. See [visibility-manual-entry.md](visibility-manual-entry.md).
+The communication-channel figures are the second dataset of this shape. The
+four social follower counts are read by a staff user from each platform's own
+statistics screen and typed in: there is no Meta, LinkedIn, Instagram or YouTube
+client in this repository, no credential that would let one exist and no field
+capable of holding a token; a page render never touches a social platform, and
+the fixed profile URLs are display links only. The newsletter list sizes are
+collected — see [newsletter-audience.md](newsletter-audience.md) — and the entry
+form has no box for them. See also
+[visibility-manual-entry.md](visibility-manual-entry.md).
 
 Two staff workflows now write domain data from a browser, so `/admin/data-entry/`
 indexes them. It is not a second admin: it lives inside `/admin/`, every view is
@@ -385,11 +386,12 @@ it. Arvamused, Finantsid and Projektid were inert entries too and were removed
 at the board's request: naming a module the sidebar cannot open earns its place
 only while somebody is waiting for it.
 
-Nothing **collects** the communication-channel audience figures. Six of the
-seven can be stored — a staff user types them in and `apps/visibility`
-publishes them through the ordinary artifact and import path — but no Smaily,
-Meta, LinkedIn, Instagram or YouTube integration exists, and none is planned in
-this stage. Website visits are the exception: the scheduled `sync_ga4` command
+The four **social** audience figures are not collected. A staff user types them
+in and `apps/visibility` publishes them through the ordinary artifact and import
+path, but no Meta, LinkedIn, Instagram or YouTube integration exists, and none
+is planned in this stage. Two channels are collected. The scheduled
+`sync_smaily` command reads the three newsletter list sizes through a read-only
+Smaily client. Website visits are the other: the scheduled `sync_ga4` command
 can collect one completed day of Google Analytics traffic when the deployment
 supplies `GA4_PROPERTY_ID` and a mounted read-only service-account key. Until
 an observation has actually been published the website slot stays `Lisamisel`;

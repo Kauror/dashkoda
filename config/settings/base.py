@@ -462,6 +462,24 @@ KODA_OPINIONS_REQUEST_PAUSE_SECONDS = 0.5
 GA4_PROPERTY_ID = os.environ.get("GA4_PROPERTY_ID", "")
 GA4_CREDENTIALS_FILE = os.environ.get("GA4_CREDENTIALS_FILE", "")
 
+# Smaily newsletter audiences.
+#
+# Read only by the scheduled `sync_smaily` command, which reads the size of each
+# mailing list. All three settings default to empty and ordinary startup
+# provably does not depend on them: the application starts, every page renders
+# without them, and the test suite sets none. No page render ever contacts
+# Smaily.
+#
+# `SMAILY_API_PASSWORD` is a bearer-equivalent secret and Smaily's API users
+# have no permission model — the credential that can read a list can also delete
+# one. It belongs in the server environment only and must never reach Git,
+# PostgreSQL, a log line, an audit summary or the interface. That the
+# integration cannot write is a property of our code, not of the credential:
+# see `apps/visibility/smaily.py`.
+SMAILY_SUBDOMAIN = os.environ.get("SMAILY_SUBDOMAIN", "")
+SMAILY_API_USERNAME = os.environ.get("SMAILY_API_USERNAME", "")
+SMAILY_API_PASSWORD = os.environ.get("SMAILY_API_PASSWORD", "")
+
 
 # --------------------------------------------------------------------------
 # Logging
