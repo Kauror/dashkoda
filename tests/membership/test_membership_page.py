@@ -199,7 +199,14 @@ def test_overview_does_not_show_two_competing_totals(
         conflict.resolution_note = "Otsene lugemine eelistatud."
         conflict.save(update_fields=["resolved", "resolution_note"])
 
-    body = viewer_client.get(reverse("home")).content.decode()
+    # An explicit window, for the same reason the card test in
+    # `tests/dashboard/test_overview_data.py` needs one: the default is twelve
+    # months back from the newest observation's own date, which falls five days
+    # after the older one and leaves a single point. One point is not a trend
+    # and is not drawn, so the label this test is about would never appear.
+    body = viewer_client.get(
+        reverse("home"), {"alates": "2024-01-01", "kuni": "2025-01-15"}
+    ).content.decode()
 
     assert "3555" in body, "the public directory total leads the headline strip"
     # The board report's own total is on the card as a drawn line, labelled
