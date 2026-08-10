@@ -26,10 +26,17 @@ from django.utils import timezone
 from apps.core.formatting import group_thousands, percent
 from apps.dashboard.sparkline import TrendChart, TrendSource, build_trend_chart
 
+from .content_performance import ContentPerformanceRow, describe_pages
+from .content_sections import (
+    CONTENT_SECTIONS,
+    DEFAULT_SECTION,
+    PARAM_CONTENT,
+    ContentSection,
+    parse_section,
+)
 from .ga4_selectors import (
     ChannelTotal,
     Coverage,
-    PageTotal,
     TrafficSeries,
     get_channel_totals,
     get_coverage,
@@ -40,13 +47,12 @@ from .ga4_selectors import (
 #: The query parameter the period buttons carry.
 PARAM_PERIOD = "periood"
 
-#: The section of the site the "top news" table is drawn from.
-NEWS_PREFIX = "/et/uudised"
-
-#: How many rows each table shows. Long enough to be useful on a board's
+#: How many rows the ranking shows. Long enough to be useful on a board's
 #: dashboard, short enough that nobody scrolls past the point of interest.
-TOP_PAGE_ROWS = 15
-TOP_NEWS_ROWS = 10
+TOP_ROWS = 20
+
+#: The section a link falls back to when none is being carried.
+DEFAULT_SECTION_KEY = DEFAULT_SECTION.key
 
 
 @dataclass(frozen=True)
@@ -101,12 +107,17 @@ class PeriodOption:
     def label(self) -> str:
         return self.period.label
 
+    #: Set so a period link keeps whatever is being ranked.
+    section_key: str = DEFAULT_SECTION_KEY
+
     @property
     def query(self) -> str:
-        return f"{PARAM_PERIOD}={self.period.key}"
+        return f"{PARAM_PERIOD}={self.period.key}&{PARAM_CONTENT}={self.section_key}"
 
 
-def period_options(active: Period, coverage: Coverage) -> tuple[PeriodOption, ...]:
+def period_options(
+    active: Period, coverage: Coverage, section: ContentSection | None = None
+) -> tuple[PeriodOption, ...]:
     """Every period, with the ones history cannot fill marked.
 
     They are marked rather than removed. A board member who looks for "5 aastat"
@@ -118,6 +129,7 @@ def period_options(active: Period, coverage: Coverage) -> tuple[PeriodOption, ..
     return tuple(
         PeriodOption(
             period=period,
+            section_key=(section or DEFAULT_SECTION).key,
             is_active=period.key == active.key,
             # "Kõik" is always offered. A shorter window is offered when the
             # history can fill more than about a third of it — below that the
@@ -143,6 +155,34 @@ def window_for(
     if coverage.earliest is not None:
         start = max(start, coverage.earliest)
     return start, end
+
+
+@dataclass(frozen=True)
+class SectionOption:
+    """One content filter: what it says, where it goes, whether it is active.
+
+    The link carries the current period as well, so changing what is ranked
+    never silently changes the period it is ranked over.
+    """
+
+    section: ContentSection
+    period: Period
+    is_active: bool
+
+    @property
+    def label(self) -> str:
+        return self.section.label
+
+    @property
+    def query(self) -> str:
+        return f"{PARAM_PERIOD}={self.period.key}&{PARAM_CONTENT}={self.section.key}"
+
+
+def section_options(active: ContentSection, period: Period) -> tuple[SectionOption, ...]:
+    return tuple(
+        SectionOption(section=section, period=period, is_active=section.key == active.key)
+        for section in CONTENT_SECTIONS
+    )
 
 
 @dataclass(frozen=True)
@@ -172,8 +212,9 @@ class TrafficSection:
     figures: tuple[TrafficFigure, ...]
     channels: tuple[ChannelTotal, ...]
     channel_sessions: int
-    top_pages: tuple[PageTotal, ...]
-    top_news: tuple[PageTotal, ...]
+    section: ContentSection
+    section_options: tuple[SectionOption, ...]
+    ranking: tuple[ContentPerformanceRow, ...]
 
     @property
     def has_data(self) -> bool:
@@ -207,12 +248,22 @@ class TrafficSection:
 
 
 def build_traffic_section(
-    *, period_key: str | None = None, today: date | None = None
+    *,
+    period_key: str | None = None,
+    section_key: str | None = None,
+    today: date | None = None,
 ) -> TrafficSection:
-    """Read the stored history once and shape it for the page."""
+    """Read the stored history once and shape it for the page.
+
+    The two controls are independent and both validated: a period says *when* to
+    rank, a section says *what*. Neither value reaches a query — the period
+    becomes dates and the section becomes prefixes from the registry, so a
+    hand-typed parameter cannot select anything the registry does not name.
+    """
     coverage = get_coverage()
     period = parse_period(period_key)
-    options = period_options(period, coverage)
+    section = parse_section(section_key)
+    options = period_options(period, coverage, section)
 
     if not coverage.has_data:
         return TrafficSection(
@@ -226,8 +277,9 @@ def build_traffic_section(
             figures=(),
             channels=(),
             channel_sessions=0,
-            top_pages=(),
-            top_news=(),
+            section=section,
+            section_options=section_options(section, period),
+            ranking=(),
         )
 
     start, end = window_for(period, coverage, today=today)
@@ -245,8 +297,12 @@ def build_traffic_section(
         figures=_figures(series),
         channels=channels,
         channel_sessions=sum(channel.sessions for channel in channels),
-        top_pages=get_top_pages(start=start, end=end, limit=TOP_PAGE_ROWS),
-        top_news=get_top_pages(start=start, end=end, limit=TOP_NEWS_ROWS, prefix=NEWS_PREFIX),
+        section=section,
+        section_options=section_options(section, period),
+        ranking=describe_pages(
+            get_top_pages(start=start, end=end, limit=TOP_ROWS, prefix=section.prefixes),
+            section=section,
+        ),
     )
 
 
@@ -321,7 +377,7 @@ def _figures(series: TrafficSeries) -> tuple[TrafficFigure, ...]:
 
 __all__ = [
     "DEFAULT_PERIOD",
-    "NEWS_PREFIX",
+    "PARAM_CONTENT",
     "PARAM_PERIOD",
     "PERIODS",
     "Period",
@@ -331,5 +387,6 @@ __all__ = [
     "build_traffic_section",
     "parse_period",
     "period_options",
+    "section_options",
     "window_for",
 ]

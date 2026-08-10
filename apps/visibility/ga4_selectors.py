@@ -329,18 +329,34 @@ class PageTotal:
 
 
 def get_top_pages(
-    *, start: date, end: date, limit: int = 20, prefix: str = ""
+    *, start: date, end: date, limit: int = 20, prefix: str | Sequence[str] = ""
 ) -> tuple[PageTotal, ...]:
     """The most-viewed pages of a period, aggregated in the database.
 
-    `prefix` narrows to a section — `/et/uudised` for news. Matched with
-    `startswith` on a canonical path plus an exact match on the section index
-    itself, which is what keeps `/et/uudiseks` out of the news list.
+    `prefix` narrows to a section, and takes either one prefix or several: a
+    section is `/et/uudised` **and** `/en/news`, because a translated article is
+    the same content and dropping one of them undercounts it.
+
+    Matching is by whole path segment — the section root, or something beneath
+    it — which is what keeps `/et/uudiseks` out of the news list. Aggregation
+    and ordering both happen in PostgreSQL; only the bounded top slice is
+    returned, so enriching it with titles later touches a handful of rows rather
+    than a year of them.
     """
     rows = current_pages().filter(report_date__gte=start, report_date__lte=end)
-    if prefix:
-        section = canonical_path(prefix)
-        rows = rows.filter(Q(path=section) | Q(path__startswith=section + "/"))
+
+    wanted = (prefix,) if isinstance(prefix, str) else tuple(prefix or ())
+    section_filter = Q()
+    for one in wanted:
+        if not one:
+            continue
+        section = canonical_path(one)
+        # Whole segments: the section root itself, or something under it.
+        # `startswith` alone would file `/et/uudiseks` under `/et/uudised`.
+        section_filter |= Q(path=section) | Q(path__startswith=section + "/")
+    if section_filter:
+        rows = rows.filter(section_filter)
+
     aggregated = (
         rows.values("path")
         .annotate(
@@ -348,7 +364,9 @@ def get_top_pages(
             days_seen=Count("id"),
             peak_active_users=Max("active_users"),
         )
-        .order_by("-page_views")[:limit]
+        # `path` breaks ties, so equal-view pages keep a stable order between
+        # renders and a test cannot pass or fail on row ordering luck.
+        .order_by("-page_views", "path")[:limit]
     )
     return tuple(
         PageTotal(

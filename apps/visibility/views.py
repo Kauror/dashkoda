@@ -8,7 +8,7 @@ from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
 from .page import build_visibility_page
-from .traffic_page import PARAM_PERIOD
+from .traffic_page import PARAM_CONTENT, PARAM_PERIOD
 
 
 @require_GET
@@ -29,6 +29,7 @@ def visibility_overview(request):
             "page": build_visibility_page(
                 detail_url=reverse("visibility"),
                 period_key=request.GET.get(PARAM_PERIOD),
+                section_key=request.GET.get(PARAM_CONTENT),
             ),
             "can_add_data": request.user.is_authenticated and request.user.is_staff,
         },
