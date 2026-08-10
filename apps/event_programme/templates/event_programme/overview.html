@@ -36,13 +36,12 @@ inspected in the read-only admin.
   {% endcomment %}
   <header class="flex flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Sündmused</h1>
-    <p class="text-sm text-text-secondary">Koja sündmuste programm ja ajalugu</p>
   </header>
 
   {% if page.has_data %}
 
     <section aria-labelledby="section-figures" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" description="Töövihiku sündmuste programmi kokkuvõte." only %}
+      <h2 id="section-figures" class="sr-only">Näitajad</h2>
       <div class="dk-kpi-strip">
         {% for figure in page.figures %}
           {% include "dashboard/components/kpi_card.html" with label=figure.label value=figure.value comparison_period=figure.note as_of=summary.observed_at|date:"j.m.y" flush=True only %}
@@ -51,7 +50,7 @@ inspected in the read-only admin.
     </section>
 
     <section aria-labelledby="section-filters" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Filtrid" heading_id="section-filters" description="Filtreeritakse sündmuse enda kuupäeva järgi, mitte lähtelehe aasta järgi." only %}
+      <h2 id="section-filters" class="sr-only">Filtrid</h2>
       <div class="dk-section-body flex flex-col gap-4">
 
         <form method="get" class="flex flex-col gap-4">
@@ -156,7 +155,7 @@ inspected in the read-only admin.
     </section>
 
     <section aria-labelledby="section-programme" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Sündmuste programm" heading_id="section-programme" description="Uuemad kuupäevad ees; kuupäevata kirjed lõpus." only %}
+      {% include "dashboard/components/section_header.html" with title="Sündmuste programm" heading_id="section-programme" only %}
 
       <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2 sm:px-5">
         <p class="text-sm text-text-secondary tabular-nums">Vastavaid sündmusi: <span class="font-semibold text-text">{{ page.result_count }}</span></p>
@@ -259,13 +258,8 @@ inspected in the read-only admin.
   {% endif %}
 
   <section aria-labelledby="section-public-calendar" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Koda.ee avalik kalender" heading_id="section-public-calendar" description="Eraldi allikas, mis ei muuda ega täienda ülal olevat programmi." only %}
+    {% include "dashboard/components/section_header.html" with title="Koda.ee avalik kalender" heading_id="section-public-calendar" only %}
     <div class="dk-section-body flex flex-col gap-2">
-      <p class="text-sm text-text-secondary">
-        Koja avalikku kalendrit kogutakse eraldi andmeallikana. See kajastab avalikult
-        välja kuulutatud eelseisvaid sündmusi, loeb teistsugust hulka kui töövihiku
-        programm ja seda ei liideta programmi ridadega.
-      </p>
       <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
         {% include "dashboard/components/status_badge.html" with label=public_calendar.state_label variant=public_calendar.state_variant only %}
         {% if public_upcoming_count is not None %}

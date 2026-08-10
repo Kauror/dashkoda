@@ -28,10 +28,7 @@ Four things are deliberate and should stay that way:
   {# ---------------- Page header ---------------- #}
   <header class="flex flex-wrap items-end justify-between gap-3">
     <div class="flex min-w-0 flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Mõju ja nähtavus</h1>
-      <p class="text-sm text-text-secondary">
-        Koja uudiskirja ja sotsiaalmeedia auditooriumi suurus ning selle areng
-      </p>
+      <h1 class="sr-only">Mõju ja nähtavus</h1>
     </div>
     {% comment %}
     Offered only to active staff. An ordinary viewer holds the shared PIN and no
@@ -44,7 +41,7 @@ Four things are deliberate and should stay that way:
 
   {# ---------------- 1. Praegune seis ---------------- #}
   <section aria-labelledby="section-current" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Praegune seis" heading_id="section-current" description="Viimane väärtus iga kanali kohta." only %}
+    <h2 id="section-current" class="sr-only">Praegune seis</h2>
     <div class="dk-kpi-strip dk-kpi-strip-wide">
       {% for slot in page.channels %}
         {% include "dashboard/components/channel_card.html" with slot=slot flush=True only %}
@@ -64,7 +61,7 @@ Four things are deliberate and should stay that way:
     the short form is single-line only, so Django never recognised it as a
     comment at all.
     {% endcomment %}
-    {% include "dashboard/components/section_header.html" with title="Uudiskirjade nimekirjad" heading_id="section-newsletter" description="Iga uudiskirja nimekirja suurus eraldi." only %}
+    {% include "dashboard/components/section_header.html" with title="Uudiskirjade nimekirjad" heading_id="section-newsletter" only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% if page.newsletter.has_any_data %}
         <div class="w-full overflow-x-auto">
@@ -247,27 +244,19 @@ Four things are deliberate and should stay that way:
   sentence about what is collected sits underneath it where it belongs: as a
   note on the data, not in place of it.
   {% endcomment %}
+  {% comment %}
+  The `Kuidas külastusi loetakse` section was struck out whole on the board's
+  print-out — heading and both paragraphs.
+
+  What it said is still true and is now only in `docs/website-analytics.md`:
+  one query a day covering the last eight completed days, a read-only service
+  account, day totals and per-page view counts stored, no individual visitor
+  kept. So is the warning it carried — that a page view is not a reader, and
+  that users from different days cannot be added — which the traffic section
+  still states beside the figure it applies to.
+  {% endcomment %}
   {% if page.ga4.is_connected %}
     {% include "visibility/_traffic.html" with traffic=page.traffic only %}
-    <section aria-labelledby="section-ga4-method" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Kuidas külastusi loetakse" heading_id="section-ga4-method" only %}
-      <div class="dk-section-body">
-        <p class="text-sm text-text-secondary">
-          Külastusi loeb Google Analytics. DashKoda pärib kord ööpäevas viimase
-          kaheksa lõppenud päeva koondnäitajad kirjutusõiguseta teenusekontoga —
-          kaheksa, sest Google täpsustab hiljutisi päevi veel mitu päeva pärast
-          nende lõppu, ja muutunud päev avaldatakse uue redaktsioonina, mis
-          nimetab asendatud redaktsiooni. Salvestatakse päeva koondarvud ja
-          lehekülgede kaupa lehevaatamised. Ühtegi üksikut külastajat ei
-          salvestata ega päringu vastust ei säilitata.
-        </p>
-        <p class="dk-meta mt-2">
-          Lehevaatamine ei ole lugeja: sama inimene võib ühe loo kaks korda
-          avada. Kasutajate arv on alati ühe päeva oma — erinevate päevade
-          kasutajaid ei saa liita, sest suur osa neist on samad inimesed.
-        </p>
-      </div>
-    </section>
   {% else %}
     <section aria-labelledby="section-ga4" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="Kodulehe külastused" heading_id="section-ga4" description="Veebistatistika seis." badge_label="Lisamisel" badge_variant="neutral" only %}

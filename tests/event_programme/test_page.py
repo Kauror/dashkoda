@@ -146,7 +146,7 @@ def test_the_page_leads_with_the_workbook_programme(viewer, programme):
 
     assert response.status_code == 200
     page = text_of(response)
-    assert "Koja sündmuste programm ja ajalugu" in page
+    # The page description was struck out on the board's print-out.
     assert "Sündmuste programm" in page
     # The public calendar appears once, named, at the foot.
     assert page.index("Sündmuste programm") < page.index("Koda.ee avalik kalender")
