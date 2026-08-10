@@ -11,7 +11,7 @@ from django.urls import reverse
 
 from apps.access.middleware import CSP
 from apps.membership.bootstrap import ensure_membership_source
-from apps.membership.models import MembershipCountObservation
+from apps.membership.models import MembershipCountObservation, MembershipMetricConflict
 from apps.sources.services import build_import_run, register_external_reference
 
 pytestmark = pytest.mark.django_db
@@ -191,6 +191,14 @@ def test_overview_does_not_show_two_competing_totals(
     distinction in words. The Liikmeskond page still does, in the note under its
     figures, and that is asserted below.
     """
+    # The board report's own total is drawn, and a withheld metric is not drawn
+    # at all — so the disputed 2024 reading is settled first, as an operator
+    # would, before asserting the line is there.
+    for conflict in MembershipMetricConflict.objects.filter(metric="total_members", resolved=False):
+        conflict.resolved = True
+        conflict.resolution_note = "Otsene lugemine eelistatud."
+        conflict.save(update_fields=["resolved", "resolution_note"])
+
     body = viewer_client.get(reverse("home")).content.decode()
 
     assert "3555" in body, "the public directory total leads the headline strip"

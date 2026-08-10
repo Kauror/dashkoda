@@ -423,13 +423,14 @@ def _build_kpis(
     with several counts of equal weight lists them; only the member total has a
     single figure to lead with.
 
-    A count links to the section that lists the records behind it. Each of the
-    three Õigusloome counts has such a section and points at its own: `töös` at
-    Hetkel töös, `uusi` at Uusimad sisse tulnud, `välja läinud` at Viimati välja
-    läinud. The two Sündmused counts have no equivalent — the events page lists
-    the programme, not the two windows this strip counts — so they stay plain
-    text. A link that lands on a different set of rows than the number describes
-    is worse than no link.
+    A count links to the section that lists the records behind it, and only
+    where such a section exists: `töös` points at Hetkel töös and `välja läinud`
+    at Viimati välja läinud. `uusi` has no link, because Uusimad sisse tulnud was
+    removed from the Õigusloome page and no remaining section lists exactly the
+    rows that window counts. The two Sündmused counts have no equivalent either —
+    the events page lists the programme, not the two windows this strip counts —
+    so they stay plain text. A link that lands on a different set of rows than
+    the number describes is worse than no link.
     """
     legal_page = reverse("legal-work")
     return (

@@ -24,7 +24,7 @@ from apps.events.sync import synchronize_events
 from apps.legal_work.bootstrap import ensure_legal_work_source
 from apps.legal_work.importer import import_artifact
 from apps.membership.history_import import import_history_package
-from apps.membership.models import MembershipCountObservation
+from apps.membership.models import MembershipCountObservation, MembershipMetricConflict
 from apps.membership.selectors import get_current_membership_observation
 from apps.membership.sync import synchronize_membership
 from apps.news.collector import NewsCollectionError
@@ -55,6 +55,29 @@ def viewer(client, authenticate_viewer):
 def imported_internal_history(db, tmp_path):
     """The Chamber's own board-report history, from a synthetic package."""
     return import_history_package(build_package(tmp_path / "package.zip"), dry_run=False)
+
+
+def resolve_total_member_conflicts() -> int:
+    """Record a resolution for every disputed `total_members` reading.
+
+    The synthetic package deliberately restates 2024-01-10's total a year later
+    as 3199 against the direct reading's 3200. That is a real disagreement
+    between two documents, so the importer files a conflict and the selectors
+    **withhold** the metric from every chart — which is the rule, and which
+    leaves the board-report total with a single drawable point.
+
+    A test that wants to assert the total is *drawn* therefore has to do what an
+    operator would: record that somebody looked at the disagreement and settled
+    it. Resolving it here rather than removing the conflict from the fixture
+    keeps the withholding behaviour under test everywhere else.
+    """
+    resolved = 0
+    for conflict in MembershipMetricConflict.objects.filter(metric="total_members", resolved=False):
+        conflict.resolved = True
+        conflict.resolution_note = "Otsene lugemine eelistatud; hilisem kordus on tõend."
+        conflict.save(update_fields=["resolved", "resolution_note"])
+        resolved += 1
+    return resolved
 
 
 def legal_work_rows() -> list[list]:
@@ -502,11 +525,12 @@ def test_each_legal_count_links_to_the_section_that_lists_its_rows(viewer, legal
     assert "uusi teemasid" in strip
     assert "#section-received" not in strip
     assert f'href="{page_url}#section-sent" class="dk-link-quiet">välja läinud teemasid' in strip
-    # Three links in the whole strip and no more. The Sündmused counts stay
-    # plain: that page lists the programme, not the two windows this strip
-    # counts, and a link landing on a different set of rows than the number
-    # describes is worse than no link.
-    assert strip.count("dk-link-quiet") == 3
+    # Two links in the whole strip and no more — `teemasid töös` and
+    # `välja läinud teemasid`. `uusi teemasid` lost its link with the section
+    # that listed those rows, and the Sündmused counts never had one: that page
+    # lists the programme, not the two windows this strip counts. A link landing
+    # on a different set of rows than the number describes is worse than no link.
+    assert strip.count("dk-link-quiet") == 2
 
 
 def test_the_overview_no_longer_carries_a_deadline_section(viewer, legal_work_snapshot):
@@ -635,6 +659,10 @@ def test_the_board_reports_own_total_is_no_longer_a_figure_on_the_card(
     the actual rule, and a heading is what makes it one.
     """
     synchronize_membership(collector=collector_returning(membership_collection(3400)))
+
+    # The disputed 2024 total is settled first, or the metric stays withheld and
+    # the line this test is about is never drawn at all.
+    assert resolve_total_member_conflicts() == 1
 
     # An explicit window wide enough that the chart is actually drawn. The
     # package's two comparable observations are a year apart, and the default
