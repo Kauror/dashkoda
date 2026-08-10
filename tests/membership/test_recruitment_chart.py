@@ -121,10 +121,20 @@ def test_the_stopped_cumulative_line_says_why_it_stopped(part_year):
     assert any("puuduvat kuud ei loeta nulliks" in note for note in chart.footnotes)
 
 
-def test_a_conflicted_month_is_disclosed_rather_than_dropped_silently(part_year):
+def test_a_conflicted_month_is_withheld_rather_than_drawn_as_zero(part_year):
+    """The footnote was struck out on the board's print-out; the behaviour it
+    described is the point and is unchanged.
+
+    A conflicted month is not drawn, and it is not replaced by a zero — which
+    would read as "nobody joined that month" rather than "nobody knows". Its
+    row still carries a status of its own in the table, which is where the
+    disclosure now lives.
+    """
     chart = monthly_new_members_chart(part_year)
 
-    assert any("Vastuolulisi" in note for note in chart.footnotes)
+    drawn = [value for value in chart.option["series"][0]["data"] if value is not None]
+    assert 0 not in drawn, "a month nobody could measure must not be drawn as zero"
+    assert any(row[3] for row in chart.table_rows), "the table still states each month's status"
 
 
 # -- the year-to-date readout ---------------------------------------------
@@ -256,8 +266,14 @@ def test_no_monthly_history_leaves_an_empty_state():
     assert available_benchmarks({}) == ()
 
 
-def test_the_chart_asks_for_a_medium_frame_and_names_its_question(part_year):
+def test_the_chart_asks_for_a_medium_frame(part_year):
+    """The question line was struck out on the board's print-out.
+
+    `ChartPayload.question` still exists and other charts may still carry one;
+    this chart simply no longer states its own, because the section it sits in
+    already says what it is about.
+    """
     chart = monthly_new_members_chart(part_year)
 
     assert chart.size == "medium"
-    assert "tugevam või nõrgem" in chart.question
+    assert chart.question == ""

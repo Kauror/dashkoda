@@ -67,14 +67,18 @@ test("the four analytical sections are separate and named", async ({ page }) => 
   oncePerRun();
   await open_(page);
 
+  // `Liikmeskonna areng` is deliberately absent from this list: its heading was
+  // struck out on the board's print-out and is now `sr-only`, so it names the
+  // landmark without being drawn. The other three are still visible headings.
   for (const title of [
-    "Liikmeskonna areng",
     "Liikmemaksu laekumine",
     "Uute liikmete dünaamika",
     "Liikmete liikumine",
   ]) {
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
   }
+  // Still a heading, still the section's accessible name, just not painted.
+  await expect(page.getByRole("heading", { name: "Liikmeskonna areng" })).toHaveCount(1);
   // The single range control that governed only some of the charts is gone.
   await expect(page.getByRole("heading", { name: "Ajaloolised trendid" })).toHaveCount(0);
 });

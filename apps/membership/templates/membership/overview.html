@@ -43,9 +43,19 @@ No individual member is listed anywhere, because neither dataset stores one.
   </header>
 
   {# ---------------- 2. Internal board report ---------------- #}
+  {% comment %}
+  No visible heading and no description: both were struck out on the board's
+  print-out. The whole page is the internal report, so a heading saying so
+  named the page rather than a section of it.
+
+  The `h2` stays as `sr-only`. The section is a landmark pointing at it with
+  `aria-labelledby`, and a landmark whose target is missing is announced as
+  "region" and nothing else — worse for a screen reader than the heading was
+  redundant for everyone else.
+  {% endcomment %}
   <section aria-labelledby="section-internal" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Sisemine liikmeskonna aruanne" heading_id="section-internal" description="Koja enda juhatusele esitatud aruannete näitajad. Eraldi allikas avalikust liikmekataloogist." only %}
-    <div class="dk-section-body flex flex-col gap-4">
+    <h2 id="section-internal" class="sr-only">Sisemine liikmeskonna aruanne</h2>
+    <div class="dk-section-body flex flex-col gap-4 pt-4">
       {% if internal_latest %}
         <p class="text-sm text-text-secondary">
           Viimane aruanne seisuga
@@ -70,13 +80,16 @@ No individual member is listed anywhere, because neither dataset stores one.
           {% include "membership/partials/internal_metric.html" with label="Peatatud liikmeid" value=internal_latest.observation.suspended_members withheld=internal_latest.withheld field="suspended_members" only %}
         </dl>
 
-        {% if summary.has_data and internal_latest.observation.total_members %}
-          <p class="text-sm text-text-secondary">
-            Avaliku kataloogi arv ja sisemise aruande arv ei ole sama näitaja.
-            Kataloog loendab avaldatud liikmeprofiile, aruanne koja enda
-            liikmeskonna määratlust. Erinevus on ootuspärane, mitte viga.
-          </p>
-        {% endif %}
+        {% comment %}
+        The paragraph explaining why this total and the catalogue's differ was
+        struck out.
+
+        It is the one removal here that costs something, so it is written down
+        rather than simply deleted: the two counts measure different things,
+        they are not equal, and no text on the page says so any more. If anyone
+        asks why the overview shows one number and this page another, this is
+        the answer that used to be here.
+        {% endcomment %}
       {% else %}
         {% include "dashboard/components/empty_state.html" with message="Sisemist liikmeskonna aruannet ei ole veel imporditud." detail="Ajalugu lisatakse ühekordse impordiga ja uued aruanded sisestatakse käsitsi." only %}
       {% endif %}
@@ -99,8 +112,17 @@ No individual member is listed anywhere, because neither dataset stores one.
   {% endcomment %}
   {% for section in sections %}
     <section aria-labelledby="{{ section.section_id }}" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title=section.title heading_id=section.section_id description=section.description only %}
-      <div class="dk-section-body flex flex-col gap-6">
+      {% if section.show_title %}
+        {% include "dashboard/components/section_header.html" with title=section.title heading_id=section.section_id description=section.description only %}
+      {% else %}
+        {% comment %}
+        The heading was struck out, but the landmark still needs its name.
+        Rendering an empty visible one would leave a rule and a gap where a
+        title used to be, which reads as a fault rather than as a decision.
+        {% endcomment %}
+        <h2 id="{{ section.section_id }}" class="sr-only">{{ section.title }}</h2>
+      {% endif %}
+      <div class="dk-section-body flex flex-col gap-6{% if not section.show_title %} pt-4{% endif %}">
 
         {% if section.has_controls %}
           <div class="flex flex-col gap-3">

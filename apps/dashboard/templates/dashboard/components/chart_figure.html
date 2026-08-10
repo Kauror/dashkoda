@@ -25,7 +25,9 @@ Context:
 
 <figure data-chart data-chart-payload="{{ chart.payload_id }}" class="flex w-full flex-col gap-3">
   <figcaption class="flex flex-col gap-1">
-    <span class="text-sm font-medium text-text">{{ chart.title }}</span>
+    {% if chart.title %}
+      <span class="text-sm font-medium text-text">{{ chart.title }}</span>
+    {% endif %}
     {% if chart.question %}
       <span class="dk-meta">{{ chart.question }}</span>
     {% endif %}

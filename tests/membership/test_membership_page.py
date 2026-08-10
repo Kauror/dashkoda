@@ -81,10 +81,17 @@ def test_internal_section_shows_after_import(viewer_client, public_observation, 
 def test_the_page_never_claims_the_definitions_match(
     viewer_client, public_observation, imported_package
 ):
+    """The page no longer *explains* the difference — the board struck that
+    paragraph out — but it must still never assert the two counts are one.
+
+    What is checked is the absence of a claim rather than the presence of an
+    explanation: the catalogue's own total does not appear on this page at all,
+    so nothing here invites the two figures to be read as the same measurement.
+    """
     body = _page(viewer_client)
 
-    assert "ei ole sama näitaja" in body
-    assert "Erinevus on ootuspärane, mitte viga." in body
+    assert "3555" not in body, "the catalogue total belongs on the overview, not here"
+    assert "Liikmeid kataloogis" not in body
 
 
 def test_conflict_notice_is_truthful_and_counted(viewer_client, imported_package):
@@ -198,8 +205,9 @@ def test_overview_does_not_show_two_competing_totals(
 
     # The Liikmeskond page is the internal report, and says outright that its
     # count and the catalogue's are not the same measurement.
+    # The heading is `sr-only` now — struck out visually, kept as the section
+    # landmark's accessible name — so it is still in the document.
     assert "Sisemine liikmeskonna aruanne" in membership
-    assert "ei ole sama näitaja" in membership
     # Each total is stated once. The directory count used to appear a second
     # time inside the board report's card, under a second name.
     assert "Liikmeid kataloogis" not in body

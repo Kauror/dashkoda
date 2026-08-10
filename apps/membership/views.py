@@ -145,8 +145,12 @@ def membership_overview(request):
     sections = [
         AnalyticsSection(
             section_id="section-growth",
+            # Heading and description both struck out on the print-out. The
+            # title is kept as the landmark's accessible name; each chart in
+            # the section carries its own visible title.
             title="Liikmeskonna areng",
-            description="Liikmete koguarv ja tasunute osakaal valitud perioodil.",
+            show_title=False,
+            description="",
             charts=tuple(growth_charts),
             presets=presets,
             show_custom_range=has_range_choice,
@@ -154,7 +158,7 @@ def membership_overview(request):
         AnalyticsSection(
             section_id="section-fees",
             title="Liikmemaksu laekumine",
-            description="Jooksva aasta laekumine aastaeelarvest, varasemad aastad taustaks.",
+            description="",
             charts=tuple(fee_charts),
         ),
         AnalyticsSection(
@@ -186,7 +190,7 @@ def membership_overview(request):
         AnalyticsSection(
             section_id="section-movement",
             title="Liikmete liikumine",
-            description="Viimase aruande liikumised suurusklassiti ja lahkumise põhjused.",
+            description="",
             charts=tuple(movement_charts),
         ),
     ]
