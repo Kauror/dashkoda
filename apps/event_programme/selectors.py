@@ -51,6 +51,10 @@ LINK_LINKED = "linked"
 LINK_UNLINKED = "unlinked"
 LINK_VALUES = (LINK_ALL, LINK_LINKED, LINK_UNLINKED)
 
+SORT_DATE = "date"
+SORT_VIEWS = "views"
+SORT_CHOICES = (SORT_DATE, SORT_VIEWS)
+
 REVIEW_ALL = "all"
 REVIEW_REQUIRED = "required"
 REVIEW_CLEAR = "clear"
@@ -123,6 +127,9 @@ class ProgrammeFilters:
     status: str = ""
     public_link: str = LINK_ALL
     review: str = REVIEW_ALL
+    #: How the table is ordered. Chronological unless a reader asked otherwise;
+    #: traffic ranking is an option, never the default.
+    sort: str = SORT_DATE
 
     @property
     def is_active(self) -> bool:

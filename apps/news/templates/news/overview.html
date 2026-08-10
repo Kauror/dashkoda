@@ -36,6 +36,20 @@ destination and the new tab, so neither is a surprise to a screen-reader user.
 
   <section aria-labelledby="section-news" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" only %}
+    {% comment %}
+    Ordering is a link so the choice is bookmarkable, and newest stays the
+    default: traffic ranking answers a different question and should be asked
+    for. It ranks what this page holds — the feed is a rolling window, and the
+    ranking over all measured history is on Nähtavus.
+    {% endcomment %}
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3 sm:px-5">
+      <span class="dk-meta">Järjestus:</span>
+      {% for option in sort_options %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="{{ option.url }}"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+      {% endfor %}
+    </div>
     {% if items %}
       <ul class="divide-y divide-border">
         {% for item in items %}

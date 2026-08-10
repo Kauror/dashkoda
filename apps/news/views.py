@@ -32,10 +32,18 @@ PLANNED_SECTIONS = (
 )
 
 
+#: How the list is ordered. Newest first unless a reader asked otherwise.
+SORT_NEWEST = "uusimad"
+SORT_VIEWS = "vaadatud"
+SORT_CHOICES = (SORT_NEWEST, SORT_VIEWS)
+
+
 @require_GET
 def news_overview(request):
     summary = get_news_summary()
     items = list(get_latest_news(summary.snapshot, limit=DEFAULT_LIMIT))
+    sort = request.GET.get("sort")
+    sort = sort if sort in SORT_CHOICES else SORT_NEWEST
     # One bulk lookup for the whole list, then hung on each item so the template
     # can read it without calling a method with an argument. The items are never
     # saved — a `NewsItem` belongs to an immutable snapshot, and this attribute
@@ -43,6 +51,12 @@ def news_overview(request):
     analytics = get_news_analytics(items)
     for item in items:
         item.analytics = analytics.for_item(item)
+    if sort == SORT_VIEWS:
+        # Measured articles first, most-read first; unmeasured ones keep their
+        # published order behind them rather than being ranked as though they
+        # had scored nothing. The feed is a rolling window, so this ranks the
+        # items this page knows about — the historical ranking is on Nähtavus.
+        items = list(analytics.ranked(items))
 
     window_start = timezone.make_aware(
         datetime.combine(
@@ -59,6 +73,15 @@ def news_overview(request):
             "summary": summary,
             "items": items,
             "news_analytics": analytics,
+            "sort": sort,
+            "sort_options": (
+                {"label": "Uusimad", "url": "?sort=uusimad", "is_active": sort == SORT_NEWEST},
+                {
+                    "label": "Enim vaadatud",
+                    "url": "?sort=vaadatud",
+                    "is_active": sort == SORT_VIEWS,
+                },
+            ),
             "recent_count": (
                 count_published_since(summary.snapshot, window_start) if summary.has_data else None
             ),

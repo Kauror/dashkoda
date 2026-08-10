@@ -346,6 +346,20 @@ None of them reached this file.
               {% else %}
                 <span class="min-w-0 flex-1 truncate text-sm text-text">{{ item.event_name }}</span>
               {% endif %}
+              {% comment %}
+              Total measured views for the event's public page — all of GA4's
+              coverage, not a period. Shown only where a public page exists and
+              GA4 measured it; an unmeasured page renders nothing, because
+              `0 vaatamist` would be a claim nobody made.
+
+              Muted and after the title on purpose: this is metadata about the
+              row, not the reason the row is there. `flex-none` keeps it out of
+              the title's space, and it wraps to its own line before it squeezes
+              the title on a narrow screen.
+              {% endcomment %}
+              {% if item.page_views_label %}
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">{{ item.page_views_label }}</span>
+              {% endif %}
               {% if item.tag_label %}
                 {% include "dashboard/components/status_badge.html" with label=item.tag_label variant="info" only %}
               {% endif %}
@@ -394,6 +408,9 @@ None of them reached this file.
               <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer">
                 {{ item.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
               </a>
+              {% if item.page_views_label %}
+                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">{{ item.page_views_label }}</span>
+              {% endif %}
               {% if item.category %}
                 {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
               {% endif %}
