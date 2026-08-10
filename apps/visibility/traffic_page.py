@@ -32,6 +32,7 @@ from .content_sections import (
     DEFAULT_SECTION,
     PARAM_CONTENT,
     ContentSection,
+    all_index_paths,
     parse_section,
 )
 from .ga4_selectors import (
@@ -300,7 +301,16 @@ def build_traffic_section(
         section=section,
         section_options=section_options(section, period),
         ranking=describe_pages(
-            get_top_pages(start=start, end=end, limit=TOP_ROWS, prefix=section.prefixes),
+            get_top_pages(
+                start=start,
+                end=end,
+                limit=TOP_ROWS,
+                prefix=section.prefixes,
+                # Inside a section, its own listing page; in `Kõik lehed`,
+                # every section's — so no ranking of content is topped by the
+                # page that merely lists it.
+                exclude=(all_index_paths() if section.is_everything else section.index_paths),
+            ),
             section=section,
         ),
     )
