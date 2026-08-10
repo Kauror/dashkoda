@@ -38,16 +38,21 @@ destination and the new tab.
       {% endif %}
     </h3>
     {% comment %}
-    `show_state` is how a caller says the badge would be repeating itself.
+    Only a warning is shown here, never a provenance label.
 
-    On the overview band it stays: that page states provenance nowhere else, and
-    a figure a person typed sitting on a dashboard of synchronised feeds has to
-    say which it is. On the Nähtavus page it does not, because `Allikate
-    määratlused` further down names every source and its collection method per
-    channel in full sentences — six chips all reading `Käsitsi sisestatud`
-    above that said the same thing a seventh time and crowded out the figures.
+    `state_label` carries two unlike things. `Käsitsi sisestatud`,
+    `Automaatselt kogutud` and `Andmed puuduvad` are captions: they describe how
+    a figure got here, they are the same on every card of their kind, and six of
+    them across one row crowded out the six numbers the row exists to show. They
+    are gone. Where a figure came from is stated properly on the Nähtavus page,
+    in `Allikate määratlused`, per channel and in full sentences.
+
+    `Vajab uuendamist` is not a caption. It says this particular number is old
+    enough to be misleading, which is an alert about the figure rather than a
+    label on it, and dropping it would take a warning off the board's dashboard
+    to tidy the row. So the badge survives exactly for the warning variant.
     {% endcomment %}
-    {% if slot.state_label and show_state|default_if_none:True %}
+    {% if slot.state_label and slot.state_variant == "warning" %}
       {% include "dashboard/components/status_badge.html" with label=slot.state_label variant=slot.state_variant only %}
     {% endif %}
   </div>

@@ -47,7 +47,7 @@ Four things are deliberate and should stay that way:
     {% include "dashboard/components/section_header.html" with title="Praegune seis" heading_id="section-current" description="Viimane väärtus iga kanali kohta." only %}
     <div class="dk-kpi-strip dk-kpi-strip-wide">
       {% for slot in page.channels %}
-        {% include "dashboard/components/channel_card.html" with slot=slot flush=True show_state=False only %}
+        {% include "dashboard/components/channel_card.html" with slot=slot flush=True only %}
       {% endfor %}
     </div>
   </section>
