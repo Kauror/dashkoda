@@ -64,7 +64,7 @@ Two rules this markup exists to keep:
       {% if traffic.channels %}
         <div class="flex flex-col gap-2">
           <h3 class="text-sm font-medium text-text">Kust liiklus tuli</h3>
-          <div class="w-full overflow-x-auto">
+          <div class="w-full min-w-0 overflow-x-auto">
             <table class="w-full min-w-max border-collapse text-sm">
               <caption class="sr-only">Seansid kanalite kaupa</caption>
               <thead>
@@ -97,7 +97,15 @@ Two rules this markup exists to keep:
       can name, and it beats a title invented from a URL slug.
       {% endcomment %}
       {% if traffic.ranking %}
-        <div class="flex flex-col gap-3">
+        {% comment %}
+        `min-w-0` on the block and on the scroll container is what keeps the
+        page from widening. A flex item's `min-width` is `auto`, so a child
+        holding a `min-w-max` table refuses to shrink below the widest row and
+        pushes the whole document sideways instead of scrolling inside itself.
+        Long article paths are what make it visible: at 390px the news ranking
+        widened the page by 420px, while the short paths in `Kõik lehed` hid it.
+        {% endcomment %}
+        <div class="flex min-w-0 flex-col gap-3">
           <h3 class="text-sm font-medium text-text">Enim vaadatud sisu</h3>
 
           <nav aria-label="Sisu" class="flex flex-wrap gap-2">
@@ -108,7 +116,7 @@ Two rules this markup exists to keep:
             {% endfor %}
           </nav>
 
-          <div class="w-full overflow-x-auto">
+          <div class="w-full min-w-0 overflow-x-auto">
             <table class="w-full min-w-max border-collapse text-sm">
               <caption class="sr-only">Enim vaadatud sisu valitud perioodil</caption>
               <thead>
