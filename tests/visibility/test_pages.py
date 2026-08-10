@@ -78,12 +78,35 @@ def test_a_published_value_replaces_the_empty_slot(submit, viewer_client, today)
     assert f"{today.day}.{today:%m.%y}" in page
 
 
-def test_a_published_value_is_labelled_as_manually_collected(submit, viewer_client):
+def test_the_band_carries_no_provenance_caption(submit, viewer_client):
+    """The chips are gone from the overview at the board's request.
+
+    Six of them across one row said the same three things repeatedly and
+    crowded out the six figures the row exists to show. Where a number came
+    from is a real question, and it is answered on the Nähtavus page — see
+    `test_the_visibility_page_still_states_how_each_figure_was_collected`,
+    which is where that guarantee now lives.
+    """
     submit(facebook_followers=4200)
 
     page = body(viewer_client.get(reverse("home")))
 
-    assert "Käsitsi sisestatud" in page
+    assert "4200" in page
+    assert "Käsitsi sisestatud" not in page
+    assert "Automaatselt kogutud" not in page
+
+
+def test_the_visibility_page_still_states_how_each_figure_was_collected(submit, viewer_client):
+    """The guarantee the overview used to carry, kept where it belongs.
+
+    A dashboard mixing typed figures with synchronised feeds has to say which
+    is which somewhere, or a number a person read off a screen last month looks
+    exactly like one a collector fetched this morning."""
+    submit(facebook_followers=4200)
+
+    page = body(viewer_client.get(PAGE_URL))
+
+    assert "Väärtus sisestatakse käsitsi" in page
 
 
 def channel_band(response) -> str:
@@ -107,7 +130,10 @@ def test_no_card_claims_an_automatic_feed(submit, viewer_client):
     assert "sünkroon" not in band
     assert "api-ga ühendatud" not in band
     assert "automaatselt uuendatud" not in band
-    assert "käsitsi sisestatud" in band
+    # And no caption of any kind now: what must never happen is a typed figure
+    # borrowing the vocabulary of a synchronised one, which is still true when
+    # neither says anything.
+    assert "käsitsi sisestatud" not in band
 
 
 def test_a_stale_reading_is_marked_on_the_band(submit, viewer_client, days_ago):
