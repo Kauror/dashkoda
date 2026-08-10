@@ -370,5 +370,9 @@ def test_the_command_emits_json_carrying_no_campaign_name():
         "api_retries",
     }
     body = stdout.getvalue()
+    # The account's host never appears. The setting *names* deliberately do:
+    # with nothing configured the run fails by naming exactly what an operator
+    # must set, which is the difference between a useful failure and a mystery.
+    # What must never appear is a value.
     assert "sendsmaily" not in body
-    assert "password" not in body.lower()
+    assert "SMAILY_SUBDOMAIN" in payload["detail"]
