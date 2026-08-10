@@ -32,6 +32,7 @@ from apps.dashboard.sparkline import Sparkline, build_sparkline
 
 from .ga4 import Ga4ConnectionStatus, get_connection_status
 from .models import CollectionMethod, VisibilityMetric
+from .newsletter_page import NewsletterSection, build_newsletter_section
 from .registry import SOCIAL_METRICS, VisibilityMetricSpec
 from .selectors import (
     MetricReading,
@@ -275,6 +276,7 @@ class VisibilityPage:
     channels: tuple[ChannelSlot, ...]
     ga4: Ga4ConnectionStatus
     traffic: TrafficSection
+    newsletters: NewsletterSection
     today: date
 
     @property
@@ -310,6 +312,7 @@ def build_visibility_page(
     today: date | None = None,
     period_key: str | None = None,
     section_key: str | None = None,
+    newsletter_key: str | None = None,
 ) -> VisibilityPage:
     """Read every metric once and shape it for the page."""
     today = today or timezone.localdate()
@@ -325,6 +328,7 @@ def build_visibility_page(
         channels=build_channel_band(summary=summary, ga4_status=ga4_status, detail_url=detail_url),
         ga4=ga4_status,
         traffic=build_traffic_section(period_key=period_key, section_key=section_key, today=today),
+        newsletters=build_newsletter_section(newsletter_key=newsletter_key),
         today=today,
     )
 

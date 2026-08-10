@@ -97,6 +97,57 @@ why `SmailyAudienceSnapshot` is in `NEVER_PRUNED` in
 Interpolating between two known readings would fabricate exactly the series a
 board would use to judge whether the newsletters are growing. Nothing does it.
 
+## Campaigns
+
+`sync_smaily_campaigns` catalogues completed campaigns and publishes their
+**aggregate** statistics. It is a separate command from `sync_smaily`, with its
+own lock, so a campaign read that fails cannot make the subscriber figures look
+stale.
+
+Which newsletter an issue belongs to is decided from the **template name**.
+Smaily has a `tags` field that would answer this exactly and it is empty on
+every campaign in the account, so it cannot be used; the subject line is written
+for readers and drifts. `mitteliikmed` is tested before `liikmed`, because it
+contains it. A campaign that is not an issue of one of the three newsletters —
+an event calendar, an Enterprise Europe Network mailing, a one-off invitation —
+is catalogued and left unclassified rather than forced into a newsletter, where
+it would land in that newsletter's open rate.
+
+Classification is resolved once, when a campaign is first seen, and stored. A
+template renamed afterwards does not move last year's issues.
+
+Statistics are re-read only while they are still moving: every campaign
+completed within a fortnight, plus any campaign that has none yet. A campaign
+whose figures are unchanged publishes nothing; one whose figures have moved
+publishes a new revision naming the one it replaces.
+
+## Rates and their denominators
+
+No rate is stored. Smaily returns `opened_percent`, `click_percent` and
+`view_percent`; all three are quotients of the counts beside them, and a rounded
+copy would lose the denominator — which is the part that matters:
+
+| Rate | Divided by | Why |
+| --- | --- | --- |
+| Avamismäär | delivered | A bounced message was never open-able, so dividing by *sent* would understate every campaign by its bounce rate. This is what Smaily's own percentage means. |
+| Klikimäär | delivered | Unique clickers, not clicks: one reader following six links is one interested reader, not six. |
+| Klikke avajate seas | opens | A different question — what share of those who looked went on to follow something. |
+
+An **aggregate** rate across several issues is summed counts over summed counts,
+never the mean of per-issue percentages. Averaging the percentages would weight
+a send to 755 people the same as one to 20 616, and the headline figure would
+drift towards whichever list is smallest.
+
+## On the page
+
+The Nähtavus page gains a `Uudiskirjade tulemused` section: a filter across the
+three newsletters, each list's size over time, and the recent issues with their
+rates. Filtering to one newsletter adds its aggregate figures above the table.
+
+The audience chart starts where collection started and says so, because there is
+no earlier history to draw and padding it would show three newsletters being
+founded on the morning the collector was deployed.
+
 ## Configuration
 
 Three environment variables, all empty by default. The application starts,

@@ -7,6 +7,7 @@ from django.views.decorators.http import require_GET
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
+from .newsletter_page import PARAM_NEWSLETTER
 from .page import build_visibility_page
 from .traffic_page import PARAM_CONTENT, PARAM_PERIOD
 
@@ -30,6 +31,7 @@ def visibility_overview(request):
                 detail_url=reverse("visibility"),
                 period_key=request.GET.get(PARAM_PERIOD),
                 section_key=request.GET.get(PARAM_CONTENT),
+                newsletter_key=request.GET.get(PARAM_NEWSLETTER),
             ),
             "can_add_data": request.user.is_authenticated and request.user.is_staff,
         },

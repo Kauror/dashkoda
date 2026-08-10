@@ -1,0 +1,140 @@
+{% comment %}
+The newsletters' own history: a filter, the audience over time, and how the
+recent issues performed.
+
+Three rules this markup exists to keep:
+
+  * every rate names its denominator. `Avamismäär` is opens over *delivered*,
+    and `Klikke avajate seas` is clicks over *opens* — two different questions
+    that would look like one column of percentages if the notes were dropped;
+  * the accessible table is not optional. Each chart is an `img` with a text
+    alternative and its values live in `<details>` beside it, the same contract
+    every other chart here follows;
+  * a newsletter with no reading shows a sentence, never a zero. There is no
+    historical Smaily data to fall back on, so the empty state has to say that
+    collection starts from now rather than imply the lists are empty.
+{% endcomment %}
+<section aria-labelledby="section-newsletter-analytics" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Uudiskirjade tulemused" heading_id="section-newsletter-analytics" description="Nimekirjade kasv ja saadetud numbrite tulemused." only %}
+
+  <div class="dk-section-body flex flex-col gap-4">
+    <nav aria-label="Uudiskiri" class="flex flex-wrap gap-2">
+      {% for option in newsletters.options %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="?{{ option.query }}#section-newsletter-analytics"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if newsletters.has_any_data %}
+      {% if newsletters.figures %}
+        <dl class="flex flex-wrap gap-x-8 gap-y-3">
+          {% for figure in newsletters.figures %}
+            <div class="flex flex-col gap-0.5">
+              <dt class="text-sm text-text-secondary">{{ figure.label }}</dt>
+              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ figure.value }}</dd>
+              {% if figure.note %}<dd class="dk-meta">{{ figure.note }}</dd>{% endif %}
+            </div>
+          {% endfor %}
+        </dl>
+      {% endif %}
+
+      {% if newsletters.has_audience %}
+        <div class="flex flex-col gap-4">
+          <h3 class="text-sm font-medium text-text">Nimekirjade suurus</h3>
+          {% for card in newsletters.audience %}
+            {% if card.has_data %}
+              <div class="flex flex-col gap-2">
+                <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+                  <h4 class="text-sm font-medium text-text-secondary">{{ card.label }}</h4>
+                  <p class="flex items-baseline gap-1.5">
+                    <span class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ card.value }}</span>
+                    <span class="text-sm text-text-secondary">saajat</span>
+                  </p>
+                </div>
+                {% if card.change_label %}
+                  <p class="dk-meta">{{ card.change_label }}</p>
+                {% endif %}
+                {% if card.chart %}
+                  {% include "dashboard/components/trend_chart.html" with chart=card.chart only %}
+                {% else %}
+                  <p class="dk-meta">Trendi kuvamiseks on vaja vähemalt kahte lugemist.</p>
+                {% endif %}
+              </div>
+            {% endif %}
+          {% endfor %}
+        </div>
+
+        <p class="dk-meta">{{ newsletters.coverage_note }}</p>
+      {% endif %}
+
+      {% if newsletters.has_issues %}
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-medium text-text">Saadetud numbrid</h3>
+          <div class="w-full min-w-0 overflow-x-auto">
+            <table class="w-full min-w-max border-collapse text-sm">
+              <caption class="sr-only">Viimased saadetud uudiskirjad ja nende tulemused</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Number</th>
+                  {% if not newsletters.is_filtered %}
+                    <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudiskiri</th>
+                  {% endif %}
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Saadetud</th>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Kohale toimetatud</th>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avamismäär</th>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Klikimäär</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for issue in newsletters.issues %}
+                  <tr>
+                    <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">
+                      {{ issue.name|default:"—" }}
+                      {% if issue.audience %}
+                        <span class="dk-meta block">{{ issue.audience|capfirst }}</span>
+                      {% endif %}
+                    </th>
+                    {% if not newsletters.is_filtered %}
+                      <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ issue.newsletter_label }}</td>
+                    {% endif %}
+                    <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">
+                      {% if issue.completed_at %}{{ issue.completed_at|date:"j.m.y" }}{% else %}—{% endif %}
+                    </td>
+                    {% comment %}
+                    A dash, never a zero. A number whose statistics have not been
+                    read yet has not been delivered to nobody.
+                    {% endcomment %}
+                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">
+                      {{ issue.delivered_label|default:"—" }}
+                    </td>
+                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">
+                      {{ issue.open_rate_label|default:"—" }}
+                    </td>
+                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">
+                      {{ issue.click_rate_label|default:"—" }}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="dk-meta">
+            Avamismäär ja klikimäär arvutatakse kohale toimetatud kirjadest, mitte
+            saadetutest: tagasi põrkunud kirja ei olnud võimalik avada. Klikimäär
+            loeb unikaalseid klikkijaid, mitte klikke.
+          </p>
+          {% if not newsletters.is_filtered %}
+            <p class="dk-meta">
+              Loendis on ainult kolme uudiskirja numbrid. Kutsed, ürituste kalender ja
+              muud saadetised on eraldi saadetised, mitte uudiskirja numbrid, ja neid
+              siin ei arvestata.
+            </p>
+          {% endif %}
+        </div>
+      {% endif %}
+    {% else %}
+      {% include "dashboard/components/empty_state.html" with message="Andmed puuduvad." detail="Uudiskirjade andmed ilmuvad siia pärast esimest Smaily kogumist. Varasemat ajalugu ei ole võimalik koguda: Smaily näitab nimekirja praegust suurust, mitte selle ajalugu." only %}
+    {% endif %}
+  </div>
+</section>

@@ -104,16 +104,19 @@ Four things are deliberate and should stay that way:
         </p>
 
         <p class="dk-meta">
-          Aktiivsete saajate arv nimekirjas. See ei ole saadetud ega kohale toimetatud
-          kirjade arv ega avamiste või klikkide arv.
+          Tellijate arv nimekirjas Smaily andmetel, kogutud automaatselt iga päev.
+          See ei ole saadetud ega kohale toimetatud kirjade arv ega avamiste või
+          klikkide arv — need on allpool, saadetud numbrite juures.
         </p>
       {% else %}
-        {% include "dashboard/components/empty_state.html" with message="Andmed puuduvad." detail="Uudiskirja nimekirjade suurus ilmub siia pärast esimest sisestust." only %}
+        {% include "dashboard/components/empty_state.html" with message="Andmed puuduvad." detail="Uudiskirja nimekirjade suurus ilmub siia pärast esimest Smaily kogumist." only %}
       {% endif %}
     </div>
   </section>
 
   {# ---------------- 3. Sotsiaalmeedia ---------------- #}
+  {% include "visibility/_newsletters.html" with newsletters=page.newsletters only %}
+
   <section aria-labelledby="section-social" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Sotsiaalmeedia" heading_id="section-social" description="Jälgijate ja tellijate arv kanali enda statistika järgi." only %}
     <div class="dk-section-body grid grid-cols-1 gap-4 sm:grid-cols-2">
