@@ -14,7 +14,13 @@ test("login page loads, is branded and stays within the viewport", async ({ page
 
   await page.goto("/sisene/");
 
+  // The `h1` is `sr-only`, and this deliberately does not assert it hidden:
+  // Playwright counts a clipped 1px box as visible. What it holds is that the
+  // heading still exists and still names the page — a gate with no level-1
+  // heading leaves a screen reader nothing to orient by — while the tagline
+  // that sat beside it is gone from the document outright.
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sisene DashKodasse");
+  await expect(page.getByText("Koja sisene juhatuse ja juhtkonna töölaud.")).toHaveCount(0);
   await expect(page.getByLabel("PIN-kood")).toBeVisible();
   await expect(page.getByRole("img", { name: /Kaubandus-Tööstuskoda/ })).toBeVisible();
   await expectNoHorizontalOverflow(page);
