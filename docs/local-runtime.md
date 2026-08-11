@@ -263,7 +263,19 @@ that no digit reaches the shell, which is exactly what the seeded suite needs.
 Google Analytics needs no local configuration. `GA4_PROPERTY_ID` and
 `GA4_CREDENTIALS_FILE` may stay unset: the application starts, every page
 renders and the whole test suite passes with neither, and only the scheduled
-`sync_ga4` command ever requires them. See
+`sync_ga4` command ever requires them.
+
+The seed publishes a synthetic GA4 history too, through the same
+`synchronize_ga4` path a real collection uses with the transport replaced — so
+`/nahtavus/` shows its traffic chart, channel table, content ranking and page
+search locally without a property ID or a credential, and without contacting
+Google. That was not always so: while the seed published no analytics, the whole
+website section rendered as the `Lisamisel` empty state in every browser run and
+in every screenshot CI uploaded, and two defects reached production through that
+blind spot on 2026-08-11. The seeded history deliberately includes the traffic
+the content ranking must exclude — language roots, internal search, cart and
+error documents — because a seed without them cannot tell a working exclusion
+registry from an absent one. See
 [visibility-manual-entry.md](visibility-manual-entry.md).
 
 ## Deployment boundary

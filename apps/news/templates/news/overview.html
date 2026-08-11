@@ -61,7 +61,9 @@ destination and the new tab, so neither is a surprise to a screen-reader user.
               {% endif %}
             </div>
             <h3 class="text-sm font-medium text-text">
-              <a class="dk-link" href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer">
+              {# `relative` contains the hidden note; see the same anchor on the #}
+              {# event programme, where an uncontained one widened the page. #}
+              <a class="dk-link relative" href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer">
                 {{ item.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
               </a>
             </h3>

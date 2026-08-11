@@ -972,6 +972,201 @@ def _seed_internal_membership(today: dt.date) -> str:
 
 
 # --------------------------------------------------------------------------
+# Website analytics — through the real GA4 publication path
+# --------------------------------------------------------------------------
+
+#: How much history to publish. Long enough that `30 päeva` and `90 päeva` are
+#: both offered and the longer windows are visibly disabled, so the browser
+#: suite sees an offered control and a refused one rather than only one branch.
+ANALYTICS_DAYS = 45
+
+#: Paths that must never reach a content ranking, with the traffic they carry.
+#: They are the whole reason the ranking has an exclusion registry: on the real
+#: property the language roots alone outweigh every article, so a seed without
+#: them cannot show that the registry does anything. Each family in
+#: `apps.visibility.content_ranking` is represented once.
+ANALYTICS_UTILITY_PAGES = (
+    ("/et", 900),
+    ("/en", 300),
+    ("/ru", 120),
+    ("/et/search/node", 260),
+    ("/et/cart", 180),
+    ("/et/user/login", 60),
+    ("/403.html", 90),
+    ("/et/node/9001", 70),
+)
+
+#: A section's own listing page, which is excluded from the ranking of the
+#: content it lists — otherwise every section is topped by its index.
+ANALYTICS_INDEX_PAGES = (
+    ("/et/uudised", 140),
+    ("/et/sundmused", 130),
+    ("/et/teenused", 110),
+)
+
+
+#: A path seeded far below the Top 20 on purpose, and the words that find it.
+#: Search exists for the page a ranking cannot reach, so proving it works needs
+#: a target the ranking never shows — and the term appears in no path, so only
+#: the title catalogue can find it.
+ANALYTICS_QUIET_PATH = "/et/uudised/sunteetiline-12"
+ANALYTICS_QUIET_TITLE_TERM = "pealkiri 12"
+
+
+def _analytics_content_pages() -> tuple[tuple[str, int], ...]:
+    """The rankable paths, aligned with what the other seeders publish.
+
+    The paths match `_seed_news` and `_seed_events` exactly, which is what lets
+    a row resolve to a real title. Both halves of that are worth having:
+
+    - **news are catalogued**, because `synchronize_news` records every item it
+      publishes in `NewsResource`. So news rows show titles, `LONG_TITLE` among
+      them — and it is given the heaviest traffic in the section deliberately.
+      A very long linked title carrying a visually hidden suffix is the exact
+      shape that widened a page by 152 pixels once, and rank one is the only
+      place the layout suite will ever measure it;
+    - **events and services are not.** `PublicEventResource` is filled by the
+      sitemap discovery crawl, not by `synchronize_events`, and services have no
+      title catalogue anywhere in the application. Their rows therefore render
+      as paths — which is not a gap in the seed but the honest answer for a page
+      DashKoda cannot name, and the state a real event page is in until its link
+      is backfilled. Having both on screen at once is the point.
+    """
+    rows: list[tuple[str, int]] = []
+    for index in range(1, 13):
+        weight = 96 if index == 1 else 90 - index * 3
+        # The last article is nearly silent, so it can never drift into the Top
+        # 20 and quietly make the search tests assert nothing.
+        rows.append((f"/et/uudised/sunteetiline-{index}", 2 if index == 12 else max(weight, 6)))
+    for index in range(1, 19):
+        weight = 88 if index == 1 else 80 - index * 3
+        rows.append((f"/et/sundmused/sunteetiline-{index}", max(weight, 4)))
+    for index in range(1, 7):
+        rows.append((f"/et/teenused/sunteetiline-teenus-{index}", 70 - index * 4))
+    return tuple(rows)
+
+
+#: Every page row, utility and content together. The site's own figures are the
+#: sum of all of them, which is what lets a test show that excluding a path from
+#: a *ranking* leaves the website's totals untouched.
+ANALYTICS_PAGES = ANALYTICS_UTILITY_PAGES + ANALYTICS_INDEX_PAGES + _analytics_content_pages()
+
+#: Acquisition channels and their share of a day's sessions, in whole percent.
+#: The names are GA4's own default channel group, which is not Chamber data —
+#: it is the vocabulary the report arrives in.
+ANALYTICS_CHANNELS = (
+    ("Organic Search", 42),
+    ("Direct", 27),
+    ("Email", 14),
+    ("Organic Social", 11),
+    ("Referral", 6),
+)
+
+
+def _analytics_day(report_date: dt.date):
+    """One synthetic reporting day, shaped so the chart is not a straight line.
+
+    The weekday rhythm is deterministic, so re-running publishes an identical
+    canonical payload and the sync reports `unchanged` rather than filling the
+    history with revisions of itself.
+    """
+    from apps.visibility.ga4 import ChannelRow, DayReading, PageRow
+
+    # Quieter at the weekend. Integer arithmetic throughout: a float would make
+    # the canonical payload depend on binary rounding, and the checksum with it.
+    scale = 4 if report_date.weekday() >= 5 else 10
+    pages = tuple(
+        PageRow(path=path, page_views=max(base * scale // 10, 1)) for path, base in ANALYTICS_PAGES
+    )
+
+    # The site total *is* the sum of the page rows. Anything else would make
+    # "excluded from the list, never from the total" untestable here.
+    page_views = sum(row.page_views for row in pages)
+    sessions = max(page_views // 3, 1)
+
+    channels: list[ChannelRow] = []
+    assigned = 0
+    for name, share in ANALYTICS_CHANNELS[1:]:
+        count = sessions * share // 100
+        assigned += count
+        channels.append(ChannelRow(channel=name, sessions=count))
+    # The largest channel absorbs the rounding, so the parts always sum to the
+    # whole and a reader can add the column up.
+    channels.insert(
+        0, ChannelRow(channel=ANALYTICS_CHANNELS[0][0], sessions=max(sessions - assigned, 0))
+    )
+
+    return DayReading(
+        report_date=report_date,
+        sessions=sessions,
+        active_users=sessions * 8 // 10,
+        new_users=sessions * 3 // 10,
+        page_views=page_views,
+        engaged_sessions=sessions * 5 // 10,
+        user_engagement_seconds=sessions * 47,
+        pages=pages,
+        channels=tuple(channels),
+        has_page_detail=True,
+        has_channel_detail=True,
+    ).validate()
+
+
+class _SeedGa4Collector:
+    """Stands in for the Data API at the seam the real collector uses.
+
+    `synchronize_ga4` takes a collector and owns publication itself, so seeding
+    substitutes the transport and nothing else: the same normalisation, the same
+    canonical checksum, the same import run, the same immutable revisions. No
+    request is made and no property ID or credential is read.
+    """
+
+    def collect_range(self, *, start: dt.date, end: dt.date, with_pages=True, with_channels=True):
+        from apps.visibility.ga4 import CollectionCounts, RangeCollection
+
+        days = {}
+        current = start
+        while current <= end:
+            days[current] = _analytics_day(current)
+            current += dt.timedelta(days=1)
+        return RangeCollection(
+            days=days,
+            counts=CollectionCounts(
+                requests=0,
+                site_rows=len(days),
+                page_rows=sum(len(day.pages) for day in days.values()),
+                channel_rows=sum(len(day.channels) for day in days.values()),
+            ),
+        )
+
+
+def _seed_website_analytics(today: dt.date) -> str:
+    """Publish a synthetic GA4 history so the traffic section exists at all.
+
+    Without it `overview.html` renders the `Lisamisel` empty state and the whole
+    website section — the chart, the channel table, the content ranking and the
+    page search — is invisible to every browser test. Two defects shipped
+    through a fully green suite that way on 2026-08-11: the view dropped the
+    `otsing` parameter, and the template hid the search box behind the ranking
+    it empties.
+    """
+    from apps.visibility.ga4_sync import synchronize_ga4
+
+    # `synchronize_ga4` clamps to the last completed day itself; the window is
+    # stated in full so the seeded span does not depend on that clamp.
+    end = today - dt.timedelta(days=1)
+    outcome = synchronize_ga4(
+        collector=_SeedGa4Collector(),
+        start=end - dt.timedelta(days=ANALYTICS_DAYS - 1),
+        end=end,
+        today=today,
+    )
+    return (
+        f"veebistatistika: {outcome.result} "
+        f"({ANALYTICS_DAYS} päeva, {len(ANALYTICS_PAGES)} lehekülge päevas)"
+    )
+
+
+# --------------------------------------------------------------------------
 # Visibility — through the manual submission service
 # --------------------------------------------------------------------------
 
@@ -1054,6 +1249,10 @@ class Command(BaseCommand):
             _seed_public_membership(),
             _seed_internal_membership(today),
             _seed_visibility(today),
+            # After the news and the events: the page rows resolve their titles
+            # from those catalogues, and a ranking seeded first would show paths
+            # where the finished page shows titles.
+            _seed_website_analytics(today),
         ]
 
         self.stdout.write(self.style.SUCCESS(f"Sünteetiline seeme ({module}):"))
