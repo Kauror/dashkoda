@@ -14,6 +14,7 @@ end.
 | `audit` | append-only records of significant actions | anything domain-specific; it has no dependency on `sources` |
 | `legal_work` | imported legal-work snapshots and rows, their selectors and page, the workbook importer, the OneDrive feed state | generic artifact registration, the generic import lifecycle, audit infrastructure, authentication, any other OneDrive file |
 | `visibility` | manually observed audience sizes, their metric registry, selectors, staff entry workflow, the Nähtavus page and the optional Google Analytics website-traffic collector | any social-platform collector or credential, any individual subscriber, follower or visitor |
+| `shop` | the imported Koda.ee Commerce dataset — product identities, dated catalogue observations, public path mappings, aggregated daily facts, the source-coverage state, the manual package importer and the E-pood pages | GA4 collection, path canonicalisation, membership purchases, any customer, participant or submission, any collector |
 
 `legal_work` is the first module to consume this foundation end to end. Its
 models, importer, collector and scheduling are documented separately in
