@@ -361,9 +361,7 @@ def build_overview(
     return ShopOverview(
         has_source=True,
         as_of_label=long_date(coverage.source_as_of),
-        coverage_label=(
-            f"{long_date(coverage.coverage_start)}–{long_date(coverage.coverage_end)}"
-        ),
+        coverage_label=(f"{long_date(coverage.coverage_start)}–{long_date(coverage.coverage_end)}"),
         window=window,
         web_interval_label=(
             f"{long_date(window.web_start)}–{long_date(window.web_end)}" if window.has_web else ""
@@ -582,9 +580,7 @@ def build_product_detail(
     return ProductDetail(
         found=True,
         as_of_label=long_date(coverage.source_as_of),
-        coverage_label=(
-            f"{long_date(coverage.coverage_start)}–{long_date(coverage.coverage_end)}"
-        ),
+        coverage_label=(f"{long_date(coverage.coverage_start)}–{long_date(coverage.coverage_end)}"),
         web_interval_label=(
             f"{long_date(window.web_start)}–{long_date(window.web_end)}" if window.has_web else ""
         ),
