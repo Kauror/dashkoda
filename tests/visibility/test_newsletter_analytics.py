@@ -288,7 +288,9 @@ def test_the_page_renders_the_section(viewer_client):
 
     page = viewer_client.get(reverse("visibility")).content.decode()
     assert "Uudiskirjade tulemused" in page
-    assert "Avamismäär" in page
+    # The column is `Avatud`; `Avamismäär` was the struck-out explanatory
+    # paragraph's wording, not the table's.
+    assert "Avatud" in page
 
 
 def test_the_page_carries_the_filter_through(viewer_client):
