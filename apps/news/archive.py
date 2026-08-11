@@ -23,6 +23,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from django.core.paginator import EmptyPage, Paginator
+from django.db.models import Count, Q
 
 from apps.visibility.ga4_selectors import Coverage, get_coverage
 
@@ -336,13 +337,30 @@ def build_news_archive(
         page_number=current.number,
         total_pages=paginator.num_pages,
         coverage=get_coverage(),
-        # Two cheap existence questions, asked because the answers mean
-        # different things to the reader and neither can be inferred from the
-        # filtered count.
-        catalogue_is_empty=not NewsResource.objects.exists(),
-        undated_count=NewsResource.objects.filter(published_at__isnull=True).count(),
-        _unclassified=NewsResource.objects.filter(category="").count(),
+        **_catalogue_facts(),
     )
+
+
+def _catalogue_facts() -> dict:
+    """The three catalogue-wide figures the page states, in one query.
+
+    None of them can be inferred from the filtered count, and each means
+    something different to the reader: whether any source is connected at all,
+    how many articles are undated, and how many carry no category. They were
+    three separate round trips — an `exists()` and two `count()`s over the same
+    unfiltered table — which the live-search fragment then paid on every
+    keystroke. Conditional aggregation asks the same three questions once.
+    """
+    row = NewsResource.objects.aggregate(
+        total=Count("pk"),
+        undated=Count("pk", filter=Q(published_at__isnull=True)),
+        unclassified=Count("pk", filter=Q(category="")),
+    )
+    return {
+        "catalogue_is_empty": not row["total"],
+        "undated_count": row["undated"],
+        "_unclassified": row["unclassified"],
+    }
 
 
 __all__ = [
