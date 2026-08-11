@@ -228,6 +228,29 @@ def test_the_archive_paginates_rather_than_rendering_everything():
     assert second.has_previous and not second.has_next
 
 
+def test_the_summary_span_covers_the_whole_filtered_set_not_the_page():
+    """The count and the span are one sentence and must describe one thing.
+
+    Taken from the rows on screen, "3 194 sends" read as though they had all
+    happened in the three months the newest fifty covered.
+    """
+    many = tuple(
+        row(200 + index, template="Ürituste kalender", subject=f"Vana {index}", days_ago=index * 30)
+        for index in range(PER_PAGE + 5)
+    )
+    collect(many)
+
+    history = build_campaign_history()
+    oldest = min(r.completed_at for r in many).date()
+    newest = max(r.completed_at for r in many).date()
+
+    assert history.earliest == oldest
+    assert history.latest == newest
+    # The page holds only the newest fifty, so a span taken from it would start
+    # far later than the oldest send.
+    assert history.earliest < min(r.completed_at for r in history.rows)
+
+
 def test_a_rotten_page_number_falls_back_rather_than_erroring():
     collect()
     for bad in ("0", "-4", "banana", "99999", None):

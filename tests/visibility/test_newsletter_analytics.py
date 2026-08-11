@@ -168,8 +168,17 @@ def test_an_aggregate_with_nothing_measured_has_no_rate():
 # -- which issues count -----------------------------------------------------
 
 
-def test_an_unclassified_mailing_is_not_a_newsletter_issue():
-    """Event calendars and one-off letters are catalogued but are not issues."""
+def test_an_unclassified_mailing_is_listed_under_muu():
+    """Event calendars and one-off letters are sends, and they are shown.
+
+    This test used to assert the opposite — that an unclassified campaign was
+    absent from the list. That was the defect: the list excluded every campaign
+    the classifier did not recognise, which on the real account meant 2 105 of
+    3 194 sends. Classification labels a send; it does not decide whether the
+    send happened.
+    """
+    from apps.visibility.smaily_campaigns import OTHER_LABEL
+
     read(DAY)
     issue(1)
     SmailyCampaign.objects.create(
@@ -181,8 +190,9 @@ def test_an_unclassified_mailing_is_not_a_newsletter_issue():
         completed_at=timezone.now(),
     )
 
-    rows = get_campaign_performance()
-    assert [row.campaign_id for row in rows] == [1]
+    rows = {row.campaign_id: row for row in get_campaign_performance()}
+    assert set(rows) == {1, 9001}
+    assert rows[9001].newsletter_label == OTHER_LABEL
 
 
 def test_filtering_by_newsletter_shows_only_its_issues():
