@@ -67,6 +67,7 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
         "events",
         "news",
         "visibility",
+        "shop",
     }
     # Fookusteemad is the only planned module left: Arvamused, Projektid and
     # Finantsid were removed at the board's request rather than left as names

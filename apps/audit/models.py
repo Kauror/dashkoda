@@ -289,6 +289,20 @@ class AuditAction(models.TextChoices):
         "sources.snapshots_pruned",
         "Vanad hetkeseisud kustutatud",
     )
+    # E-pood. The manual commerce package, which publishes product metadata and
+    # aggregated daily facts all-or-nothing.
+    SHOP_SNAPSHOT_IMPORTED = (
+        "shop.snapshot_imported",
+        "E-poe andmed imporditud",
+    )
+    SHOP_SNAPSHOT_UNCHANGED = (
+        "shop.snapshot_unchanged",
+        "E-poe andmed: muutusteta",
+    )
+    SHOP_SNAPSHOT_FAILED = (
+        "shop.snapshot_failed",
+        "E-poe andmete import ebaõnnestus",
+    )
 
 
 class AuditEventQuerySet(models.QuerySet):

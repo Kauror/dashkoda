@@ -1,0 +1,317 @@
+"""Builds synthetic E-pood import packages for the tests.
+
+**Everything here is invented.** No real Koda.ee product, price, order count or
+value is reproduced. The 2026-08-11 backend audit produced aggregate discovery
+figures, not a row-level dataset, and seeding those totals as if they were
+records would put fabricated numbers into a database that is supposed to hold
+only what a source actually said.
+
+The builder produces a package that passes every check by default and exposes
+enough seams to break exactly one thing at a time: an unknown column, a wrong
+digest, a bad Commerce state, a dangling product reference, a duplicate key, a
+date outside coverage, or contradictory manifest semantics.
+"""
+
+from __future__ import annotations
+
+import csv
+import hashlib
+import io
+import json
+import zipfile
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from apps.shop.package import (
+    DAILY_FACTS_NAME,
+    MANIFEST_NAME,
+    PRODUCT_PATHS_NAME,
+    PRODUCTS_NAME,
+    REQUIRED_HEADERS,
+)
+
+PACKAGE_ROOT = "dashkoda-epood-package"
+
+# Synthetic product IDs, deliberately in a range no real Koda.ee product uses.
+DOCUMENT_WITH_BOTH_PAGES = 900001
+DOCUMENT_PRODUCT_PAGE_ONLY = 900002
+EVENT_PRODUCT = 900003
+PHYSICAL_PRODUCT = 900004
+
+
+def _row(header: tuple[str, ...], values: dict) -> dict:
+    return {name: values.get(name, "") for name in header}
+
+
+def _csv_bytes(name: str, rows: list[dict], *, header: tuple[str, ...] | None = None) -> bytes:
+    header = header or REQUIRED_HEADERS[name]
+    buffer = io.StringIO(newline="")
+    writer = csv.DictWriter(buffer, fieldnames=list(header), lineterminator="\n")
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(_row(header, row))
+    return buffer.getvalue().encode("utf-8")
+
+
+def default_products() -> list[dict]:
+    return [
+        {
+            "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
+            "product_type": "document",
+            "title": "Näidisleping ühe lehega",
+            "category_term_id": "159",
+            "category_name": "Töösuhted",
+            "published": "true",
+            "publicly_listed": "",  # genuinely unknown, must stay null
+            "list_price_current_net": "30.0000",
+            "member_price_current_net": "15.0000",
+            "members_only": "false",
+            "connected_event_node_id": "",
+            "observed_on": "2026-08-11",
+        },
+        {
+            "source_product_id": str(DOCUMENT_PRODUCT_PAGE_ONLY),
+            "product_type": "document",
+            "title": (
+                "Väga pikk näidislepingu pealkiri mis peab tabelis reavahetusega "
+                "murduma ja mitte lehte laiemaks venitama"
+            ),
+            "category_term_id": "187",
+            "category_name": "Lepingute komplektid",
+            "published": "true",
+            "publicly_listed": "true",
+            "list_price_current_net": "0.0000",  # explicit free, not absent
+            "member_price_current_net": "0.0000",
+            "members_only": "false",
+            "connected_event_node_id": "",
+            "observed_on": "2026-08-11",
+        },
+        {
+            "source_product_id": str(EVENT_PRODUCT),
+            "product_type": "event_registration",
+            "title": "Näidiskoolitus",
+            "category_term_id": "160",
+            "category_name": "Koolitused",
+            "published": "true",
+            "publicly_listed": "true",
+            "list_price_current_net": "78.0000",
+            "member_price_current_net": "39.0000",
+            "members_only": "false",
+            "connected_event_node_id": "777001",
+            "observed_on": "2026-08-11",
+        },
+        {
+            "source_product_id": str(PHYSICAL_PRODUCT),
+            "product_type": "physical_product",
+            "title": "Näidistoode",
+            "category_term_id": "",
+            "category_name": "",
+            "published": "true",
+            "publicly_listed": "true",
+            "list_price_current_net": "",  # price genuinely unknown, stays null
+            "member_price_current_net": "",
+            "members_only": "",
+            "connected_event_node_id": "",
+            "observed_on": "2026-08-11",
+        },
+    ]
+
+
+def default_product_paths() -> list[dict]:
+    return [
+        {
+            "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
+            "page_role": "product",
+            "canonical_path": "/et/pood/lepingute-naidised/toosuhted/naidisleping",
+            "observed_on": "2026-08-11",
+        },
+        {
+            "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
+            "page_role": "information",
+            "canonical_path": "/et/tooriistad/naidisleping",
+            "observed_on": "2026-08-11",
+        },
+        {
+            "source_product_id": str(DOCUMENT_PRODUCT_PAGE_ONLY),
+            "page_role": "product",
+            "canonical_path": "/et/pood/lepingute-naidised/komplektid/naidiskomplekt",
+            "observed_on": "2026-08-11",
+        },
+        {
+            "source_product_id": str(EVENT_PRODUCT),
+            "page_role": "event",
+            "canonical_path": "/et/sundmused/naidiskoolitus",
+            "observed_on": "2026-08-11",
+        },
+        # PHYSICAL_PRODUCT deliberately has no path: a product with no mapping
+        # must still appear in Commerce totals and must yield no conversion.
+    ]
+
+
+def default_daily_facts() -> list[dict]:
+    return [
+        # Before GA4 coverage begins (2023-06-16 on the real property): must
+        # never enter a conversion numerator.
+        {
+            "report_date": "2021-03-04",
+            "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
+            "commerce_state": "completed",
+            "member_status": "member",
+            "payment_class": "invoice",
+            "order_count": "2",
+            "units": "2.00",
+            "ordered_value_net": "30.0000",
+            "currency": "EUR",
+        },
+        {
+            "report_date": "2026-03-10",
+            "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
+            "commerce_state": "completed",
+            "member_status": "member",
+            "payment_class": "bank_or_card",
+            "order_count": "3",
+            "units": "3.00",
+            "ordered_value_net": "45.0000",
+            "currency": "EUR",
+        },
+        {
+            "report_date": "2026-03-10",
+            "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
+            "commerce_state": "completed",
+            "member_status": "non_member",
+            "payment_class": "invoice",
+            "order_count": "1",
+            "units": "1.00",
+            "ordered_value_net": "30.0000",
+            "currency": "EUR",
+        },
+        {
+            "report_date": "2026-04-02",
+            "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
+            "commerce_state": "completed",
+            "member_status": "unknown",
+            "payment_class": "unknown",
+            "order_count": "1",
+            "units": "1.00",
+            "ordered_value_net": "30.0000",
+            "currency": "EUR",
+        },
+        # A free acquisition with an explicit zero value.
+        {
+            "report_date": "2026-04-02",
+            "source_product_id": str(DOCUMENT_PRODUCT_PAGE_ONLY),
+            "commerce_state": "completed",
+            "member_status": "member",
+            "payment_class": "bank_or_card",
+            "order_count": "4",
+            "units": "4.00",
+            "ordered_value_net": "0.0000",
+            "currency": "EUR",
+        },
+        {
+            "report_date": "2026-05-20",
+            "source_product_id": str(EVENT_PRODUCT),
+            "commerce_state": "completed",
+            "member_status": "member",
+            "payment_class": "bank_or_card",
+            "order_count": "6",
+            "units": "9.00",  # one order, several participants
+            "ordered_value_net": "351.0000",
+            "currency": "EUR",
+        },
+        {
+            "report_date": "2026-06-01",
+            "source_product_id": str(PHYSICAL_PRODUCT),
+            "commerce_state": "completed",
+            "member_status": "non_member",
+            "payment_class": "bank_or_card",
+            "order_count": "1",
+            "units": "1.00",
+            "ordered_value_net": "25.0000",
+            "currency": "EUR",
+        },
+    ]
+
+
+def default_manifest() -> dict:
+    return {
+        "schema_version": "1.0",
+        "source_name": "Koda.ee Commerce (sünteetiline testväljavõte)",
+        "source_as_of": "2026-08-11",
+        "coverage_start": "2020-10-22",
+        "coverage_end": "2026-08-11",
+        "exported_at": "2026-08-11T12:00:00+03:00",
+        "timezone": "Europe/Tallinn",
+        "money_basis": "net_ex_vat",
+        "order_state_filter": "completed",
+        "member_semantics_verified": False,
+        "public_listing_semantics_verified": False,
+    }
+
+
+@dataclass
+class PackageBuilder:
+    """A valid package by default, with one seam per failure mode."""
+
+    products: list[dict] = field(default_factory=default_products)
+    product_paths: list[dict] = field(default_factory=default_product_paths)
+    daily_facts: list[dict] = field(default_factory=default_daily_facts)
+    manifest: dict = field(default_factory=default_manifest)
+
+    #: Override a file's header, to simulate an export that grew a column.
+    headers: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    #: Extra rows keyed by file, written with the overridden header.
+    extra_values: dict[str, list[dict]] = field(default_factory=dict)
+    #: Files to omit, extra undeclared members, and digest corruption.
+    omit: set[str] = field(default_factory=set)
+    undeclared: dict[str, bytes] = field(default_factory=dict)
+    corrupt_digest_for: str | None = None
+    wrap_in_root: bool = True
+
+    def _payloads(self) -> dict[str, bytes]:
+        payloads: dict[str, bytes] = {}
+        tables = {
+            PRODUCTS_NAME: self.products,
+            PRODUCT_PATHS_NAME: self.product_paths,
+            DAILY_FACTS_NAME: self.daily_facts,
+        }
+        for name, rows in tables.items():
+            if name in self.omit:
+                continue
+            header = self.headers.get(name)
+            values = self.extra_values.get(name, rows)
+            payloads[name] = _csv_bytes(name, values, header=header)
+        return payloads
+
+    def build(self, directory: Path, *, filename: str = "epood.zip") -> Path:
+        payloads = self._payloads()
+        files = []
+        for name, payload in sorted(payloads.items()):
+            digest = hashlib.sha256(payload).hexdigest()
+            if self.corrupt_digest_for == name:
+                digest = "0" * 64
+            files.append({"path": name, "sha256": digest, "size_bytes": len(payload)})
+
+        manifest = dict(self.manifest)
+        manifest["files"] = files
+        manifest_bytes = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
+
+        target = directory / filename
+        prefix = f"{PACKAGE_ROOT}/" if self.wrap_in_root else ""
+        with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+            if MANIFEST_NAME not in self.omit:
+                archive.writestr(f"{prefix}{MANIFEST_NAME}", manifest_bytes)
+            for name, payload in sorted(payloads.items()):
+                archive.writestr(f"{prefix}{name}", payload)
+            for name, payload in sorted(self.undeclared.items()):
+                archive.writestr(f"{prefix}{name}", payload)
+        return target
+
+
+def build_package(directory: Path, *, filename: str = "epood.zip", **overrides) -> Path:
+    """A valid synthetic package, unless an override breaks one thing.
+
+    `filename` is separate from the builder's fields so a test can write two
+    packages into one `tmp_path` without the second overwriting the first.
+    """
+    return PackageBuilder(**overrides).build(directory, filename=filename)
