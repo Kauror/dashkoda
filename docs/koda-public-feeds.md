@@ -151,19 +151,34 @@ corrects titles and publication dates, drives source freshness and populates the
 catalogue; `NewsFeedState`, the import history and the source's health are
 untouched. What changed is which population the viewer reads.
 
-**Two thirds of the catalogue has no publication date, and that is honest
-rather than broken.** Articles catalogued from the feed carry the date the
-Chamber published; articles recovered by `discover_news_titles` do not, because
-the public page does not reliably state one and inventing a date would put a
-wrong one beside a right title. As of August 2026 that is 1 194 undated rows out
-of 1 206. An undated article cannot answer "was this published in March" either
-way, so it appears only under `Kõik` — where the claim is "everything
-catalogued", never "everything the Chamber has ever published".
+### Where a publication date comes from
 
-The consequence is worth stating plainly: the period presets currently filter a
-small dated population, and they will grow as the feed runs. `Kõik` ranked by
-`Enim vaadatud` is what the archive is most useful for today, because every
-catalogued article does have measured traffic.
+Two sources, and the feed outranks the page:
+
+- an article catalogued **from the feed** carries the date the Chamber
+  published. That is authoritative and is never overwritten;
+- an article recovered **from its public page** is dated from schema.org
+  `datePublished` in the page's own JSON-LD — a timezone-aware ISO 8601
+  timestamp, present back to at least 2017.
+
+This is a correction. `discover_news_titles` used to assert that "the page does
+not reliably carry a publication date" and catalogued every recovered article
+undated on that basis. It was never re-checked against the pages: forty of forty
+sampled carried one. The cost was the entire archive — 3 602 of 3 614 rows
+undated, so the publication-period filters had twelve articles to work on.
+`backfill_news_dates` is the one-time pass that repairs it, and
+`parse_published_at` dates newly discovered articles as they are found.
+
+Three shapes are still refused rather than guessed at: a listing page such as
+`/en/news`, which carries no `datePublished` and must not be dated from whatever
+it happens to list; an unparseable value; and a moment more than
+`KODA_NEWS_MAX_FUTURE_DAYS` ahead, the same guard the feed applies so a
+mis-dated article cannot pin itself to the top forever.
+
+An article that genuinely states no date stays undated, and an undated article
+cannot answer "was this published in March" either way — so it appears only
+under `Kõik`, where the claim is "everything catalogued", never "everything the
+Chamber has ever published".
 
 ## Events
 

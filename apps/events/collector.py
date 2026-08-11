@@ -29,7 +29,6 @@ parsing dependency is added.
 from __future__ import annotations
 
 import datetime as dt
-import json
 import logging
 import re
 import zoneinfo
@@ -41,6 +40,7 @@ from django.conf import settings
 
 from apps.core.canonical import canonical_checksum
 from apps.core.public_http import PublicFetchError, fetch, is_allowed_public_url
+from apps.core.structured_data import find_by_type
 from apps.news.collector import to_plain_text
 
 logger = logging.getLogger("dashkoda.events.collector")
@@ -325,27 +325,14 @@ def _has_next_page(html: str, page: int) -> bool:
     return f"?page={page + 1}" in html
 
 
-def _json_ld_blocks(html: str) -> list:
-    blocks = []
-    for raw in re.findall(
-        r'<script[^>]*type=["\']application/ld\+json["\'][^>]*>(.*?)</script>', html, re.S
-    ):
-        try:
-            blocks.append(json.loads(raw.strip()))
-        except ValueError, TypeError:
-            continue
-    return blocks
-
-
 def _find_event(html: str) -> dict | None:
-    for block in _json_ld_blocks(html):
-        entries = block.get("@graph", []) if isinstance(block, dict) else block
-        if isinstance(entries, dict):
-            entries = [entries]
-        for entry in entries or []:
-            if isinstance(entry, dict) and "Event" in str(entry.get("@type", "")):
-                return entry
-    return None
+    """The page's own `Event` description, if it has one.
+
+    The JSON-LD reading itself lives in `apps.core.structured_data`, shared with
+    the news collector: both need blocks found, unparseable ones survived and
+    `@graph` flattened, and two copies of that would drift.
+    """
+    return find_by_type(html, "Event")
 
 
 def parse_event_detail(html: str, url: str):
