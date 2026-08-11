@@ -391,3 +391,133 @@ def test_the_seed_keeps_no_workbook_behind(tmp_path, settings):
     snapshot = LegalWorkSnapshot.objects.get(is_current=True)
     assert snapshot.artifact.is_external, "the seeded artifact must carry no stored file"
     assert not any(tmp_path.rglob("*.xlsx"))
+
+
+# -- the website analytics ----------------------------------------------
+
+
+def test_the_seed_connects_the_website_section():
+    """Without this the whole traffic section is invisible to the browser suite.
+
+    `overview.html` gates it on `page.ga4.is_connected`, which is false until a
+    current reporting day exists — so before the seed published analytics the
+    chart, the channel table, the content ranking and the page search rendered
+    as the `Lisamisel` empty state in every browser run and in every screenshot
+    CI uploaded. Two defects shipped through a green suite in that blind spot.
+    """
+    from apps.visibility.ga4 import get_connection_status
+    from apps.visibility.models import Ga4ChannelDaily, Ga4DailySnapshot, Ga4PageDaily
+
+    run_seed()
+
+    assert get_connection_status().is_connected
+    days = Ga4DailySnapshot.objects.filter(is_current_for_date=True)
+    assert days.count() == seed_e2e_data.ANALYTICS_DAYS
+    assert days.filter(has_page_detail=True).count() == seed_e2e_data.ANALYTICS_DAYS
+    assert Ga4PageDaily.objects.exists()
+    assert Ga4ChannelDaily.objects.exists()
+
+
+def test_the_seeded_site_total_is_the_sum_of_its_page_rows():
+    """What makes "excluded from a list, never from a total" checkable here."""
+    from django.db.models import Sum
+
+    from apps.visibility.models import Ga4DailySnapshot, Ga4PageDaily
+
+    run_seed()
+
+    for snapshot in Ga4DailySnapshot.objects.filter(is_current_for_date=True):
+        rows = Ga4PageDaily.objects.filter(snapshot=snapshot).aggregate(total=Sum("page_views"))
+        assert snapshot.page_views == rows["total"]
+
+
+def test_the_seeded_ranking_excludes_utility_paths_but_keeps_their_traffic():
+    """The registry is only demonstrable if the seed gives it something to do.
+
+    `/et` outranks every seeded article on purpose, because that is how the real
+    property behaves — 133 588 page views against a few thousand for the best
+    article. A seed without it could not tell a working exclusion registry from
+    an absent one.
+    """
+    from apps.visibility.ga4_selectors import get_traffic_series
+    from apps.visibility.traffic_page import build_traffic_section
+
+    run_seed()
+
+    section = build_traffic_section(period_key="koik")
+    ranked = {row.path for row in section.ranking}
+    assert ranked
+    for excluded in ("/et", "/en", "/ru", "/et/search/node", "/et/cart", "/403.html"):
+        assert excluded not in ranked
+
+    # And none of it was deleted: the site's own figures still carry every view.
+    series = get_traffic_series(start=section.start, end=section.end)
+    assert series.total_page_views > sum(row.page_views for row in section.ranking)
+
+
+def test_the_seeded_ranking_shows_a_title_long_enough_to_truncate():
+    """The overflow candidate has to be *on screen* to be measured.
+
+    A very long linked title carrying a visually hidden suffix is the shape that
+    widened a page by 152 pixels once, so the seed gives it the heaviest traffic
+    in its section rather than leaving it at rank 34 where no layout assertion
+    would ever reach it.
+    """
+    from apps.visibility.traffic_page import build_traffic_section
+
+    run_seed()
+
+    labels = [row.label for row in build_traffic_section(period_key="koik").ranking]
+    assert seed_e2e_data.LONG_TITLE in labels
+
+
+def test_the_seeded_history_is_searchable_beyond_the_ranking():
+    """The page search, over seeded data, by path and by catalogued title."""
+    from apps.visibility.traffic_page import build_traffic_section
+
+    run_seed()
+
+    quiet = seed_e2e_data.ANALYTICS_QUIET_PATH
+    ranking = build_traffic_section(period_key="koik")
+    assert quiet not in {row.path for row in ranking.ranking}
+
+    # By path.
+    found = build_traffic_section(period_key="koik", search=quiet)
+    assert [row.path for row in found.results] == [quiet]
+
+    # And by its catalogued title, which appears in no path at all — so this
+    # passes only because `synchronize_news` really did catalogue the article.
+    by_title = build_traffic_section(
+        period_key="koik", search=seed_e2e_data.ANALYTICS_QUIET_TITLE_TERM
+    )
+    assert quiet in {row.path for row in by_title.results}
+
+    # Enough matches that the results paginate, so the pager is reachable.
+    everything = build_traffic_section(period_key="koik", search="sunteetiline")
+    assert everything.total_pages > 1
+
+
+def test_the_seed_covers_both_a_named_page_and_an_unnamed_one():
+    """A ranking that showed only titles, or only paths, would hide half the
+    rendering. News are catalogued by their sync; events and services are not,
+    so their rows must fall back to the path rather than invent a name."""
+    from apps.visibility.traffic_page import build_traffic_section
+
+    run_seed()
+
+    rows = build_traffic_section(period_key="koik").ranking
+    assert any(row.has_known_identity for row in rows), "no row resolved to a title"
+    assert any(not row.has_known_identity for row in rows), "every row had a title"
+
+
+def test_a_second_seed_publishes_no_new_reporting_day():
+    """The GA4 payload is hashed, so a non-deterministic figure would show up
+    here as a database full of revisions of the same day."""
+    from apps.visibility.models import Ga4DailySnapshot
+
+    run_seed()
+    before = Ga4DailySnapshot.objects.count()
+
+    run_seed()
+
+    assert Ga4DailySnapshot.objects.count() == before
