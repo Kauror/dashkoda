@@ -14,6 +14,7 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.visibility.content_sections import SECTION_EVENTS, SECTION_NEWS
@@ -390,6 +391,54 @@ def test_a_rotten_page_number_falls_back(day):
     for bad in ("0", "-3", "banana", "9999", None):
         section = build_traffic_section(period_key="koik", search="pood", page=bad, today=TODAY)
         assert section.page_number >= 1
+
+
+# -- the view actually carries the parameters --------------------------------
+
+
+def test_the_rendered_page_searches_when_asked(viewer_client, day):
+    """The whole feature was reachable in Python and unreachable in a browser.
+
+    `build_traffic_section` took `search` and `page`, `build_visibility_page`
+    passed them on, the template rendered both modes — and the view read
+    neither, so `?otsing=…` rendered the ordinary Top 20 and looked like a
+    search that had found everything. Every test above passed throughout,
+    because every one of them called the builder directly.
+
+    So this asserts through the view: the term must survive the request, and
+    the response must be in the other mode.
+    """
+    day(START, pages=(("/et/pood", 900), ("/et/liikmed/liikmemaks", 5)))
+
+    page = viewer_client.get(
+        reverse("visibility"), {"periood": "koik", "otsing": "liikmemaks"}
+    ).content.decode()
+
+    assert "Otsingu tulemused" in page
+    assert "/et/liikmed/liikmemaks" in page
+    # The ranking's own heading is gone: this is not a Top 20 with a filter.
+    assert "Enim vaadatud sisu valitud perioodil" not in page
+    # And the box still holds what was typed, so the term is visible.
+    assert 'value="liikmemaks"' in page
+
+
+def test_the_rendered_page_carries_the_result_page_number(viewer_client, day):
+    """`lk` reaches the traffic section, not only the campaign archive.
+
+    Both pages paginate under `lk`. The overview view has to read it for the
+    traffic section, and `views.py` imports the two modules' parameter names
+    under aliases precisely so the archive's cannot be used here by accident.
+    """
+    day(START, pages=[(f"/et/pood/toode-{index:02d}", 100 - index) for index in range(30)])
+
+    second = viewer_client.get(
+        reverse("visibility"), {"periood": "koik", "otsing": "toode", "lk": "2"}
+    ).content.decode()
+
+    assert "Lehekülg 2 / 2" in second
+    # Page two holds the tail of the ordering, not the head.
+    assert "/et/pood/toode-29" in second
+    assert "/et/pood/toode-00" not in second
 
 
 # -- the selector's own contract ---------------------------------------------

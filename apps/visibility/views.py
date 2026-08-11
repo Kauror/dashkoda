@@ -7,14 +7,19 @@ from django.views.decorators.http import require_GET
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
-from .campaign_history import (
-    PARAM_PAGE,
-    PARAM_SEARCH,
-    build_campaign_history,
-)
+# Both pages have a search box and both paginate, and the two sets of parameter
+# names are *not* interchangeable: the archive searches campaign subjects under
+# `otsi`, the traffic section searches pages under `otsing`. Every one of the
+# four is aliased, so no bare `PARAM_SEARCH` or `PARAM_PAGE` exists in this
+# module to be reached for by the wrong view.
+from .campaign_history import PARAM_PAGE as PARAM_ARCHIVE_PAGE
+from .campaign_history import PARAM_SEARCH as PARAM_ARCHIVE_SEARCH
+from .campaign_history import build_campaign_history
 from .newsletter_page import PARAM_NEWSLETTER
 from .page import build_visibility_page
 from .traffic_page import PARAM_CONTENT, PARAM_PERIOD
+from .traffic_page import PARAM_PAGE as PARAM_TRAFFIC_PAGE
+from .traffic_page import PARAM_SEARCH as PARAM_TRAFFIC_SEARCH
 
 
 @require_GET
@@ -37,6 +42,8 @@ def visibility_overview(request):
                 period_key=request.GET.get(PARAM_PERIOD),
                 section_key=request.GET.get(PARAM_CONTENT),
                 newsletter_key=request.GET.get(PARAM_NEWSLETTER),
+                search=request.GET.get(PARAM_TRAFFIC_SEARCH),
+                page=request.GET.get(PARAM_TRAFFIC_PAGE),
             ),
             "can_add_data": request.user.is_authenticated and request.user.is_staff,
         },
@@ -59,8 +66,8 @@ def campaign_history(request):
             "active_nav": "visibility",
             "history": build_campaign_history(
                 newsletter_key=request.GET.get(PARAM_NEWSLETTER),
-                search=request.GET.get(PARAM_SEARCH),
-                page=request.GET.get(PARAM_PAGE),
+                search=request.GET.get(PARAM_ARCHIVE_SEARCH),
+                page=request.GET.get(PARAM_ARCHIVE_PAGE),
             ),
         },
     )
