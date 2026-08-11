@@ -33,6 +33,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from django.core.paginator import Paginator
+from django.db.models import Max, Min
 
 from .registry import spec_for
 from .smaily_campaigns import OTHER_KEY, OTHER_LABEL
@@ -189,6 +190,11 @@ def build_campaign_history(
     queryset = campaign_queryset(metric=metric, search=term)
     paginator = Paginator(queryset, PER_PAGE)
 
+    # Over the whole filtered set, not the page. The summary states a count and
+    # a span in one sentence, and taking the span from the fifty rows on screen
+    # made "3 194 sends" read as though they all happened in three months.
+    span = queryset.aggregate(earliest=Min("completed_at"), latest=Max("completed_at"))
+
     try:
         number = int(page) if page is not None else 1
     except TypeError, ValueError:
@@ -196,8 +202,6 @@ def build_campaign_history(
         number = 1
     number = max(min(number, paginator.num_pages), 1)
     current = paginator.get_page(number)
-
-    dates = [row.completed_at for row in current.object_list if row.completed_at]
 
     return CampaignHistory(
         rows=describe_campaigns(current.object_list),
@@ -209,8 +213,8 @@ def build_campaign_history(
         total_rows=paginator.count,
         has_previous=current.has_previous(),
         has_next=current.has_next(),
-        earliest=min(dates).date() if dates else None,
-        latest=max(dates).date() if dates else None,
+        earliest=span["earliest"].date() if span["earliest"] else None,
+        latest=span["latest"].date() if span["latest"] else None,
     )
 
 
