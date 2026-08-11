@@ -125,7 +125,15 @@ def production_shaped_history():
                 new_members_ytd=i,
                 removed_members_ytd=i // 2,
                 quality_status=QualityStatus.VERIFIED,
-                is_preferred_for_date=(i % 2 == 0),
+                # Exactly one preferred row per date, which
+                # `internalobservation_one_preferred_per_date` enforces. There
+                # are two observations per document — a direct reading and a
+                # comparison-column one, which is the production shape — so the
+                # first pass over the documents is preferred and the second is
+                # the evidence behind it. Keying this on `i % 2` looked like it
+                # alternated, but `i` and `i + 148` share a document and are
+                # both even, so every date got two preferred rows.
+                is_preferred_for_date=(i < len(documents)),
             )
         )
     observations = InternalMembershipObservation.objects.bulk_create(rows)
