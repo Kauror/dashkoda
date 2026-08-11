@@ -110,7 +110,14 @@ class MovementDirection(models.TextChoices):
 class SizeBand(models.TextChoices):
     """Canonical company-size bands, in the order they are always charted.
 
-    `SUPPORTER` is not a size and is shown separately from the employee bands.
+    `SUPPORTER`, `GROUP_COMPANY` and `UNKNOWN` are not employee sizes and are
+    shown separately from the employee bands.
+
+    `GROUP_COMPANY` and `UNKNOWN` were added for the board-decision and
+    monthly-list evidence. Both describe real rows: the Chamber's own
+    new-member template carries a `grupi ettevõte` line, and `***` is how the
+    source writes "size not known". Folding either into a numeric band would
+    invent a size the board never reported.
     """
 
     EMPLOYEES_1_4 = "employees_1_4", "1–4 töötajat"
@@ -123,12 +130,19 @@ class SizeBand(models.TextChoices):
     EMPLOYEES_500_999 = "employees_500_999", "500–999 töötajat"
     EMPLOYEES_1000_PLUS = "employees_1000_plus", "1000+ töötajat"
     SUPPORTER = "supporter", "Toetajaliige"
+    GROUP_COMPANY = "group_company", "Grupi ettevõte"
+    UNKNOWN = "unknown", "Suurus teadmata"
 
 
 # Chart order is a property of the vocabulary, not of a template.
 SIZE_BAND_ORDER: tuple[str, ...] = tuple(band.value for band in SizeBand)
+NON_EMPLOYEE_SIZE_BANDS: tuple[str, ...] = (
+    SizeBand.SUPPORTER,
+    SizeBand.GROUP_COMPANY,
+    SizeBand.UNKNOWN,
+)
 EMPLOYEE_SIZE_BANDS: tuple[str, ...] = tuple(
-    band for band in SIZE_BAND_ORDER if band != SizeBand.SUPPORTER
+    band for band in SIZE_BAND_ORDER if band not in NON_EMPLOYEE_SIZE_BANDS
 )
 
 
@@ -153,6 +167,67 @@ class RemovalReasonKey(models.TextChoices):
     )
     OTHER = "other", "Muu"
     UNKNOWN = "unknown", "Teadmata"
+
+
+class DecisionBatchKind(models.TextChoices):
+    """What one board decision did to the members it listed."""
+
+    TERMINATION = "termination", "Liikmelisuse lõpetamine"
+    SUSPENSION = "suspension", "Liikmelisuse peatamine"
+
+
+class BatchDepartureReasonKey(models.TextChoices):
+    """Why individual members left, as the decision appendices word it.
+
+    This is a **different vocabulary from `RemovalReasonKey`** and does not
+    replace it. `RemovalReasonKey` names the three aggregate categories the
+    membership-overview document itself reports for a year to date.
+    These families describe the free-text reason written beside each member in a
+    board-decision appendix, and they exist at decision-batch scope.
+
+    Derived from a full inventory of 2 258 reason rows across 2014–2026, of
+    which 95.1 % map into a named family. The remainder stay `OTHER` or
+    `UNKNOWN` rather than being forced into a neighbouring one.
+    """
+
+    FINANCIAL = (
+        "financial_difficulty_or_cost_cutting",
+        "Majanduslikud raskused või kokkuhoid",
+    )
+    NO_SERVICE_VALUE = (
+        "no_service_use_or_value",
+        "Ei kasuta teenuseid või ei näe kasu",
+    )
+    ACTIVITY_CEASED = (
+        "activity_ceased_or_dormant",
+        "Tegevus lõpetatud, peatatud või minimaalne",
+    )
+    LIQUIDATION = (
+        "liquidation_bankruptcy_deregistered",
+        "Likvideerimine, pankrot või registrist kustutamine",
+    )
+    RESTRUCTURING = (
+        "merger_restructuring_ownership_change",
+        "Ühinemine, ümberkorraldus või omanikuvahetus",
+    )
+    OWN_REQUEST = "own_request_unspecified", "Omal soovil, põhjust täpsustamata"
+    OTHER = "other", "Muu"
+    UNKNOWN = "unknown", "Teadmata"
+
+
+BATCH_REASON_ORDER: tuple[str, ...] = tuple(key.value for key in BatchDepartureReasonKey)
+
+
+class NewMemberPeriodScope(models.TextChoices):
+    """Whether a new-member figure covers one month or a span of them.
+
+    A span is kept whole. The board reports between its meetings, and a list
+    headed "juuni-juuli" does not say how its joins divided between June and
+    July, so splitting it would manufacture two figures out of one.
+    """
+
+    CALENDAR_MONTH = "calendar_month", "Kalendrikuu"
+    MULTI_MONTH = "multi_month_period", "Mitmekuuline periood"
 
 
 class IssueSeverity(models.TextChoices):
@@ -883,4 +958,316 @@ class MembershipMetricConflict(models.Model):
                     "An imported membership metric conflict may only change its "
                     "resolved, resolution_note, resolved_by and resolved_at fields."
                 )
+        return super().save(*args, **kwargs)
+
+
+class MembershipDecisionBatch(models.Model):
+    """One board decision's list of terminated or suspended memberships.
+
+    **This is not a year-to-date figure and must never be added to one.** A
+    decision that ends 25 memberships says what that decision did; the
+    `removed_members_ytd` on an observation says what the year has done so far.
+    The two answer different questions, and the corpus contains months where a
+    batch of 25 sits beside a year-to-date total of 62.
+
+    Two dates are kept because the sources genuinely carry two. The appendix
+    states the evidence date it was compiled on ("04.03 seisuga"); the formal
+    decision is signed later ("11.märts 2021"). Collapsing them would lose the
+    distinction between when the members were counted and when the board acted.
+    """
+
+    source = models.ForeignKey(
+        DataSource,
+        on_delete=models.PROTECT,
+        related_name="membership_decision_batches",
+        verbose_name="Andmeallikas",
+    )
+    import_run = models.ForeignKey(
+        "sources.ImportRun",
+        on_delete=models.PROTECT,
+        related_name="membership_decision_batches",
+        verbose_name="Impordikäivitus",
+    )
+    external_batch_id = models.CharField(max_length=64, verbose_name="Otsuse partii tunnus")
+    source_document = models.ForeignKey(
+        MembershipHistoricalSourceDocument,
+        on_delete=models.PROTECT,
+        related_name="decision_batches",
+        null=True,
+        blank=True,
+        verbose_name="Lähtedokument",
+    )
+    batch_kind = models.CharField(
+        max_length=16, choices=DecisionBatchKind, verbose_name="Otsuse liik"
+    )
+    as_of_date = models.DateField(null=True, blank=True, verbose_name="Seisuga kuupäev")
+    as_of_date_precision = models.CharField(
+        max_length=8,
+        choices=DatePrecision,
+        default=DatePrecision.DAY,
+        verbose_name="Seisu täpsus",
+    )
+    decision_date = models.DateField(
+        null=True,
+        blank=True,
+        verbose_name="Otsuse kuupäev",
+        help_text="Juhatuse otsuse kuupäev. Erineb seisuga kuupäevast.",
+    )
+    decision_reference = models.CharField(max_length=120, blank=True, verbose_name="Otsuse viide")
+    member_count = models.PositiveIntegerField(
+        null=True, blank=True, verbose_name="Liikmeid otsuses"
+    )
+    corroborating_document = models.ForeignKey(
+        MembershipHistoricalSourceDocument,
+        on_delete=models.PROTECT,
+        related_name="corroborated_decision_batches",
+        null=True,
+        blank=True,
+        verbose_name="Kinnitav dokument",
+        help_text="Vormiline juhatuse otsus, mis kinnitab lisa loendi.",
+    )
+    quality_status = models.CharField(
+        max_length=20,
+        choices=QualityStatus,
+        default=QualityStatus.VERIFIED,
+        verbose_name="Kvaliteedi olek",
+    )
+    extraction_confidence = models.CharField(
+        max_length=16,
+        choices=ExtractionConfidence,
+        default=ExtractionConfidence.MEDIUM,
+        verbose_name="Eraldamise kindlus",
+    )
+    warning_codes = models.JSONField(default=list, blank=True, verbose_name="Hoiatuskoodid")
+    imported_at = models.DateTimeField(auto_now_add=True, verbose_name="Imporditud")
+
+    class Meta:
+        ordering = ("-as_of_date", "batch_kind", "external_batch_id")
+        verbose_name = "Juhatuse otsuse partii"
+        verbose_name_plural = "Juhatuse otsuse partiid"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "external_batch_id"],
+                name="membershipdecisionbatch_unique_external_id",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        when = self.as_of_date.strftime("%d.%m.%Y") if self.as_of_date else "?"
+        return f"{self.get_batch_kind_display()} {when} ({self.member_count})"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise InternalObservationImmutable("An imported decision batch cannot be changed.")
+        return super().save(*args, **kwargs)
+
+
+class MembershipDecisionBatchSizeMovement(models.Model):
+    """How many members in one decision batch fell in one company-size band."""
+
+    batch = models.ForeignKey(
+        MembershipDecisionBatch,
+        on_delete=models.CASCADE,
+        related_name="size_movements",
+        verbose_name="Otsuse partii",
+    )
+    size_band_key = models.CharField(max_length=32, choices=SizeBand, verbose_name="Suurusklass")
+    member_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Liikmeid")
+    warning_codes = models.JSONField(default=list, blank=True, verbose_name="Hoiatuskoodid")
+
+    class Meta:
+        ordering = ("batch", "size_band_key")
+        verbose_name = "Otsuse partii suurusjaotus"
+        verbose_name_plural = "Otsuse partii suurusjaotused"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "size_band_key"],
+                name="membershipdecisionbatchsize_unique_band_per_batch",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_size_band_key_display()}: {self.member_count}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise InternalObservationImmutable("An imported batch size row cannot be changed.")
+        return super().save(*args, **kwargs)
+
+
+class MembershipDecisionBatchReason(models.Model):
+    """How many members in one decision batch left for one reason family.
+
+    **No raw reason text is stored here, and there is deliberately no field that
+    could hold it.** The free text beside a member in a decision appendix
+    sometimes names another company ("esindama jääb <ettevõte>"), so carrying it
+    would move member-level information into the historical dataset. The
+    canonical family and the count are what the analytics need; the mapping that
+    produced the family is deterministic and lives in the offline tooling, where
+    it can be re-run against the sources if a classification is ever questioned.
+    """
+
+    batch = models.ForeignKey(
+        MembershipDecisionBatch,
+        on_delete=models.CASCADE,
+        related_name="departure_reasons",
+        verbose_name="Otsuse partii",
+    )
+    reason_key = models.CharField(
+        max_length=64, choices=BatchDepartureReasonKey, verbose_name="Põhjus"
+    )
+    member_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Liikmeid")
+    warning_codes = models.JSONField(default=list, blank=True, verbose_name="Hoiatuskoodid")
+
+    class Meta:
+        ordering = ("batch", "reason_key")
+        verbose_name = "Otsuse partii lahkumispõhjus"
+        verbose_name_plural = "Otsuse partii lahkumispõhjused"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "reason_key"],
+                name="membershipdecisionbatchreason_unique_reason_per_batch",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_reason_key_display()}: {self.member_count}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise InternalObservationImmutable("An imported batch reason cannot be changed.")
+        return super().save(*args, **kwargs)
+
+
+class MembershipNewMemberPeriod(models.Model):
+    """New members over a reporting period the source did not break down.
+
+    `MembershipMonthlyNewMemberValue` already holds every figure the board
+    reported for a single calendar month. This model holds the spans it did
+    not — "Uued liikmed nr 6 juuni-juuli", where one figure covers two months.
+
+    Such a span is **not** divided between its months and **not** written into
+    the monthly table, because the source never says how the joins were
+    distributed. Twelve spans exist across 2014–2026.
+    """
+
+    source = models.ForeignKey(
+        DataSource,
+        on_delete=models.PROTECT,
+        related_name="membership_new_member_periods",
+        verbose_name="Andmeallikas",
+    )
+    import_run = models.ForeignKey(
+        "sources.ImportRun",
+        on_delete=models.PROTECT,
+        related_name="membership_new_member_periods",
+        verbose_name="Impordikäivitus",
+    )
+    external_period_id = models.CharField(max_length=64, verbose_name="Perioodi tunnus")
+    source_document = models.ForeignKey(
+        MembershipHistoricalSourceDocument,
+        on_delete=models.PROTECT,
+        related_name="new_member_periods",
+        null=True,
+        blank=True,
+        verbose_name="Lähtedokument",
+    )
+    period_scope = models.CharField(
+        max_length=24,
+        choices=NewMemberPeriodScope,
+        default=NewMemberPeriodScope.MULTI_MONTH,
+        verbose_name="Perioodi ulatus",
+    )
+    period_start = models.DateField(verbose_name="Perioodi algus")
+    period_end = models.DateField(verbose_name="Perioodi lõpp")
+    new_members = models.PositiveIntegerField(null=True, blank=True, verbose_name="Uusi liikmeid")
+    extraction_confidence = models.CharField(
+        max_length=16,
+        choices=ExtractionConfidence,
+        default=ExtractionConfidence.MEDIUM,
+        verbose_name="Eraldamise kindlus",
+    )
+    warning_codes = models.JSONField(default=list, blank=True, verbose_name="Hoiatuskoodid")
+    imported_at = models.DateTimeField(auto_now_add=True, verbose_name="Imporditud")
+
+    class Meta:
+        ordering = ("period_start", "period_end")
+        verbose_name = "Uute liikmete periood"
+        verbose_name_plural = "Uute liikmete perioodid"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["source", "external_period_id"],
+                name="membershipnewmemberperiod_unique_external_id",
+            ),
+            models.CheckConstraint(
+                condition=models.Q(period_end__gte=models.F("period_start")),
+                name="membershipnewmemberperiod_end_not_before_start",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.period_start:%d.%m.%Y}–{self.period_end:%d.%m.%Y}: {self.new_members}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise InternalObservationImmutable("An imported new-member period cannot be changed.")
+        return super().save(*args, **kwargs)
+
+
+class MembershipNewMemberSizeDistribution(models.Model):
+    """New members by company-size band, for one month or one reporting period.
+
+    Exactly one parent is set. Two nullable foreign keys with a check constraint
+    keep one size vocabulary and one table for both scopes, rather than two
+    near-identical tables that could drift apart.
+    """
+
+    monthly_value = models.ForeignKey(
+        MembershipMonthlyNewMemberValue,
+        on_delete=models.CASCADE,
+        related_name="size_distribution",
+        null=True,
+        blank=True,
+        verbose_name="Kuu väärtus",
+    )
+    period = models.ForeignKey(
+        MembershipNewMemberPeriod,
+        on_delete=models.CASCADE,
+        related_name="size_distribution",
+        null=True,
+        blank=True,
+        verbose_name="Periood",
+    )
+    size_band_key = models.CharField(max_length=32, choices=SizeBand, verbose_name="Suurusklass")
+    member_count = models.PositiveIntegerField(null=True, blank=True, verbose_name="Liikmeid")
+    warning_codes = models.JSONField(default=list, blank=True, verbose_name="Hoiatuskoodid")
+
+    class Meta:
+        ordering = ("monthly_value", "period", "size_band_key")
+        verbose_name = "Uute liikmete suurusjaotus"
+        verbose_name_plural = "Uute liikmete suurusjaotused"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["monthly_value", "size_band_key"],
+                name="membershipnewmembersize_unique_band_per_month",
+            ),
+            models.UniqueConstraint(
+                fields=["period", "size_band_key"],
+                name="membershipnewmembersize_unique_band_per_period",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    models.Q(monthly_value__isnull=False, period__isnull=True)
+                    | models.Q(monthly_value__isnull=True, period__isnull=False)
+                ),
+                name="membershipnewmembersize_exactly_one_parent",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.get_size_band_key_display()}: {self.member_count}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            raise InternalObservationImmutable("An imported size distribution cannot be changed.")
         return super().save(*args, **kwargs)
