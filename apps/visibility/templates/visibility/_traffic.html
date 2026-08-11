@@ -96,7 +96,14 @@ Two rules this markup exists to keep:
       display: it is the honest answer for a page nothing in this application
       can name, and it beats a title invented from a URL slug.
       {% endcomment %}
-      {% if traffic.ranking %}
+      {% comment %}
+      `or traffic.is_searching` is not defensive: search empties the ranking on
+      purpose, so a bare `if traffic.ranking` takes the search box off the page
+      the moment somebody uses it — including the box that would clear the
+      search again. The guard asks "is there anything to say about content
+      here", and a search with no results is still something to say.
+      {% endcomment %}
+      {% if traffic.ranking or traffic.is_searching %}
         {% comment %}
         `min-w-0` on the block and on the scroll container is what keeps the
         page from widening. A flex item's `min-width` is `auto`, so a child
