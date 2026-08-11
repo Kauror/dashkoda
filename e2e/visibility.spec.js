@@ -65,9 +65,7 @@ test("the visibility page renders its sections and its empty states", async ({ p
   // the section is named for what it lists so the two never collide.
   for (const section of [
     "Praegune seis",
-    "Uudiskirjade nimekirjad",
-    "Sotsiaalmeedia",
-    "Allikate määratlused",
+    "Uudiskirjade tulemused",
   ]) {
     await expect(page.getByRole("heading", { name: section, exact: true })).toBeVisible();
   }

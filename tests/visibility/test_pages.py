@@ -302,18 +302,18 @@ def test_the_page_shows_the_latest_value_for_each_channel(submit, viewer_client,
     assert f"{today.day}.{today:%m.%y}" in page
 
 
-def test_the_page_states_the_newsletter_definition(viewer_client):
+def test_the_page_no_longer_carries_a_definition_list(viewer_client):
+    """`Allikate määratlused` was struck out on the board's marked-up print.
+
+    What each metric counts is documented in the repository — `registry.py`
+    holds every definition and `docs/newsletter-audience.md` explains the
+    newsletter figures — rather than restated beside every number on the page.
+    """
     page = body(viewer_client.get(PAGE_URL))
 
-    assert "tellijate arv smailys" in page.lower()
-    assert "ei ole saadetud" in page.lower()
-
-
-def test_the_page_states_each_social_definition(viewer_client):
-    page = body(viewer_client.get(PAGE_URL))
-
-    assert "Allikate määratlused" in page
-    assert "jälgijate arv" in page.lower()
+    assert "Allikate määratlused" not in page
+    assert "Sotsiaalmeedia" not in page
+    assert "Uudiskirjade nimekirjad" not in page
 
 
 def test_a_correction_replaces_the_figure_rather_than_appearing_beside_it(

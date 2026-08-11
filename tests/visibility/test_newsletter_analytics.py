@@ -256,13 +256,27 @@ def test_an_empty_section_says_history_cannot_be_backfilled():
     assert section.coverage_note == ""
 
 
-def test_the_coverage_note_states_where_collection_began():
+def test_the_coverage_note_is_computed_but_no_longer_shown():
+    """The sentence was struck out on the board's marked-up print.
+
+    It is still derived — it is the honest statement of where the history
+    begins, and the limitation it describes is real — but the section does not
+    print it. `docs/newsletter-audience.md` carries the same fact.
+    """
     read(DAY)
     read(DAY + dt.timedelta(days=1), enews=31)
 
     note = build_newsletter_section().coverage_note
     assert "01.07.2026" in note
-    assert "ajalugu" in note.lower()
+
+
+def test_the_page_does_not_print_the_coverage_note(viewer_client):
+    from django.urls import reverse
+
+    read(DAY)
+    page = viewer_client.get(reverse("visibility")).content.decode()
+
+    assert "Varasemat ajalugu ei ole võimalik koguda" not in page
 
 
 # -- the page ---------------------------------------------------------------
