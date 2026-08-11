@@ -121,7 +121,16 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
             <tr>
               <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuupäev</th>
               <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Uudis</th>
-              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">{{ archive.views_heading }}</th>
+              {% comment %}
+              `break-words` on both text columns is what lets this table fit a
+              320-pixel phone. A column cannot shrink below its longest
+              unbreakable word, and `Lehevaatamised` is fourteen characters of
+              one word — with the longest word in a headline beside it, the
+              three columns' minimums came to 38 pixels more than the viewport.
+              Breaking is allowed only where it is needed; ordinary headlines
+              still wrap at spaces.
+              {% endcomment %}
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-words text-text-muted uppercase sm:px-3">{{ archive.views_heading }}</th>
             </tr>
           </thead>
           <tbody>
@@ -134,7 +143,7 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
                     <span class="dk-meta">Kuupäev teadmata</span>
                   {% endif %}
                 </td>
-                <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal sm:px-3">
+                <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal break-words sm:px-3">
                   <a class="dk-link relative" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
                     {{ row.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
                   </a>
