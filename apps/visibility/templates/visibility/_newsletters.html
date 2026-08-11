@@ -70,51 +70,25 @@ Three rules this markup exists to keep:
 
       {% if newsletters.has_issues %}
         <div class="flex flex-col gap-2">
-          <h3 class="text-sm font-medium text-text">Saadetud numbrid</h3>
+          <h3 class="text-sm font-medium text-text">Viimased saadetud uudiskirjad</h3>
           <div class="w-full min-w-0 overflow-x-auto">
             <table class="w-full min-w-max border-collapse text-sm">
               <caption class="sr-only">Viimased saadetud uudiskirjad ja nende tulemused</caption>
               <thead>
                 <tr>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Number</th>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudiskiri</th>
                   {% if not newsletters.is_filtered %}
-                    <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudiskiri</th>
+                    <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tüüp</th>
                   {% endif %}
                   <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Saadetud</th>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avatud</th>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Klikitud</th>
                   <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Kohale toimetatud</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avamismäär</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Klikimäär</th>
                 </tr>
               </thead>
               <tbody>
                 {% for issue in newsletters.issues %}
-                  <tr>
-                    <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-medium text-text">
-                      {{ issue.name|default:"—" }}
-                      {% if issue.audience %}
-                        <span class="dk-meta block">{{ issue.audience|capfirst }}</span>
-                      {% endif %}
-                    </th>
-                    {% if not newsletters.is_filtered %}
-                      <td class="border-b border-border px-3 py-1.5 text-text-secondary">{{ issue.newsletter_label }}</td>
-                    {% endif %}
-                    <td class="border-b border-border px-3 py-1.5 tabular-nums text-text-secondary">
-                      {% if issue.completed_at %}{{ issue.completed_at|date:"j.m.y" }}{% else %}—{% endif %}
-                    </td>
-                    {% comment %}
-                    A dash, never a zero. A number whose statistics have not been
-                    read yet has not been delivered to nobody.
-                    {% endcomment %}
-                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">
-                      {{ issue.delivered_label|default:"—" }}
-                    </td>
-                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">
-                      {{ issue.open_rate_label|default:"—" }}
-                    </td>
-                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">
-                      {{ issue.click_rate_label|default:"—" }}
-                    </td>
-                  </tr>
+                  {% include "visibility/_campaign_row.html" with issue=issue show_type=newsletters.is_filtered|yesno:",True" only %}
                 {% endfor %}
               </tbody>
             </table>
@@ -124,11 +98,16 @@ Three rules this markup exists to keep:
             saadetutest: tagasi põrkunud kirja ei olnud võimalik avada. Klikimäär
             loeb unikaalseid klikkijaid, mitte klikke.
           </p>
-          {% if not newsletters.is_filtered %}
-            <p class="dk-meta">
-              Loendis on ainult kolme uudiskirja numbrid. Kutsed, ürituste kalender ja
-              muud saadetised on eraldi saadetised, mitte uudiskirja numbrid, ja neid
-              siin ei arvestata.
+          <p class="dk-meta">
+            Loendis on kõik Smailyst välja saadetud kampaaniad, ka need, mis ei ole
+            ühegi kolme uudiskirja number — need on tähisega <strong>Muu</strong>.
+            Mustandid ja tühistatud kampaaniad siia ei jõua.
+          </p>
+          {% if newsletters.has_more_sends %}
+            <p>
+              <a class="dk-link text-sm" href="{% url 'visibility-campaign-history' %}">
+                Vaata kõiki saadetud uudiskirju ({{ newsletters.total_sends }})
+              </a>
             </p>
           {% endif %}
         </div>

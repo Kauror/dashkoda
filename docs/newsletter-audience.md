@@ -121,6 +121,77 @@ completed within a fortnight, plus any campaign that has none yet. A campaign
 whose figures are unchanged publishes nothing; one whose figures have moved
 publishes a new revision naming the one it replaces.
 
+## Every completed send, not only the newsletters
+
+**Collection first, classification second.** The collector asks Smaily for
+`COMPLETED` campaigns and stores every one it gets; only afterwards does
+`smaily_campaigns.classify` try to recognise which newsletter an issue belongs
+to. A campaign it does not recognise is stored, shown, and labelled `Muu`.
+
+That ordering is the whole point. The list used to `exclude(newsletter="")`
+when rendering, which hid **2 105 of the account's 3 194 completed campaigns** —
+event calendars, Enterprise Europe Network mailings, Christmas cards, export
+bulletins, invitations, a Russian-language chamber bulletin — behind a
+classifier that was only ever meant to label them. A recognition failure must
+never look like a campaign that never happened.
+
+Read from the live account on 2026-08-10:
+
+| | |
+| --- | --- |
+| COMPLETED campaigns | **3 194** (2012-08-09 → 2026-08-04) |
+| e-Teataja | 790 |
+| eNews | 140 |
+| e-Vestnik | 159 |
+| `Muu` | 2 105 |
+| DRAFT / PENDING / CANCELLED | 331 / 0 / 38 — never collected |
+
+`Muu` rather than `Määramata`, because most of these are not unidentifiable —
+they are simply *other*. A Kevadball invitation is not an unrecognised
+e-Teataja.
+
+e-Teataja stays primary through **presentation**: it leads the audience figures,
+it is the newsletter whose aggregate rates are shown, and it is first in every
+filter. It is not primary by hiding the rest.
+
+## Opening a newsletter
+
+Smaily supplies `template.preview_url` and DashKoda links to it. It never
+constructs a preview address from a template ID, and it never fetches or stores
+the newsletter HTML to build an archive of its own.
+
+The address is **validated before it is stored**, because it is the one piece of
+Smaily data that becomes an anchor a reader clicks: HTTPS only, on the account's
+own `<subdomain>.sendsmaily.net` host, no embedded credentials, bounded length.
+Anything else is dropped and the campaign is stored without a preview. Links
+open in a new tab with `rel="noopener noreferrer"` and the usual hidden note
+naming the destination.
+
+### What the preview is, and is not
+
+**It is not an immutable copy of what went out.** Smaily's field addresses the
+*template*, not the campaign: on this account 147 templates are shared by more
+than one campaign, one of them by eleven. So two sends can point at one preview,
+and that preview renders whatever the template holds today — not what a reader
+received in 2019.
+
+DashKoda therefore stores the address Smaily associated with the campaign and
+describes it as a preview, never as an archive. If a preview stops working, the
+campaign and every figure it has remain.
+
+### A deleted template
+
+Smaily returns the literal string `"DELETED"` in place of the template object
+when the template is gone — 67 campaigns on this account. That is not an import
+failure and not a reason to drop the campaign:
+
+- the campaign is stored and shown normally;
+- its statistics are stored and shown;
+- the preview link is simply absent, rather than present and broken.
+
+A template deleted after a campaign was catalogued clears the stored address on
+the next run, so no row keeps a link to a page that has gone.
+
 ## Rates and their denominators
 
 No rate is stored. Smaily returns `opened_percent`, `click_percent` and
@@ -140,9 +211,16 @@ drift towards whichever list is smallest.
 
 ## On the page
 
-The Nähtavus page gains a `Uudiskirjade tulemused` section: a filter across the
-three newsletters, each list's size over time, and the recent issues with their
-rates. Filtering to one newsletter adds its aggregate figures above the table.
+The Nähtavus page gains a `Uudiskirjade tulemused` section: each list's size
+over time, and under `Viimased saadetud uudiskirjad` the most recent completed
+sends of every kind. The filter is `Kõik | e-Teataja | eNews | e-Vestnik | Muu`,
+defaulting to `Kõik`; `Muu` appears only when unclassified sends exist.
+Filtering to one newsletter adds its aggregate figures above the table.
+
+`/nahtavus/uudiskirjad/` is the archive behind it — every completed send, 50 to
+a page, filterable by type and searchable by subject. The search runs against
+the stored subject in PostgreSQL and never contacts Smaily. Fourteen years of
+campaigns is not a section, which is why it is its own page.
 
 The audience chart starts where collection started and says so, because there is
 no earlier history to draw and padding it would show three newsletters being

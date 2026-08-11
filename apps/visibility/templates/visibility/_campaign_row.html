@@ -1,0 +1,56 @@
+{% comment %}
+One completed Smaily send, as a table row.
+
+Context:
+  issue     – a CampaignPerformance
+  show_type – include the newsletter-type cell (omitted when a filter already
+              names the type for every row)
+
+Two rules this markup keeps:
+
+  * **the subject is the link.** Where Smaily gave a preview, the subject opens
+    it; where it did not, the subject is plain text. One link per row, never a
+    title and a separate "Ava uudiskiri" competing for the same destination;
+  * **a missing preview costs the link and nothing else.** A campaign whose
+    template was deleted keeps its date, its type and every figure it has. It is
+    still something the Chamber sent.
+
+The preview is an external Smaily address, validated at import — HTTPS on the
+account's own host. It opens in a new tab, carrying `rel="noopener noreferrer"`
+and a visually hidden note naming both the destination and the new tab, the same
+contract every outbound link on this dashboard follows.
+{% endcomment %}
+<tr>
+  <th scope="row" class="border-b border-border px-3 py-2 text-left font-medium text-text">
+    {% if issue.has_preview %}
+      <a class="dk-link" href="{{ issue.preview_url }}" target="_blank" rel="noopener noreferrer">
+        {{ issue.name|default:"—" }}<span class="sr-only"> (avaneb Smaily lehel uuel vahelehel)</span>
+      </a>
+    {% else %}
+      {{ issue.name|default:"—" }}
+    {% endif %}
+    {% if issue.audience %}
+      <span class="dk-meta block">{{ issue.audience|capfirst }}</span>
+    {% endif %}
+  </th>
+  {% if show_type %}
+    <td class="border-b border-border px-3 py-2 text-text-secondary">{{ issue.newsletter_label }}</td>
+  {% endif %}
+  <td class="border-b border-border px-3 py-2 tabular-nums text-text-secondary">
+    {% if issue.completed_at %}{{ issue.completed_at|date:"j.m.y" }}{% else %}—{% endif %}
+  </td>
+  {% comment %}
+  The two rates lead, because they are what a reader compares between sends.
+  Delivered follows as context for them; a dash, never a zero, for a campaign
+  whose statistics have not been read yet.
+  {% endcomment %}
+  <td class="border-b border-border px-3 py-2 text-right font-medium tabular-nums text-text">
+    {{ issue.open_rate_label|default:"—" }}
+  </td>
+  <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">
+    {{ issue.click_rate_label|default:"—" }}
+  </td>
+  <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-muted">
+    {{ issue.delivered_label|default:"—" }}
+  </td>
+</tr>

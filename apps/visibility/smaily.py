@@ -43,6 +43,7 @@ import time
 from dataclasses import dataclass
 from datetime import date, datetime
 from typing import Protocol, runtime_checkable
+from urllib.parse import urlsplit
 
 import requests
 from django.conf import settings
@@ -84,6 +85,21 @@ _SUBDOMAIN_PATTERN = re.compile(r"\A[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\Z")
 ENDPOINT_SEGMENTS = "list.php"
 ENDPOINT_CAMPAIGNS = "campaign.php"
 _ENDPOINTS = frozenset({ENDPOINT_SEGMENTS, ENDPOINT_CAMPAIGNS})
+
+#: What Smaily returns in place of the template object when the template has
+#: been deleted. Documented, and present on 67 of this account's 3 194 completed
+#: campaigns — the campaign and its statistics are still real history, so this
+#: costs the preview link and nothing else.
+TEMPLATE_DELETED = "DELETED"
+
+#: A campaign preview lives on the account's own Smaily host. Validated rather
+#: than trusted: the URL arrives as source data and is rendered as a link a
+#: reader clicks, so a `javascript:` or an unexpected host must never survive
+#: this far. Every one of the 3 127 previews on this account is HTTPS on
+#: `<subdomain>.sendsmaily.net`.
+PREVIEW_HOST_SUFFIX = ".sendsmaily.net"
+PREVIEW_SCHEME = "https"
+MAX_PREVIEW_URL_LENGTH = 500
 
 #: Keys that would mean Smaily had returned recipient-level detail. Present only
 #: in a `detailed=1` response, which this module never requests — so seeing one
@@ -291,15 +307,28 @@ class CampaignRow:
     campaign_id: int
     name: str
     template_name: str = ""
+    #: Smaily's own template identifier, when the template still exists. **Not**
+    #: campaign identity: 364 campaigns on this account share a template with
+    #: another, one of them eleven ways.
+    template_external_id: str = ""
+    #: Where a reader can open the newsletter, already validated. Empty when the
+    #: template was deleted, which costs the link and nothing else.
+    preview_url: str = ""
     status: str = ""
     created_at: datetime | None = None
     completed_at: datetime | None = None
+
+    @property
+    def has_preview(self) -> bool:
+        return bool(self.preview_url)
 
     def payload(self) -> dict:
         return {
             "campaign_id": self.campaign_id,
             "name": self.name,
             "template_name": self.template_name,
+            "template_external_id": self.template_external_id,
+            "preview_url": self.preview_url,
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "completed_at": self.completed_at.isoformat() if self.completed_at else None,
@@ -513,12 +542,25 @@ class SmailyApiClient:
     def collect_campaigns(self, *, limit: int = CAMPAIGN_PAGE_SIZE) -> tuple[CampaignRow, ...]:
         """List completed campaigns, newest first.
 
-        Only `COMPLETED`. A draft has no statistics and a cancelled campaign was
-        never sent; neither belongs in a record of what the Chamber published.
+        **Only `COMPLETED`, and every one of them within the limit.** The four
+        documented statuses are `DRAFT`, `PENDING`, `COMPLETED` and `CANCELLED`;
+        a draft was never sent, a cancelled campaign was never sent, and a
+        pending one is still going out. None of the three belongs in a record of
+        what the Chamber has published, and the filter is applied by Smaily —
+        verified against this account, where the same call returns 3 194
+        completed beside 331 drafts and 38 cancelled.
+
+        Nothing is filtered by *kind* here. Whether a campaign is an issue of
+        one of the three newsletters is decided later, by
+        `apps.visibility.smaily_campaigns`, and a campaign that matches none of
+        them is still a campaign the Chamber sent. Collection first,
+        classification second: a classifier that ran here would make a
+        recognition failure look like a campaign that never happened.
 
         `limit` is always a number. Smaily accepts `limit=0` for "every campaign
         ever", which is precisely the unbounded response a scheduled job should
-        never ask a shared API for.
+        never ask a shared API for — so the caller states a ceiling and gets at
+        most that many.
         """
         if limit < 1:
             raise SmailyResponseError("Kampaaniate piirarv peab olema vähemalt 1.")
@@ -528,7 +570,7 @@ class SmailyApiClient:
             limit=limit,
             sort_order="DESC",
         )
-        rows = _campaign_rows(payload)
+        rows = _campaign_rows(payload, subdomain=self.configuration.subdomain)
         self.counts.campaign_rows += len(rows)
         return rows
 
@@ -605,7 +647,72 @@ def _as_datetime(value) -> datetime | None:
     raise SmailyResponseError("Smaily kuupäev ei olnud loetavas vormingus.")
 
 
-def _campaign_rows(payload) -> tuple[CampaignRow, ...]:
+def safe_preview_url(raw, *, subdomain: str = "") -> str:
+    """The preview address if it is one we will render, otherwise empty.
+
+    This value is **source data that becomes an anchor a reader clicks**, which
+    is the one shape of untrusted input that turns into an action. So it is
+    validated rather than trusted, and anything that does not pass is dropped
+    silently — a campaign with an unusable preview is still a campaign, and
+    refusing the whole import over a link would lose real history.
+
+    Four rules, and the first two are the ones that matter:
+
+    - **HTTPS only.** `javascript:` and `data:` are the reason this function
+      exists at all; `http://` is refused because the account is HTTPS and a
+      downgrade is not something to render silently;
+    - **the account's own Smaily host.** A host suffix check on
+      `.sendsmaily.net`, and when the configured subdomain is known, an exact
+      match against it — so a preview claiming to live on somebody else's
+      Smaily account is refused too;
+    - no credentials in the URL, and no query or fragment carrying one;
+    - bounded length.
+    """
+    if not raw or not isinstance(raw, str):
+        return ""
+    candidate = raw.strip()
+    if not candidate or len(candidate) > MAX_PREVIEW_URL_LENGTH:
+        return ""
+    try:
+        parts = urlsplit(candidate)
+    except ValueError:
+        return ""
+    if parts.scheme != PREVIEW_SCHEME:
+        return ""
+    host = (parts.hostname or "").lower()
+    if not host:
+        return ""
+    if subdomain:
+        if host != f"{subdomain}.{PREVIEW_HOST_SUFFIX.lstrip('.')}":
+            return ""
+    elif not host.endswith(PREVIEW_HOST_SUFFIX):
+        return ""
+    # `urlsplit` puts anything before an `@` in `username`/`password`. A preview
+    # is a plain address; one carrying a credential is not one we will render.
+    if parts.username or parts.password:
+        return ""
+    return candidate
+
+
+def _template_fields(template, *, subdomain: str) -> tuple[str, str, str]:
+    """`(name, external_id, preview_url)` from whatever the template field holds.
+
+    Smaily returns an object, or the literal string `DELETED` when the template
+    has been removed. The deleted case is ordinary: the campaign happened, its
+    statistics are real, and only the preview is gone.
+    """
+    if isinstance(template, dict):
+        name = str(template.get("name") or "").strip()[:300]
+        external_id = str(template.get("id") or "").strip()[:40]
+        preview = safe_preview_url(template.get("preview_url"), subdomain=subdomain)
+        return name, external_id, preview
+    # `DELETED`, `None`, or anything unexpected: no template, no preview. The
+    # string is deliberately not stored as a template name — `DELETED` is not
+    # what the newsletter was called.
+    return "", "", ""
+
+
+def _campaign_rows(payload, *, subdomain: str = "") -> tuple[CampaignRow, ...]:
     """Normalise the campaign list, refusing anything unrecognisable."""
     if isinstance(payload, dict):
         payload = payload.get("campaigns") or payload.get("data") or payload.get("list")
@@ -618,17 +725,16 @@ def _campaign_rows(payload) -> tuple[CampaignRow, ...]:
             raise SmailyResponseError("Smaily kampaania ei olnud objekt.")
         if "id" not in entry:
             raise SmailyResponseError("Smaily kampaanial puudus tunnus.")
-        template = entry.get("template")
-        template_name = ""
-        if isinstance(template, dict):
-            template_name = str(template.get("name") or "").strip()
-        elif isinstance(template, str):
-            template_name = template.strip()
+        template_name, template_external_id, preview_url = _template_fields(
+            entry.get("template"), subdomain=subdomain
+        )
         rows.append(
             CampaignRow(
                 campaign_id=_as_int(entry["id"], "id"),
                 name=str(entry.get("name") or "").strip()[:300],
-                template_name=template_name[:300],
+                template_name=template_name,
+                template_external_id=template_external_id,
+                preview_url=preview_url,
                 status=str(entry.get("status") or "").strip()[:20],
                 created_at=_as_datetime(entry.get("created_at")),
                 completed_at=_as_datetime(entry.get("completed_at")),
@@ -661,7 +767,9 @@ __all__ = [
     "ENDPOINT_CAMPAIGNS",
     "ENDPOINT_SEGMENTS",
     "MAX_ATTEMPTS",
+    "PREVIEW_HOST_SUFFIX",
     "SCHEMA_VERSION",
+    "TEMPLATE_DELETED",
     "CampaignRow",
     "CampaignStatsRow",
     "CollectionCounts",
@@ -674,4 +782,5 @@ __all__ = [
     "SmailyNotConfigured",
     "SmailyResponseError",
     "get_configuration",
+    "safe_preview_url",
 ]
