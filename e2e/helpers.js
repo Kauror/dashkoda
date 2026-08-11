@@ -76,20 +76,49 @@ export async function expectNoHorizontalOverflow(page) {
       });
     }
 
-    offenders.sort((left, right) => right.right - left.right);
+    /*
+     * Uncontained first, and only then by width. Sorting by width alone buries
+     * the diagnosis: a `min-w-max` table inside a scrolling wrapper is the
+     * widest box on the page by design and fills the whole list, while the box
+     * that actually widened the document — which is always a narrower one,
+     * since the document stops where it stops — never appears.
+     */
+    offenders.sort(
+      (left, right) => Number(left.clipped) - Number(right.clipped) || right.right - left.right,
+    );
+
+    /*
+     * And the direct answer: which boxes end where the document ends. The
+     * scrollable width is set by the furthest box the document actually
+     * accounts for, so a box sitting on that edge is the one to fix — anything
+     * reaching past it is already being clipped by something.
+     */
+    const edge = offenders.filter((item) => Math.abs(item.right - root.scrollWidth) <= 2);
+
     return {
       overflow: root.scrollWidth - limit,
+      documentWidth: root.scrollWidth,
       limit,
-      offenders: offenders.slice(0, 6),
+      atEdge: edge.slice(0, 4),
+      offenders: offenders.slice(0, 8),
     };
   });
 
   const detail = report.offenders
     .map(
       (item) =>
-        `\n  right=${item.right} (limit ${report.limit}) ${item.position}` +
+        `\n  right=${item.right} ${item.position}` +
         `${item.clipped ? " [inside a scroller]" : " [UNCONTAINED]"} ${item.what}`,
     )
     .join("");
-  expect(report.overflow, `page scrolls sideways; widest boxes:${detail}`).toBeLessThanOrEqual(0);
+  const describe = (item) =>
+    `\n  right=${item.right} ${item.position}` +
+    `${item.clipped ? " [inside a scroller]" : " [UNCONTAINED]"} ${item.what}`;
+  const edge = report.atEdge.length
+    ? `\n at the document's own edge (${report.documentWidth}px):${report.atEdge.map(describe).join("")}`
+    : "";
+  const heading =
+    `page scrolls sideways: document ${report.documentWidth} > viewport ${report.limit}.` +
+    `${edge}\n boxes past the viewport, uncontained first:`;
+  expect(report.overflow, `${heading}${detail}`).toBeLessThanOrEqual(0);
 }
