@@ -59,10 +59,19 @@ def read(day, *, members=100, others=200, enews=30, evestnik=40, drop=()):
     synchronize_smaily(observed_on=day, collector=FakeCollector(rows))
 
 
-def issue(campaign_id, *, newsletter=ETEATAJA, days_ago=1, delivered=1000, opened=500, clicks=50):
+def issue(
+    campaign_id,
+    *,
+    name=None,
+    newsletter=ETEATAJA,
+    days_ago=1,
+    delivered=1000,
+    opened=500,
+    clicks=50,
+):
     campaign = SmailyCampaign.objects.create(
         campaign_id=campaign_id,
-        name=f"Number {campaign_id}",
+        name=name or f"Number {campaign_id}",
         template_name="e-Teataja",
         newsletter=newsletter,
         status="COMPLETED",
@@ -231,7 +240,6 @@ def test_the_section_defaults_to_all_newsletters():
     section = build_newsletter_section()
     assert section.active == ALL_NEWSLETTERS
     assert not section.is_filtered
-    assert len(section.audience) == 3
 
 
 def test_a_hand_typed_filter_falls_back_rather_than_reaching_a_query():
@@ -239,41 +247,46 @@ def test_a_hand_typed_filter_falls_back_rather_than_reaching_a_query():
     assert section.active == ALL_NEWSLETTERS
 
 
-def test_filtering_narrows_the_audience_cards_and_adds_the_rates():
+def test_filtering_narrows_the_issues_and_adds_the_rates():
     read(DAY)
-    issue(1)
+    issue(1, newsletter=ETEATAJA)
+    issue(2, newsletter=ENEWS)
 
     section = build_newsletter_section(newsletter_key=ETEATAJA)
     assert section.is_filtered
-    assert [card.series.metric for card in section.audience] == [ETEATAJA]
+    assert [row.campaign_id for row in section.issues] == [1]
     assert section.figures
     assert any("kohale toimetatud" in figure.note.lower() for figure in section.figures)
 
 
-def test_an_empty_section_says_history_cannot_be_backfilled():
-    section = build_newsletter_section()
-    assert not section.has_any_data
-    assert section.coverage_note == ""
+def test_a_section_with_no_sends_has_nothing_to_show(viewer_client):
+    """Subscriber readings no longer keep this section alive.
 
-
-def test_the_coverage_note_is_computed_but_no_longer_shown():
-    """The sentence was struck out on the board's marked-up print.
-
-    It is still derived — it is the honest statement of where the history
-    begins, and the limitation it describes is real — but the section does not
-    print it. `docs/newsletter-audience.md` carries the same fact.
+    While the audience rows were here, `has_any_data` was true the moment a
+    single list had been read, so an account with three lists and no campaigns
+    rendered a populated section listing sizes and nothing else. This section is
+    about sends; with none, it says so.
     """
     read(DAY)
-    read(DAY + dt.timedelta(days=1), enews=31)
 
-    note = build_newsletter_section().coverage_note
-    assert "01.07.2026" in note
+    section = build_newsletter_section()
+    assert not section.has_any_data
+
+    page = viewer_client.get(reverse("visibility")).content.decode()
+    body = page[page.index("Uudiskirjade tulemused") :]
+    assert "Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist." in body
 
 
 def test_the_page_does_not_print_the_coverage_note(viewer_client):
-    from django.urls import reverse
+    """The sentence about list history was struck out on the board's print-out.
 
+    It described the subscriber counts, which this section no longer carries at
+    all, so it is now gone from the code as well as from the page — including
+    from the empty state, which used to repeat it.
+    `docs/newsletter-audience.md` carries the fact.
+    """
     read(DAY)
+    issue(1)
     page = viewer_client.get(reverse("visibility")).content.decode()
 
     assert "Varasemat ajalugu ei ole võimalik koguda" not in page
@@ -301,3 +314,135 @@ def test_the_page_carries_the_filter_through(viewer_client):
     page = viewer_client.get(reverse("visibility"), {"uudiskiri": str(ENEWS)}).content.decode()
     assert "Number 2" in page
     assert "Number 1" not in page
+
+
+# -- the audience block is gone from this section ----------------------------
+
+
+def test_the_section_carries_no_audience_and_the_band_still_does(viewer_client):
+    """The list sizes were printed twice on one page; now they are printed once.
+
+    They arrived here as three sparklines, and when the charts came off — two
+    readings a day apart drawn as a trend — the rows underneath were still the
+    same three numbers the `Praegune seis` band prints under `Uudiskirjad`. A
+    figure that appears twice on a page is a figure the reader checks against
+    itself, so this section dropped it.
+
+    What must not happen is losing it altogether, which is why this asserts on
+    both halves: absent below the section heading, present above it.
+    """
+    read(DAY)
+    read(DAY + dt.timedelta(days=1), enews=31)
+    issue(1)
+
+    section = build_newsletter_section()
+    assert not hasattr(section, "audience")
+    assert not hasattr(section, "coverage_note")
+
+    page = viewer_client.get(reverse("visibility")).content.decode()
+    band, _, body = page.partition("Uudiskirjade tulemused")
+
+    # `saajat` was the unit on the removed rows, and no other row on this page
+    # uses it — the band prints each list as a bare labelled figure.
+    assert "saajat" not in body
+    # Still measured, still on the page: e-Teataja is 100 members + 200 others.
+    assert "300" in band
+    # And the sparklines are gone. The GA4 section is the only other user of
+    # `trend_chart.html` and nothing has been collected for it here.
+    assert "data-trend-chart" not in page
+    assert "Trendi kuvamiseks on vaja vähemalt kahte lugemist." not in page
+
+
+# -- searching the recent sends ---------------------------------------------
+
+
+def test_the_section_searches_stored_subjects():
+    read(DAY)
+    issue(1, name="Kutse ärifoorumile")
+    issue(2, name="Uudiskiri nr 400")
+
+    found = build_newsletter_section(search="ärifoorum")
+    assert [row.campaign_id for row in found.issues] == [1]
+    assert found.is_searching
+    assert found.total_sends == 1
+    assert found.result_summary == "1 saadetud uudiskiri."
+
+
+def test_the_search_and_the_newsletter_filter_combine():
+    read(DAY)
+    issue(1, name="Aastakoosolek", newsletter=ETEATAJA)
+    issue(2, name="Aastakoosolek", newsletter=ENEWS)
+
+    narrowed = build_newsletter_section(newsletter_key=ENEWS, search="aastakoosolek")
+    assert [row.campaign_id for row in narrowed.issues] == [2]
+
+
+def test_a_search_term_is_bounded():
+    section = build_newsletter_section(search="x" * 500)
+    assert len(section.search) <= 80
+
+
+def test_a_search_matching_nothing_keeps_the_section_on_the_page(viewer_client):
+    """The failure this test exists for.
+
+    `has_any_data` used to be `has_audience or has_issues`. An account with no
+    subscriber reading and a search matching nothing satisfied neither, so the
+    section collapsed to `Andmed puuduvad` — taking with it the box holding the
+    term and the link that would clear it. The reader was left on a page with
+    no way back except editing the URL.
+    """
+    issue(1, name="Kutse ärifoorumile")
+
+    section = build_newsletter_section(search="ei leidu midagi")
+    assert not section.has_issues
+    assert section.has_any_data
+
+    page = viewer_client.get(reverse("visibility"), {"otsi": "ei leidu midagi"}).content.decode()
+    assert "Otsi uudiskirja" in page
+    assert "Tühjenda otsing" in page
+    assert "Ühtegi saadetud uudiskirja ei leitud." in page
+
+
+def test_the_filter_chips_carry_the_search_and_clearing_keeps_the_newsletter():
+    section = build_newsletter_section(newsletter_key=ETEATAJA, search="ärifoorum")
+
+    assert all("otsi=%C3%A4rifoorum" in option.query for option in section.options)
+    assert section.clear_query == f"uudiskiri={ETEATAJA}"
+
+
+def test_the_archive_link_carries_both_rather_than_reopening_everything():
+    """`Vaata kõiki` asks the archive the question this section is asking.
+
+    It used to link to a bare `/nahtavus/uudiskirjad/` and print the unfiltered
+    total beside it, so a reader looking at three e-Teataja matches was offered
+    "see all 3 194" and landed on fourteen unfiltered years.
+    """
+    read(DAY)
+    for campaign_id in range(1, 4):
+        issue(campaign_id, name=f"Ärifoorum {campaign_id}", newsletter=ETEATAJA)
+    issue(9, name="Midagi muud", newsletter=ENEWS)
+
+    section = build_newsletter_section(newsletter_key=ETEATAJA, search="ärifoorum")
+    assert section.total_sends == 3
+    assert section.archive_query == f"uudiskiri={ETEATAJA}&otsi=%C3%A4rifoorum"
+
+
+def test_the_page_reads_otsi_and_not_the_page_search(viewer_client):
+    """`otsi` and `otsing` are two boxes on one page and must never be one.
+
+    `otsi` matches campaign subjects, `otsing` matches website pages. Wiring the
+    section to `otsing` would have looked correct on this page — the parameter
+    exists and holds a string — and would have emptied the content ranking on
+    every newsletter search.
+    """
+    read(DAY)
+    issue(1, name="Kutse ärifoorumile")
+    issue(2, name="Uudiskiri nr 400")
+
+    page = viewer_client.get(reverse("visibility"), {"otsi": "ärifoorum"}).content.decode()
+    assert "Kutse ärifoorumile" in page
+    assert "Uudiskiri nr 400" not in page
+
+    # The page search leaves the sends alone: both issues are still listed.
+    other = viewer_client.get(reverse("visibility"), {"otsing": "ärifoorum"}).content.decode()
+    assert "Uudiskiri nr 400" in other

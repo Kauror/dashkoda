@@ -1,18 +1,25 @@
 {% comment %}
-The newsletters' own history: a filter, the audience over time, and how the
-recent issues performed.
+How the newsletters perform: a filter, the aggregate rates, and the sends
+themselves.
 
 Three rules this markup exists to keep:
 
   * every rate names its denominator. `Avamismäär` is opens over *delivered*,
     and `Klikke avajate seas` is clicks over *opens* — two different questions
     that would look like one column of percentages if the notes were dropped;
-  * the accessible table is not optional. Each chart is an `img` with a text
-    alternative and its values live in `<details>` beside it, the same contract
-    every other chart here follows;
-  * a newsletter with no reading shows a sentence, never a zero. There is no
-    historical Smaily data to fall back on, so the empty state has to say that
-    collection starts from now rather than imply the lists are empty.
+  * a section with no sends shows a sentence, never a zero. There is no
+    historical Smaily data to fall back on, so the empty state says collection
+    starts from now rather than implying nothing was ever sent;
+  * the search never hides the filter chips or itself. A term matching nothing
+    still renders the form, because the control that clears the search is inside
+    it — see the `has_issues or is_searching` guard below.
+
+**How many people are on each list is not here.** It is one card up, in
+`Praegune seis`, where `_newsletter_slot` lists all three under `Uudiskirjad`.
+This section had them a second time — first as sparklines, then as rows once the
+charts came off — and a figure printed twice on one page is a figure a reader
+has to check against itself. This section answers "does anybody read what we
+send"; the band above answers "how many could".
 {% endcomment %}
 <section aria-labelledby="section-newsletter-analytics" class="dk-section">
   {% include "dashboard/components/section_header.html" with title="Uudiskirjade tulemused" heading_id="section-newsletter-analytics" only %}
@@ -39,68 +46,112 @@ Three rules this markup exists to keep:
         </dl>
       {% endif %}
 
-      {% if newsletters.has_audience %}
-        <div class="flex flex-col gap-4">
-          {% for card in newsletters.audience %}
-            {% if card.has_data %}
-              <div class="flex flex-col gap-2">
-                <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-                  <h4 class="text-sm font-medium text-text-secondary">{{ card.label }}</h4>
-                  <p class="flex items-baseline gap-1.5">
-                    <span class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ card.value }}</span>
-                    <span class="text-sm text-text-secondary">saajat</span>
-                  </p>
-                </div>
-                {% if card.change_label %}
-                  <p class="dk-meta">{{ card.change_label }}</p>
-                {% endif %}
-                {% if card.chart %}
-                  {% include "dashboard/components/trend_chart.html" with chart=card.chart only %}
-                {% else %}
-                  <p class="dk-meta">Trendi kuvamiseks on vaja vähemalt kahte lugemist.</p>
-                {% endif %}
-              </div>
-            {% endif %}
-          {% endfor %}
-        </div>
-      {% endif %}
+      {% comment %}
+      No guard of its own: `has_any_data` above *is* `has_issues or
+      is_searching` now that the audience rows are gone, so a second identical
+      condition here would only be a place for the two to drift apart.
+      {% endcomment %}
+      <div class="flex min-w-0 flex-col gap-3">
+        {% comment %}
+        A constant heading. It sits outside the region a keystroke replaces, so
+        it cannot describe the search — which mode the rows are in is stated
+        inside `partials/_newsletter_results.html`, where it can keep up.
+        {% endcomment %}
+        <h3 class="text-sm font-medium text-text">Saadetud uudiskirjad</h3>
 
-      {% if newsletters.has_issues %}
-        <div class="flex flex-col gap-2">
-          <h3 class="text-sm font-medium text-text">Viimased saadetud uudiskirjad</h3>
-          <div class="w-full min-w-0 overflow-x-auto">
-            <table class="w-full min-w-max border-collapse text-sm">
-              <caption class="sr-only">Viimased saadetud uudiskirjad ja nende tulemused</caption>
-              <thead>
-                <tr>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudiskiri</th>
-                  {% if not newsletters.is_filtered %}
-                    <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tüüp</th>
-                  {% endif %}
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Saadetud</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avatud</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Klikitud</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Kohale toimetatud</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for issue in newsletters.issues %}
-                  {% include "visibility/_campaign_row.html" with issue=issue show_type=newsletters.is_filtered|yesno:",True" only %}
-                {% endfor %}
-              </tbody>
-            </table>
+        {% comment %}
+        A plain GET form. Without the bundle it submits, the page reloads, and
+        the same rows come back rendered server-side; with it, the input's
+        `hx-*` attributes filter the table below as somebody types and the form
+        is never submitted at all. Neither path is the fallback of the other.
+
+        The active newsletter travels as a hidden field, so searching inside
+        e-Teataja stays inside e-Teataja — submitting a search must not quietly
+        widen the question. `min-w-0` on the wrapper and the input is what stops
+        a long term pushing the document sideways on a phone, and the label is
+        real rather than a placeholder, because a placeholder disappears the
+        moment somebody types.
+
+        It searches the subject stored in PostgreSQL and never contacts Smaily,
+        exactly as the archive page's box does — same parameter name, same
+        question, so the "vaata kõiki" link below can simply carry it across.
+
+        Four attributes carry the live behaviour, and each is load-bearing:
+
+          - `input changed delay:250ms` debounces. `changed` is what stops an
+            arrow key or a keystroke that leaves the value alone from spending
+            a query;
+          - `search` is the second trigger, for the native clear button `input
+            type=search` draws — without it, clearing the box with the mouse
+            leaves the last results on screen;
+          - `hx-include="closest form"` sends the hidden newsletter alongside
+            the term, so a live search is narrowed exactly as a submitted one;
+          - `hx-sync="this:replace"` aborts an in-flight request when the next
+            keystroke arrives. Without it two answers race and the slower one
+            can land last, leaving results for a prefix of what the box says.
+        {% endcomment %}
+        <form method="get" action="#section-newsletter-analytics" class="flex min-w-0 flex-wrap items-end gap-2">
+          <input type="hidden" name="uudiskiri" value="{{ newsletters.active }}">
+          <div class="flex min-w-0 flex-1 flex-col gap-1">
+            <label for="otsi-uudiskiri" class="text-sm text-text-secondary">Otsi uudiskirja</label>
+            <input type="search"
+                   id="otsi-uudiskiri"
+                   name="otsi"
+                   value="{{ newsletters.search }}"
+                   maxlength="80"
+                   placeholder="Pealkirja osa…"
+                   autocomplete="off"
+                   class="dk-input w-full min-w-0"
+                   hx-get="{% url 'visibility-newsletter-search' %}"
+                   hx-trigger="input changed delay:250ms, search"
+                   hx-target="#newsletter-results"
+                   hx-swap="innerHTML"
+                   hx-include="closest form"
+                   hx-sync="this:replace"
+                   hx-indicator="#newsletter-searching">
           </div>
-          {% if newsletters.has_more_sends %}
-            <p>
-              <a class="dk-link text-sm" href="{% url 'visibility-campaign-history' %}">
-                Vaata kõiki saadetud uudiskirju ({{ newsletters.total_sends }})
-              </a>
-            </p>
-          {% endif %}
+          {% comment %}
+          Kept, not removed. With the bundle running it is redundant — the
+          results are already filtered by the time a reader reaches for it — but
+          it is the entire interaction without JavaScript, and pressing Enter in
+          the box has to do something.
+          {% endcomment %}
+          <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+          {% comment %}
+          `dk-indicator` is `invisible`, not `hidden`, so this holds its space
+          and appearing costs no layout shift. The rules live in the stylesheet
+          because htmx would otherwise inject an inline `<style>` for them,
+          which `style-src 'self'` forbids.
+
+          `aria-hidden`: the results region below is already a polite live
+          region and announces the outcome. A screen reader does not also need
+          to be told that a request is in flight on every keystroke.
+          {% endcomment %}
+          <p id="newsletter-searching" class="dk-indicator dk-meta self-center" aria-hidden="true">Otsin…</p>
+        </form>
+
+        {% comment %}
+        The swapped region. `aria-live="polite"` matches what the connection
+        strip's fragment region used to do: the rows arrive without a page
+        change, so a screen reader is told rather than left on a page that
+        silently became a different page.
+        {% endcomment %}
+        <div id="newsletter-results"
+             aria-live="polite"
+             class="flex min-w-0 flex-col gap-3">
+          {% include "visibility/partials/_newsletter_results.html" with newsletters=newsletters only %}
         </div>
-      {% endif %}
+      </div>
     {% else %}
-      {% include "dashboard/components/empty_state.html" with message="Andmed puuduvad." detail="Uudiskirjade andmed ilmuvad siia pärast esimest Smaily kogumist. Varasemat ajalugu ei ole võimalik koguda: Smaily näitab nimekirja praegust suurust, mitte selle ajalugu." only %}
+      {% comment %}
+      The detail no longer carries the sentence about list history not being
+      backfillable. That was true of the subscriber counts, and the subscriber
+      counts are not in this section any more — left here it would explain a
+      limitation of something the reader cannot see. The sends themselves *are*
+      collected retrospectively, all fourteen years of them, so the only honest
+      reason this is empty is that nothing has been collected yet.
+      {% endcomment %}
+      {% include "dashboard/components/empty_state.html" with message="Andmed puuduvad." detail="Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist." only %}
     {% endif %}
   </div>
 </section>

@@ -17,11 +17,6 @@ SECTION_TITLES = [
     "Kanalite statistika",
 ]
 
-FRESHNESS_REGION = re.compile(
-    r'<div id="freshness-region".*?</div>\s*</div>',
-    re.DOTALL,
-)
-
 
 def test_overview_requires_viewer_access(client):
     response = client.get("/")
@@ -97,17 +92,16 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
-    # The freshness region carries the connection-check time, which is a fact
-    # about the application rather than business data. Everything else on the
-    # page must be free of numbers until a verified source exists.
+    # The whole page, with nothing cut out of it. This used to strip the
+    # connection-state strip first, because the check time it printed was a fact
+    # about the application rather than business data; that strip is gone, so
+    # the page must now be free of digits outright.
     #
     # Entities are decoded before the scan. `strip_tags` leaves `&#x27;` intact,
     # and the digits inside a numeric entity would otherwise read as a passing
     # page while a label such as "YouTube'i" was quietly contributing "27".
-    without_freshness = FRESHNESS_REGION.sub("", content)
-    visible_text = html_module.unescape(strip_tags(without_freshness))
+    visible_text = html_module.unescape(strip_tags(content))
 
-    assert FRESHNESS_REGION.search(content) is not None
     assert re.search(r"\d", visible_text) is None, visible_text
     assert "Andmeallikas ei ole veel ühendatud." in content
     # The channel band words it differently: those figures are entered by hand,
@@ -186,13 +180,24 @@ def test_overview_loads_only_local_bundled_assets(client, authenticate_viewer):
     assert all(url.startswith("/static/") for url in assets), assets
 
 
-def test_overview_wires_the_htmx_freshness_pattern(client, authenticate_viewer):
+def test_overview_carries_no_connection_state_strip(client, authenticate_viewer):
+    """The strip and its refresh control were removed on 2026-08-11.
+
+    It reported an operational fact — how many wired feeds publish, whether any
+    is stale — to a board that cannot act on it, and its count had been 4/4
+    continuously.
+
+    The fragment behind it is deliberately still served: `/dashboard/varskus/`
+    has its own tests in `test_freshness_fragment.py`, and `freshness.py` keeps
+    the invariant that the denominator is four. What this test holds is that no
+    page reaches for it any more — including the polling variant, which never
+    existed and must not arrive by way of putting the strip back.
+    """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
 
-    assert 'hx-get="/dashboard/varskus/"' in content
-    assert 'hx-target="#freshness-region"' in content
+    assert "freshness-region" not in content
+    assert "Kontrolli uuesti" not in content
+    assert "hx-get" not in content
     assert 'hx-trigger="every' not in content
-    # Without JavaScript the same control is an ordinary GET form to the page.
-    assert 'action="/"' in content

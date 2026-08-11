@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as dt
 
 import pytest
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.visibility.bootstrap import ensure_ga4_source
@@ -327,3 +328,37 @@ def test_many_articles_cost_a_fixed_number_of_queries(day, django_assert_num_que
         views = get_article_views(items)
 
     assert len(views) == 50
+
+
+# -- how the channel breakdown is presented ----------------------------------
+
+
+def test_the_channel_breakdown_is_a_disclosure_that_starts_shut(viewer_client, day):
+    """Twelve channel rows are an answer few readers arrive with.
+
+    Open, they sat between the traffic chart and `Enim vaadatud sisu` and pushed
+    the content ranking — which readers do arrive for — below the fold. So the
+    table is a `<details>`, and the assertion that matters is the absence of
+    `open`: a disclosure that renders expanded is the old layout with an extra
+    click in it.
+
+    The rows must still be *in* the document rather than fetched on expand, and
+    the heading must still be a heading, or collapsing the section would take it
+    out of the outline and off a screen reader's list.
+    """
+    day(
+        START,
+        sessions=100,
+        page_views=300,
+        channels=(("Organic Search", 70), ("Direct", 30)),
+    )
+
+    page = viewer_client.get(reverse("visibility"), {"periood": "koik"}).content.decode()
+
+    marker = page.index("Kust liiklus tuli")
+    opening = page.rindex("<details", 0, marker)
+    assert "open" not in page[opening : page.index(">", opening)]
+    assert "<h3" in page[opening:marker]
+    # Shut, not absent: the rows are in the response.
+    assert "Organic Search" in page
+    assert "2 kanalit" in page

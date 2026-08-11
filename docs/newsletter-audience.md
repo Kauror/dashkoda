@@ -211,20 +211,43 @@ drift towards whichever list is smallest.
 
 ## On the page
 
-The Nähtavus page gains a `Uudiskirjade tulemused` section: each list's size
-over time, and under `Viimased saadetud uudiskirjad` the most recent completed
-sends of every kind. The filter is `Kõik | e-Teataja | eNews | e-Vestnik | Muu`,
-defaulting to `Kõik`; `Muu` appears only when unclassified sends exist.
-Filtering to one newsletter adds its aggregate figures above the table.
+**How many people are on each list is shown once, in the `Praegune seis` band**,
+under `Uudiskirjad` — three lists, each under its own name, never totalled.
+`_newsletter_slot` in `apps/visibility/page.py` builds it.
+
+The `Uudiskirjade tulemused` section below answers the other question: does
+anybody read what is sent. It holds the filter
+`Kõik | e-Teataja | eNews | e-Vestnik | Muu` (defaulting to `Kõik`; `Muu`
+appears only when unclassified sends exist), the aggregate rates that filtering
+to one newsletter adds, and under `Viimased saadetud uudiskirjad` the most
+recent completed sends of every kind.
+
+The recent sends are searchable in place, under `otsi` — the same parameter the
+archive uses, because it is the same question against the same stored subjects.
+The filter chips carry the term, so switching newsletter keeps the search rather
+than silently widening it, and `Vaata kõiki` opens the archive already holding
+both. Nothing here contacts Smaily.
 
 `/nahtavus/uudiskirjad/` is the archive behind it — every completed send, 50 to
-a page, filterable by type and searchable by subject. The search runs against
-the stored subject in PostgreSQL and never contacts Smaily. Fourteen years of
+a page, filterable by type and searchable by subject. Fourteen years of
 campaigns is not a section, which is why it is its own page.
 
-The audience chart starts where collection started and says so, because there is
-no earlier history to draw and padding it would show three newsletters being
-founded on the morning the collector was deployed.
+### What the results section used to carry
+
+A sparkline per newsletter, then — once the charts came off — the list sizes as
+rows. Both were removed on 2026-08-11, in that order. The charts went because
+collection began on 2026-08-10 and every line was two points with a flat segment
+between them; the rows went because the band above was already printing the same
+three numbers, and a figure that appears twice on one page is a figure the
+reader has to check against itself.
+
+`get_all_subscriber_series` still answers and `SubscriberSeries` still keeps
+every point, so a chart is a template away once there is a history worth
+drawing. When it returns it must start where collection started and say so,
+because there is no earlier history and padding it would show three newsletters
+being founded on the morning the collector was deployed. That is the fact
+`NewsletterSection.coverage_note` used to carry; the property went with the rows
+it described, and this paragraph is where it now lives.
 
 ## Configuration
 
