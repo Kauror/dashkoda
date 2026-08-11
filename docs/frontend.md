@@ -95,17 +95,55 @@ ship in the compiled stylesheet as `.dk-indicator`. `allowEval: false` disables
 the only htmx code paths that would need `unsafe-eval`; `hx-on` and `js:` values
 are not used anywhere.
 
-The one htmx pattern in the shell is the freshness fragment:
+htmx carries one pattern, used five times: **live search**. Every search box on
+the dashboard filters its results as somebody types.
 
-- `GET /dashboard/varskus/`, protected by the ordinary viewer middleware;
-- triggered by a button click only — there is no polling;
-- swaps `innerHTML` of a persistent `aria-live` region so the update is
-  announced;
-- without JavaScript the same button submits its enclosing `GET` form and simply
-  reloads the overview, which renders the identical fragment server-side;
-- when the viewer session has expired the middleware answers an HTMX request with
-  `204` and an `HX-Redirect` header, so the browser navigates to `/sisene/`
-  instead of the login page being swapped into the fragment.
+`apps/dashboard/live_search.py` holds the shared half and documents the
+reasoning; the five wirings are the newsletter sends and the website-page search
+on Nähtavus, the campaign archive, the news archive, and the whole filter form
+on the event programme.
+
+The shape is the same everywhere:
+
+- the results are a partial. The full page and the fragment endpoint render the
+  same template, so what a reader sees while typing and what they see after a
+  reload cannot drift apart;
+- **the input is never inside the swapped region.** htmx replaces the region's
+  contents, and an input inside it loses the caret, the selection and the focus
+  ring on every keystroke. The region is drawn around the answer, not the
+  section;
+- `hx-trigger="input changed delay:250ms, search"` debounces. `changed` stops an
+  arrow key spending a query; `search` is the second trigger, for the native
+  clear button an `input type=search` draws;
+- `hx-include="closest form"` sends the hidden period, section or newsletter
+  along with the term, so typing narrows exactly what submitting would;
+- `hx-sync="this:replace"` aborts the in-flight request when the next keystroke
+  arrives. Without it two answers race and the slower can land last, leaving the
+  reader results for a prefix of what the box says;
+- pagination resets. A new term is a new question, and page 40 of a four-row
+  result answers "nothing found";
+- **the address bar is rewritten server-side.** `hx-push-url="true"` would push
+  the fragment endpoint, so reloading would land on a bare partial; instead each
+  fragment answers with `HX-Push-Url` naming the real page. The rest of the
+  page's state is recovered from the `HX-Current-URL` request header — query
+  only, declared keys only, never the path;
+- the news page swaps two regions from one response, because its result count
+  sits above the card and its rows inside it. The count rides along as an
+  `hx-swap-oob` element;
+- **the form still works without JavaScript.** Every box keeps its submit
+  button, every form still `GET`s to its own page, and the server renders the
+  same partial. Live filtering is an enhancement, not the mechanism.
+
+The remaining fragment, `GET /dashboard/varskus/`, is served but included by no
+page — see `apps/dashboard/templates/dashboard/partials/freshness.html`.
+
+Every fragment route is an ordinary protected route: the viewer middleware
+guards it, and when the session has expired it answers an HTMX request with
+`204` and an `HX-Redirect` header, so the browser navigates to `/sisene/`
+instead of a login form being swapped into a results table.
+
+**There is no polling anywhere**, and none should arrive with any control that
+is added later.
 
 `charts.js` reads its data from a non-executable `<script type="application/json">`
 block, initialises responsively with a `ResizeObserver`, disables animation under

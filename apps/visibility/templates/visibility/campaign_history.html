@@ -37,11 +37,21 @@ is the whole interaction — there is nothing here that needs scripting.
         {% endfor %}
       </nav>
 
+      {% comment %}
+      The active type travels with the search, so searching inside e-Teataja
+      stays inside e-Teataja rather than silently widening to everything. That
+      is why `hx-include` names the whole form and not the input alone.
+
+      `lk` is deliberately absent from both. A reader on page 40 who types a new
+      term is asking a new question, and carrying the page number into it would
+      answer "nothing found" for every term matching fewer than two thousand
+      sends. The fragment always builds page one.
+
+      `Tühjenda` used to sit here beside the button and has moved into the
+      results partial: outside the swapped region it would go on offering to
+      clear a search that had already been typed away.
+      {% endcomment %}
       <form method="get" class="flex flex-wrap items-end gap-2">
-        {% comment %}
-        The active type travels with the search, so searching inside e-Teataja
-        stays inside e-Teataja rather than silently widening to everything.
-        {% endcomment %}
         <input type="hidden" name="uudiskiri" value="{{ history.active }}">
         <div class="flex min-w-0 flex-col gap-1">
           <label for="otsi" class="text-sm text-text-secondary">Otsi uudiskirja</label>
@@ -51,62 +61,29 @@ is the whole interaction — there is nothing here that needs scripting.
                  value="{{ history.search }}"
                  maxlength="80"
                  placeholder="Pealkirja osa…"
-                 class="dk-input min-w-0">
+                 autocomplete="off"
+                 class="dk-input min-w-0"
+                 hx-get="{% url 'visibility-campaign-history-search' %}"
+                 hx-trigger="input changed delay:250ms, search"
+                 hx-target="#history-results"
+                 hx-swap="innerHTML"
+                 hx-include="closest form"
+                 hx-sync="this:replace"
+                 hx-indicator="#history-searching">
         </div>
         <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
-        {% if history.search %}
-          <a class="dk-link text-sm" href="?uudiskiri={{ history.active }}">Tühjenda</a>
-        {% endif %}
+        <p id="history-searching" class="dk-indicator dk-meta self-center" aria-hidden="true">Otsin…</p>
       </form>
 
-      <p class="dk-meta">{{ history.summary }}</p>
-
-      {% if history.has_rows %}
-        <div class="w-full min-w-0 overflow-x-auto">
-          <table class="w-full min-w-max border-collapse text-sm">
-            <caption class="sr-only">Saadetud uudiskirjad ja nende tulemused</caption>
-            <thead>
-              <tr>
-                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudiskiri</th>
-                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tüüp</th>
-                <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Saadetud</th>
-                <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avatud</th>
-                <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Klikitud</th>
-                <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Kohale toimetatud</th>
-              </tr>
-            </thead>
-            <tbody>
-              {% for issue in history.rows %}
-                {% include "visibility/_campaign_row.html" with issue=issue show_type=True only %}
-              {% endfor %}
-            </tbody>
-          </table>
-        </div>
-
-        <p class="dk-meta">
-          Avamismäär ja klikimäär arvutatakse kohale toimetatud kirjadest, mitte
-          saadetutest: tagasi põrkunud kirja ei olnud võimalik avada. Klikimäär loeb
-          unikaalseid klikkijaid, mitte klikke. Pealkiri avab Smaily eelvaate seal,
-          kus see on olemas — kustutatud malliga saadetisel eelvaadet ei ole, kuid
-          selle tulemused on alles.
-        </p>
-
-        {% if history.total_pages > 1 %}
-          <nav aria-label="Leheküljed" class="flex flex-wrap items-center gap-3">
-            {% if history.has_previous %}
-              <a class="dk-button dk-button-secondary"
-                 href="?uudiskiri={{ history.active }}&amp;lk={{ history.previous_page }}{% if history.search %}&amp;otsi={{ history.search|urlencode }}{% endif %}">Eelmine</a>
-            {% endif %}
-            <span class="dk-meta">Lehekülg {{ history.page_number }} / {{ history.total_pages }}</span>
-            {% if history.has_next %}
-              <a class="dk-button dk-button-secondary"
-                 href="?uudiskiri={{ history.active }}&amp;lk={{ history.next_page }}{% if history.search %}&amp;otsi={{ history.search|urlencode }}{% endif %}">Järgmine</a>
-            {% endif %}
-          </nav>
-        {% endif %}
-      {% else %}
-        {% include "dashboard/components/empty_state.html" with message="Ühtegi saadetud uudiskirja ei leitud." detail="Muuda otsingut või vali mõni teine tüüp." only %}
-      {% endif %}
+      {% comment %}
+      The swapped region. `aria-live="polite"` tells a screen reader that rows
+      arrived without a page change.
+      {% endcomment %}
+      <div id="history-results"
+           aria-live="polite"
+           class="flex min-w-0 flex-col gap-4">
+        {% include "visibility/partials/_campaign_history_results.html" with history=history only %}
+      </div>
     </div>
   </section>
 </div>
