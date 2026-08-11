@@ -1,112 +1,175 @@
 {% extends "dashboard/shell.html" %}
+{% load membership_format %}
 
 {% comment %}
-Uudised page.
+The news archive.
 
-Lists the current snapshot's feed items and links each one to the canonical
-article on Koda.ee. Summaries are the sanitized plain text stored at import; no
-article HTML is held or rendered.
+One line per article: when it was published, what it was called, how much of it
+was measured. Everything that used to sit between the page title and the first
+article — a source-status panel, two KPI cards repeating the feed's length, and
+a summary paragraph under every headline — is gone, and the list starts within a
+screen of the heading.
 
-External links open in a new tab, carrying target="_blank"
-rel="noopener noreferrer" and an explicit visually-hidden note naming both the
-destination and the new tab, so neither is a surprise to a screen-reader user.
+Three presentational rules carry the density:
+
+  * the unit is named once, in the column heading. `4 lehevaatamist` under every
+    article is the same fact spelled a hundred times, and it cost a line each;
+  * the GA4 coverage caveat is stated once beneath the list rather than under
+    every article older than the measurement;
+  * no summary and no category. The summary is still stored and the article is
+    one click away; the category exists for the current ten feed items only, and
+    a badge on ten rows of a thousand reads as a difference between the articles
+    rather than a difference in what DashKoda knows about them.
+
+External links keep the whole contract: `target="_blank"`, `rel="noopener
+noreferrer"`, a visually hidden note naming the destination and the new tab, and
+`relative` on the anchor so that note stays inside the scrolling wrapper.
 {% endcomment %}
 
 {% block title %}Uudised – DashKoda{% endblock %}
 
 {% block content %}
-<div class="flex flex-col gap-6">
+<div class="flex min-w-0 flex-col gap-4">
 
-  <header class="flex flex-col gap-4">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Uudised</h1>
-    </div>
-    <div class="rounded-lg border border-border bg-surface px-4 py-3">
-      {% include "dashboard/components/feed_state.html" with summary=summary observed_label="Loetud" only %}
-    </div>
-  </header>
+  <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Uudised</h1>
 
-  <section aria-labelledby="section-figures" class="dk-section">
-    <h2 id="section-figures" class="sr-only">Näitajad</h2>
-    <div class="dk-kpi-strip sm:grid-cols-2 xl:grid-cols-2">
-      {% include "dashboard/components/kpi_card.html" with label="Avaldatud viimase kuu jooksul" value=recent_count as_of=summary.observed_at|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Uudiseid voos" value=total_count as_of=summary.observed_at|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+  {% comment %}
+  The controls, in one band above the list. Each link carries the whole state,
+  so choosing a period keeps the ordering and the search, and paging keeps all
+  three — `build_query` in `periods.py` is the only thing that builds them.
+  {% endcomment %}
+  <div class="flex min-w-0 flex-col gap-3">
+    <nav aria-label="Avaldamisperiood" class="flex flex-wrap gap-2">
+      {% for option in archive.periods %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="?{{ option.query }}"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if archive.period.period.is_custom %}
+      {% comment %}
+      Native date fields, submitted by an ordinary GET form. The server resolves
+      whatever arrives — reversed, half-filled or unreadable — and the fields
+      then show the window that was actually applied, so the control never
+      disagrees with the list under it.
+      {% endcomment %}
+      <form method="get" class="flex min-w-0 flex-wrap items-end gap-2">
+        <input type="hidden" name="periood" value="{{ archive.period.key }}">
+        {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
+        {% if archive.search %}<input type="hidden" name="otsing" value="{{ archive.search }}">{% endif %}
+        <div class="flex flex-col gap-1">
+          <label for="alates" class="text-sm text-text-secondary">Alates</label>
+          <input type="date" id="alates" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}" class="dk-input dk-input-date">
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="kuni" class="text-sm text-text-secondary">Kuni</label>
+          <input type="date" id="kuni" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}" class="dk-input dk-input-date">
+        </div>
+        <button type="submit" class="dk-button dk-button-secondary">Näita</button>
+      </form>
+    {% endif %}
+
+    <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span class="dk-meta">Järjestus:</span>
+        {% for option in archive.sorts %}
+          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+             href="?{{ option.query }}"
+             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+        {% endfor %}
+      </div>
+
+      <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
+        <input type="hidden" name="periood" value="{{ archive.period.key }}">
+        {% if archive.period.period.is_custom %}
+          <input type="hidden" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}">
+          <input type="hidden" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}">
+        {% endif %}
+        {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
+        <label for="otsing" class="sr-only">Otsi uudist</label>
+        <input type="search" id="otsing" name="otsing" value="{{ archive.search }}"
+               maxlength="120" placeholder="Otsi uudist…" class="dk-input w-full min-w-0 sm:w-56">
+        <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+      </form>
     </div>
-  </section>
+
+    <p class="dk-meta">{{ archive.result_summary }}</p>
+  </div>
 
   <section aria-labelledby="section-news" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Viimased uudised" heading_id="section-news" only %}
-    {% comment %}
-    Ordering is a link so the choice is bookmarkable, and newest stays the
-    default: traffic ranking answers a different question and should be asked
-    for. It ranks what this page holds — the feed is a rolling window, and the
-    ranking over all measured history is on Nähtavus.
-    {% endcomment %}
-    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3 sm:px-5">
-      <span class="dk-meta">Järjestus:</span>
-      {% for option in sort_options %}
-        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-           href="{{ option.url }}"
-           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
-      {% endfor %}
-    </div>
-    {% if items %}
-      <ul class="divide-y divide-border">
-        {% for item in items %}
-          <li class="flex flex-col gap-1 px-4 py-3 sm:px-5">
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <time class="dk-meta whitespace-nowrap" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"j.m.y" }}</time>
-              {% if item.category %}
-                {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
-              {% endif %}
-            </div>
-            <h3 class="text-sm font-medium text-text">
-              {# `relative` contains the hidden note; see the same anchor on the #}
-              {# event programme, where an uncontained one widened the page. #}
-              <a class="dk-link relative" href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer">
-                {{ item.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
-              </a>
-            </h3>
-            {% if item.summary %}
-              <p class="text-sm text-text-secondary">{{ item.summary }}</p>
-            {% endif %}
-            {% comment %}
-            Shown only where it was measured. An article with no analytics row
-            renders exactly as it did before any of this existed — no figure, no
-            zero, no placeholder — because nobody measuring an article is not
-            the same as an article nobody read.
+    <h2 id="section-news" class="sr-only">Uudiste arhiiv</h2>
 
-            "Lehevaatamist", never "lugejat": one person opening an article
-            twice is two page views and one reader.
-            {% endcomment %}
-            {% if item.analytics.total_label %}
-              <p class="dk-meta">
-                {{ item.analytics.total_label }}{% if item.analytics.coverage_note %} · {{ item.analytics.coverage_note }}{% endif %}
-              </p>
-            {% endif %}
-          </li>
-        {% endfor %}
-      </ul>
+    {% if archive.has_rows %}
+      <div class="w-full min-w-0 overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <caption class="sr-only">Avaldatud uudised ja nende mõõdetud lehevaatamised</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kuupäev</th>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudis</th>
+              <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">{{ archive.views_heading }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in archive.rows %}
+              <tr>
+                <td class="border-b border-border px-3 py-1.5 whitespace-nowrap tabular-nums text-text-muted">
+                  {% if row.has_date %}
+                    <time datetime="{{ row.published_on|date:'c' }}">{{ row.published_on|date:"d.m.y" }}</time>
+                  {% else %}
+                    <span class="dk-meta">Kuupäev teadmata</span>
+                  {% endif %}
+                </td>
+                <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
+                  <a class="dk-link relative" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
+                    {{ row.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
+                  </a>
+                </th>
+                {% comment %}
+                A measured figure or a dash. Never a zero: an article nobody has
+                measured and an article nobody read are different facts, and only
+                one of them is a number.
+                {% endcomment %}
+                <td class="border-b border-border px-3 py-1.5 text-right tabular-nums {% if row.has_views %}text-text-secondary{% else %}text-text-muted{% endif %}">
+                  {% if row.has_views %}{{ row.views|group_thousands }}{% else %}—{% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if archive.total_pages > 1 %}
+        <nav aria-label="Uudiste leheküljed" class="dk-section-body flex flex-wrap items-center justify-between gap-3">
+          {% if archive.has_previous %}
+            <a class="dk-button dk-button-secondary" href="?{{ archive.previous_query }}">Eelmine</a>
+          {% else %}
+            <span></span>
+          {% endif %}
+          <span class="dk-meta">Lehekülg {{ archive.page_number }} / {{ archive.total_pages }}</span>
+          {% if archive.has_next %}
+            <a class="dk-button dk-button-secondary" href="?{{ archive.next_query }}">Järgmine</a>
+          {% else %}
+            <span></span>
+          {% endif %}
+        </nav>
+      {% endif %}
     {% else %}
       <div class="dk-section-body">
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Uudised ilmuvad siia pärast esimest edukat kontrolli." only %}
+        {% include "dashboard/components/empty_state.html" with message=archive.empty_message detail=archive.empty_detail only %}
       </div>
     {% endif %}
   </section>
 
   {% comment %}
-  Press coverage and the newsletter are named rather than drawn as empty lists:
-  an empty list here would read as "the Chamber was not mentioned", which no
-  source has said, because no source exists.
+  The two caveats, once each, at the bottom where they belong: what the numbers
+  measure, and what "Kõik" does not claim.
   {% endcomment %}
-  <section aria-labelledby="section-planned" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Muud kanalid" heading_id="section-planned" description="Siia planeeritud vaated, millel ei ole veel andmeallikat." badge_label="Lisamisel" badge_variant="neutral" only %}
-    <div class="dk-section-body grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {% for connection in planned_sections %}
-        {% include "dashboard/components/planned_module.html" with connection=connection only %}
-      {% endfor %}
-    </div>
-  </section>
+  <div class="flex flex-col gap-1">
+    {% if archive.coverage_note %}<p class="dk-meta">{{ archive.coverage_note }}</p>{% endif %}
+    {% if archive.coverage_caveat %}<p class="dk-meta">{{ archive.coverage_caveat }}</p>{% endif %}
+  </div>
 
 </div>
 {% endblock %}

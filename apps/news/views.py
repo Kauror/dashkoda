@@ -1,67 +1,46 @@
 """The Uudised page. Reads PostgreSQL only; never fetches the RSS feed."""
 
-from datetime import datetime, timedelta
-
 from django.shortcuts import render
-from django.utils import timezone
 from django.views.decorators.http import require_GET
 
-from apps.dashboard.connections import planned
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
-from .analytics import get_news_analytics
-from .selectors import DEFAULT_LIMIT, count_published_since, get_latest_news, get_news_summary
-
-# Matches the overview's activity window so the two pages describe the same
-# period when they describe one at all.
-ACTIVITY_WINDOW_DAYS = 30
-
-# Two further news-shaped sections the design reserves. Neither is collected:
-# nothing in this repository reads a press-clipping service or a mailing list,
-# and no model could hold either.
-PLANNED_SECTIONS = (
-    planned(
-        "Meediakajastused",
-        promise="Koja mainimised välismeedias. Allikat ei ole veel ühendatud.",
-    ),
-    planned(
-        "Uudiskiri",
-        promise="Uudiskirja väljasaatmised ja statistika. Allikat ei ole veel ühendatud.",
-    ),
+from .archive import build_news_archive
+from .periods import (
+    PARAM_FROM,
+    PARAM_PAGE,
+    PARAM_PERIOD,
+    PARAM_SEARCH,
+    PARAM_SORT,
+    PARAM_TO,
+    parse_page,
+    parse_search,
+    parse_sort,
 )
-
-
-#: How the list is ordered. Newest first unless a reader asked otherwise.
-SORT_NEWEST = "uusimad"
-SORT_VIEWS = "vaadatud"
-SORT_CHOICES = (SORT_NEWEST, SORT_VIEWS)
 
 
 @require_GET
 def news_overview(request):
-    summary = get_news_summary()
-    items = list(get_latest_news(summary.snapshot, limit=DEFAULT_LIMIT))
-    sort = request.GET.get("sort")
-    sort = sort if sort in SORT_CHOICES else SORT_NEWEST
-    # One bulk lookup for the whole list, then hung on each item so the template
-    # can read it without calling a method with an argument. The items are never
-    # saved — a `NewsItem` belongs to an immutable snapshot, and this attribute
-    # exists only for the length of the response.
-    analytics = get_news_analytics(items)
-    for item in items:
-        item.analytics = analytics.for_item(item)
-    if sort == SORT_VIEWS:
-        # Measured articles first, most-read first; unmeasured ones keep their
-        # published order behind them rather than being ranked as though they
-        # had scored nothing. The feed is a rolling window, so this ranks the
-        # items this page knows about — the historical ranking is on Nähtavus.
-        items = list(analytics.ranked(items))
+    """The Chamber's news archive, browsable by publication period.
 
-    window_start = timezone.make_aware(
-        datetime.combine(
-            timezone.localdate() - timedelta(days=ACTIVITY_WINDOW_DAYS), datetime.min.time()
-        )
+    The feed's own state is no longer shown here. It has not gone anywhere —
+    `NewsFeedState`, the collector, the import history and the source's health
+    are untouched, and the shell's freshness row still speaks for this source on
+    every page. What changed is that a reader opening the news archive meets the
+    news, rather than a status panel about how the news arrived.
+
+    Every parameter is validated before it reaches a selector: an unreadable
+    period, a reversed date range, a rotted page number and an oversized search
+    term each resolve to something renderable rather than to a 500.
+    """
+    archive = build_news_archive(
+        period_key=request.GET.get(PARAM_PERIOD),
+        date_from=request.GET.get(PARAM_FROM),
+        date_to=request.GET.get(PARAM_TO),
+        sort=parse_sort(request.GET.get(PARAM_SORT)),
+        search=parse_search(request.GET.get(PARAM_SEARCH)),
+        page=parse_page(request.GET.get(PARAM_PAGE)),
     )
     return render(
         request,
@@ -69,23 +48,7 @@ def news_overview(request):
         {
             "navigation": NAVIGATION,
             "active_nav": "news",
-            "freshness": current_freshness(summary),
-            "summary": summary,
-            "items": items,
-            "news_analytics": analytics,
-            "sort": sort,
-            "sort_options": (
-                {"label": "Uusimad", "url": "?sort=uusimad", "is_active": sort == SORT_NEWEST},
-                {
-                    "label": "Enim vaadatud",
-                    "url": "?sort=vaadatud",
-                    "is_active": sort == SORT_VIEWS,
-                },
-            ),
-            "recent_count": (
-                count_published_since(summary.snapshot, window_start) if summary.has_data else None
-            ),
-            "total_count": summary.item_count if summary.has_data else None,
-            "planned_sections": PLANNED_SECTIONS,
+            "freshness": current_freshness(),
+            "archive": archive,
         },
     )
