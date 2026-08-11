@@ -56,11 +56,18 @@ class NewsResource(models.Model):
     title_origin = models.CharField(
         max_length=8, choices=TitleOrigin, verbose_name="Pealkirja allikas"
     )
+    #: Whose news this is — the Chamber's own or a partner's. Blank where
+    #: DashKoda has not been told, which is a real state and not a third
+    #: category: nothing public exposes this field, so an article is classified
+    #: only once it has been read from Koda.ee.
+    category = models.CharField(max_length=32, blank=True, db_index=True, verbose_name="Kategooria")
     first_seen_at = models.DateTimeField(auto_now_add=True, verbose_name="Esmakordselt nähtud")
     last_seen_at = models.DateTimeField(verbose_name="Viimati nähtud")
 
     #: Identity is fixed; the description may be corrected.
-    MUTABLE_FIELDS = frozenset({"title", "published_at", "title_origin", "last_seen_at"})
+    MUTABLE_FIELDS = frozenset(
+        {"title", "published_at", "title_origin", "category", "last_seen_at"}
+    )
 
     class Meta:
         ordering = ("-published_at", "path")

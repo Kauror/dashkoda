@@ -46,6 +46,7 @@ PARAM_TO = "kuni"
 PARAM_SORT = "sort"
 PARAM_PAGE = "lk"
 PARAM_SEARCH = "otsing"
+PARAM_CATEGORY = "kategooria"
 
 #: The custom range's own key. It is a period like the others as far as the
 #: chips are concerned, but its dates come from the two fields rather than from
@@ -257,6 +258,7 @@ def build_query(
     period_key: str,
     sort: str,
     search: str = "",
+    category: str = "",
     page: int | None = None,
     start: date | None = None,
     end: date | None = None,
@@ -279,6 +281,8 @@ def build_query(
         parts.append(f"{PARAM_SORT}={quote(sort)}")
     if search:
         parts.append(f"{PARAM_SEARCH}={quote(search)}")
+    if category:
+        parts.append(f"{PARAM_CATEGORY}={quote(category)}")
     if page and page > 1:
         parts.append(f"{PARAM_PAGE}={page}")
     return "&".join(parts)
@@ -293,7 +297,9 @@ class PeriodOption:
     query: str
 
 
-def period_options(active: ResolvedPeriod, *, sort: str, search: str) -> tuple[PeriodOption, ...]:
+def period_options(
+    active: ResolvedPeriod, *, sort: str, search: str, category: str = ""
+) -> tuple[PeriodOption, ...]:
     """Every period, each linking to itself with the rest of the state kept.
 
     Changing the window must not silently discard a search or an ordering: the
@@ -313,6 +319,7 @@ def period_options(active: ResolvedPeriod, *, sort: str, search: str) -> tuple[P
                     period_key=period.key,
                     sort=sort,
                     search=search,
+                    category=category,
                     start=active.start if carries_dates else None,
                     end=active.end if carries_dates else None,
                 ),
@@ -328,6 +335,7 @@ __all__ = [
     "PARAM_FROM",
     "PARAM_PAGE",
     "PARAM_PERIOD",
+    "PARAM_CATEGORY",
     "PARAM_SEARCH",
     "PARAM_SORT",
     "PARAM_TO",

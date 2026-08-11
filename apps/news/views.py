@@ -7,7 +7,9 @@ from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
 from .archive import build_news_archive
+from .categories import parse_category
 from .periods import (
+    PARAM_CATEGORY,
     PARAM_FROM,
     PARAM_PAGE,
     PARAM_PERIOD,
@@ -40,6 +42,7 @@ def news_overview(request):
         date_to=request.GET.get(PARAM_TO),
         sort=parse_sort(request.GET.get(PARAM_SORT)),
         search=parse_search(request.GET.get(PARAM_SEARCH)),
+        category=parse_category(request.GET.get(PARAM_CATEGORY)),
         page=parse_page(request.GET.get(PARAM_PAGE)),
     )
     return render(
