@@ -1,0 +1,19 @@
+{% comment %}
+What `news_search_fragment` answers a keystroke with.
+
+Two regions, because the count and the rows are not next to each other on this
+page: the count sits above the archive card with the sort chips, the rows are
+inside it. htmx swaps one target per response, so the rows go into
+`#news-results` the ordinary way and the count rides along as an out-of-band
+swap — htmx matches `hx-swap-oob` elements by `id` anywhere in the document.
+
+The alternative was moving the count inside the card so one swap could cover
+both. That is a layout change to serve an implementation detail, and this page's
+count belongs beside the controls that change it.
+
+The `<p>` below is deliberately a copy of the one in `overview.html` rather than
+a shared include: an `hx-swap-oob` attribute on the page's own copy would be
+inert but misleading, reading as though the element swapped itself.
+{% endcomment %}
+{% include "news/partials/_news_results.html" with archive=archive only %}
+<p id="news-summary" class="dk-meta" hx-swap-oob="true">{{ archive.result_summary }}</p>

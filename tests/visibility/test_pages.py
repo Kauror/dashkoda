@@ -120,10 +120,14 @@ def channel_band(response) -> str:
     Scoped deliberately: the legal-work card on the same page legitimately talks
     about synchronisation, because that feed genuinely is synchronised. What must
     never borrow those words is a figure somebody typed.
+
+    It runs to the end of the body. The end marker used to be the connection
+    -state strip's `id="freshness-region"`, which was removed from the overview
+    on 2026-08-11; the band is now the last thing on the page.
     """
     page = body(response)
     start = page.index('aria-labelledby="section-channels"')
-    return page[start : page.index('id="freshness-region"')]
+    return page[start:]
 
 
 def test_no_card_claims_an_automatic_feed(submit, viewer_client):

@@ -201,6 +201,18 @@ def synthetic_programme(today: dt.date | None = None) -> list[dict]:
 
 
 @pytest.fixture
+def viewer_client(client, authenticate_viewer):
+    """A PIN-authenticated viewer with no Django account at all.
+
+    The same fixture the news, membership and visibility suites define, for the
+    same reason: every routed page is behind the viewer gate, so a test that
+    fetched one without it would assert against a redirect.
+    """
+    authenticate_viewer(client)
+    return client
+
+
+@pytest.fixture
 def event_programme_source(db):
     return ensure_event_programme_source()
 

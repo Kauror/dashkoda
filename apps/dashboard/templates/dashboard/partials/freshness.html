@@ -1,12 +1,21 @@
 {% comment %}
 Freshness fragment.
 
-Swapped into the shell's #freshness-region by HTMX and rendered server-side on
-every full page load, so the information is identical with and without
-JavaScript. It states only facts about the application: how many wired data
-sources currently publish data, whether any of them is stale after a failed
-check, and when this was checked. It is not a data as-of date — each module
-states its own.
+**No page includes this at the moment.** The overview's connection-state strip
+was the only one, and it was removed on 2026-08-11 — an operational fact shown
+to a board that cannot act on it, with a count that had been 4/4 continuously.
+The fragment is kept because `/dashboard/varskus/` still serves it and
+`freshness.py` still guards the four-source denominator, so restoring the strip,
+or giving it to a page meant for whoever operates the collectors, is a template
+change alone.
+
+It states only facts about the application: how many wired data sources
+currently publish data, whether any of them is stale after a failed check, and
+when this was checked. It is not a data as-of date — each module states its own.
+
+Whatever includes it next must render it server-side on a full page load as
+well, so the information is identical with and without JavaScript, and must
+trigger on a click rather than a poll.
 {% endcomment %}
 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
   {% include "dashboard/components/status_badge.html" with label=freshness.state_label variant=freshness.state_variant only %}

@@ -1,3 +1,12 @@
+"""The freshness fragment endpoint, which no page includes at the moment.
+
+The overview's connection-state strip was the only consumer and was removed on
+2026-08-11. The route is kept and kept tested so restoring the strip — or moving
+it to a page meant for whoever operates the collectors — is a template change
+rather than a rebuild, and `test_overview.py` holds the other half: that no page
+reaches for it today.
+"""
+
 import pytest
 
 from apps.membership.collector import MembershipCollectionError

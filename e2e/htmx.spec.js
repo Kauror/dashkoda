@@ -1,27 +1,19 @@
 import { expect, test } from "@playwright/test";
 
-import { TEST_PIN, signIn, watchConsole } from "./helpers.js";
-
-test("the freshness fragment is swapped in place without leaving the page", async ({ page }) => {
-  const errors = watchConsole(page);
-
-  await signIn(page);
-  const url = page.url();
-
-  const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/dashboard/varskus/")),
-    page.getByRole("button", { name: "Kontrolli uuesti" }).click(),
-  ]);
-
-  expect(response.status()).toBe(200);
-  expect(response.request().headers()["hx-request"]).toBe("true");
-  await expect(page).toHaveURL(url);
-  await expect(page.locator("#freshness-region")).toContainText(
-    "Andmeallikas ei ole veel ühendatud.",
-  );
-  expect(errors).toEqual([]);
-});
-
+/**
+ * The freshness fragment, which no page requests any more.
+ *
+ * The overview's connection-state strip — `Ühendatud andmeallikaid: 4/4`, the
+ * last check time and a `Kontrolli uuesti` button that swapped the count over
+ * htmx — was removed on 2026-08-11. The two tests that drove that button went
+ * with it, and so did the only htmx in the application.
+ *
+ * `/dashboard/varskus/` is still served on purpose, so the strip can be put
+ * back or moved to a page meant for whoever operates the collectors. What is
+ * still worth asserting from a browser is the part no Django test covers: that
+ * the route stays behind the viewer gate and answers an HTMX caller with a
+ * redirect header rather than a login page inside the fragment.
+ */
 test("the fragment route stays protected and answers HTMX with a redirect header", async ({
   page,
 }) => {
@@ -32,26 +24,4 @@ test("the fragment route stays protected and answers HTMX with a redirect header
 
   expect(anonymous.status()).toBe(204);
   expect(anonymous.headers()["hx-redirect"]).toContain("/sisene/");
-});
-
-test("without JavaScript the refresh control is an ordinary form submission", async ({
-  browser,
-}) => {
-  const context = await browser.newContext({ javaScriptEnabled: false });
-  const page = await context.newPage();
-
-  await page.goto("/sisene/");
-  await page.getByLabel("PIN-kood").fill(TEST_PIN);
-  await page.getByRole("button", { name: "Sisene" }).click();
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja töölaud");
-
-  await page.getByRole("button", { name: "Kontrolli uuesti" }).click();
-
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koja töölaud");
-  await expect(page.locator("#freshness-region")).toContainText(
-    "Andmeallikas ei ole veel ühendatud.",
-  );
-  await expect(page.getByRole("navigation", { name: /Peamenüü/ }).first()).toBeAttached();
-
-  await context.close();
 });

@@ -80,6 +80,16 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
         {% endfor %}
       </div>
 
+      {% comment %}
+      The period and the sort travel as hidden fields, so a search inside one
+      quarter's newest-first list stays inside it — which is why `hx-include`
+      names the whole form and not the input alone.
+
+      `lk` is deliberately absent. A reader on page 7 who types a new term is
+      asking a new question, and carrying the page number into it answers
+      "nothing found" for anything matching fewer results than that page. The
+      fragment always builds page one and drops `lk` from the pushed URL.
+      {% endcomment %}
       <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
         <input type="hidden" name="periood" value="{{ archive.period.key }}">
         {% if archive.period.period.is_custom %}
@@ -89,112 +99,38 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
         {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
         <label for="otsing" class="sr-only">Otsi uudist</label>
         <input type="search" id="otsing" name="otsing" value="{{ archive.search }}"
-               maxlength="120" placeholder="Otsi uudist…" class="dk-input w-full min-w-0 sm:w-56">
+               maxlength="120" placeholder="Otsi uudist…" autocomplete="off"
+               class="dk-input w-full min-w-0 sm:w-56"
+               hx-get="{% url 'news-search' %}"
+               hx-trigger="input changed delay:250ms, search"
+               hx-target="#news-results"
+               hx-swap="innerHTML"
+               hx-include="closest form"
+               hx-sync="this:replace"
+               hx-indicator="#news-searching">
         <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+        <p id="news-searching" class="dk-indicator dk-meta" aria-hidden="true">Otsin…</p>
       </form>
     </div>
 
-    <p class="dk-meta">{{ archive.result_summary }}</p>
+    {% comment %}
+    Updated by an out-of-band swap, not by the main one: the rows it counts are
+    inside the card below, and this sits above it beside the controls. See
+    `partials/_news_search_response.html`.
+    {% endcomment %}
+    <p id="news-summary" class="dk-meta">{{ archive.result_summary }}</p>
   </div>
 
   <section aria-labelledby="section-news" class="dk-section">
     <h2 id="section-news" class="sr-only">Uudiste arhiiv</h2>
 
-    {% if archive.has_rows %}
-      {% comment %}
-      Deliberately **not** `min-w-max`. Every other table on this dashboard sets
-      it and scrolls inside its wrapper, which is right for a row of figures
-      that has a natural width — and wrong here. An article title has no natural
-      width, so `min-w-max` sized the table to the longest headline on the page
-      and put the archive behind a horizontal scrollbar at every width below
-      about 1900. On a phone that means dragging sideways to read a headline.
-
-      The title column wraps instead. The date and the figure are the columns
-      that must not break, so those two carry `whitespace-nowrap` and the title
-      takes whatever is left — one line for an ordinary headline at any width,
-      two for a long one on a phone.
-      {% endcomment %}
-      <div class="w-full min-w-0 overflow-x-auto">
-        <table class="w-full border-collapse text-sm">
-          <caption class="sr-only">Avaldatud uudised ja nende mõõdetud lehevaatamised</caption>
-          <thead>
-            <tr>
-              <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuupäev</th>
-              <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Uudis</th>
-              {% comment %}
-              `break-all` below `sm` is what lets this table fit a 320-pixel
-              phone, and the choice of property is the whole point: a column
-              cannot shrink below its longest unbreakable word, and
-              `Lehevaatamised` is fourteen characters of one, with the longest
-              word of a headline beside it. Together they came to 38 pixels
-              more than the viewport.
-
-              `overflow-wrap: break-word` — Tailwind's `break-words` — does not
-              help, and that is not a subtlety worth rediscovering: it permits a
-              break when a line would overflow but is defined not to reduce the
-              intrinsic minimum content size, so the table's minimum stayed
-              exactly what it was. `word-break: break-all` does reduce it.
-
-              Applied only below `sm`. Breaking Estonian mid-word is worth it at
-              320 pixels and is not worth it anywhere else.
-              {% endcomment %}
-              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">{{ archive.views_heading }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in archive.rows %}
-              <tr>
-                {% comment %}
-                The date must not break; `Kuupäev teadmata` may. Putting the
-                nowrap on the cell would give the column a 110-pixel floor for
-                the sake of a label that reads perfectly well on two lines.
-                {% endcomment %}
-                <td class="border-b border-border px-2 py-1.5 align-top tabular-nums text-text-muted sm:px-3">
-                  {% if row.has_date %}
-                    <time class="whitespace-nowrap" datetime="{{ row.published_on|date:'c' }}">{{ row.published_on|date:"d.m.y" }}</time>
-                  {% else %}
-                    <span class="dk-meta">Kuupäev teadmata</span>
-                  {% endif %}
-                </td>
-                <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal break-all sm:px-3 sm:break-words">
-                  <a class="dk-link relative" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
-                    {{ row.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
-                  </a>
-                </th>
-                {% comment %}
-                A measured figure or a dash. Never a zero: an article nobody has
-                measured and an article nobody read are different facts, and only
-                one of them is a number.
-                {% endcomment %}
-                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums sm:px-3 {% if row.has_views %}text-text-secondary{% else %}text-text-muted{% endif %}">
-                  {% if row.has_views %}{{ row.views|group_thousands }}{% else %}—{% endif %}
-                </td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      {% if archive.total_pages > 1 %}
-        <nav aria-label="Uudiste leheküljed" class="dk-section-body flex flex-wrap items-center justify-between gap-3">
-          {% if archive.has_previous %}
-            <a class="dk-button dk-button-secondary" href="?{{ archive.previous_query }}">Eelmine</a>
-          {% else %}
-            <span></span>
-          {% endif %}
-          <span class="dk-meta">Lehekülg {{ archive.page_number }} / {{ archive.total_pages }}</span>
-          {% if archive.has_next %}
-            <a class="dk-button dk-button-secondary" href="?{{ archive.next_query }}">Järgmine</a>
-          {% else %}
-            <span></span>
-          {% endif %}
-        </nav>
-      {% endif %}
-    {% else %}
-      <div class="dk-section-body">
-        {% include "dashboard/components/empty_state.html" with message=archive.empty_message detail=archive.empty_detail only %}
-      </div>
-    {% endif %}
+    {% comment %}
+    The swapped region. `aria-live="polite"` tells a screen reader that rows
+    arrived without a page change.
+    {% endcomment %}
+    <div id="news-results" aria-live="polite">
+      {% include "news/partials/_news_results.html" with archive=archive only %}
+    </div>
   </section>
 
   {% comment %}
