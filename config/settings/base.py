@@ -21,6 +21,7 @@ INSTALLED_APPS = [
     "apps.events.apps.EventsConfig",
     "apps.event_programme.apps.EventProgrammeConfig",
     "apps.visibility.apps.VisibilityConfig",
+    "apps.shop.apps.ShopConfig",
 ]
 
 MIDDLEWARE = [
