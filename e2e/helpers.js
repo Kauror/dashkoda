@@ -37,11 +37,59 @@ export function visibleLogout(page) {
   return page.locator(LOGOUT_BUTTON);
 }
 
-/** The page itself must never scroll sideways, at any supported width. */
+/**
+ * The page itself must never scroll sideways, at any supported width.
+ *
+ * The failure names the elements sticking out past the viewport, because
+ * "expected <= 0, received 324" on a page with forty nested containers says
+ * only that something is wrong and nothing about what. Each offender is
+ * reported with whether an ancestor was clipping it: an element extending past
+ * the edge *inside* a scrolling container is doing exactly what the container
+ * is for, so the interesting ones are those nothing contains.
+ */
 export async function expectNoHorizontalOverflow(page) {
-  const overflow = await page.evaluate(() => {
+  const report = await page.evaluate(() => {
     const root = document.documentElement;
-    return root.scrollWidth - root.clientWidth;
+    const limit = root.clientWidth;
+    const offenders = [];
+
+    for (const node of document.querySelectorAll("body *")) {
+      const box = node.getBoundingClientRect();
+      if (box.width === 0 || box.right <= limit + 1) {
+        continue;
+      }
+      let clipped = false;
+      for (let parent = node.parentElement; parent; parent = parent.parentElement) {
+        if (getComputedStyle(parent).overflowX !== "visible") {
+          clipped = true;
+          break;
+        }
+      }
+      const style = getComputedStyle(node);
+      const name = node.tagName.toLowerCase();
+      const classes = String(node.className || "").slice(0, 60);
+      offenders.push({
+        what: `${name}${classes ? `.${classes.trim().split(/\s+/).join(".")}` : ""}`,
+        right: Math.round(box.right),
+        position: style.position,
+        clipped,
+      });
+    }
+
+    offenders.sort((left, right) => right.right - left.right);
+    return {
+      overflow: root.scrollWidth - limit,
+      limit,
+      offenders: offenders.slice(0, 6),
+    };
   });
-  expect(overflow).toBeLessThanOrEqual(0);
+
+  const detail = report.offenders
+    .map(
+      (item) =>
+        `\n  right=${item.right} (limit ${report.limit}) ${item.position}` +
+        `${item.clipped ? " [inside a scroller]" : " [UNCONTAINED]"} ${item.what}`,
+    )
+    .join("");
+  expect(report.overflow, `page scrolls sideways; widest boxes:${detail}`).toBeLessThanOrEqual(0);
 }
