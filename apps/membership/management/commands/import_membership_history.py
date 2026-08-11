@@ -42,12 +42,22 @@ class Command(BaseCommand):
             dest="as_json",
             help="Print aggregate counts as JSON. Never prints source content.",
         )
+        parser.add_argument(
+            "--supersede-previous",
+            action="store_true",
+            help=(
+                "Required when a different package is imported into a history "
+                "that already holds one. Marks the existing observations "
+                "superseded and no longer preferred. Nothing is deleted."
+            ),
+        )
 
     def handle(self, *args, **options):
         try:
             result = import_history_package(
                 options["package"],
                 dry_run=options["dry_run"],
+                supersede_previous=options["supersede_previous"],
             )
         except MembershipHistoryImportError as error:
             raise CommandError(str(error)) from error
