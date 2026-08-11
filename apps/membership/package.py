@@ -40,11 +40,18 @@ from pathlib import Path, PurePosixPath
 # The importer's own contract version. It is what the import key is built from
 # together with the package digest, so raising it makes a previously imported
 # package importable again under new parsing rules.
-PACKAGE_SCHEMA_VERSION = "1.0"
+PACKAGE_SCHEMA_VERSION = "2.0"
 
 # Manifest schema versions this importer knows how to read. An unknown version
 # is refused rather than guessed at.
-SUPPORTED_MANIFEST_SCHEMA_VERSIONS = frozenset({"1.0"})
+#
+# 2.0 adds the board-decision batch tables and the new-member period tables. It
+# is a **major** bump rather than a minor one because a 2.0 package answers
+# questions 1.0 could not express at all: what one board decision did, as
+# distinct from what a year had done so far. Nothing in 1.0 changed meaning, and
+# a 1.0 package is still read exactly as before — the five new files are simply
+# absent from it, which is not the same as their being empty.
+SUPPORTED_MANIFEST_SCHEMA_VERSIONS = frozenset({"1.0", "2.0"})
 
 README_NAME = "IMPORT_README.md"
 MANIFEST_NAME = "manifest.json"
@@ -165,8 +172,78 @@ REQUIRED_HEADERS: dict[str, tuple[str, ...]] = {
     ),
 }
 
-# Files that must exist, whatever else the manifest lists.
-REQUIRED_PATHS: tuple[str, ...] = (README_NAME, *REQUIRED_HEADERS)
+# Tables that exist only from schema 2.0 onwards.
+REQUIRED_HEADERS.update(
+    {
+        "data/decision_batches.csv": (
+            "batch_id",
+            "source_id",
+            "batch_kind",
+            "as_of_date",
+            "as_of_date_precision",
+            "decision_date",
+            "decision_reference",
+            "member_count",
+            "corroborating_source_id",
+            "quality_status",
+            "extraction_confidence",
+            "warning_codes",
+        ),
+        "data/decision_batch_size_movements.csv": (
+            "batch_id",
+            "size_band_key",
+            "member_count",
+            "warning_codes",
+        ),
+        # Deliberately no raw-label column: see MembershipDecisionBatchReason.
+        "data/decision_batch_reasons.csv": (
+            "batch_id",
+            "reason_key",
+            "member_count",
+            "warning_codes",
+        ),
+        "data/new_member_periods.csv": (
+            "period_id",
+            "source_id",
+            "period_scope",
+            "period_start",
+            "period_end",
+            "new_members",
+            "extraction_confidence",
+            "warning_codes",
+        ),
+        "data/new_member_size_distribution.csv": (
+            "period_id",
+            "calendar_year",
+            "calendar_month",
+            "size_band_key",
+            "member_count",
+            "warning_codes",
+        ),
+    }
+)
+
+V2_ONLY_PATHS: tuple[str, ...] = (
+    "data/decision_batches.csv",
+    "data/decision_batch_size_movements.csv",
+    "data/decision_batch_reasons.csv",
+    "data/new_member_periods.csv",
+    "data/new_member_size_distribution.csv",
+)
+
+V1_PATHS: tuple[str, ...] = tuple(path for path in REQUIRED_HEADERS if path not in V2_ONLY_PATHS)
+
+# Files that must exist, whatever else the manifest lists, per schema version.
+# A 1.0 package carrying a 2.0-only file is refused: the manifest declares what
+# the package is, and a file the declared version does not know about means the
+# two disagree about which contract is in force.
+REQUIRED_PATHS_BY_VERSION: dict[str, tuple[str, ...]] = {
+    "1.0": (README_NAME, *V1_PATHS),
+    "2.0": (README_NAME, *V1_PATHS, *V2_ONLY_PATHS),
+}
+
+# Kept for callers that predate versioned paths; always the 1.0 floor.
+REQUIRED_PATHS: tuple[str, ...] = REQUIRED_PATHS_BY_VERSION["1.0"]
 
 
 class PackageContractError(RuntimeError):
@@ -293,6 +370,65 @@ class ConflictRow:
 
 
 @dataclass(frozen=True)
+class DecisionBatchRow:
+    batch_id: str
+    source_id: str
+    batch_kind: str
+    as_of_date: date | None
+    as_of_date_precision: str
+    decision_date: date | None
+    decision_reference: str
+    member_count: int | None
+    corroborating_source_id: str
+    quality_status: str
+    extraction_confidence: str
+    warning_codes: list
+
+
+@dataclass(frozen=True)
+class DecisionBatchSizeRow:
+    batch_id: str
+    size_band_key: str
+    member_count: int | None
+    warning_codes: list
+
+
+@dataclass(frozen=True)
+class DecisionBatchReasonRow:
+    batch_id: str
+    reason_key: str
+    member_count: int | None
+    warning_codes: list
+
+
+@dataclass(frozen=True)
+class NewMemberPeriodRow:
+    period_id: str
+    source_id: str
+    period_scope: str
+    period_start: date
+    period_end: date
+    new_members: int | None
+    extraction_confidence: str
+    warning_codes: list
+
+
+@dataclass(frozen=True)
+class NewMemberSizeRow:
+    """Size distribution for either one month or one multi-month period.
+
+    Exactly one parent is named: `period_id`, or the calendar year and month.
+    """
+
+    period_id: str
+    calendar_year: int | None
+    calendar_month: int | None
+    size_band_key: str
+    member_count: int | None
+    warning_codes: list
+
+
+@dataclass(frozen=True)
 class ParsedPackage:
     """Everything the importer needs, already validated and typed."""
 
@@ -307,11 +443,24 @@ class ParsedPackage:
     warnings: tuple[WarningRow, ...] = field(default=())
     conflicts: tuple[ConflictRow, ...] = field(default=())
     coverage_rows: int = 0
+    # Schema 2.0 only. Empty for a 1.0 package, which is not the same as a 2.0
+    # package that happens to carry no batches.
+    decision_batches: tuple[DecisionBatchRow, ...] = field(default=())
+    decision_batch_sizes: tuple[DecisionBatchSizeRow, ...] = field(default=())
+    decision_batch_reasons: tuple[DecisionBatchReasonRow, ...] = field(default=())
+    new_member_periods: tuple[NewMemberPeriodRow, ...] = field(default=())
+    new_member_sizes: tuple[NewMemberSizeRow, ...] = field(default=())
 
     @property
     def row_counts(self) -> dict[str, int]:
-        """Aggregate counts only. Never a value, never a label, never a path."""
-        return {
+        """Aggregate counts only. Never a value, never a label, never a path.
+
+        A 1.0 package reports no key for the 2.0 tables at all. Reporting
+        ``decision_batches: 0`` would say the package looked and found none,
+        when the truth is that it cannot describe batches — the same
+        missing-is-not-zero rule the data itself is held to.
+        """
+        counts = {
             "source_documents": len(self.source_documents),
             "snapshots": len(self.snapshots),
             "monthly_values": len(self.monthly_values),
@@ -321,6 +470,17 @@ class ParsedPackage:
             "conflicts": len(self.conflicts),
             "coverage_rows": self.coverage_rows,
         }
+        if self.manifest_schema_version != "1.0":
+            counts.update(
+                {
+                    "decision_batches": len(self.decision_batches),
+                    "decision_batch_sizes": len(self.decision_batch_sizes),
+                    "decision_batch_reasons": len(self.decision_batch_reasons),
+                    "new_member_periods": len(self.new_member_periods),
+                    "new_member_sizes": len(self.new_member_sizes),
+                }
+            )
+        return counts
 
 
 # --------------------------------------------------------------------------
@@ -599,11 +759,17 @@ def _load_manifest(payloads: dict[str, bytes]) -> tuple[str, dict[str, dict]]:
     return version, listed
 
 
-def _verify_manifest(payloads: dict[str, bytes], listed: dict[str, dict]) -> None:
+def _verify_manifest(payloads: dict[str, bytes], listed: dict[str, dict], version: str) -> None:
     """Check every declared file, then refuse anything undeclared.
 
     The manifest does not list itself, which is why it is excluded below rather
     than expected.
+
+    What "required" means depends on the declared schema version: a 1.0 package
+    has eight data files and a 2.0 package has thirteen. A 1.0 package that
+    nevertheless carries a 2.0-only table is refused rather than read leniently,
+    because the manifest is what declares which contract is in force and the two
+    would then disagree.
     """
     for path, entry in listed.items():
         payload = payloads.get(path)
@@ -621,9 +787,16 @@ def _verify_manifest(payloads: dict[str, bytes], listed: dict[str, dict]) -> Non
     if undeclared:
         raise PackageContractError("Pakett sisaldab manifestis loetlemata faile.")
 
-    missing = [path for path in REQUIRED_PATHS if path not in payloads]
+    required = REQUIRED_PATHS_BY_VERSION[version]
+    missing = [path for path in required if path not in payloads]
     if missing:
         raise PackageContractError(f"Paketist puudub kohustuslik fail: {missing[0]}.")
+
+    unexpected = [path for path in payloads if path not in required and path != MANIFEST_NAME]
+    if unexpected:
+        raise PackageContractError(
+            f"Pakett sisaldab skeemi {version} jaoks tundmatut faili: {sorted(unexpected)[0]}."
+        )
 
 
 # --------------------------------------------------------------------------
@@ -762,6 +935,151 @@ def _parse_monthly(payload: bytes) -> tuple[MonthlyRow, ...]:
                 conflicting_values=_json_list(
                     raw["conflicting_values"], column="conflicting_values"
                 ),
+            )
+        )
+    return tuple(rows)
+
+
+def _parse_decision_batches(payload: bytes) -> tuple[DecisionBatchRow, ...]:
+    path = "data/decision_batches.csv"
+    rows: list[DecisionBatchRow] = []
+    seen: set[str] = set()
+    for raw in _rows(payload, path=path):
+        batch_id = _text(raw["batch_id"])
+        if not batch_id:
+            raise PackageContractError("Otsuse partii tunnus puudub.")
+        if batch_id in seen:
+            raise PackageContractError("Otsuse partii tunnus kordub.")
+        seen.add(batch_id)
+        precision = _text(raw["as_of_date_precision"]) or "day"
+        rows.append(
+            DecisionBatchRow(
+                batch_id=batch_id,
+                source_id=_text(raw["source_id"]),
+                batch_kind=_text(raw["batch_kind"]),
+                as_of_date=_dated_by_precision(raw["as_of_date"], precision, column="as_of_date"),
+                as_of_date_precision=precision,
+                # The decision date is its own fact and is never derived from
+                # the as-of date when the source did not state it.
+                decision_date=_optional_date(raw["decision_date"], column="decision_date"),
+                decision_reference=_text(raw["decision_reference"]),
+                member_count=_optional_int(raw["member_count"], column="member_count"),
+                corroborating_source_id=_text(raw["corroborating_source_id"]),
+                quality_status=_text(raw["quality_status"]),
+                extraction_confidence=_text(raw["extraction_confidence"]),
+                warning_codes=_codes(raw["warning_codes"]),
+            )
+        )
+    return tuple(rows)
+
+
+def _parse_decision_batch_sizes(payload: bytes) -> tuple[DecisionBatchSizeRow, ...]:
+    path = "data/decision_batch_size_movements.csv"
+    rows: list[DecisionBatchSizeRow] = []
+    seen: set[tuple[str, str]] = set()
+    for raw in _rows(payload, path=path):
+        batch_id = _text(raw["batch_id"])
+        band = _text(raw["size_band_key"])
+        if (batch_id, band) in seen:
+            raise PackageContractError("Otsuse partii suurusklass kordub.")
+        seen.add((batch_id, band))
+        rows.append(
+            DecisionBatchSizeRow(
+                batch_id=batch_id,
+                size_band_key=band,
+                member_count=_optional_int(raw["member_count"], column="member_count"),
+                warning_codes=_codes(raw["warning_codes"]),
+            )
+        )
+    return tuple(rows)
+
+
+def _parse_decision_batch_reasons(payload: bytes) -> tuple[DecisionBatchReasonRow, ...]:
+    path = "data/decision_batch_reasons.csv"
+    rows: list[DecisionBatchReasonRow] = []
+    seen: set[tuple[str, str]] = set()
+    for raw in _rows(payload, path=path):
+        batch_id = _text(raw["batch_id"])
+        reason = _text(raw["reason_key"])
+        if (batch_id, reason) in seen:
+            raise PackageContractError("Otsuse partii lahkumispõhjus kordub.")
+        seen.add((batch_id, reason))
+        rows.append(
+            DecisionBatchReasonRow(
+                batch_id=batch_id,
+                reason_key=reason,
+                member_count=_optional_int(raw["member_count"], column="member_count"),
+                warning_codes=_codes(raw["warning_codes"]),
+            )
+        )
+    return tuple(rows)
+
+
+def _parse_new_member_periods(payload: bytes) -> tuple[NewMemberPeriodRow, ...]:
+    path = "data/new_member_periods.csv"
+    rows: list[NewMemberPeriodRow] = []
+    seen: set[str] = set()
+    for raw in _rows(payload, path=path):
+        period_id = _text(raw["period_id"])
+        if not period_id:
+            raise PackageContractError("Perioodi tunnus puudub.")
+        if period_id in seen:
+            raise PackageContractError("Perioodi tunnus kordub.")
+        seen.add(period_id)
+        start = _required_date(raw["period_start"], column="period_start")
+        end = _required_date(raw["period_end"], column="period_end")
+        if end < start:
+            raise PackageContractError("Perioodi lõpp on enne algust.")
+        rows.append(
+            NewMemberPeriodRow(
+                period_id=period_id,
+                source_id=_text(raw["source_id"]),
+                period_scope=_text(raw["period_scope"]),
+                period_start=start,
+                period_end=end,
+                new_members=_optional_int(raw["new_members"], column="new_members"),
+                extraction_confidence=_text(raw["extraction_confidence"]),
+                warning_codes=_codes(raw["warning_codes"]),
+            )
+        )
+    return tuple(rows)
+
+
+def _parse_new_member_sizes(payload: bytes) -> tuple[NewMemberSizeRow, ...]:
+    """Parse the size distribution shared by monthly values and periods.
+
+    Exactly one parent must be named. A row naming both, or neither, is a
+    contract error rather than something to resolve by preferring one.
+    """
+    path = "data/new_member_size_distribution.csv"
+    rows: list[NewMemberSizeRow] = []
+    seen: set[tuple[str, int | None, int | None, str]] = set()
+    for raw in _rows(payload, path=path):
+        period_id = _text(raw["period_id"])
+        year = _optional_int(raw["calendar_year"], column="calendar_year")
+        month = _optional_int(raw["calendar_month"], column="calendar_month")
+        band = _text(raw["size_band_key"])
+        has_period = bool(period_id)
+        has_month = year is not None and month is not None
+        if has_period == has_month:
+            raise PackageContractError(
+                "Suurusjaotus peab viitama täpselt ühele vanemale: kas perioodile "
+                "või kalendrikuule."
+            )
+        if has_month and not 1 <= month <= 12:
+            raise PackageContractError("Kalendrikuu peab olema vahemikus 1-12.")
+        key = (period_id, year, month, band)
+        if key in seen:
+            raise PackageContractError("Uute liikmete suurusjaotus kordub.")
+        seen.add(key)
+        rows.append(
+            NewMemberSizeRow(
+                period_id=period_id,
+                calendar_year=year,
+                calendar_month=month,
+                size_band_key=band,
+                member_count=_optional_int(raw["member_count"], column="member_count"),
+                warning_codes=_codes(raw["warning_codes"]),
             )
         )
     return tuple(rows)
@@ -927,6 +1245,35 @@ def _check_references(parsed: ParsedPackage) -> None:
         if warning.source_id and warning.source_id not in known:
             raise PackageContractError("Hoiatus viitab tundmatule lähtedokumendile.")
 
+    # Schema 2.0 cross-references. Every one must resolve before anything is
+    # returned, so a partially wired package cannot reach the importer.
+    for batch in parsed.decision_batches:
+        if batch.source_id not in known:
+            raise PackageContractError("Otsuse partii viitab tundmatule lähtedokumendile.")
+        if batch.corroborating_source_id and batch.corroborating_source_id not in known:
+            raise PackageContractError("Otsuse kinnitaja viitab tundmatule lähtedokumendile.")
+    batch_ids = {batch.batch_id for batch in parsed.decision_batches}
+    for size in parsed.decision_batch_sizes:
+        if size.batch_id not in batch_ids:
+            raise PackageContractError("Suurusjaotus viitab tundmatule otsuse partiile.")
+    for reason in parsed.decision_batch_reasons:
+        if reason.batch_id not in batch_ids:
+            raise PackageContractError("Lahkumispõhjus viitab tundmatule otsuse partiile.")
+
+    for period in parsed.new_member_periods:
+        if period.source_id not in known:
+            raise PackageContractError("Perioodi kirje viitab tundmatule lähtedokumendile.")
+    period_ids = {period.period_id for period in parsed.new_member_periods}
+    monthly_keys = {
+        (monthly.calendar_year, monthly.calendar_month) for monthly in parsed.monthly_values
+    }
+    for size in parsed.new_member_sizes:
+        if size.period_id:
+            if size.period_id not in period_ids:
+                raise PackageContractError("Suurusjaotus viitab tundmatule perioodile.")
+        elif (size.calendar_year, size.calendar_month) not in monthly_keys:
+            raise PackageContractError("Suurusjaotus viitab tundmatule kalendrikuule.")
+
 
 def read_package(path: Path | str, *, limits: PackageLimits | None = None) -> ParsedPackage:
     """Validate an approved package and return its typed contents.
@@ -955,7 +1302,7 @@ def read_package(path: Path | str, *, limits: PackageLimits | None = None) -> Pa
         raise PackageContractError("Pakett on vigane ZIP-fail.") from error
 
     manifest_version, listed = _load_manifest(payloads)
-    _verify_manifest(payloads, listed)
+    _verify_manifest(payloads, listed, manifest_version)
 
     source_documents = _parse_source_documents(payloads["data/source_documents.csv"])
     path_to_source = {
@@ -976,6 +1323,32 @@ def read_package(path: Path | str, *, limits: PackageLimits | None = None) -> Pa
         warnings=_parse_warnings(payloads["data/extraction_warnings.csv"]),
         conflicts=_parse_conflicts(payloads["data/conflicts.csv"], path_to_source=path_to_source),
         coverage_rows=_count_coverage(payloads["data/coverage.csv"]),
+        **_parse_v2_tables(payloads, manifest_version),
     )
     _check_references(parsed)
     return parsed
+
+
+def _parse_v2_tables(payloads: dict[str, bytes], version: str) -> dict:
+    """Parse the schema 2.0 tables, or return nothing at all for a 1.0 package.
+
+    A 1.0 package leaves these tuples empty. That is a statement that the
+    package cannot speak about decision batches, not a statement that no batches
+    exist — which is why the importer must not read an empty tuple here as
+    permission to delete anything.
+    """
+    if version == "1.0":
+        return {}
+    return {
+        "decision_batches": _parse_decision_batches(payloads["data/decision_batches.csv"]),
+        "decision_batch_sizes": _parse_decision_batch_sizes(
+            payloads["data/decision_batch_size_movements.csv"]
+        ),
+        "decision_batch_reasons": _parse_decision_batch_reasons(
+            payloads["data/decision_batch_reasons.csv"]
+        ),
+        "new_member_periods": _parse_new_member_periods(payloads["data/new_member_periods.csv"]),
+        "new_member_sizes": _parse_new_member_sizes(
+            payloads["data/new_member_size_distribution.csv"]
+        ),
+    }

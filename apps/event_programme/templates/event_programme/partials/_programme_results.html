@@ -1,0 +1,121 @@
+{% load membership_format %}
+{% comment %}
+The programme rows — the region a filter change replaces.
+
+Context:
+  page – a ProgrammePage from `apps.event_programme.page`
+
+Rendered by `event_programme/overview.html` on a full page load and alone by
+`programme_search_fragment` on every keystroke or select change, so both paths
+render one template. `{% load %}` is repeated because a partial rendered on its
+own inherits no tag libraries.
+
+The filter form and the sort chips stay outside: htmx replaces this element's
+contents, and the search input inside it would lose its caret on every
+keystroke — as would the open state of a select somebody was tabbing through.
+
+The count is in here rather than above the form because it describes these rows
+and has to keep up with them.
+
+Pagination stays ordinary links. A reader asking for page two has stopped
+filtering, and a real navigation keeps the back button meaning what it says.
+{% endcomment %}
+<div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2 sm:px-5">
+  <p class="text-sm text-text-secondary tabular-nums">Vastavaid sündmusi: <span class="font-semibold text-text">{{ page.result_count }}</span></p>
+  {% if page.pagination.has_pages %}
+    <p class="dk-meta tabular-nums">Kuvatud {{ page.pagination.first_index }}–{{ page.pagination.last_index }}</p>
+  {% endif %}
+</div>
+
+{% if page.items %}
+  <div class="w-full overflow-x-auto">
+    <table class="w-full min-w-max border-collapse text-sm">
+      <caption class="sr-only">Koja sündmuste programm valitud filtritega</caption>
+      <thead>
+        <tr>
+          <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kuupäev</th>
+          <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sündmus</th>
+          <th scope="col" class="border-b border-border px-4 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Vaatamised</th>
+          <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Silt</th>
+          <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Seisund</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in page.items %}
+          <tr>
+            <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
+              {% if item.start_date %}
+                <time datetime="{{ item.start_date|date:'Y-m-d' }}">{{ item.start_date|date:"j.m.y" }}</time>
+                {% if item.end_date and item.end_date != item.start_date %}
+                  – <time datetime="{{ item.end_date|date:'Y-m-d' }}">{{ item.end_date|date:"j.m.y" }}</time>
+                {% endif %}
+              {% else %}
+                <span class="text-text-muted">Kuupäev teadmata</span>
+              {% endif %}
+            </td>
+            <td class="max-w-md border-b border-border px-4 py-2 text-text">
+              {% if item.public_link %}
+                {% comment %}
+                `relative` is load-bearing. The visually hidden destination
+                note is absolutely positioned, and an absolutely positioned
+                box is only contained by an ancestor that is its containing
+                block — without a positioned anchor it settles at the
+                untruncated text width and widens the page.
+                {% endcomment %}
+                <a class="dk-link relative" href="{{ item.public_link.url }}" target="_blank" rel="noopener noreferrer">
+                  {{ item.event_name }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
+                </a>
+              {% else %}
+                {{ item.event_name }}
+              {% endif %}
+            </td>
+            {% comment %}
+            Total measured views for this event's public page — all of
+            GA4's coverage, not a period.
+
+            An em dash where nothing was measured, never `0`: a page GA4
+            has no rows for has not been measured at zero visits, and a
+            zero in a numeric column reads as a measurement.
+            {% endcomment %}
+            <td class="border-b border-border px-4 py-2 text-right whitespace-nowrap tabular-nums text-text-secondary">
+              {% if item.page_views %}{{ item.page_views.total|group_thousands }}{% else %}<span class="text-text-muted">—</span>{% endif %}
+            </td>
+            <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.tag_label|default:"—" }}</td>
+            <td class="border-b border-border px-4 py-2">
+              <span class="flex flex-wrap items-center gap-1.5">
+                {% include "dashboard/components/status_badge.html" with label=item.get_event_status_display variant="neutral" only %}
+                {% if item.review_required %}
+                  {% include "dashboard/components/status_badge.html" with label="Ülevaatamisel" variant="warning" only %}
+                {% endif %}
+              </span>
+            </td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if page.pagination.has_pages %}
+    <nav aria-label="Sündmuste lehekülgede navigeerimine" class="flex flex-wrap items-center gap-2 border-t border-border px-4 py-3 sm:px-5">
+      {% if page.pagination.previous_url %}
+        <a href="{{ page.pagination.previous_url }}" class="dk-button dk-button-secondary" rel="prev">Eelmine</a>
+      {% endif %}
+      {% for link in page.pagination.links %}
+        {% if link.is_current %}
+          <span class="dk-badge dk-badge-brand tabular-nums" aria-current="page">{{ link.number }}</span>
+        {% else %}
+          <a href="{{ link.url }}" class="dk-link text-sm tabular-nums">{{ link.number }}<span class="sr-only"> lehekülg</span></a>
+        {% endif %}
+      {% endfor %}
+      {% if page.pagination.next_url %}
+        <a href="{{ page.pagination.next_url }}" class="dk-button dk-button-secondary" rel="next">Järgmine</a>
+      {% endif %}
+      <p class="dk-meta tabular-nums">Lehekülg {{ page.pagination.number }} / {{ page.pagination.count }}</p>
+    </nav>
+  {% endif %}
+
+{% else %}
+  <div class="dk-section-body">
+    {% include "dashboard/components/empty_state.html" with message="Valitud filtritele ei vasta ükski sündmus." detail="Muuda filtreid või eemalda need." only %}
+  </div>
+{% endif %}

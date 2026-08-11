@@ -6,21 +6,24 @@ Viewer gate. Access behaviour is unchanged from PR-03: same form, same POST
 target, same CSRF token, same safe `next` handling, same rate limiting. Only the
 presentation follows the design system now. The page states no security detail
 and never renders the PIN.
+
+The heading is `sr-only` and the tagline is gone. A gate with one field does not
+need to be told apart from anything, and the logo above it already says whose
+door this is. The `h1` stays in the document rather than being deleted with the
+text: a page with no level-1 heading is one a screen-reader user lands on with
+nothing to orient by, and the whole page is this form.
 {% endcomment %}
 
 {% block title %}Sisene – DashKoda{% endblock %}
 
 {% block body %}
 <main id="main" class="mx-auto flex min-h-dvh w-full max-w-md flex-col justify-center gap-6 px-4 py-10">
-  <div class="flex flex-col gap-4">
+  <div>
+    <h1 class="sr-only">Sisene DashKodasse</h1>
     <img class="dk-brand-mark"
          src="{% static 'brand/koda-logo-horizontal-negative.png' %}"
          width="1654" height="709"
          alt="Eesti Kaubandus-Tööstuskoda">
-    <div class="flex flex-col gap-1">
-      <h1 class="text-xl font-semibold tracking-tight text-text">Sisene DashKodasse</h1>
-      <p class="text-sm text-text-secondary">Koja sisene juhatuse ja juhtkonna töölaud.</p>
-    </div>
   </div>
 
   <form method="post" action="{% url 'viewer-login' %}" class="dk-card flex flex-col gap-4 px-4 py-5">

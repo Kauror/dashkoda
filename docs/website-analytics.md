@@ -202,6 +202,12 @@ The grain follows the span — daily under ~120 days, weekly under ~400, monthly
 beyond — and the aggregation happens in PostgreSQL rather than by loading years
 of rows into Python.
 
+`Kust liiklus tuli` — the channel breakdown — is a `<details>` and starts shut.
+The rows are rendered into the page either way, so it is a disclosure and not a
+fetch; what closing it buys is the space between the traffic chart and `Enim
+vaadatud sisu`, which a dozen channel rows used to push below the fold. The
+count sits in the summary so a shut box still says how much is inside.
+
 The overview card keeps its single headline figure and gains nothing.
 
 ## Operating it

@@ -54,13 +54,11 @@ test("the Chamber logo is visible and undistorted", async ({ page }) => {
 test("no fabricated business number is shown anywhere on the shell", async ({ page }) => {
   await signIn(page);
 
-  // The connection-check time is a fact about the application, not about
-  // business data, so it is excluded before the page is scanned for digits.
-  const text = await page.evaluate(() => {
-    const clone = document.querySelector("main").cloneNode(true);
-    clone.querySelector("#freshness-region")?.remove();
-    return clone.innerText;
-  });
+  // The whole of `main`, with nothing cut out. This used to drop
+  // `#freshness-region` first, because the connection-check time it printed was
+  // a fact about the application rather than business data; that strip was
+  // removed from the overview on 2026-08-11, so the scan now covers everything.
+  const text = await page.evaluate(() => document.querySelector("main").innerText);
 
   expect(text).not.toMatch(/\d/);
 });

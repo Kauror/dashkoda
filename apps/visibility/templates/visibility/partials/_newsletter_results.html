@@ -1,0 +1,83 @@
+{% comment %}
+The sends themselves — the region a keystroke replaces.
+
+Context:
+  newsletters – a NewsletterSection from `apps.visibility.newsletter_page`
+
+Rendered in two places and identical in both: inside `_newsletters.html` on a
+full page load, and alone by `newsletter_search_fragment` on every keystroke. A
+reader with no JavaScript submits the form and gets this from the first path; a
+reader with the bundle gets it from the second. Neither is a degraded version of
+the other, which is only true for as long as this stays one template.
+
+**The search box is deliberately not in here.** htmx replaces this element's
+contents, and an input inside a replaced region loses its caret, its selection
+and its focus on every keystroke. The form sits above; only the answer moves.
+
+What states its own mode is this region, not the heading above the form: the
+heading cannot change during a live search, because it is outside the swap. So
+`Viimased 15` versus `Otsingu tulemused` is said here — a reader typing must
+never be left under a heading claiming they are looking at the most recent
+sends when they are looking at matches from 2019.
+{% endcomment %}
+{% if newsletters.is_searching %}
+  <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <h4 class="text-sm font-medium text-text">Otsingu tulemused: „{{ newsletters.search }}“</h4>
+    <a class="dk-link text-sm" href="?{{ newsletters.clear_query }}#section-newsletter-analytics">Tühjenda otsing</a>
+  </div>
+  <p class="dk-meta">{{ newsletters.result_summary }}</p>
+{% elif newsletters.has_issues %}
+  {% comment %}
+  The count is stated even with no search running. This table is the most
+  recent fifteen, not the whole history, and a table that does not say so reads
+  as "this is everything the Chamber has sent".
+  {% endcomment %}
+  <p class="dk-meta">Viimased {{ newsletters.issues|length }} saadetist.</p>
+{% endif %}
+
+{% if newsletters.has_issues %}
+  <div class="w-full min-w-0 overflow-x-auto">
+    <table class="w-full min-w-max border-collapse text-sm">
+      <caption class="sr-only">
+        {% if newsletters.is_searching %}Otsingule vastavad saadetud uudiskirjad{% else %}Viimased saadetud uudiskirjad{% endif %} ja nende tulemused
+      </caption>
+      <thead>
+        <tr>
+          <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudiskiri</th>
+          {% if not newsletters.is_filtered %}
+            <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tüüp</th>
+          {% endif %}
+          <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Saadetud</th>
+          <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avatud</th>
+          <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Klikitud</th>
+          <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Kohale toimetatud</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for issue in newsletters.issues %}
+          {% include "visibility/_campaign_row.html" with issue=issue show_type=newsletters.is_filtered|yesno:",True" only %}
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {% if newsletters.has_more_sends %}
+    {% comment %}
+    The archive, carrying whatever is in force here. Both pages read
+    `uudiskiri` and `otsi`, so this opens the same newsletter and the same term
+    rather than dropping the reader into fourteen unfiltered years and making
+    them ask again.
+    {% endcomment %}
+    <p>
+      <a class="dk-link text-sm" href="{% url 'visibility-campaign-history' %}?{{ newsletters.archive_query }}">
+        {% if newsletters.is_searching %}
+          Vaata kõiki tulemusi arhiivis ({{ newsletters.total_sends }})
+        {% else %}
+          Vaata kõiki saadetud uudiskirju ({{ newsletters.total_sends }})
+        {% endif %}
+      </a>
+    </p>
+  {% endif %}
+{% else %}
+  {% include "dashboard/components/empty_state.html" with message="Ühtegi saadetud uudiskirja ei leitud." detail="Proovi teist sõna või vali mõni teine uudiskiri." only %}
+{% endif %}

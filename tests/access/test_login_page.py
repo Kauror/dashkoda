@@ -10,13 +10,29 @@ import pytest
 pytestmark = pytest.mark.django_db
 
 
-def test_login_page_uses_the_design_system_and_states_its_purpose(client):
+def test_login_page_uses_the_design_system(client):
     content = client.get("/sisene/").content.decode()
 
-    assert "Sisene DashKodasse" in content
     assert "PIN-kood" in content
     assert '<link rel="stylesheet" href="/static/build/styles.css">' in content
     assert "dk-button-primary" in content
+
+
+def test_login_page_keeps_its_heading_for_screen_readers_only(client):
+    """The gate shows the logo, a field and a button, and no prose.
+
+    `Sisene DashKodasse` and the `Koja sisene juhatuse ja juhtkonna töölaud.`
+    tagline were removed from the visible page: a gate with one field does not
+    need to be told apart from anything, and the logo says whose door it is.
+
+    The `h1` is hidden rather than deleted, which is the distinction this test
+    exists to hold. A page with no level-1 heading gives a screen-reader user
+    nothing to orient by, and here the whole page is the form.
+    """
+    content = client.get("/sisene/").content.decode()
+
+    assert '<h1 class="sr-only">Sisene DashKodasse</h1>' in content
+    assert "Koja sisene juhatuse ja juhtkonna töölaud." not in content
 
 
 def test_login_page_labels_the_pin_field_accessibly(client):

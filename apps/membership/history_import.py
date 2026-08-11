@@ -47,11 +47,17 @@ from .models import (
     InternalSourceKind,
     IssueSeverity,
     MembershipDataIssue,
+    MembershipDecisionBatch,
+    MembershipDecisionBatchReason,
+    MembershipDecisionBatchSizeMovement,
     MembershipHistoricalSourceDocument,
     MembershipMetricConflict,
     MembershipMonthlyNewMemberValue,
+    MembershipNewMemberPeriod,
+    MembershipNewMemberSizeDistribution,
     MembershipRemovalReason,
     MembershipSizeMovement,
+    QualityStatus,
 )
 from .models.internal import MAX_MESSAGE_LENGTH, MAX_RAW_VALUE_LENGTH
 from .package import (
@@ -355,7 +361,7 @@ def _write_monthly(
     source,
     run: ImportRun,
     documents: dict[str, MembershipHistoricalSourceDocument],
-) -> int:
+) -> dict[tuple[int, int], MembershipMonthlyNewMemberValue]:
     values = [
         MembershipMonthlyNewMemberValue(
             source=source,
@@ -379,7 +385,129 @@ def _write_monthly(
         for row in parsed.monthly_values
     ]
     MembershipMonthlyNewMemberValue.objects.bulk_create(values, batch_size=BATCH_SIZE)
-    return len(values)
+    # Returned keyed, so the shared size distribution can find its parent month
+    # without a second query.
+    return {(value.calendar_year, value.calendar_month): value for value in values}
+
+
+def _write_decision_batches(
+    parsed: ParsedPackage,
+    *,
+    source,
+    run: ImportRun,
+    documents: dict[str, MembershipHistoricalSourceDocument],
+) -> tuple[int, int, int]:
+    """Write the decision batches and their two distributions.
+
+    Nothing here touches an observation. A batch is not a year-to-date figure
+    and is deliberately not attached to one, however close the dates are —
+    attaching it would recreate exactly the confusion this schema exists to end.
+    """
+    batches = [
+        MembershipDecisionBatch(
+            source=source,
+            import_run=run,
+            external_batch_id=row.batch_id[:64],
+            source_document=documents.get(row.source_id),
+            batch_kind=row.batch_kind,
+            as_of_date=row.as_of_date,
+            as_of_date_precision=row.as_of_date_precision,
+            # Left as the package stated it. A batch whose decision date the
+            # source never gave keeps None rather than borrowing the as-of date.
+            decision_date=row.decision_date,
+            decision_reference=_bounded(row.decision_reference, 120),
+            member_count=row.member_count,
+            corroborating_document=documents.get(row.corroborating_source_id),
+            quality_status=row.quality_status or QualityStatus.VERIFIED,
+            extraction_confidence=row.extraction_confidence or "medium",
+            warning_codes=row.warning_codes,
+        )
+        for row in parsed.decision_batches
+    ]
+    MembershipDecisionBatch.objects.bulk_create(batches, batch_size=BATCH_SIZE)
+    by_external = {batch.external_batch_id: batch for batch in batches}
+
+    sizes = [
+        MembershipDecisionBatchSizeMovement(
+            batch=by_external[row.batch_id],
+            size_band_key=row.size_band_key,
+            member_count=row.member_count,
+            warning_codes=row.warning_codes,
+        )
+        for row in parsed.decision_batch_sizes
+        if row.batch_id in by_external
+    ]
+    MembershipDecisionBatchSizeMovement.objects.bulk_create(sizes, batch_size=BATCH_SIZE)
+
+    reasons = [
+        MembershipDecisionBatchReason(
+            batch=by_external[row.batch_id],
+            reason_key=row.reason_key,
+            member_count=row.member_count,
+            warning_codes=row.warning_codes,
+        )
+        for row in parsed.decision_batch_reasons
+        if row.batch_id in by_external
+    ]
+    MembershipDecisionBatchReason.objects.bulk_create(reasons, batch_size=BATCH_SIZE)
+    return len(batches), len(sizes), len(reasons)
+
+
+def _write_new_member_periods(
+    parsed: ParsedPackage,
+    *,
+    source,
+    run: ImportRun,
+    documents: dict[str, MembershipHistoricalSourceDocument],
+    monthly: dict[tuple[int, int], MembershipMonthlyNewMemberValue],
+) -> tuple[int, int]:
+    """Write multi-month spans and the size distribution shared with months."""
+    periods = [
+        MembershipNewMemberPeriod(
+            source=source,
+            import_run=run,
+            external_period_id=row.period_id[:64],
+            source_document=documents.get(row.source_id),
+            period_scope=row.period_scope,
+            period_start=row.period_start,
+            period_end=row.period_end,
+            new_members=row.new_members,
+            extraction_confidence=row.extraction_confidence or "medium",
+            warning_codes=row.warning_codes,
+        )
+        for row in parsed.new_member_periods
+    ]
+    MembershipNewMemberPeriod.objects.bulk_create(periods, batch_size=BATCH_SIZE)
+    by_external = {period.external_period_id: period for period in periods}
+
+    distributions = []
+    for row in parsed.new_member_sizes:
+        if row.period_id:
+            parent = by_external.get(row.period_id)
+            if parent is None:
+                continue
+            distributions.append(
+                MembershipNewMemberSizeDistribution(
+                    period=parent,
+                    size_band_key=row.size_band_key,
+                    member_count=row.member_count,
+                    warning_codes=row.warning_codes,
+                )
+            )
+            continue
+        parent = monthly.get((row.calendar_year, row.calendar_month))
+        if parent is None:
+            continue
+        distributions.append(
+            MembershipNewMemberSizeDistribution(
+                monthly_value=parent,
+                size_band_key=row.size_band_key,
+                member_count=row.member_count,
+                warning_codes=row.warning_codes,
+            )
+        )
+    MembershipNewMemberSizeDistribution.objects.bulk_create(distributions, batch_size=BATCH_SIZE)
+    return len(periods), len(distributions)
 
 
 def _write_issues(
@@ -427,6 +555,45 @@ def _write_conflicts(parsed: ParsedPackage, *, source, run: ImportRun) -> int:
     return len(conflicts)
 
 
+def _guard_against_a_second_history(source, *, supersede_previous: bool) -> int:
+    """Refuse to import a second history on top of an existing one.
+
+    The `unchanged` check keys on importer, schema version and package digest,
+    so it recognises *the same package run twice* and nothing else. A rebuilt
+    package has a different digest, and raising the importer's schema version
+    changes the key even for an identical file. Neither case is caught there,
+    and each would write a complete second copy of the history beside the first
+    — 296 observations becoming 592, with both preferred for the same dates.
+
+    So the decision is made explicit. Without `supersede_previous` a live import
+    into a populated history stops before the transaction opens. With it, the
+    previous observations are marked superseded and no longer preferred, which
+    are the only two fields a published observation permits changing. Nothing is
+    deleted and no value is rewritten: the old rows keep their numbers, their
+    children and their place in the audit trail.
+    """
+    existing = InternalMembershipObservation.objects.filter(source=source).exclude(
+        quality_status=QualityStatus.SUPERSEDED
+    )
+    count = existing.count()
+    if count == 0:
+        return 0
+    if not supersede_previous:
+        raise MembershipHistoryImportError(
+            "Liikmeskonna ajalugu on juba imporditud "
+            f"({count} vaatlust). Uus import kirjutaks teise koopia olemasoleva "
+            "kõrvale. Kasuta --supersede-previous, kui uus pakett peab vana "
+            "asendama."
+        )
+    superseded = 0
+    for observation in existing.iterator(chunk_size=BATCH_SIZE):
+        observation.quality_status = QualityStatus.SUPERSEDED
+        observation.is_preferred_for_date = False
+        observation.save(update_fields=["quality_status", "is_preferred_for_date"])
+        superseded += 1
+    return superseded
+
+
 def _existing_successful_run(import_key: str) -> ImportRun | None:
     return ImportRun.objects.filter(
         import_key=import_key,
@@ -454,6 +621,7 @@ def import_history_package(
     dry_run: bool = True,
     actor=None,
     correlation_id: uuid.UUID | None = None,
+    supersede_previous: bool = False,
 ) -> HistoryImportResult:
     """Validate and, unless this is a dry run, import the approved package.
 
@@ -461,6 +629,10 @@ def import_history_package(
     domain row. A live run writes every table inside one transaction and
     publishes only after all of it succeeded. Repeating an identical live import
     reports `unchanged` and touches nothing.
+
+    `supersede_previous` is required to import a *different* package into a
+    history that already holds one; see `_guard_against_a_second_history`. It
+    supersedes, never deletes.
     """
     try:
         parsed = read_package(path, limits=_limits())
@@ -521,24 +693,39 @@ def import_history_package(
             )
 
         with transaction.atomic():
+            superseded = _guard_against_a_second_history(
+                source, supersede_previous=supersede_previous
+            )
             documents = _write_source_documents(parsed, source=source, run=run)
             observations = _write_observations(
                 parsed, source=source, artifact=artifact, run=run, documents=documents
             )
             direct = _direct_observations_by_source(parsed, observations)
             movement_count, reason_count = _write_children(parsed, direct=direct)
-            monthly_count = _write_monthly(parsed, source=source, run=run, documents=documents)
+            monthly = _write_monthly(parsed, source=source, run=run, documents=documents)
             issue_count = _write_issues(parsed, source=source, run=run, documents=documents)
             conflict_count = _write_conflicts(parsed, source=source, run=run)
+            batch_count, batch_sizes, batch_reasons = _write_decision_batches(
+                parsed, source=source, run=run, documents=documents
+            )
+            period_count, distribution_count = _write_new_member_periods(
+                parsed, source=source, run=run, documents=documents, monthly=monthly
+            )
 
             counts = {
                 "source_documents": len(documents),
                 "observations": len(observations),
                 "size_movements": movement_count,
                 "removal_reasons": reason_count,
-                "monthly_values": monthly_count,
+                "monthly_values": len(monthly),
                 "issues": issue_count,
                 "conflicts": conflict_count,
+                "decision_batches": batch_count,
+                "decision_batch_sizes": batch_sizes,
+                "decision_batch_reasons": batch_reasons,
+                "new_member_periods": period_count,
+                "new_member_size_distribution": distribution_count,
+                "superseded_observations": superseded,
             }
             complete_import_run(
                 run,

@@ -265,10 +265,17 @@ def build_visibility_page(
     period_key: str | None = None,
     section_key: str | None = None,
     newsletter_key: str | None = None,
+    newsletter_search: str | None = None,
     search: str | None = None,
     page: str | int | None = None,
 ) -> VisibilityPage:
-    """Read every metric once and shape it for the page."""
+    """Read every metric once and shape it for the page.
+
+    The page carries two independent searches and they are named apart on
+    purpose: `newsletter_search` matches campaign subjects, `search` matches
+    website pages. A single `search` argument would have quietly fed a page term
+    to the subject query the first time either caller was edited.
+    """
     today = today or timezone.localdate()
     summary = get_visibility_summary(today=today)
     ga4_status = get_connection_status()
@@ -286,7 +293,10 @@ def build_visibility_page(
             page=page,
             today=today,
         ),
-        newsletters=build_newsletter_section(newsletter_key=newsletter_key),
+        newsletters=build_newsletter_section(
+            newsletter_key=newsletter_key,
+            search=newsletter_search,
+        ),
         today=today,
     )
 

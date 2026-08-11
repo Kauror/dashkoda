@@ -349,6 +349,148 @@ def default_coverage() -> list[dict]:
     ]
 
 
+BATCH_TERMINATION = "batch_aaaa000000000001"
+BATCH_SUSPENSION = "batch_aaaa000000000002"
+PERIOD_SUMMER = "period_aaaa00000000001"
+
+
+def default_decision_batches() -> list[dict]:
+    """Two batches from one decision: the shape the real appendices have.
+
+    The as-of date and the decision date differ on purpose — the appendix is
+    compiled before the board signs — because keeping them apart is the whole
+    point of the model.
+    """
+    return [
+        {
+            "batch_id": BATCH_TERMINATION,
+            "source_id": SOURCE_A,
+            "batch_kind": "termination",
+            "as_of_date": "2024-01-04",
+            "as_of_date_precision": "day",
+            "decision_date": "2024-01-11",
+            "decision_reference": "otsus nr 1",
+            "member_count": "6",
+            "corroborating_source_id": SOURCE_B,
+            "quality_status": "verified",
+            "extraction_confidence": "high",
+            "warning_codes": "",
+        },
+        {
+            "batch_id": BATCH_SUSPENSION,
+            "source_id": SOURCE_A,
+            "batch_kind": "suspension",
+            "as_of_date": "2024-01-04",
+            "as_of_date_precision": "day",
+            "decision_date": "2024-01-11",
+            "decision_reference": "otsus nr 1",
+            "member_count": "4",
+            "corroborating_source_id": "",
+            "quality_status": "verified",
+            "extraction_confidence": "high",
+            "warning_codes": "",
+        },
+    ]
+
+
+def default_decision_batch_sizes() -> list[dict]:
+    return [
+        {
+            "batch_id": BATCH_TERMINATION,
+            "size_band_key": "employees_1_4",
+            "member_count": "4",
+            "warning_codes": "",
+        },
+        {
+            "batch_id": BATCH_TERMINATION,
+            "size_band_key": "group_company",
+            "member_count": "1",
+            "warning_codes": "",
+        },
+        {
+            "batch_id": BATCH_TERMINATION,
+            "size_band_key": "unknown",
+            "member_count": "1",
+            "warning_codes": "size_band_explicit_unknown_marker",
+        },
+        {
+            "batch_id": BATCH_SUSPENSION,
+            "size_band_key": "employees_5_9",
+            "member_count": "4",
+            "warning_codes": "",
+        },
+    ]
+
+
+def default_decision_batch_reasons() -> list[dict]:
+    return [
+        {
+            "batch_id": BATCH_TERMINATION,
+            "reason_key": "financial_difficulty_or_cost_cutting",
+            "member_count": "4",
+            "warning_codes": "",
+        },
+        {
+            "batch_id": BATCH_TERMINATION,
+            "reason_key": "other",
+            "member_count": "2",
+            "warning_codes": "reason_unmapped",
+        },
+        {
+            "batch_id": BATCH_SUSPENSION,
+            "reason_key": "activity_ceased_or_dormant",
+            "member_count": "4",
+            "warning_codes": "",
+        },
+    ]
+
+
+def default_new_member_periods() -> list[dict]:
+    """One span the source never broke down into its two months."""
+    return [
+        {
+            "period_id": PERIOD_SUMMER,
+            "source_id": SOURCE_A,
+            "period_scope": "multi_month_period",
+            "period_start": "2024-06-01",
+            "period_end": "2024-07-31",
+            "new_members": "9",
+            "extraction_confidence": "high",
+            "warning_codes": "",
+        }
+    ]
+
+
+def default_new_member_sizes() -> list[dict]:
+    """One distribution against a month, one against the span."""
+    return [
+        {
+            "period_id": "",
+            "calendar_year": "2024",
+            "calendar_month": "1",
+            "size_band_key": "employees_1_4",
+            "member_count": "3",
+            "warning_codes": "",
+        },
+        {
+            "period_id": "",
+            "calendar_year": "2024",
+            "calendar_month": "1",
+            "size_band_key": "supporter",
+            "member_count": "1",
+            "warning_codes": "",
+        },
+        {
+            "period_id": PERIOD_SUMMER,
+            "calendar_year": "",
+            "calendar_month": "",
+            "size_band_key": "employees_10_19",
+            "member_count": "9",
+            "warning_codes": "",
+        },
+    ]
+
+
 @dataclass
 class PackageBuilder:
     """A package that is valid unless a test deliberately breaks it."""
@@ -361,6 +503,14 @@ class PackageBuilder:
     warnings: list[dict] = field(default_factory=default_warnings)
     conflicts: list[dict] = field(default_factory=default_conflicts)
     coverage: list[dict] = field(default_factory=default_coverage)
+
+    # Schema 2.0 tables. Written only when `schema_version` is 2.0, so the same
+    # builder produces a faithful 1.0 package for the compatibility tests.
+    decision_batches: list[dict] = field(default_factory=default_decision_batches)
+    decision_batch_sizes: list[dict] = field(default_factory=default_decision_batch_sizes)
+    decision_batch_reasons: list[dict] = field(default_factory=default_decision_batch_reasons)
+    new_member_periods: list[dict] = field(default_factory=default_new_member_periods)
+    new_member_sizes: list[dict] = field(default_factory=default_new_member_sizes)
 
     readme: bytes = b"# Sunthetic test package\n"
     schema_version: str = "1.0"
@@ -398,6 +548,26 @@ class PackageBuilder:
             "data/conflicts.csv": _csv_bytes("data/conflicts.csv", self.conflicts),
             "data/coverage.csv": _csv_bytes("data/coverage.csv", self.coverage),
         }
+        if self.schema_version != "1.0":
+            payloads.update(
+                {
+                    "data/decision_batches.csv": _csv_bytes(
+                        "data/decision_batches.csv", self.decision_batches
+                    ),
+                    "data/decision_batch_size_movements.csv": _csv_bytes(
+                        "data/decision_batch_size_movements.csv", self.decision_batch_sizes
+                    ),
+                    "data/decision_batch_reasons.csv": _csv_bytes(
+                        "data/decision_batch_reasons.csv", self.decision_batch_reasons
+                    ),
+                    "data/new_member_periods.csv": _csv_bytes(
+                        "data/new_member_periods.csv", self.new_member_periods
+                    ),
+                    "data/new_member_size_distribution.csv": _csv_bytes(
+                        "data/new_member_size_distribution.csv", self.new_member_sizes
+                    ),
+                }
+            )
         if self.mutate_payloads is not None:
             payloads = self.mutate_payloads(payloads)
         return payloads

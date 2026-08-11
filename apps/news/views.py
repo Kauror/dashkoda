@@ -1,9 +1,11 @@
 """The Uudised page. Reads PostgreSQL only; never fetches the RSS feed."""
 
 from django.shortcuts import render
+from django.urls import reverse
 from django.views.decorators.http import require_GET
 
 from apps.dashboard.freshness import current_freshness
+from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
 
 from .archive import build_news_archive
@@ -51,4 +53,41 @@ def news_overview(request):
             "freshness": current_freshness(),
             "archive": archive,
         },
+    )
+
+
+#: What this page understands. Only these are carried into a pushed URL, because
+#: that value ends up in somebody's address bar.
+NEWS_PARAMS = (PARAM_PERIOD, PARAM_FROM, PARAM_TO, PARAM_SORT, PARAM_SEARCH, PARAM_PAGE)
+
+
+@require_GET
+def news_search_fragment(request):
+    """The archive rows alone, for a reader typing in the search box.
+
+    Page one, always: a new term is a new question, and an archive narrowed from
+    thousands of articles to six has no page seven. `lk` is neither read here nor
+    carried into the pushed URL.
+
+    The period, the custom range and the sort are read exactly as the full page
+    reads them, so typing narrows what the reader is already looking at rather
+    than quietly widening it to everything.
+    """
+    archive = build_news_archive(
+        period_key=request.GET.get(PARAM_PERIOD),
+        date_from=request.GET.get(PARAM_FROM),
+        date_to=request.GET.get(PARAM_TO),
+        sort=parse_sort(request.GET.get(PARAM_SORT)),
+        search=parse_search(request.GET.get(PARAM_SEARCH)),
+    )
+    return search_fragment(
+        request,
+        "news/partials/_news_search_response.html",
+        {"archive": archive},
+        pushed=push_url(
+            request,
+            path=reverse("news"),
+            allowed=NEWS_PARAMS,
+            updates={PARAM_SEARCH: archive.search, PARAM_PAGE: ""},
+        ),
     )

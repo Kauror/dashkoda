@@ -463,25 +463,24 @@ None of them reached this file.
     </div>
   </section>
 
-  {# ---------------- 4. Connection state ---------------- #}
-  <div class="flex flex-col gap-3 rounded-lg border border-border bg-surface px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-    <div id="freshness-region" aria-live="polite" class="min-w-0">
-      {% include "dashboard/partials/freshness.html" %}
-    </div>
-    {% comment %}
-    Without JavaScript this submits a plain GET and reloads the overview; with
-    htmx it swaps only the fragment above.
-    {% endcomment %}
-    <form method="get" action="{% url 'home' %}">
-      <button type="submit"
-              class="dk-button dk-button-secondary"
-              hx-get="{% url 'dashboard-freshness' %}"
-              hx-target="#freshness-region"
-              hx-swap="innerHTML">
-        Kontrolli uuesti
-      </button>
-    </form>
-  </div>
+  {% comment %}
+  There was a fourth block here: a connection-state strip carrying
+  `Ühendatud andmeallikaid: 4/4`, the time of the last check, and a
+  `Kontrolli uuesti` button that swapped the count in place over htmx. It was
+  removed on 2026-08-11.
+
+  What it reported is an operational fact — how many wired feeds publish, and
+  whether any is stale — and this page is read by the board, who cannot act on
+  it. The count had also been 4/4 continuously; a control whose answer never
+  changes teaches a reader to stop pressing it.
+
+  Nothing behind it was deleted. `apps/dashboard/freshness.py` still computes
+  the state, `dashboard/partials/freshness.html` still renders it and
+  `/dashboard/varskus/` still serves it — so putting this back, or moving it to
+  a page meant for whoever operates the collectors, is a template change alone.
+  The strip was the **only** htmx in the application, so with it gone the bundle
+  ships a library nothing on any page uses.
+  {% endcomment %}
 
 </div>
 {% endblock %}

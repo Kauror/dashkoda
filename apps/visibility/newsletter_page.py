@@ -1,38 +1,45 @@
 """The newsletter-analytics section of the Nähtavus page.
 
 The band above answers "how many people can the Chamber reach". This answers the
-two questions a card cannot: is that number growing, and does anybody read what
-is sent.
+one question a card cannot: does anybody read what is sent.
 
-Three things it must never do, and each has a specific way of going wrong:
+Two things it must never do, and each has a specific way of going wrong:
 
-- **imply history that does not exist.** Smaily reports what a list holds now
-  and nothing about last year, so the audience chart starts on the day
-  collection started and says so. Nothing pads the days before it;
 - **average percentages.** A newsletter's open rate here is summed opens over
   summed delivered. Taking the mean of per-issue percentages would weight a send
   to 755 people the same as one to 20 616, and the headline figure would drift
   towards whichever list is smallest;
 - **mix the newsletters.** Three separate lists, three separate audiences, and
   a reader on two of them is one person. Nothing here totals across them.
+
+**How large each list is was removed from this section on 2026-08-11**, first as
+three sparklines and then as the rows underneath them. The band above already
+prints all three under `Uudiskirjad`, so this section was a second copy of the
+same figures, and the charts on top of them were two readings a day apart drawn
+as a trend. Nothing was lost: `get_all_subscriber_series` still answers, and
+`_newsletter_slot` in `page.py` still shows the counts.
+
+What went with them is `coverage_note` — the sentence about Smaily holding a
+list's present size and not its history. It was already computed-but-unprinted,
+and with the counts gone it described something no longer on the page.
+`docs/newsletter-audience.md` carries the fact.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from urllib.parse import quote
 
 from apps.core.formatting import group_thousands, percent
-from apps.dashboard.sparkline import TrendChart, TrendSource, build_trend_chart
 
 from .registry import spec_for
 from .smaily_campaigns import AUDIENCE_MEMBERS, AUDIENCE_NON_MEMBERS, OTHER_KEY, OTHER_LABEL
 from .smaily_segments import NEWSLETTERS
 from .smaily_selectors import (
+    MAX_SEARCH_LENGTH,
     CampaignPerformance,
     NewsletterAggregate,
-    SubscriberSeries,
     campaign_queryset,
-    get_all_subscriber_series,
     get_campaign_performance,
     get_newsletter_aggregate,
     has_unclassified_campaigns,
@@ -40,6 +47,11 @@ from .smaily_selectors import (
 
 #: The query parameter the newsletter filter carries.
 PARAM_NEWSLETTER = "uudiskiri"
+
+#: The subject search, under the same name the archive page uses. One term means
+#: one thing across both pages, and carrying it from here to the archive is then
+#: a matter of copying the value rather than translating it.
+PARAM_SEARCH = "otsi"
 
 #: How many issues the performance table lists. Long enough to show a pattern,
 #: short enough that nobody scrolls past the point of interest.
@@ -71,6 +83,23 @@ def parse_newsletter(raw: str | None) -> str:
     return ALL_NEWSLETTERS
 
 
+def parse_search(raw: str | None) -> str:
+    """The subject search, trimmed and bounded. Never reaches SQL as SQL.
+
+    Free text, unlike the newsletter key, which is validated against a closed
+    set. What bounds it instead is the length cap and the ORM: the term is only
+    ever a parameter to `icontains`.
+    """
+    return (raw or "").strip()[:MAX_SEARCH_LENGTH]
+
+
+def _query(newsletter: str, search: str = "") -> str:
+    query = f"{PARAM_NEWSLETTER}={newsletter}"
+    if search:
+        query += f"&{PARAM_SEARCH}={quote(search)}"
+    return query
+
+
 @dataclass(frozen=True)
 class NewsletterOption:
     """One filter button: what it says, where it goes, whether it is active."""
@@ -78,24 +107,34 @@ class NewsletterOption:
     key: str
     label: str
     is_active: bool
+    #: Whatever search is in force, so switching newsletter keeps the question.
+    search: str = ""
 
     @property
     def query(self) -> str:
-        return f"{PARAM_NEWSLETTER}={self.key}"
+        return _query(self.key, self.search)
 
 
-def newsletter_options(active: str, *, with_other: bool = False) -> tuple[NewsletterOption, ...]:
+def newsletter_options(
+    active: str, *, with_other: bool = False, search: str = ""
+) -> tuple[NewsletterOption, ...]:
     """`Kõik`, the three newsletters, and `Muu` when it leads somewhere.
 
     `Muu` is offered only when unclassified sends actually exist. A filter that
     always returns nothing teaches a reader that the section is broken; on this
     account it is the largest group there is, so it is nearly always shown.
+
+    Every option carries the current search. Dropping it would mean a reader who
+    has found "aastakoosolek" in e-Teataja and clicks `Kõik` silently gets the
+    fifteen most recent sends instead of the same search widened, which is not
+    what the button says it does.
     """
     options = [
         NewsletterOption(
             key=ALL_NEWSLETTERS,
             label="Kõik",
             is_active=active == ALL_NEWSLETTERS,
+            search=search,
         )
     ]
     for spec in NEWSLETTERS:
@@ -105,55 +144,19 @@ def newsletter_options(active: str, *, with_other: bool = False) -> tuple[Newsle
                 key=spec.metric,
                 label=registry_spec.label if registry_spec else spec.metric,
                 is_active=active == spec.metric,
+                search=search,
             )
         )
     if with_other:
         options.append(
-            NewsletterOption(key=OTHER_KEY, label=OTHER_LABEL, is_active=active == OTHER_KEY)
+            NewsletterOption(
+                key=OTHER_KEY,
+                label=OTHER_LABEL,
+                is_active=active == OTHER_KEY,
+                search=search,
+            )
         )
     return tuple(options)
-
-
-@dataclass(frozen=True)
-class AudienceCard:
-    """One newsletter's audience: the figure, its trend and its split."""
-
-    series: SubscriberSeries
-    chart: TrendChart | None
-    #: `("Liikmed", "8 008")` and so on, only where the list is genuinely split.
-    parts: tuple[tuple[str, str], ...] = ()
-
-    @property
-    def label(self) -> str:
-        return self.series.label
-
-    @property
-    def has_data(self) -> bool:
-        return self.series.has_points
-
-    @property
-    def value(self) -> str:
-        latest = self.series.latest
-        return group_thousands(latest.subscribers) if latest else ""
-
-    @property
-    def as_of(self):
-        latest = self.series.latest
-        return latest.observed_on if latest else None
-
-    @property
-    def change_label(self) -> str:
-        """Growth over the collected window, spelled, or empty.
-
-        Empty rather than "0" when there is only one reading: a newsletter read
-        once has not failed to grow, it has not been measured twice.
-        """
-        change = self.series.change
-        if change is None:
-            return ""
-        earliest = self.series.earliest
-        sign = "+" if change > 0 else ("−" if change < 0 else "±")
-        return f"{sign}{group_thousands(abs(change))} alates {earliest.observed_on:%d.%m.%Y}"
 
 
 @dataclass(frozen=True)
@@ -175,20 +178,24 @@ class NewsletterSection:
 
     active: str
     options: tuple[NewsletterOption, ...]
-    audience: tuple[AudienceCard, ...]
     figures: tuple[PerformanceFigure, ...]
     issues: tuple[CampaignPerformance, ...]
     aggregate: NewsletterAggregate | None
-    #: How many completed sends exist in total, for the "see all" link.
+    #: The subject search in force, already trimmed and bounded.
+    search: str = ""
+    #: How many completed sends match the current newsletter *and* search — the
+    #: population the fifteen rows are the newest of. It was once the unfiltered
+    #: total, which read as "3 194 more where these came from" beside a table
+    #: showing e-Teataja alone.
     total_sends: int = 0
+
+    @property
+    def is_searching(self) -> bool:
+        return bool(self.search)
 
     @property
     def has_more_sends(self) -> bool:
         return self.total_sends > len(self.issues)
-
-    @property
-    def has_audience(self) -> bool:
-        return any(card.has_data for card in self.audience)
 
     @property
     def has_issues(self) -> bool:
@@ -196,46 +203,64 @@ class NewsletterSection:
 
     @property
     def has_any_data(self) -> bool:
-        return self.has_audience or self.has_issues
+        """Whether this section has anything to show at all.
+
+        Sends, and no longer subscriber readings. While the audience rows were
+        here a Smaily-connected account with lists but no campaigns rendered a
+        populated section; now it has nothing to say and says so.
+
+        `or self.is_searching` for the reason the traffic section guards its
+        ranking the same way: a search matching nothing must not take the whole
+        section off the page, because the box that would clear it goes with it.
+        """
+        return self.has_issues or self.is_searching
 
     @property
     def is_filtered(self) -> bool:
         return self.active != ALL_NEWSLETTERS
 
     @property
-    def coverage_note(self) -> str:
-        """What the audience chart actually covers, always stated.
+    def result_summary(self) -> str:
+        """What the search found, in words, so a count is never bare."""
+        if not self.total_sends:
+            return "Ühtegi saadetud uudiskirja ei leitud."
+        if self.total_sends == 1:
+            return "1 saadetud uudiskiri."
+        return f"{self.total_sends} saadetud uudiskirja."
 
-        Smaily has no historical endpoint, so this is the whole of the
-        Chamber's newsletter history and the reader is told where it starts
-        rather than left to infer it from where the line begins.
+    @property
+    def clear_query(self) -> str:
+        """Back to the recent sends, keeping the newsletter.
+
+        Clearing a search is not starting again: the reader still wants
+        e-Teataja, they have simply finished looking for one issue.
         """
-        starts = [
-            card.series.earliest.observed_on for card in self.audience if card.series.earliest
-        ]
-        if not starts:
-            return ""
-        return (
-            f"Smaily andmed alates {min(starts):%d.%m.%Y}. Varasemat ajalugu ei ole "
-            "võimalik koguda: Smaily näitab nimekirja praegust suurust, mitte selle ajalugu."
-        )
+        return _query(self.active)
+
+    @property
+    def archive_query(self) -> str:
+        """The archive, asking the question this section is asking.
+
+        Both pages read `uudiskiri` and `otsi`, so "see all" opens the same
+        newsletter and the same term rather than fourteen unfiltered years.
+        """
+        return _query(self.active, self.search)
 
 
-def build_newsletter_section(*, newsletter_key: str | None = None) -> NewsletterSection:
-    """Read the stored Smaily history once and shape it for the page."""
+def build_newsletter_section(
+    *, newsletter_key: str | None = None, search: str | None = None
+) -> NewsletterSection:
+    """Read the stored campaign history once and shape it for the page.
+
+    Three queries and no subscriber reading: this section is about sends now, so
+    the three `get_all_subscriber_series` calls it used to make on every render
+    are gone with the rows they fed.
+    """
     active = parse_newsletter(newsletter_key)
+    term = parse_search(search)
     metric = None if active == ALL_NEWSLETTERS else active
 
-    # The audience cards describe subscriber *lists*, which is a different thing
-    # from campaign classification: `Muu` sends went to ad-hoc audiences and
-    # there is no list behind them, so filtering to `Muu` narrows the sends and
-    # leaves the three lists as they were.
-    audience = tuple(
-        _audience_card(series)
-        for series in get_all_subscriber_series()
-        if metric is None or metric == OTHER_KEY or series.metric == metric
-    )
-    issues = get_campaign_performance(metric=metric, limit=TOP_ISSUES)
+    issues = get_campaign_performance(metric=metric, limit=TOP_ISSUES, search=term)
     aggregate = (
         get_newsletter_aggregate(metric, limit=AGGREGATE_ISSUES)
         if metric is not None and metric != OTHER_KEY
@@ -244,30 +269,12 @@ def build_newsletter_section(*, newsletter_key: str | None = None) -> Newsletter
 
     return NewsletterSection(
         active=active,
-        options=newsletter_options(active, with_other=has_unclassified_campaigns()),
-        audience=audience,
+        options=newsletter_options(active, with_other=has_unclassified_campaigns(), search=term),
         figures=_figures(aggregate) if aggregate is not None else (),
         issues=issues,
         aggregate=aggregate,
-        total_sends=campaign_queryset().count(),
-    )
-
-
-def _audience_card(series: SubscriberSeries) -> AudienceCard:
-    return AudienceCard(series=series, chart=_chart(series))
-
-
-def _chart(series: SubscriberSeries) -> TrendChart | None:
-    """One line: how many people are on this list.
-
-    Drawn only from two readings onward. A single point is a figure, and a chart
-    with one dot on it reads as a trend that happens to be flat.
-    """
-    if not series.is_drawable:
-        return None
-    points = tuple((point.observed_on, point.subscribers) for point in series.points)
-    return build_trend_chart(
-        [TrendSource(label=series.label, style="solid", source="Smaily", series=points)]
+        search=term,
+        total_sends=campaign_queryset(metric=metric, search=term).count(),
     )
 
 
@@ -321,8 +328,8 @@ __all__ = [
     "AGGREGATE_ISSUES",
     "ALL_NEWSLETTERS",
     "PARAM_NEWSLETTER",
+    "PARAM_SEARCH",
     "TOP_ISSUES",
-    "AudienceCard",
     "NewsletterOption",
     "NewsletterSection",
     "PerformanceFigure",
@@ -330,4 +337,5 @@ __all__ = [
     "build_newsletter_section",
     "newsletter_options",
     "parse_newsletter",
+    "parse_search",
 ]
