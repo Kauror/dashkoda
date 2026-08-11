@@ -61,7 +61,15 @@ def news_overview(request):
 
 #: What this page understands. Only these are carried into a pushed URL, because
 #: that value ends up in somebody's address bar.
-NEWS_PARAMS = (PARAM_PERIOD, PARAM_FROM, PARAM_TO, PARAM_SORT, PARAM_SEARCH, PARAM_PAGE)
+NEWS_PARAMS = (
+    PARAM_PERIOD,
+    PARAM_FROM,
+    PARAM_TO,
+    PARAM_SORT,
+    PARAM_SEARCH,
+    PARAM_CATEGORY,
+    PARAM_PAGE,
+)
 
 
 @require_GET
@@ -72,9 +80,12 @@ def news_search_fragment(request):
     thousands of articles to six has no page seven. `lk` is neither read here nor
     carried into the pushed URL.
 
-    The period, the custom range and the sort are read exactly as the full page
-    reads them, so typing narrows what the reader is already looking at rather
-    than quietly widening it to everything.
+    The period, the custom range, the sort **and the category** are read exactly
+    as the full page reads them, so typing narrows what the reader is already
+    looking at rather than quietly widening it to everything. The category is the
+    one the form submits as a hidden field; dropping it here filtered on `Kõik`
+    while the chip above still read `Koja uudised`, and pushed a URL that lost
+    the filter for good on the next reload.
     """
     archive = build_news_archive(
         period_key=request.GET.get(PARAM_PERIOD),
@@ -82,6 +93,7 @@ def news_search_fragment(request):
         date_to=request.GET.get(PARAM_TO),
         sort=parse_sort(request.GET.get(PARAM_SORT)),
         search=parse_search(request.GET.get(PARAM_SEARCH)),
+        category=parse_category(request.GET.get(PARAM_CATEGORY)),
     )
     return search_fragment(
         request,
@@ -91,6 +103,12 @@ def news_search_fragment(request):
             request,
             path=reverse("news"),
             allowed=NEWS_PARAMS,
-            updates={PARAM_SEARCH: archive.search, PARAM_PAGE: ""},
+            # The validated category rather than the raw parameter, and empty for
+            # `Kõik` so the unfiltered page keeps an unfiltered URL.
+            updates={
+                PARAM_SEARCH: archive.search,
+                PARAM_CATEGORY: archive.category,
+                PARAM_PAGE: "",
+            },
         ),
     )

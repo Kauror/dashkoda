@@ -245,3 +245,76 @@ def test_the_page_says_how_many_are_unclassified(viewer_client):
     archive = viewer_client.get(reverse("news"), {"periood": "koik"}).context["archive"]
 
     assert archive.unclassified_count == 2
+
+
+# -- the category and the live search, together ------------------------------
+#
+# The category chips shipped after live search did, and the fragment was not
+# taught about them: it filtered on `Kõik` whatever the reader had chosen, while
+# the chip above the results went on reading `Koja uudised`, and the URL it
+# pushed dropped the filter so a reload lost it for good. Every other category
+# test calls `build_news_archive` directly, so the view was the one layer none
+# of them touched — the same shape of gap as the page search in #99.
+
+
+def searched(viewer_client, **params):
+    """The live-search fragment, answering what the form actually submits.
+
+    The category travels as a hidden field in the search form, so it reaches the
+    fragment exactly as `periood` and `sort` do.
+    """
+    return viewer_client.get(reverse("news-search"), {"periood": "koik", **params})
+
+
+def test_live_search_filters_inside_the_chosen_category(viewer_client):
+    article("koja-eelnou", category=NewsCategory.CHAMBER)
+    article("sopra-eelnou", category=NewsCategory.PARTNER)
+    article("teadmata-eelnou")
+
+    response = searched(viewer_client, otsing="eelnou", kategooria=NewsCategory.CHAMBER)
+
+    assert paths(response.context["archive"]) == ["/et/uudised/koja-eelnou"]
+
+
+def test_live_search_under_koik_still_finds_the_unclassified(viewer_client):
+    """The other half of the rule: `Kõik` is the absence of the filter, so a
+    search under it must still reach an article DashKoda cannot place."""
+    article("koja-eelnou", category=NewsCategory.CHAMBER)
+    article("teadmata-eelnou")
+
+    response = searched(viewer_client, otsing="eelnou")
+
+    assert sorted(paths(response.context["archive"])) == [
+        "/et/uudised/koja-eelnou",
+        "/et/uudised/teadmata-eelnou",
+    ]
+
+
+def test_the_pushed_url_keeps_the_category(viewer_client):
+    """Without this the address bar loses the chip on the first keystroke, and
+    the next reload silently widens the archive to everything."""
+    article("koja-eelnou", category=NewsCategory.CHAMBER)
+
+    response = searched(viewer_client, otsing="eelnou", kategooria=NewsCategory.CHAMBER)
+
+    assert f"kategooria={NewsCategory.CHAMBER}" in response.headers["HX-Push-Url"]
+
+
+def test_the_pushed_url_leaves_koik_out_of_the_address_bar(viewer_client):
+    """`Kõik` is the unfiltered page, and an unfiltered page keeps a clean URL."""
+    article("koja-eelnou", category=NewsCategory.CHAMBER)
+
+    response = searched(viewer_client, otsing="eelnou")
+
+    assert "kategooria=" not in response.headers["HX-Push-Url"]
+
+
+def test_an_unreadable_category_does_not_reach_the_address_bar(viewer_client):
+    """The pushed value is the validated one, not the raw parameter: whatever a
+    hand-typed URL carried, what comes back is a category or nothing."""
+    article("koja-eelnou", category=NewsCategory.CHAMBER)
+
+    response = searched(viewer_client, otsing="eelnou", kategooria="arhiiv")
+
+    assert "kategooria=" not in response.headers["HX-Push-Url"]
+    assert response.context["archive"].total == 1
