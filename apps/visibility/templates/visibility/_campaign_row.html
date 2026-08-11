@@ -23,7 +23,9 @@ contract every outbound link on this dashboard follows.
 <tr>
   <th scope="row" class="border-b border-border px-3 py-2 text-left font-medium text-text">
     {% if issue.has_preview %}
-      <a class="dk-link" href="{{ issue.preview_url }}" target="_blank" rel="noopener noreferrer">
+      {# `relative` contains the hidden note; without it the note escapes the #}
+      {# scrolling wrapper this table sits in and widens the whole document. #}
+      <a class="dk-link relative" href="{{ issue.preview_url }}" target="_blank" rel="noopener noreferrer">
         {{ issue.name|default:"—" }}<span class="sr-only"> (avaneb Smaily lehel uuel vahelehel)</span>
       </a>
     {% else %}

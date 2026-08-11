@@ -177,7 +177,18 @@ Two rules this markup exists to keep:
                     {% for row in traffic.results %}
                       <tr>
                         <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
-                          <a class="dk-link" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
+                          {% comment %}
+                          `relative` is load-bearing, exactly as on the event
+                          programme's linked names. The hidden note is
+                          absolutely positioned, and an absolutely positioned
+                          box is clipped by an ancestor's `overflow` only when
+                          that ancestor is in its containing-block chain. The
+                          scrolling wrapper around this table is `static`, so
+                          without a positioned anchor the note escapes it
+                          entirely and widens the whole document — 324 pixels
+                          at 1440, and over a thousand on a phone.
+                          {% endcomment %}
+                          <a class="dk-link relative" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
                             {{ row.label }}<span class="sr-only"> (väline leht, avaneb uuel vahelehel)</span>
                           </a>
                           {% if row.type_label %}<span class="dk-meta"> · {{ row.type_label }}</span>{% endif %}
@@ -229,7 +240,12 @@ Two rules this markup exists to keep:
                     <tr>
                       <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-muted">{{ forloop.counter }}</td>
                       <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
-                        <a class="dk-link" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
+                        {% comment %}
+                        `relative` for the same reason as in the search results
+                        above: without it the visually hidden note escapes the
+                        scrolling wrapper and widens the document.
+                        {% endcomment %}
+                        <a class="dk-link relative" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
                           {{ row.label }}<span class="sr-only"> (väline leht, avaneb uuel vahelehel)</span>
                         </a>
                         {% if row.type_label %}<span class="dk-meta"> · {{ row.type_label }}</span>{% endif %}

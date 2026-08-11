@@ -60,6 +60,52 @@ test("a long linked title with a hidden suffix does not widen the page", async (
   await expectNoHorizontalOverflow(page);
 });
 
+test("a hidden note inside a scrolling table cannot escape it", async ({ page }) => {
+  /*
+   * The invariant behind the 324-pixel overflow the seeded analytics exposed on
+   * Nähtavus, asserted directly rather than only through its symptom.
+   *
+   * `sr-only` is absolutely positioned, and an absolutely positioned box is
+   * clipped by an ancestor's `overflow` only when that ancestor is in its
+   * containing-block chain. The scrolling wrappers around these tables are
+   * `static`, so a note inside an unpositioned anchor is contained by nothing
+   * and settles wherever the untruncated text ends — pushing the document out
+   * with it, while the table itself scrolls perfectly correctly inside its
+   * wrapper and looks innocent.
+   *
+   * The overflow test only catches this where the content happens to be long
+   * enough; this catches it wherever the shape exists.
+   */
+  await signIn(page);
+
+  for (const page_ of PAGES) {
+    await page.goto(page_.path);
+    const escapees = await page.evaluate(() => {
+      const found = [];
+      for (const note of document.querySelectorAll("span.sr-only")) {
+        if (getComputedStyle(note).position !== "absolute") {
+          continue;
+        }
+        // The containing block is the nearest positioned ancestor. If a
+        // scrolling ancestor is reached before one, nothing clips the note.
+        for (let parent = note.parentElement; parent; parent = parent.parentElement) {
+          const style = getComputedStyle(parent);
+          if (style.position !== "static") {
+            break;
+          }
+          if (style.overflowX !== "visible") {
+            found.push(`${parent.tagName.toLowerCase()} > … > ${note.textContent.trim()}`);
+            break;
+          }
+        }
+      }
+      return found;
+    });
+
+    expect(escapees, `${page_.path} lets a hidden note escape its scroller`).toEqual([]);
+  }
+});
+
 test("long text is clipped or wrapped rather than allowed to run off", async ({ page }) => {
   await signIn(page);
   await page.goto("/oigusloome/");
