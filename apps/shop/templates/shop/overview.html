@@ -1,0 +1,320 @@
+{% extends "dashboard/shell.html" %}
+{% load membership_format %}
+
+{% comment %}
+The E-pood overview.
+
+Three disclosures come before any figure, because each one changes how every
+number below should be read:
+
+  * **the as-of line.** The dataset is a manual export that stops on a stated
+    day. It is never described as live, synchronised or current;
+  * **the Commerce span**, so "Kõik" has a stated meaning;
+  * **the comparison interval**, whenever the web figures cover less than the
+    Commerce ones — which is the ordinary case, GA4 starting two and a half
+    years after the order history.
+
+Two page-view columns are shown for documents and they are never added
+together. A visitor commonly sees both the informational page and the product
+page, so their sum is not reach. The rate uses the product page alone, because
+that is the page carrying the buy action.
+
+A dash is a dash. `—` means "not measured"; a zero means "measured, and it was
+zero". Those are different facts and the template never turns one into the
+other.
+{% endcomment %}
+
+{% block title %}E-pood – DashKoda{% endblock %}
+
+{% block content %}
+<div class="flex min-w-0 flex-col gap-4">
+
+  <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">E-pood</h1>
+
+  {% if not overview.has_source %}
+    <section aria-labelledby="section-empty" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="E-poe andmed" heading_id="section-empty" description="Ühtegi väljavõtet ei ole imporditud." badge_label="Lisamisel" badge_variant="neutral" only %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="E-poe andmeid ei ole veel imporditud." detail="Andmed lisatakse käsitsi koostatud väljavõttest. Kuni impordini ei ole siin ühtegi näitajat." only %}
+      </div>
+    </section>
+  {% else %}
+
+    {% comment %}
+    The source disclosure. Generated from the imported state, never written into
+    the template: a hard-coded date would keep claiming August after the next
+    import.
+    {% endcomment %}
+    <p class="dk-meta">
+      E-poe andmed seisuga {{ overview.as_of_label }}.
+      Tellimuste ajalugu {{ overview.coverage_label }}.
+      {% if overview.web_is_partial and overview.web_interval_label %}
+        Veebivõrdlus {{ overview.web_interval_label }}.
+      {% elif overview.web_is_partial %}
+        Valitud perioodi kohta veebivõrdlust ei ole.
+      {% endif %}
+    </p>
+
+    <div class="flex min-w-0 flex-col gap-3">
+      <nav aria-label="Periood" class="flex flex-wrap gap-2">
+        {% for option in overview.periods %}
+          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+             href="?{{ option.query }}"
+             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
+        {% endfor %}
+      </nav>
+
+      {% if overview.period.period.is_custom %}
+        <form method="get" class="flex min-w-0 flex-wrap items-end gap-2">
+          <input type="hidden" name="periood" value="{{ overview.period.key }}">
+          <div class="flex flex-col gap-1">
+            <label for="alates" class="text-sm text-text-secondary">Alates</label>
+            <input type="date" id="alates" name="alates" value="{{ overview.period.start|date:'Y-m-d' }}" class="dk-input dk-input-date">
+          </div>
+          <div class="flex flex-col gap-1">
+            <label for="kuni" class="text-sm text-text-secondary">Kuni</label>
+            <input type="date" id="kuni" name="kuni" value="{{ overview.period.end|date:'Y-m-d' }}" class="dk-input dk-input-date">
+          </div>
+          <button type="submit" class="dk-button dk-button-secondary">Näita</button>
+        </form>
+      {% endif %}
+
+      <nav aria-label="Tooteliik" class="flex flex-wrap gap-2">
+        {% for option in overview.type_options %}
+          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+             href="?{{ option.query }}"
+             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+        {% endfor %}
+      </nav>
+
+      {% if overview.category_options %}
+        <nav aria-label="Kategooria" class="flex flex-wrap gap-2">
+          {% for option in overview.category_options %}
+            <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+               href="?{{ option.query }}"
+               {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+          {% endfor %}
+        </nav>
+      {% endif %}
+    </div>
+
+    {% comment %}
+    The headline figures. `Tellitud väärtus (KM-ta)` is named for exactly what
+    it is: Koda.ee records no payment receipt and no refund, and roughly
+    three-quarters of orders are invoices the site marks as sent rather than as
+    paid. Calling this revenue would attribute an accounting fact to a website.
+    {% endcomment %}
+    <section aria-labelledby="section-kpis" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Valitud periood" heading_id="section-kpis" description="Lõpetatud Commerce'i tellimused." only %}
+      <div class="dk-kpi-strip">
+        {% include "dashboard/components/kpi_card.html" with label="Soetatud ühikud" value=overview.units flush=True only %}
+        {% include "dashboard/components/kpi_card.html" with label="Tellimused" value=overview.orders flush=True only %}
+        {% include "dashboard/components/kpi_card.html" with label="Tellitud väärtus (KM-ta)" value=overview.value secondary=overview.invoice_value|add:" arvega" flush=True only %}
+        {% if overview.window.has_web %}
+          {% include "dashboard/components/kpi_card.html" with label="Tootelehe vaatamised" value=overview.product_views comparison_period=overview.web_interval_label flush=True only %}
+        {% else %}
+          {% include "dashboard/components/kpi_card.html" with label="Tootelehe vaatamised" empty_message="Valitud perioodi kohta veebimõõtmist ei ole." flush=True only %}
+        {% endif %}
+      </div>
+    </section>
+
+    {% if overview.window.has_web %}
+      <p class="dk-meta">
+        Soetusi 100 tootelehe vaatamise kohta: <strong class="tabular-nums text-text">{{ overview.rate }}</strong>.
+        Arvutatud ainult veebivõrdluse perioodil {{ overview.web_interval_label }}, nii lugejas kui nimetajas.
+      </p>
+    {% endif %}
+
+    {% comment %}
+    The monthly series. Drawn as SVG geometry rather than CSS widths: the
+    Content Security Policy is `style-src 'self'` and no `style="` may reach the
+    page. The chart stops at Commerce coverage end because the window does.
+    {% endcomment %}
+    {% if overview.months %}
+      <section aria-labelledby="section-trend" class="dk-section">
+        {% include "dashboard/components/section_header.html" with title="Soetatud ühikud kuude kaupa" heading_id="section-trend" only %}
+        <div class="dk-section-body">
+          <div class="w-full min-w-0 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <caption class="sr-only">Soetatud ühikud ja tellitud väärtus kuude kaupa</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuu</th>
+                  <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Soetatud</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">Väärtus</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for point in overview.months %}
+                  <tr>
+                    <td class="border-b border-border px-2 py-1.5 align-top whitespace-nowrap tabular-nums text-text-muted sm:px-3">
+                      <time datetime="{{ point.month|date:'Y-m' }}">{{ point.month|date:"m.Y" }}</time>
+                    </td>
+                    <td class="border-b border-border px-2 py-1.5 align-middle sm:px-3">
+                      <span class="flex items-center gap-2">
+                        <svg viewBox="0 0 100 6" preserveAspectRatio="none" class="h-2 w-24 flex-none sm:w-40" aria-hidden="true">
+                          <rect x="0" y="0" width="100" height="6" rx="3" class="fill-elevated"/>
+                          {% if overview.max_month_units %}
+                            <rect x="0" y="0" width="{% widthratio point.units overview.max_month_units 100 %}" height="6" rx="3" class="fill-brand"/>
+                          {% endif %}
+                        </svg>
+                        <span class="tabular-nums text-text-secondary">{{ point.units|floatformat:0|group_thousands }}</span>
+                      </span>
+                    </td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-middle whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ point.ordered_value_net|whole_euros }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    {% if overview.categories %}
+      <section aria-labelledby="section-categories" class="dk-section">
+        {% include "dashboard/components/section_header.html" with title="Kategooriad" heading_id="section-categories" only %}
+        <div class="dk-section-body">
+          <div class="w-full min-w-0 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <caption class="sr-only">E-poe kategooriad, nende soetused ja tootelehtede vaatamised</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kategooria</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Tooteid</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Soetatud</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Väärtus</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">Vaatamised</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">/ 100</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in overview.categories %}
+                  <tr>
+                    <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal break-all sm:px-3 sm:break-words">{{ row.name }}</th>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.product_count }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text sm:px-3">{{ row.units }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.value }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.views }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.rate }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+    {% endif %}
+
+    <section aria-labelledby="section-products" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Tooted" heading_id="section-products" only %}
+      <div class="dk-section-body flex flex-col gap-3">
+
+        <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span class="dk-meta">Järjestus:</span>
+            {% for option in overview.sort_options %}
+              <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+                 href="?{{ option.query }}"
+                 {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+            {% endfor %}
+          </div>
+
+          {% comment %}
+          Search runs over the whole product population rather than over the
+          visible page: a product ranked #347 is exactly the kind somebody looks
+          up, and searching the rows on screen would answer only for rows
+          already on screen.
+          {% endcomment %}
+          <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
+            <input type="hidden" name="periood" value="{{ overview.period.key }}">
+            {% if overview.period.period.is_custom %}
+              <input type="hidden" name="alates" value="{{ overview.period.start|date:'Y-m-d' }}">
+              <input type="hidden" name="kuni" value="{{ overview.period.end|date:'Y-m-d' }}">
+            {% endif %}
+            <label for="otsing" class="sr-only">Otsi toodet</label>
+            <input type="search" id="otsing" name="otsing" value="{{ overview.search }}"
+                   maxlength="120" placeholder="Otsi toodet, teed või ID-d…" class="dk-input w-full min-w-0 sm:w-64">
+            <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+          </form>
+        </div>
+
+        <p class="dk-meta">{{ overview.result_summary }}</p>
+
+        {% if overview.has_rows %}
+          {% comment %}
+          Not `min-w-max`. A product title has no natural width, so sizing the
+          table to the longest one puts the ranking behind a horizontal
+          scrollbar on every phone. The title wraps and the figures do not.
+          `break-all` below `sm` is what fits this at 320 pixels: a column
+          cannot shrink below its longest unbreakable word, and `Vaatamised`
+          beside an Estonian product name is more than a narrow viewport has.
+          {% endcomment %}
+          <div class="w-full min-w-0 overflow-x-auto">
+            <table class="w-full border-collapse text-sm">
+              <caption class="sr-only">E-poe tooted, nende soetused ja lehevaatamised valitud perioodil</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Toode</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">Kategooria</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">Tooteleht</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">Tutvustus</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Soetatud</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Väärtus</th>
+                  <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">/ 100</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for row in overview.products %}
+                  <tr>
+                    <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal break-all sm:px-3 sm:break-words">
+                      <a class="dk-link" href="{% url 'shop-product' row.source_product_id %}">{{ row.title }}</a>
+                    </th>
+                    <td class="border-b border-border px-2 py-1.5 align-top break-all text-text-muted sm:px-3 sm:break-words">{{ row.category_name }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.product_views }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-muted sm:px-3">{{ row.information_views }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text sm:px-3">{{ row.units }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.value }}</td>
+                    <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.rate }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {% if overview.total_pages > 1 %}
+            <nav aria-label="Toodete leheküljed" class="flex flex-wrap items-center justify-between gap-3">
+              {% if overview.has_previous %}
+                <a class="dk-button dk-button-secondary" href="?{{ overview.previous_query }}">Eelmine</a>
+              {% else %}
+                <span></span>
+              {% endif %}
+              <span class="dk-meta">Lehekülg {{ overview.page }} / {{ overview.total_pages }}</span>
+              {% if overview.has_next %}
+                <a class="dk-button dk-button-secondary" href="?{{ overview.next_query }}">Järgmine</a>
+              {% else %}
+                <span></span>
+              {% endif %}
+            </nav>
+          {% endif %}
+
+          <p class="dk-meta">
+            Tutvustuse ja tootelehe vaatamisi ei liideta: sama külastaja näeb sageli mõlemat.
+            Määr arvutatakse tootelehe vaatamiste alusel, sest ostunupp on seal.
+            „—“ tähendab, et lehte ei ole mõõdetud; null tähendab mõõdetud nulli.
+          </p>
+        {% else %}
+          {% include "dashboard/components/empty_state.html" with message="Valitud tingimustel tooteid ei ole." only %}
+        {% endif %}
+      </div>
+    </section>
+
+    {% if not overview.member_gate_open %}
+      <p class="dk-meta">
+        Liikmete ja mitteliikmete jaotust ei näidata: allikas ei ole kinnitanud, et
+        liikmestaatus kirjeldab tehingu hetke, mitte ostja praegust seisu.
+      </p>
+    {% endif %}
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,190 @@
+{% extends "dashboard/shell.html" %}
+{% load membership_format %}
+
+{% comment %}
+One product's own history.
+
+The funnel is shown for a contract template that has both pages, and it is
+labelled as page views and acquisitions rather than as a user journey. These are
+counts of page views, not distinct visitors; nothing here deduplicates a person
+across two pages, and calling the first step a conversion would claim an
+identity the source cannot supply.
+
+Historical member benefit is deliberately absent. The order line preserves the
+price actually paid but not the list price that stood on the day of that
+purchase, so "members saved €X" cannot be computed truthfully from this data.
+The current price pair is shown as a current fact, dated.
+{% endcomment %}
+
+{% block title %}{{ detail.title }} – E-pood – DashKoda{% endblock %}
+
+{% block content %}
+<div class="flex min-w-0 flex-col gap-4">
+
+  <nav aria-label="Teekond" class="dk-meta">
+    <a class="dk-link-quiet" href="{% url 'shop' %}">E-pood</a> / {{ detail.type_label }}
+  </nav>
+
+  <h1 class="text-2xl font-semibold tracking-tight break-words text-text sm:text-3xl">{{ detail.title }}</h1>
+
+  <p class="dk-meta">
+    Toote ID {{ detail.source_product_id }} · {{ detail.type_label }} · {{ detail.category_name }} ·
+    E-poe andmed seisuga {{ detail.as_of_label }}.
+    {% if detail.web_is_partial and detail.web_interval_label %}
+      Veebivõrdlus {{ detail.web_interval_label }}.
+    {% endif %}
+  </p>
+
+  {% if detail.product_url or detail.information_url or detail.event_url %}
+    <p class="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm">
+      {% if detail.product_url %}
+        <a class="dk-link relative" href="{{ detail.product_url }}" target="_blank" rel="noopener noreferrer">Tooteleht<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span></a>
+      {% endif %}
+      {% if detail.information_url %}
+        <a class="dk-link relative" href="{{ detail.information_url }}" target="_blank" rel="noopener noreferrer">Tutvustus<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span></a>
+      {% endif %}
+      {% if detail.event_url %}
+        <a class="dk-link relative" href="{{ detail.event_url }}" target="_blank" rel="noopener noreferrer">Sündmuse leht<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span></a>
+      {% endif %}
+    </p>
+  {% endif %}
+
+  <nav aria-label="Periood" class="flex flex-wrap gap-2">
+    {% for option in detail.periods %}
+      <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+         href="?{{ option.query }}"
+         {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
+    {% endfor %}
+  </nav>
+
+  <section aria-labelledby="section-product-kpis" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Valitud periood" heading_id="section-product-kpis" description="Lõpetatud Commerce'i tellimused." only %}
+    <div class="dk-kpi-strip">
+      {% include "dashboard/components/kpi_card.html" with label="Soetatud ühikud" value=detail.units flush=True only %}
+      {% include "dashboard/components/kpi_card.html" with label="Tellimused" value=detail.orders flush=True only %}
+      {% include "dashboard/components/kpi_card.html" with label="Tellitud väärtus (KM-ta)" value=detail.value flush=True only %}
+      {% include "dashboard/components/kpi_card.html" with label="Soetusi / 100 tootelehe vaatamise kohta" value=detail.rate comparison_period=detail.web_interval_label flush=True only %}
+    </div>
+  </section>
+
+  {% if detail.has_funnel %}
+    <section aria-labelledby="section-funnel" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Tutvustusest soetuseni" heading_id="section-funnel" description="Lehevaatamised ja soetused, mitte külastajad." only %}
+      <div class="dk-section-body">
+        <dl class="flex flex-col gap-2">
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="min-w-0 text-sm text-text-secondary">Tutvustuse vaatamised</dt>
+            <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.information_views }}</dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="min-w-0 text-sm text-text-secondary">Tootelehe vaatamised</dt>
+            <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.product_views }}</dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="min-w-0 text-sm text-text-secondary">Soetatud ühikud</dt>
+            <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.units }}</dd>
+          </div>
+        </dl>
+        <p class="dk-meta mt-3">
+          Neid kahte vaatamiste arvu ei liideta: sama külastaja näeb sageli mõlemat lehte.
+        </p>
+      </div>
+    </section>
+  {% endif %}
+
+  <section aria-labelledby="section-price" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Praegune hind" heading_id="section-price" only %}
+    <div class="dk-section-body">
+      <dl class="flex flex-col gap-2">
+        <div class="flex items-baseline justify-between gap-3">
+          <dt class="min-w-0 text-sm text-text-secondary">Hind (KM-ta)</dt>
+          <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.list_price }}</dd>
+        </div>
+        <div class="flex items-baseline justify-between gap-3">
+          <dt class="min-w-0 text-sm text-text-secondary">Liikme hind (KM-ta)</dt>
+          <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.member_price }}</dd>
+        </div>
+      </dl>
+      <p class="dk-meta mt-3">
+        Hinnad on seisuga {{ detail.as_of_label }}. Ajalooline hinnakiri ei ole säilinud,
+        seega varasemate ostude liikmesoodustust ei arvutata.
+      </p>
+    </div>
+  </section>
+
+  {% if detail.member_gate_open %}
+    <section aria-labelledby="section-members" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Liikmed ja mitteliikmed" heading_id="section-members" only %}
+      <div class="dk-section-body">
+        <dl class="flex flex-col gap-2">
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="min-w-0 text-sm text-text-secondary">Liikmete soetused</dt>
+            <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.member_units }}</dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="min-w-0 text-sm text-text-secondary">Mitteliikmete soetused</dt>
+            <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.non_member_units }}</dd>
+          </div>
+          <div class="flex items-baseline justify-between gap-3">
+            <dt class="min-w-0 text-sm text-text-secondary">Teadmata</dt>
+            <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.unknown_units }}</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+  {% else %}
+    <p class="dk-meta">
+      Liikmete ja mitteliikmete jaotust ei näidata: allikas ei ole kinnitanud, et
+      liikmestaatus kirjeldab tehingu hetke.
+    </p>
+  {% endif %}
+
+  {% if detail.months %}
+    <section aria-labelledby="section-product-trend" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Kuude kaupa" heading_id="section-product-trend" only %}
+      <div class="dk-section-body">
+        <div class="w-full min-w-0 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <caption class="sr-only">Selle toote soetused ja tellitud väärtus kuude kaupa</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuu</th>
+                <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Soetatud</th>
+                <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">Väärtus</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for point in detail.months %}
+                <tr>
+                  <td class="border-b border-border px-2 py-1.5 align-top whitespace-nowrap tabular-nums text-text-muted sm:px-3">
+                    <time datetime="{{ point.month|date:'Y-m' }}">{{ point.month|date:"m.Y" }}</time>
+                  </td>
+                  <td class="border-b border-border px-2 py-1.5 align-middle sm:px-3">
+                    <span class="flex items-center gap-2">
+                      <svg viewBox="0 0 100 6" preserveAspectRatio="none" class="h-2 w-24 flex-none sm:w-40" aria-hidden="true">
+                        <rect x="0" y="0" width="100" height="6" rx="3" class="fill-elevated"/>
+                        {% if detail.max_month_units %}
+                          <rect x="0" y="0" width="{% widthratio point.units detail.max_month_units 100 %}" height="6" rx="3" class="fill-brand"/>
+                        {% endif %}
+                      </svg>
+                      <span class="tabular-nums text-text-secondary">{{ point.units|floatformat:0|group_thousands }}</span>
+                    </span>
+                  </td>
+                  <td class="border-b border-border px-2 py-1.5 text-right align-middle whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ point.ordered_value_net|whole_euros }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if not detail.listing_gate_open %}
+    <p class="dk-meta">
+      „E-poes nähtav“ olekut ei kuvata: allikas eristab Drupali avaldatust,
+      kuid avalikus e-poes nähtavuse tähendus ei ole kinnitatud.
+    </p>
+  {% endif %}
+</div>
+{% endblock %}

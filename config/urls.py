@@ -18,6 +18,7 @@ urlpatterns = [
     path("logi-valja/", logout_view, name="viewer-logout"),
     path("robots.txt", robots, name="robots"),
     path("", include("apps.visibility.urls")),
+    path("", include("apps.shop.urls")),
     # Listed before the admin site so the staff data-entry routes keep their own
     # addresses instead of living inside a model admin's URL space. Every one of
     # them is wrapped in `admin.site.admin_view`, so the staff requirement is
