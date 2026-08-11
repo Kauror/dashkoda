@@ -95,3 +95,22 @@ def uncatalogued_paths(paths: Iterable[str]) -> tuple[str, ...]:
 
 
 __all__ = ["record_feed_items", "titles_for", "uncatalogued_paths"]
+
+
+def undated_paths(*, limit: int) -> tuple[str, ...]:
+    """Catalogued articles whose publication date is still unknown.
+
+    The inverse of `uncatalogued_paths`, and it exists because the two backfills
+    ask opposite questions. Naming articles asks "which measured paths are *not*
+    in the catalogue"; dating them asks "which catalogue rows have no date" —
+    and after the naming backfill ran, the first question returns nothing while
+    the second returns three and a half thousand rows.
+
+    Newest first by discovery, so a run that is interrupted has done the most
+    recently found ones rather than an arbitrary slice.
+    """
+    return tuple(
+        NewsResource.objects.filter(published_at__isnull=True)
+        .order_by("-first_seen_at", "path")
+        .values_list("path", flat=True)[:limit]
+    )
