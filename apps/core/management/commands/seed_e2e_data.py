@@ -784,6 +784,11 @@ def _seed_events(today: dt.date) -> str:
     return f"sündmused: {outcome.result} ({len(entries)} sündmust)"
 
 
+#: How many synthetic articles the feed publishes. More than one archive page,
+#: so `/uudised/` can be tested with a pager on screen.
+NEWS_ARTICLES = 40
+
+
 def _seed_news(today: dt.date) -> str:
     from apps.core.canonical import canonical_checksum
     from apps.news.collector import NewsCollection, NewsEntry
@@ -791,7 +796,10 @@ def _seed_news(today: dt.date) -> str:
 
     midnight = dt.datetime.combine(today, dt.time(9, 0), tzinfo=dt.UTC)
     entries: list[NewsEntry] = []
-    for index in range(1, 13):
+    # Deep enough that the news archive has more than one page of thirty, which
+    # is the only way a browser test can prove the pager works at all. They are
+    # dated a day apart, so every period preset selects a different slice.
+    for index in range(1, NEWS_ARTICLES + 1):
         entries.append(
             NewsEntry(
                 guid=f"seed-news-{index}",
@@ -1010,6 +1018,10 @@ ANALYTICS_INDEX_PAGES = (
 #: a target the ranking never shows — and the term appears in no path, so only
 #: the title catalogue can find it.
 ANALYTICS_QUIET_PATH = "/et/uudised/sunteetiline-12"
+
+#: How many of the seeded articles carry measured traffic. The rest are
+#: catalogued and unmeasured, which is a real and common state.
+MEASURED_ARTICLES = 24
 ANALYTICS_QUIET_TITLE_TERM = "pealkiri 12"
 
 
@@ -1033,7 +1045,11 @@ def _analytics_content_pages() -> tuple[tuple[str, int], ...]:
       is backfilled. Having both on screen at once is the point.
     """
     rows: list[tuple[str, int]] = []
-    for index in range(1, 13):
+    # Deliberately fewer than the seed publishes: the articles beyond this are
+    # catalogued but unmeasured, which is what puts a real `—` in the archive's
+    # view column and an unmeasured row behind the measured ones when it is
+    # ranked. A seed where everything is measured cannot show either.
+    for index in range(1, MEASURED_ARTICLES + 1):
         weight = 96 if index == 1 else 90 - index * 3
         # The last article is nearly silent, so it can never drift into the Top
         # 20 and quietly make the search tests assert nothing.

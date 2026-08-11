@@ -28,3 +28,13 @@ test("capture the content ranking and the page search", async ({ page }, testInf
   await page.goto("/nahtavus/?periood=koik&otsing=sunteetiline");
   await page.screenshot({ path: shot(testInfo, "visibility-search"), fullPage: true });
 });
+
+test("capture the news archive", async ({ page }, testInfo) => {
+  /*
+   * Captured at every width, because the archive's density is the point of it
+   * and density is exactly what a desktop-only screenshot cannot review.
+   */
+  await signIn(page);
+  await page.goto("/uudised/?periood=koik");
+  await page.screenshot({ path: shot(testInfo, "news"), fullPage: true });
+});

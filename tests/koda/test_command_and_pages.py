@@ -292,9 +292,16 @@ def test_the_public_member_count_reaches_the_overview(viewer):
 
 
 def test_the_news_page_lists_items(viewer):
+    """The page is an archive now, so the request names the window it wants.
+
+    `news_entry` dates its articles at fixed moments in July 2026. Fetching the
+    page bare would ask for the default thirty days and pass only while the
+    calendar happened to agree — a test that starts failing on a date nobody
+    chose. `periood=koik` asks the question this test is actually about.
+    """
     synchronize_news(collector=collector_returning(news_collection(3)))
 
-    body = viewer.get(reverse("news")).content.decode()
+    body = viewer.get(reverse("news"), {"periood": "koik"}).content.decode()
 
     assert "Sünteetiline uudis 0" in body
     assert "https://www.koda.ee/et/uudised/synthetic-0" in body

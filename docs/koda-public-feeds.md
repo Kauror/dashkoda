@@ -129,7 +129,41 @@ newest first with the GUID as tie-break, so it never drifts between runs.
 
 **The feed currently emits no `<category>` element.** The field exists and is
 populated if one ever appears, but at present the dashboard cannot distinguish
-"Meie uudised" from other categories, and it does not pretend to.
+"Meie uudised" from other categories, and it does not pretend to. The archive
+therefore shows no category at all: a badge on the ten articles the feed
+currently lists, against a thousand catalogued ones without, would read as a
+difference between the articles rather than a difference in what DashKoda knows.
+
+### What the feed is, and what it is not
+
+The feed **discovers** news. It is not the archive, and `/uudised/` no longer
+treats it as one.
+
+`NewsSnapshot` is a rolling window of ten items, replaced whole on every sync
+and pruned after a week. Filtering it by "the last year" cannot work however the
+filter is written — the rows are simply not there. So the page reads
+`NewsResource`, the durable catalogue: one row per public article, written the
+first time DashKoda sees it and never deleted, outliving every snapshot that
+mentioned it.
+
+Nothing about collection changed. The feed still discovers new articles,
+corrects titles and publication dates, drives source freshness and populates the
+catalogue; `NewsFeedState`, the import history and the source's health are
+untouched. What changed is which population the viewer reads.
+
+**Two thirds of the catalogue has no publication date, and that is honest
+rather than broken.** Articles catalogued from the feed carry the date the
+Chamber published; articles recovered by `discover_news_titles` do not, because
+the public page does not reliably state one and inventing a date would put a
+wrong one beside a right title. As of August 2026 that is 1 194 undated rows out
+of 1 206. An undated article cannot answer "was this published in March" either
+way, so it appears only under `Kõik` — where the claim is "everything
+catalogued", never "everything the Chamber has ever published".
+
+The consequence is worth stating plainly: the period presets currently filter a
+small dated population, and they will grow as the feed runs. `Kõik` ranked by
+`Enim vaadatud` is what the archive is most useful for today, because every
+catalogued article does have measured traffic.
 
 ## Events
 

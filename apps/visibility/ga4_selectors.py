@@ -26,7 +26,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from django.db.models import Count, Max, Min, Q, QuerySet, Sum
+from django.db.models import Count, IntegerField, Max, Min, OuterRef, Q, QuerySet, Subquery, Sum
 from django.db.models.functions import TruncMonth, TruncWeek
 
 from .content_ranking import (
@@ -611,6 +611,35 @@ def get_page_view_totals(
     }
 
 
+def page_view_total_subquery(path_field: str = "path"):
+    """The figure `get_page_view_totals` returns, as an annotation.
+
+    The same total, the same rows, the same definition — expressed so a caller
+    can *order and paginate by it in PostgreSQL* instead of pulling the whole
+    population into Python to sort it. The news archive needs exactly that: its
+    "Enim vaadatud" ordering has to run across every catalogued article before
+    the page slice, and there are twelve hundred of them.
+
+    It lives here, beside the dictionary version, for the reason stated there:
+    each module resolving its own `SUM(page_views)` is how two surfaces end up
+    printing different totals for one article. Two spellings of one definition
+    are acceptable; two definitions are not, and
+    `tests/visibility/test_page_view_totals.py` holds them to each other.
+
+    `None` where nothing was measured, never `0`, so a caller can order with
+    `nulls_last=True` and keep "unmeasured" behind "measured zero" — which are
+    different facts.
+    """
+    return Subquery(
+        current_pages()
+        .filter(path=OuterRef(path_field))
+        .values("path")
+        .annotate(total=Sum("page_views"))
+        .values("total")[:1],
+        output_field=IntegerField(),
+    )
+
+
 def get_page_series(
     *, path: str, start: date, end: date, grain: str | None = None
 ) -> TrafficSeries:
@@ -843,6 +872,7 @@ __all__ = [
     "get_coverage",
     "get_page_series",
     "get_page_view_totals",
+    "page_view_total_subquery",
     "get_top_pages",
     "get_traffic_series",
     "grain_for",
