@@ -6,4 +6,5 @@ export const PAGES = [
   { name: "Sündmused", path: "/sundmused/" },
   { name: "Uudised", path: "/uudised/" },
   { name: "Nähtavus", path: "/nahtavus/" },
+  { name: "E-pood", path: "/epood/" },
 ];
