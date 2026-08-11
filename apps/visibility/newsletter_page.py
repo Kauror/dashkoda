@@ -25,15 +25,17 @@ from apps.core.formatting import group_thousands, percent
 from apps.dashboard.sparkline import TrendChart, TrendSource, build_trend_chart
 
 from .registry import spec_for
-from .smaily_campaigns import AUDIENCE_MEMBERS, AUDIENCE_NON_MEMBERS
+from .smaily_campaigns import AUDIENCE_MEMBERS, AUDIENCE_NON_MEMBERS, OTHER_KEY, OTHER_LABEL
 from .smaily_segments import NEWSLETTERS
 from .smaily_selectors import (
     CampaignPerformance,
     NewsletterAggregate,
     SubscriberSeries,
+    campaign_queryset,
     get_all_subscriber_series,
     get_campaign_performance,
     get_newsletter_aggregate,
+    has_unclassified_campaigns,
 )
 
 #: The query parameter the newsletter filter carries.
@@ -60,11 +62,11 @@ _AUDIENCE_LABELS = {
 def parse_newsletter(raw: str | None) -> str:
     """The newsletter asked for, or all of them. Never raises.
 
-    Validated against the registry, so a hand-typed value falls back to "all"
-    rather than reaching a query.
+    Validated against a closed set — the three newsletters plus `Muu` — so a
+    hand-typed value falls back to "all" rather than reaching a query.
     """
     value = (raw or "").strip()
-    if any(spec.metric == value for spec in NEWSLETTERS):
+    if value == OTHER_KEY or any(spec.metric == value for spec in NEWSLETTERS):
         return value
     return ALL_NEWSLETTERS
 
@@ -82,11 +84,17 @@ class NewsletterOption:
         return f"{PARAM_NEWSLETTER}={self.key}"
 
 
-def newsletter_options(active: str) -> tuple[NewsletterOption, ...]:
+def newsletter_options(active: str, *, with_other: bool = False) -> tuple[NewsletterOption, ...]:
+    """`Kõik`, the three newsletters, and `Muu` when it leads somewhere.
+
+    `Muu` is offered only when unclassified sends actually exist. A filter that
+    always returns nothing teaches a reader that the section is broken; on this
+    account it is the largest group there is, so it is nearly always shown.
+    """
     options = [
         NewsletterOption(
             key=ALL_NEWSLETTERS,
-            label="Kõik uudiskirjad",
+            label="Kõik",
             is_active=active == ALL_NEWSLETTERS,
         )
     ]
@@ -98,6 +106,10 @@ def newsletter_options(active: str) -> tuple[NewsletterOption, ...]:
                 label=registry_spec.label if registry_spec else spec.metric,
                 is_active=active == spec.metric,
             )
+        )
+    if with_other:
+        options.append(
+            NewsletterOption(key=OTHER_KEY, label=OTHER_LABEL, is_active=active == OTHER_KEY)
         )
     return tuple(options)
 
@@ -167,6 +179,12 @@ class NewsletterSection:
     figures: tuple[PerformanceFigure, ...]
     issues: tuple[CampaignPerformance, ...]
     aggregate: NewsletterAggregate | None
+    #: How many completed sends exist in total, for the "see all" link.
+    total_sends: int = 0
+
+    @property
+    def has_more_sends(self) -> bool:
+        return self.total_sends > len(self.issues)
 
     @property
     def has_audience(self) -> bool:
@@ -208,23 +226,30 @@ def build_newsletter_section(*, newsletter_key: str | None = None) -> Newsletter
     active = parse_newsletter(newsletter_key)
     metric = None if active == ALL_NEWSLETTERS else active
 
+    # The audience cards describe subscriber *lists*, which is a different thing
+    # from campaign classification: `Muu` sends went to ad-hoc audiences and
+    # there is no list behind them, so filtering to `Muu` narrows the sends and
+    # leaves the three lists as they were.
     audience = tuple(
         _audience_card(series)
         for series in get_all_subscriber_series()
-        if metric is None or series.metric == metric
+        if metric is None or metric == OTHER_KEY or series.metric == metric
     )
     issues = get_campaign_performance(metric=metric, limit=TOP_ISSUES)
     aggregate = (
-        get_newsletter_aggregate(metric, limit=AGGREGATE_ISSUES) if metric is not None else None
+        get_newsletter_aggregate(metric, limit=AGGREGATE_ISSUES)
+        if metric is not None and metric != OTHER_KEY
+        else None
     )
 
     return NewsletterSection(
         active=active,
-        options=newsletter_options(active),
+        options=newsletter_options(active, with_other=has_unclassified_campaigns()),
         audience=audience,
         figures=_figures(aggregate) if aggregate is not None else (),
         issues=issues,
         aggregate=aggregate,
+        total_sends=campaign_queryset().count(),
     )
 
 

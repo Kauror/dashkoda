@@ -30,8 +30,12 @@ from apps.core.formatting import group_thousands, percent
 
 from .models import SmailyCampaign, SmailyCampaignStats, SmailySegmentDaily
 from .registry import spec_for
-from .smaily_campaigns import AUDIENCE_NON_MEMBERS
+from .smaily_campaigns import AUDIENCE_NON_MEMBERS, OTHER_KEY, label_for
 from .smaily_segments import NEWSLETTERS, NEWSLETTERS_BY_METRIC, NewsletterSpec
+
+#: How long a subject search term may be. Bounded so a hand-typed query cannot
+#: become an unbounded scan.
+MAX_SEARCH_LENGTH = 80
 
 
 @dataclass(frozen=True)
@@ -143,6 +147,12 @@ class CampaignPerformance:
     unsubscribed: int | None = None
     open_rate: float | None = None
     click_rate: float | None = None
+    #: Already validated at import; empty when the template was deleted.
+    preview_url: str = ""
+
+    @property
+    def has_preview(self) -> bool:
+        return bool(self.preview_url)
 
     @property
     def is_to_non_members(self) -> bool:
@@ -170,24 +180,50 @@ class CampaignPerformance:
         return percent(100 * self.click_rate) if self.click_rate is not None else ""
 
 
-def get_campaign_performance(
-    *, metric: str | None = None, limit: int = 20
-) -> tuple[CampaignPerformance, ...]:
-    """Recent completed issues, newest first.
+def campaign_queryset(*, metric: str | None = None, search: str = ""):
+    """Completed sends, newest first, optionally narrowed.
 
-    With `metric`, only that newsletter's issues. Without it, only issues of the
-    three newsletters — never the event calendars and one-off letters, which are
-    catalogued but are not newsletter performance and would drag an average
-    towards a different kind of mailing entirely.
+    **Every completed campaign is in here**, whether or not it was recognised as
+    an issue of one of the three newsletters. This used to `exclude(newsletter="")`
+    and that was wrong: it hid 2 105 of this account's 3 194 sends — every event
+    calendar, invitation and one-off letter the Chamber has posted since 2012 —
+    behind a classifier that was only ever meant to *label* them.
+
+    `metric` narrows to one newsletter; `OTHER_KEY` narrows to the sends that
+    match none of them. `search` matches the stored subject, and never reaches
+    Smaily: this runs against PostgreSQL like every other page query.
     """
-    campaigns = SmailyCampaign.objects.exclude(newsletter="")
-    if metric:
+    campaigns = SmailyCampaign.objects.all()
+    if metric == OTHER_KEY:
+        campaigns = campaigns.filter(newsletter="")
+    elif metric:
         campaigns = campaigns.filter(newsletter=metric)
-    campaigns = campaigns.order_by("-completed_at", "-campaign_id")[: max(limit, 0)]
+    term = (search or "").strip()[:MAX_SEARCH_LENGTH]
+    if term:
+        # `icontains` on the stored name. Bounded above, and a parameterised
+        # query — the term never becomes SQL.
+        campaigns = campaigns.filter(name__icontains=term)
+    return campaigns.order_by("-completed_at", "-campaign_id")
 
+
+def has_unclassified_campaigns() -> bool:
+    """Whether the `Muu` filter has anything behind it.
+
+    The chip is offered only when it leads somewhere. A filter that always
+    returns nothing teaches a reader that the section is broken.
+    """
+    return SmailyCampaign.objects.filter(newsletter="").exists()
+
+
+def describe_campaigns(campaigns) -> tuple[CampaignPerformance, ...]:
+    """Attach the current statistics to an already-narrowed set of campaigns.
+
+    One extra query for the whole page rather than one per row.
+    """
+    campaigns = list(campaigns)
     current = {
         row.campaign_id: row
-        for row in SmailyCampaignStats.objects.filter(campaign__in=list(campaigns), is_current=True)
+        for row in SmailyCampaignStats.objects.filter(campaign__in=campaigns, is_current=True)
     }
 
     rows = []
@@ -199,9 +235,12 @@ def get_campaign_performance(
                 campaign_id=campaign.campaign_id,
                 name=campaign.name,
                 newsletter=campaign.newsletter,
-                newsletter_label=registry_spec.label if registry_spec else "",
+                newsletter_label=(
+                    registry_spec.label if registry_spec else label_for(campaign.newsletter)
+                ),
                 audience=campaign.audience,
                 completed_at=campaign.completed_at.date() if campaign.completed_at else None,
+                preview_url=campaign.preview_url,
                 delivered=stats.delivered_count if stats else None,
                 opened=stats.opened_count if stats else None,
                 unique_clicks=stats.unique_click_count if stats else None,
@@ -211,6 +250,13 @@ def get_campaign_performance(
             )
         )
     return tuple(rows)
+
+
+def get_campaign_performance(
+    *, metric: str | None = None, limit: int = 20, search: str = ""
+) -> tuple[CampaignPerformance, ...]:
+    """The most recent completed sends, described for the page."""
+    return describe_campaigns(campaign_queryset(metric=metric, search=search)[: max(limit, 0)])
 
 
 @dataclass(frozen=True)
@@ -295,7 +341,11 @@ def get_all_aggregates(*, limit: int = 12) -> tuple[NewsletterAggregate, ...]:
 
 
 __all__ = [
+    "MAX_SEARCH_LENGTH",
     "CampaignPerformance",
+    "campaign_queryset",
+    "describe_campaigns",
+    "has_unclassified_campaigns",
     "NewsletterAggregate",
     "SubscriberPoint",
     "SubscriberSeries",

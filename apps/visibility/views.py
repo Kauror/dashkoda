@@ -7,6 +7,11 @@ from django.views.decorators.http import require_GET
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
+from .campaign_history import (
+    PARAM_PAGE,
+    PARAM_SEARCH,
+    build_campaign_history,
+)
 from .newsletter_page import PARAM_NEWSLETTER
 from .page import build_visibility_page
 from .traffic_page import PARAM_CONTENT, PARAM_PERIOD
@@ -34,5 +39,28 @@ def visibility_overview(request):
                 newsletter_key=request.GET.get(PARAM_NEWSLETTER),
             ),
             "can_add_data": request.user.is_authenticated and request.user.is_staff,
+        },
+    )
+
+
+@require_GET
+def campaign_history(request):
+    """Every completed Smaily send, filterable and searchable.
+
+    The archive behind the Nähtavus page's most-recent list: fourteen years of
+    campaigns, including every one that matches none of the three newsletters.
+    Reads PostgreSQL only — the subject search never contacts Smaily.
+    """
+    return render(
+        request,
+        "visibility/campaign_history.html",
+        {
+            "navigation": NAVIGATION,
+            "active_nav": "visibility",
+            "history": build_campaign_history(
+                newsletter_key=request.GET.get(PARAM_NEWSLETTER),
+                search=request.GET.get(PARAM_SEARCH),
+                page=request.GET.get(PARAM_PAGE),
+            ),
         },
     )

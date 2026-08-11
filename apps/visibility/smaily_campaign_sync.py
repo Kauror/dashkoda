@@ -91,10 +91,12 @@ STATS_RECONCILIATION_DAYS = 14
 #: backfill passes a larger value by hand.
 MAX_STATS_PER_RUN = 40
 
-#: How many campaigns the list request asks for. The account sends roughly two
-#: hundred a year, so this comfortably covers everything a daily run could have
-#: missed while staying a bounded request.
-CAMPAIGN_LIST_LIMIT = 200
+#: How many campaigns the list request asks for. The account holds 3 194
+#: completed campaigns going back to 2012 and sends roughly 200–270 a year, so
+#: this covers the whole population in one bounded request. Listing is cheap —
+#: one call, whatever the count; it is the per-campaign statistics that cost a
+#: request each, and those are bounded separately.
+CAMPAIGN_LIST_LIMIT = 5000
 
 
 @dataclass
@@ -293,6 +295,8 @@ def _catalogue(campaigns: tuple[CampaignRow, ...], *, report: CampaignReport) ->
                 campaign_id=row.campaign_id,
                 name=row.name,
                 template_name=row.template_name,
+                template_external_id=row.template_external_id,
+                preview_url=row.preview_url,
                 newsletter=classification.metric,
                 audience=classification.audience,
                 status=row.status,
@@ -308,12 +312,27 @@ def _catalogue(campaigns: tuple[CampaignRow, ...], *, report: CampaignReport) ->
         for attribute, value in (
             ("name", row.name),
             ("template_name", row.template_name),
+            ("template_external_id", row.template_external_id),
+            # A preview that has appeared, moved or been validated differently
+            # is worth carrying. A preview that has *gone* — the template was
+            # deleted — is handled below, because an empty value is skipped by
+            # the truthiness test this loop uses for everything else.
+            ("preview_url", row.preview_url),
             ("status", row.status),
             ("completed_at", row.completed_at),
         ):
             if value and getattr(existing, attribute) != value:
                 setattr(existing, attribute, value)
                 changed.append(attribute)
+        # A template deleted since the last run: the preview address now goes
+        # nowhere, so it is cleared rather than left pointing at a dead page.
+        # The campaign and its statistics are untouched — 67 campaigns on this
+        # account are in exactly this state and they are still real history.
+        if existing.preview_url and not row.preview_url:
+            existing.preview_url = ""
+            existing.template_external_id = ""
+            changed.extend(["preview_url", "template_external_id"])
+
         # `last_seen_at` is `auto_now`, so saving at all records that Smaily
         # still lists this campaign.
         existing.save(update_fields=[*changed, "last_seen_at"] if changed else ["last_seen_at"])

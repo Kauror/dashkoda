@@ -949,6 +949,15 @@ class SmailyCampaign(models.Model):
     catalogued with `newsletter` blank. It is deliberately not forced into a
     newsletter, because it would then appear in that newsletter's open rate.
 
+    `preview_url` is **presentation metadata, not an archive.** Smaily's own
+    field is `template.preview_url`, and it addresses the *template*: on this
+    account 364 campaigns share a template with another, one of them eleven
+    ways. So two campaigns can point at one preview, and that preview renders
+    whatever the template holds today rather than what went out in 2019.
+    DashKoda stores the address Smaily gave for the campaign and links to it; it
+    does not claim to hold a copy of the newsletter as sent, and it never
+    fetches or stores the newsletter HTML to manufacture one.
+
     Deliberately absent: recipients. No address, no name, no subscriber ID and
     no per-recipient open, click, bounce or unsubscribe, and no column that
     could hold one.
@@ -964,6 +973,26 @@ class SmailyCampaign(models.Model):
         blank=True,
         verbose_name="Malli nimi",
         help_text="Väli, mille järgi uudiskiri tuvastatakse. Silt on kontol alati tühi.",
+    )
+    template_external_id = models.CharField(
+        max_length=40,
+        blank=True,
+        verbose_name="Smaily malli tunnus",
+        help_text=(
+            "Smaily malli tunnus, kui mall on veel olemas. Ei ole kampaania "
+            "identiteet: mitu kampaaniat võivad kasutada sama malli."
+        ),
+    )
+    preview_url = models.URLField(
+        max_length=500,
+        blank=True,
+        verbose_name="Eelvaate aadress",
+        help_text=(
+            "Smaily enda eelvaade, kontrollitud enne salvestamist. Tühi, kui mall "
+            "on kustutatud — kampaania ja tema statistika jäävad alles. "
+            "Eelvaade kuulub MALLILE, mitte kampaaniale: sama malli jagavad "
+            "kampaaniad viivad samale lehele ja see näitab malli praegust sisu."
+        ),
     )
     newsletter = models.CharField(
         max_length=48,
@@ -1002,6 +1031,16 @@ class SmailyCampaign(models.Model):
     @property
     def is_newsletter(self) -> bool:
         return bool(self.newsletter)
+
+    @property
+    def has_preview(self) -> bool:
+        """Whether there is a newsletter to open.
+
+        False for a campaign whose template was deleted — 67 of this account's
+        3 194. The row still shows the send and every figure it has; what it
+        does not show is a link that would go nowhere.
+        """
+        return bool(self.preview_url)
 
 
 class SmailyCampaignStats(models.Model):

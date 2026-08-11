@@ -143,9 +143,33 @@ def _audience(template_name: str) -> str:
     return AUDIENCE_UNKNOWN
 
 
+#: What an unrecognised completed campaign is called on the page.
+#:
+#: It is a **label, not a bin things fall into and disappear**. 2 105 of this
+#: account's 3 194 completed campaigns match none of the three newsletter
+#: families — event calendars, Enterprise Europe Network mailings, Christmas
+#: cards, export directories, a Russian-language bulletin — and every one of
+#: them is a mailing the Chamber really sent. `Muu` is chosen over `Määramata`
+#: because these are mostly not unclassifiable, they are simply *other*: a
+#: Kevadball invitation is not an unidentified e-Teataja.
+OTHER_LABEL = "Muu"
+
+#: The filter key `Muu` travels under. Not a metric: no `VisibilityMetric`
+#: member describes it, because it is the absence of one.
+OTHER_KEY = "muu"
+
+
 def label_for(metric: str) -> str:
+    """The newsletter's name, or `Muu` for a campaign matching none of them.
+
+    Never empty for a real campaign. An empty label on a page reads as a
+    rendering fault, and the whole point of `Muu` is that these sends are
+    visible rather than mysteriously blank.
+    """
     family = FAMILIES_BY_METRIC.get(metric)
-    return family.label if family is not None else ""
+    if family is not None:
+        return family.label
+    return OTHER_LABEL if metric == "" else ""
 
 
 def _check_registry() -> None:
@@ -172,6 +196,8 @@ _check_registry()
 
 __all__ = [
     "AUDIENCE_MEMBERS",
+    "OTHER_KEY",
+    "OTHER_LABEL",
     "AUDIENCE_NON_MEMBERS",
     "AUDIENCE_UNKNOWN",
     "FAMILIES",
