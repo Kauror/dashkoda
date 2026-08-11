@@ -20,13 +20,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, timedelta
+from urllib.parse import quote
 
 from django.utils import timezone
 
 from apps.core.formatting import group_thousands, percent
 from apps.dashboard.sparkline import TrendChart, TrendSource, build_trend_chart
 
-from .content_performance import ContentPerformanceRow, describe_pages
+from .content_performance import ContentPerformanceRow, describe_pages, paths_for_title
 from .content_sections import (
     CONTENT_SECTIONS,
     DEFAULT_SECTION,
@@ -43,10 +44,21 @@ from .ga4_selectors import (
     get_coverage,
     get_top_pages,
     get_traffic_series,
+    search_pages,
 )
 
 #: The query parameter the period buttons carry.
 PARAM_PERIOD = "periood"
+
+#: The query parameters the page search carries.
+PARAM_SEARCH = "otsing"
+PARAM_PAGE = "lk"
+
+#: How many search results one page shows, and how long a term may be. The
+#: ranking stays a Top 20 whatever happens here — search is a second mode over
+#: the whole population, not a longer ranking.
+SEARCH_PER_PAGE = 25
+MAX_SEARCH_LENGTH = 120
 
 #: How many rows the ranking shows. Long enough to be useful on a board's
 #: dashboard, short enough that nobody scrolls past the point of interest.
@@ -96,6 +108,17 @@ def parse_period(raw: str | None) -> Period:
     return _BY_KEY.get((raw or "").strip(), DEFAULT_PERIOD)
 
 
+def parse_search(raw: str | None) -> str:
+    """The search term, trimmed and bounded. Never raises, never reaches SQL.
+
+    Free text, unlike the period and the section, which are validated against
+    closed registries. What bounds it instead is a length cap and the ORM: the
+    term is only ever a parameter to `icontains`, never a regex and never a
+    fragment of a query.
+    """
+    return (raw or "").strip()[:MAX_SEARCH_LENGTH]
+
+
 @dataclass(frozen=True)
 class PeriodOption:
     """One button: what it says, where it goes, and whether it is the one shown."""
@@ -110,14 +133,36 @@ class PeriodOption:
 
     #: Set so a period link keeps whatever is being ranked.
     section_key: str = DEFAULT_SECTION_KEY
+    #: And whatever is being searched for. Changing the window must not throw
+    #: away the term the reader typed to get here.
+    search: str = ""
 
     @property
     def query(self) -> str:
-        return f"{PARAM_PERIOD}={self.period.key}&{PARAM_CONTENT}={self.section_key}"
+        return _query(self.period.key, self.section_key, self.search)
+
+
+def _query(period_key: str, section_key: str, search: str = "", page: int | None = None) -> str:
+    """One place that builds the page's query string.
+
+    Every control carries the whole state. A reader who has narrowed to Uudised,
+    asked for a year and searched for "maamaks" keeps all three when they touch
+    any one of them — silently dropping the other two is how an analytics tool
+    makes somebody start over.
+    """
+    query = f"{PARAM_PERIOD}={period_key}&{PARAM_CONTENT}={section_key}"
+    if search:
+        query += f"&{PARAM_SEARCH}={quote(search)}"
+    if page and page > 1:
+        query += f"&{PARAM_PAGE}={page}"
+    return query
 
 
 def period_options(
-    active: Period, coverage: Coverage, section: ContentSection | None = None
+    active: Period,
+    coverage: Coverage,
+    section: ContentSection | None = None,
+    search: str = "",
 ) -> tuple[PeriodOption, ...]:
     """Every period, with the ones history cannot fill marked.
 
@@ -131,6 +176,7 @@ def period_options(
         PeriodOption(
             period=period,
             section_key=(section or DEFAULT_SECTION).key,
+            search=search,
             is_active=period.key == active.key,
             # "Kõik" is always offered. A shorter window is offered when the
             # history can fill more than about a third of it — below that the
@@ -170,18 +216,28 @@ class SectionOption:
     period: Period
     is_active: bool
 
+    #: Carried for the same reason a period link carries the section.
+    search: str = ""
+
     @property
     def label(self) -> str:
         return self.section.label
 
     @property
     def query(self) -> str:
-        return f"{PARAM_PERIOD}={self.period.key}&{PARAM_CONTENT}={self.section.key}"
+        return _query(self.period.key, self.section.key, self.search)
 
 
-def section_options(active: ContentSection, period: Period) -> tuple[SectionOption, ...]:
+def section_options(
+    active: ContentSection, period: Period, search: str = ""
+) -> tuple[SectionOption, ...]:
     return tuple(
-        SectionOption(section=section, period=period, is_active=section.key == active.key)
+        SectionOption(
+            section=section,
+            period=period,
+            is_active=section.key == active.key,
+            search=search,
+        )
         for section in CONTENT_SECTIONS
     )
 
@@ -216,6 +272,56 @@ class TrafficSection:
     section: ContentSection
     section_options: tuple[SectionOption, ...]
     ranking: tuple[ContentPerformanceRow, ...]
+    #: Empty in normal mode. Present means the reader asked a different
+    #: question, and the section says so rather than relabelling the ranking.
+    search: str = ""
+    results: tuple[ContentPerformanceRow, ...] = ()
+    result_count: int = 0
+    page_number: int = 1
+    total_pages: int = 1
+
+    @property
+    def is_searching(self) -> bool:
+        return bool(self.search)
+
+    @property
+    def has_results(self) -> bool:
+        return bool(self.results)
+
+    @property
+    def has_previous(self) -> bool:
+        return self.page_number > 1
+
+    @property
+    def has_next(self) -> bool:
+        return self.page_number < self.total_pages
+
+    @property
+    def clear_query(self) -> str:
+        """Back to the ranking, keeping the period and the section.
+
+        Clearing a search is not starting again. The reader still wants Uudised
+        over a year; they have simply finished looking for one page.
+        """
+        return _query(self.period.key, self.section.key)
+
+    def page_query(self, page: int) -> str:
+        return _query(self.period.key, self.section.key, self.search, page)
+
+    @property
+    def previous_query(self) -> str:
+        return self.page_query(max(self.page_number - 1, 1))
+
+    @property
+    def next_query(self) -> str:
+        return self.page_query(min(self.page_number + 1, max(self.total_pages, 1)))
+
+    @property
+    def result_summary(self) -> str:
+        """What was found, in words, so a count is never bare."""
+        if not self.result_count:
+            return "Ühtegi lehte ei leitud."
+        return f"{self.result_count} lehte."
 
     @property
     def has_data(self) -> bool:
@@ -252,6 +358,8 @@ def build_traffic_section(
     *,
     period_key: str | None = None,
     section_key: str | None = None,
+    search: str | None = None,
+    page: str | int | None = None,
     today: date | None = None,
 ) -> TrafficSection:
     """Read the stored history once and shape it for the page.
@@ -264,7 +372,8 @@ def build_traffic_section(
     coverage = get_coverage()
     period = parse_period(period_key)
     section = parse_section(section_key)
-    options = period_options(period, coverage, section)
+    term = parse_search(search)
+    options = period_options(period, coverage, section, term)
 
     if not coverage.has_data:
         return TrafficSection(
@@ -279,8 +388,9 @@ def build_traffic_section(
             channels=(),
             channel_sessions=0,
             section=section,
-            section_options=section_options(section, period),
+            section_options=section_options(section, period, term),
             ranking=(),
+            search=term,
         )
 
     start, end = window_for(period, coverage, today=today)
@@ -299,8 +409,12 @@ def build_traffic_section(
         channels=channels,
         channel_sessions=sum(channel.sessions for channel in channels),
         section=section,
-        section_options=section_options(section, period),
-        ranking=describe_pages(
+        section_options=section_options(section, period, term),
+        # Built only in normal mode. In search mode the reader is asking about
+        # named pages, and a Top 20 underneath the answer is noise.
+        ranking=()
+        if term
+        else describe_pages(
             get_top_pages(
                 start=start,
                 end=end,
@@ -313,7 +427,43 @@ def build_traffic_section(
             ),
             section=section,
         ),
+        search=term,
+        **_search_results(term, section=section, start=start, end=end, page=page),
     )
+
+
+def _search_results(
+    term: str, *, section: ContentSection, start: date, end: date, page: str | int | None
+) -> dict:
+    """The search slice, or nothing at all when not searching."""
+    if not term:
+        return {}
+
+    try:
+        number = max(int(page), 1) if page is not None else 1
+    except TypeError, ValueError:
+        # A hand-typed page is a rotted bookmark, not an error page.
+        number = 1
+
+    matches, total = search_pages(
+        term=term,
+        start=start,
+        end=end,
+        # The catalogues turn a title into paths; this module never guesses one
+        # from a slug. A page DashKoda cannot name is still found by its path.
+        extra_paths=paths_for_title(term),
+        prefix=section.prefixes,
+        exclude=(all_index_paths() if section.is_everything else section.index_paths),
+        limit=SEARCH_PER_PAGE,
+        offset=(number - 1) * SEARCH_PER_PAGE,
+    )
+    total_pages = max((total + SEARCH_PER_PAGE - 1) // SEARCH_PER_PAGE, 1)
+    return {
+        "results": describe_pages(matches, section=section),
+        "result_count": total,
+        "page_number": min(number, total_pages),
+        "total_pages": total_pages,
+    }
 
 
 def _chart(series: TrafficSeries) -> TrendChart | None:

@@ -265,6 +265,8 @@ def build_visibility_page(
     period_key: str | None = None,
     section_key: str | None = None,
     newsletter_key: str | None = None,
+    search: str | None = None,
+    page: str | int | None = None,
 ) -> VisibilityPage:
     """Read every metric once and shape it for the page."""
     today = today or timezone.localdate()
@@ -277,7 +279,13 @@ def build_visibility_page(
         social=summary.social,
         channels=build_channel_band(summary=summary, ga4_status=ga4_status, detail_url=detail_url),
         ga4=ga4_status,
-        traffic=build_traffic_section(period_key=period_key, section_key=section_key, today=today),
+        traffic=build_traffic_section(
+            period_key=period_key,
+            section_key=section_key,
+            search=search,
+            page=page,
+            today=today,
+        ),
         newsletters=build_newsletter_section(newsletter_key=newsletter_key),
         today=today,
     )

@@ -116,32 +116,124 @@ Two rules this markup exists to keep:
             {% endfor %}
           </nav>
 
-          <div class="w-full min-w-0 overflow-x-auto">
-            <table class="w-full min-w-max border-collapse text-sm">
-              <caption class="sr-only">Enim vaadatud sisu valitud perioodil</caption>
-              <thead>
-                <tr>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">#</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Lehekülg</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Lehevaatamised</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for row in traffic.ranking %}
+          {% comment %}
+          A plain GET form. The period and the section travel as hidden fields,
+          so searching inside `Uudised` over a year stays inside Uudised over a
+          year — submitting a search must not quietly widen the question.
+
+          `min-w-0` on the wrapper and the input is what stops a long term
+          pushing the document sideways on a phone; the label is real rather
+          than a placeholder, because a placeholder disappears the moment
+          somebody types.
+          {% endcomment %}
+          <form method="get" action="#section-traffic" class="flex min-w-0 flex-wrap items-end gap-2">
+            <input type="hidden" name="periood" value="{{ traffic.period.key }}">
+            <input type="hidden" name="sisu" value="{{ traffic.section.key }}">
+            <div class="flex min-w-0 flex-1 flex-col gap-1">
+              <label for="otsing" class="text-sm text-text-secondary">Otsi lehekülge</label>
+              <input type="search"
+                     id="otsing"
+                     name="otsing"
+                     value="{{ traffic.search }}"
+                     maxlength="120"
+                     placeholder="Pealkiri või URL"
+                     class="dk-input w-full min-w-0">
+            </div>
+            <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+          </form>
+
+          {% if traffic.is_searching %}
+            {% comment %}
+            Search mode. The heading changes because the question changed: these
+            rows are pages matching a term, not a ranking, and calling them
+            "Enim vaadatud" would tell the reader they are looking at a top
+            twenty when they are looking at result 3 of 41.
+            {% endcomment %}
+            <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <h4 class="text-sm font-medium text-text">Otsingu tulemused: „{{ traffic.search }}“</h4>
+              <a class="dk-link text-sm" href="?{{ traffic.clear_query }}#section-traffic">Tühjenda otsing</a>
+            </div>
+            <p class="dk-meta">{{ traffic.result_summary }}</p>
+
+            {% if traffic.has_results %}
+              <div class="w-full min-w-0 overflow-x-auto">
+                <table class="w-full min-w-max border-collapse text-sm">
+                  <caption class="sr-only">Otsingu tulemused ja nende lehevaatamised</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Lehekülg</th>
+                      <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Valitud perioodil</th>
+                      <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Kokku mõõdetud</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {% for row in traffic.results %}
+                      <tr>
+                        <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
+                          <a class="dk-link" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
+                            {{ row.label }}<span class="sr-only"> (väline leht, avaneb uuel vahelehel)</span>
+                          </a>
+                          {% if row.type_label %}<span class="dk-meta"> · {{ row.type_label }}</span>{% endif %}
+                        </th>
+                        <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text">{{ row.page_views|group_thousands }}</td>
+                        <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">{{ row.total_views|group_thousands }}</td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              </div>
+
+              <p class="dk-meta">
+                „Valitud perioodil“ on lehevaatamised {{ traffic.start|date:"j.m.Y" }}–{{ traffic.end|date:"j.m.Y" }}.
+                „Kokku mõõdetud“ on kõik Google Analyticsi kogutud lehevaatamised alates
+                {{ traffic.coverage.earliest|date:"j.m.Y" }} — see ei ole lehe kogu eluaja vaatamiste arv,
+                vaid nii palju, kui mõõdetud on.
+              </p>
+
+              {% if traffic.total_pages > 1 %}
+                <nav aria-label="Otsingutulemuste leheküljed" class="flex flex-wrap items-center gap-3">
+                  {% if traffic.has_previous %}
+                    <a class="dk-button dk-button-secondary"
+                       href="?{{ traffic.previous_query }}#section-traffic">Eelmine</a>
+                  {% endif %}
+                  <span class="dk-meta">Lehekülg {{ traffic.page_number }} / {{ traffic.total_pages }}</span>
+                  {% if traffic.has_next %}
+                    <a class="dk-button dk-button-secondary"
+                       href="?{{ traffic.next_query }}#section-traffic">Järgmine</a>
+                  {% endif %}
+                </nav>
+              {% endif %}
+            {% else %}
+              {% include "dashboard/components/empty_state.html" with message="Ühtegi lehte ei leitud." detail="Proovi teist sõna, tervet URL-i või vali mõni teine sisujaotus." only %}
+            {% endif %}
+          {% else %}
+            <div class="w-full min-w-0 overflow-x-auto">
+              <table class="w-full min-w-max border-collapse text-sm">
+                <caption class="sr-only">Enim vaadatud sisu valitud perioodil</caption>
+                <thead>
                   <tr>
-                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-muted">{{ forloop.counter }}</td>
-                    <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
-                      <a class="dk-link" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
-                        {{ row.label }}<span class="sr-only"> (väline leht, avaneb uuel vahelehel)</span>
-                      </a>
-                      {% if row.type_label %}<span class="dk-meta"> · {{ row.type_label }}</span>{% endif %}
-                    </th>
-                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">{{ row.page_views|group_thousands }}</td>
+                    <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">#</th>
+                    <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Lehekülg</th>
+                    <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Lehevaatamised</th>
                   </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody>
+                  {% for row in traffic.ranking %}
+                    <tr>
+                      <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-muted">{{ forloop.counter }}</td>
+                      <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
+                        <a class="dk-link" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
+                          {{ row.label }}<span class="sr-only"> (väline leht, avaneb uuel vahelehel)</span>
+                        </a>
+                        {% if row.type_label %}<span class="dk-meta"> · {{ row.type_label }}</span>{% endif %}
+                      </th>
+                      <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-secondary">{{ row.page_views|group_thousands }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% endif %}
         </div>
       {% endif %}
     {% else %}

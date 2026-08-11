@@ -118,6 +118,80 @@ and still shown — as a path, in the top-content tables — but cannot be label
 with a headline. Giving articles a durable identity (as `LegalMatter` does for
 legal work) would fix this and is not part of this work.
 
+## What may be ranked as content
+
+Every path GA4 reports is stored, and every one of them counts towards the
+site's own figures: sessions, page views, the traffic chart, the channel
+breakdown. `/et` alone is 133 588 measured page views and it is in all of them.
+
+The **content ranking** and **content search** answer a narrower question — "which
+piece of content was most read" — and a language homepage is not a piece of
+content. `apps/visibility/content_ranking.py` holds the one exclusion registry,
+built from the real stored history rather than guessed:
+
+| family | example | paths | views |
+| --- | --- | --- | --- |
+| language roots | `/et` | 4 | 172 919 |
+| Drupal node aliases | `/et/node/1173` | 10 784 | 121 667 |
+| cart and checkout | `/et/cart` | 17 756 | 38 928 |
+| error documents | `/403.html` | 1 097 | 16 374 |
+| internal search | `/et/search/node` | 7 | 13 723 |
+| user and authentication | `/et/user/login` | 50 | 1 994 |
+| taxonomy listings | `/et/taxonomy/term/47` | 79 | 1 124 |
+| system routes | `/et/system/404` | 75 | 371 |
+| uploaded assets | `/sites/default/files/…` | — | — |
+
+Two rules govern it:
+
+- **matching is by whole path segment.** `/en/services/search-cooperation-partner`
+  is a service the Chamber sells, and a substring rule on "search" would delete
+  it from every ranking with nothing looking wrong afterwards. Only the error
+  documents match by prefix, because GA4 records them with the failed address
+  appended;
+- **under-excluding is the safer error.** `/et/pood`, `/et/astu-liikmeks`,
+  `/et/parkimine` and every other ordinary page stay eligible. They belong to
+  none of the three registered sections, and "how many people read this?" is
+  still a fair question about them.
+
+Excluded traffic is excluded from a *list*, never from a *total*. Nothing is
+deleted and nothing is hidden.
+
+## Finding one page
+
+The ranking is the twenty most-read pieces of content in the chosen period. It
+stays twenty: a longer list is not how somebody finds a particular page.
+
+Search is the second mode, over the **whole measured population** —
+`?otsing=…`, beside the section filter. A page ranked #347 is exactly the kind
+of page somebody looks up, so searching the ranking would answer only for pages
+already on screen.
+
+It matches two things:
+
+- **the canonical path**, however it was typed. `liikmemaks`,
+  `/et/liikmed/liikmemaks` and a pasted
+  `https://www.koda.ee/et/liikmed/liikmemaks` all find the same page;
+- **titles DashKoda holds on authority** — the durable news catalogue and the
+  public event catalogue. That is what lets "islandi" find
+  `Eesti–Islandi ärifoorum`. Services have no title catalogue, and are found by
+  path; nothing is ever derived from a slug, so a page DashKoda cannot name
+  shows its path rather than an invented title.
+
+A result carries two figures, and they answer different questions:
+
+- **Valitud perioodil** — views inside the window the reader chose;
+- **Kokku mõõdetud** — every view across GA4's available coverage. Not a
+  lifetime: for a page older than the coverage it is "as much as was measured",
+  which is why the coverage start is stated beside it.
+
+The period and the section both apply to a search, and every control carries the
+whole state — changing the window keeps the term and the section, and clearing
+the search keeps the window and the section. Results are ordered by
+selected-period views, 25 to a page.
+
+Nothing here contacts Google. Search reads stored `Ga4PageDaily` rows and the
+two catalogues, so the page works when Google does not.
+
 ## Reading it
 
 The **Nähtavus** page carries the history: six periods (30 päeva, 90 päeva,
