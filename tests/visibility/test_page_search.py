@@ -441,6 +441,25 @@ def test_the_rendered_page_carries_the_result_page_number(viewer_client, day):
     assert "/et/pood/toode-00" not in second
 
 
+def test_a_search_that_finds_nothing_still_offers_the_way_back(viewer_client, day):
+    """The trap that hid the first bug behind a second one.
+
+    Search empties the ranking deliberately, so the block guarding the whole
+    content area on `traffic.ranking` removed the search box the moment a
+    search ran — including the "Tühjenda otsing" link, leaving a reader who
+    mistyped with no control to correct it and no explanation.
+    """
+    day(START, pages=(("/et/pood", 900),))
+
+    page = viewer_client.get(
+        reverse("visibility"), {"periood": "koik", "otsing": "ei-ole-olemas"}
+    ).content.decode()
+
+    assert "Ühtegi lehte ei leitud." in page
+    assert 'name="otsing"' in page
+    assert "Tühjenda otsing" in page
+
+
 # -- the selector's own contract ---------------------------------------------
 
 
