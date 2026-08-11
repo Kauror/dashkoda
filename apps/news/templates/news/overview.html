@@ -16,10 +16,11 @@ Three presentational rules carry the density:
     article is the same fact spelled a hundred times, and it cost a line each;
   * the GA4 coverage caveat is stated once beneath the list rather than under
     every article older than the measurement;
-  * no summary and no category. The summary is still stored and the article is
-    one click away; the category exists for the current ten feed items only, and
-    a badge on ten rows of a thousand reads as a difference between the articles
-    rather than a difference in what DashKoda knows about them.
+  * no summary, and no category *badge*. The summary is still stored and the
+    article is one click away. The category is a filter above the list rather
+    than a mark on every row: it takes two values, so a badge would repeat one
+    of two words a thousand times down the page while answering a question the
+    chips already answer in one click.
 
 External links keep the whole contract: `target="_blank"`, `rel="noopener
 noreferrer"`, a visually hidden note naming the destination and the new tab, and
@@ -47,6 +48,20 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
       {% endfor %}
     </nav>
 
+    {% comment %}
+    Whose news, beside when. `Kõik` is the absence of the filter rather than a
+    third category, and it is the only chip that includes articles DashKoda has
+    not been able to classify — nothing public on Koda.ee exposes the field, so
+    a category is known only for an article that has been read from the site.
+    {% endcomment %}
+    <nav aria-label="Uudise liik" class="flex flex-wrap gap-2">
+      {% for option in archive.categories %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="?{{ option.query }}"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+      {% endfor %}
+    </nav>
+
     {% if archive.period.period.is_custom %}
       {% comment %}
       Native date fields, submitted by an ordinary GET form. The server resolves
@@ -58,6 +73,7 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
         <input type="hidden" name="periood" value="{{ archive.period.key }}">
         {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
         {% if archive.search %}<input type="hidden" name="otsing" value="{{ archive.search }}">{% endif %}
+        {% if archive.category %}<input type="hidden" name="kategooria" value="{{ archive.category }}">{% endif %}
         <div class="flex flex-col gap-1">
           <label for="alates" class="text-sm text-text-secondary">Alates</label>
           <input type="date" id="alates" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}" class="dk-input dk-input-date">
@@ -97,6 +113,7 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
           <input type="hidden" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}">
         {% endif %}
         {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
+        {% if archive.category %}<input type="hidden" name="kategooria" value="{{ archive.category }}">{% endif %}
         <label for="otsing" class="sr-only">Otsi uudist</label>
         <input type="search" id="otsing" name="otsing" value="{{ archive.search }}"
                maxlength="120" placeholder="Otsi uudist…" autocomplete="off"
@@ -140,6 +157,9 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
   <div class="flex flex-col gap-1">
     {% if archive.coverage_note %}<p class="dk-meta">{{ archive.coverage_note }}</p>{% endif %}
     {% if archive.coverage_caveat %}<p class="dk-meta">{{ archive.coverage_caveat }}</p>{% endif %}
+    {% if archive.unclassified_count %}
+      <p class="dk-meta">{{ archive.unclassified_count }} uudise liik ei ole teada; need on nähtavad ainult „Kõik“ all.</p>
+    {% endif %}
   </div>
 
 </div>

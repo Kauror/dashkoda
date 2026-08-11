@@ -13,6 +13,7 @@ from django.utils import timezone
 
 from apps.visibility.ga4_paths import canonical_path
 
+from .categories import parse_category
 from .public_models import NewsResource, TitleOrigin
 
 
@@ -114,3 +115,59 @@ def undated_paths(*, limit: int) -> tuple[str, ...]:
         .order_by("-first_seen_at", "path")
         .values_list("path", flat=True)[:limit]
     )
+
+
+def record_categories(
+    rows: Iterable[tuple[str, str]], *, now=None, dry_run: bool = False
+) -> tuple[int, int, int]:
+    """Store whose news each article is. Returns (updated, unchanged, unknown).
+
+    Rows are `(url or path, Koda.ee category value)`. Matching is by canonical
+    path, the same join key everything else here uses, so an export may carry
+    full URLs, bare paths or a mixture.
+
+    A row naming a path the catalogue does not hold is counted as `unknown` and
+    skipped rather than creating anything: this fills in a fact about an article
+    DashKoda already knows, and inventing catalogue rows from a spreadsheet
+    would let a stale export resurrect articles the site has removed.
+
+    A value that is not one of the two real categories — `arhiiv` and the other
+    listing names — leaves the row unclassified rather than storing a third
+    kind.
+    """
+    now = now or timezone.now()
+    wanted: dict[str, str] = {}
+    unknown = 0
+    for raw_url, raw_category in rows:
+        path = canonical_path(raw_url)
+        category = parse_category(raw_category)
+        if not path or not category:
+            unknown += 1
+            continue
+        wanted[path] = category
+
+    if not wanted:
+        return (0, 0, unknown)
+
+    updated = unchanged = 0
+    existing = NewsResource.objects.filter(path__in=tuple(wanted))
+    seen = set()
+    for resource in existing:
+        seen.add(resource.path)
+        category = wanted[resource.path]
+        if resource.category == category:
+            unchanged += 1
+            continue
+        updated += 1
+        if dry_run:
+            # Counted, not written. The flag lives here rather than in the
+            # command so a dry run and a real one cannot disagree about what
+            # would happen — they are the same code with one branch.
+            continue
+        resource.category = category
+        resource.last_seen_at = now
+        # `category` is in `MUTABLE_FIELDS`; identity is not, and this must not
+        # touch it.
+        resource.save(update_fields=["category", "last_seen_at"])
+
+    return (updated, unchanged, unknown + len(set(wanted) - seen))

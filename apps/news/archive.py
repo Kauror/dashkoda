@@ -26,6 +26,7 @@ from django.core.paginator import EmptyPage, Paginator
 
 from apps.visibility.ga4_selectors import Coverage, get_coverage
 
+from .categories import NewsCategory
 from .periods import (
     SORT_KEYS,
     SORT_LABELS,
@@ -82,6 +83,16 @@ class SortOption:
 
 
 @dataclass(frozen=True)
+class CategoryOption:
+    """One `Kõik / Koja / Sõprade` chip."""
+
+    key: str
+    label: str
+    is_active: bool
+    query: str
+
+
+@dataclass(frozen=True)
 class NewsArchive:
     """The whole page."""
 
@@ -90,6 +101,8 @@ class NewsArchive:
     periods: tuple[PeriodOption, ...]
     sort: str
     sorts: tuple[SortOption, ...]
+    category: str
+    categories: tuple[CategoryOption, ...]
     search: str
     total: int
     page_number: int
@@ -99,6 +112,7 @@ class NewsArchive:
     #: from "this window is empty" and gets a different empty message.
     catalogue_is_empty: bool
     undated_count: int
+    _unclassified: int = 0
 
     @property
     def has_rows(self) -> bool:
@@ -190,11 +204,18 @@ class NewsArchive:
             return "Proovi teist sõna või vali pikem periood."
         return "Vali pikem periood või kohandatud vahemik."
 
+    @property
+    def unclassified_count(self) -> int:
+        """Rows carrying no category, so the page can say so rather than imply
+        the two chips cover everything."""
+        return self._unclassified
+
     def page_query(self, page: int) -> str:
         return build_query(
             period_key=self.period.key,
             sort=self.sort,
             search=self.search,
+            category=self.category,
             page=page,
             start=self.period.start,
             end=self.period.end,
@@ -209,7 +230,9 @@ class NewsArchive:
         return self.page_query(min(self.page_number + 1, max(self.total_pages, 1)))
 
 
-def _sort_options(active: str, period: ResolvedPeriod, search: str) -> tuple[SortOption, ...]:
+def _sort_options(
+    active: str, period: ResolvedPeriod, search: str, category: str
+) -> tuple[SortOption, ...]:
     return tuple(
         SortOption(
             key=key,
@@ -219,11 +242,40 @@ def _sort_options(active: str, period: ResolvedPeriod, search: str) -> tuple[Sor
                 period_key=period.key,
                 sort=key,
                 search=search,
+                category=category,
                 start=period.start,
                 end=period.end,
             ),
         )
         for key in SORT_KEYS
+    )
+
+
+def _category_options(
+    active: str, period: ResolvedPeriod, sort: str, search: str
+) -> tuple[CategoryOption, ...]:
+    """`Kõik` first, then the two real categories.
+
+    `Kõik` is not a third category — it is the absence of the filter, and it is
+    the only option that includes articles DashKoda has not been able to
+    classify.
+    """
+    choices = [("", "Kõik")] + [(value, label) for value, label in NewsCategory.choices]
+    return tuple(
+        CategoryOption(
+            key=key,
+            label=label,
+            is_active=key == active,
+            query=build_query(
+                period_key=period.key,
+                sort=sort,
+                search=search,
+                category=key,
+                start=period.start,
+                end=period.end,
+            ),
+        )
+        for key, label in choices
     )
 
 
@@ -249,6 +301,7 @@ def build_news_archive(
     date_to: str | None = None,
     sort: str = "",
     search: str = "",
+    category: str = "",
     page: int = 1,
     today: date | None = None,
 ) -> NewsArchive:
@@ -260,7 +313,7 @@ def build_news_archive(
     rows and this has to hold for thirty.
     """
     resolved = resolve_period(period_key, date_from, date_to, today=today)
-    queryset = news_resources(period=resolved, search=search, sort=sort)
+    queryset = news_resources(period=resolved, search=search, sort=sort, category=category)
 
     paginator = Paginator(queryset, PER_PAGE)
     try:
@@ -273,9 +326,11 @@ def build_news_archive(
     return NewsArchive(
         rows=tuple(_describe(resource) for resource in current.object_list),
         period=resolved,
-        periods=period_options(resolved, sort=sort, search=search),
+        periods=period_options(resolved, sort=sort, search=search, category=category),
         sort=sort,
-        sorts=_sort_options(sort, resolved, search),
+        sorts=_sort_options(sort, resolved, search, category),
+        category=category,
+        categories=_category_options(category, resolved, sort, search),
         search=search,
         total=paginator.count,
         page_number=current.number,
@@ -286,6 +341,7 @@ def build_news_archive(
         # filtered count.
         catalogue_is_empty=not NewsResource.objects.exists(),
         undated_count=NewsResource.objects.filter(published_at__isnull=True).count(),
+        _unclassified=NewsResource.objects.filter(category="").count(),
     )
 
 
@@ -294,6 +350,7 @@ __all__ = [
     "NO_VIEWS",
     "PER_PAGE",
     "VIEWS_HEADING",
+    "CategoryOption",
     "NewsArchive",
     "NewsRow",
     "SortOption",

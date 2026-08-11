@@ -839,6 +839,22 @@ def _seed_news(today: dt.date) -> str:
         last_modified="",
     )
     outcome = synchronize_news(collector=lambda **_kwargs: collection)
+
+    # Whose news each one is. Koda.ee stores this per node and nothing public
+    # exposes it, so DashKoda learns it by import — which is exactly what this
+    # does, through the same service the real import uses. Every third article
+    # is a partner's, so the archive's category chips have both kinds to show
+    # and neither is empty.
+    from apps.news.catalogue import record_categories
+    from apps.news.categories import NewsCategory
+
+    record_categories(
+        (
+            entry.canonical_url,
+            NewsCategory.PARTNER if index % 3 == 0 else NewsCategory.CHAMBER,
+        )
+        for index, entry in enumerate(entries)
+    )
     return f"uudised: {outcome.result} ({len(entries)} uudist)"
 
 

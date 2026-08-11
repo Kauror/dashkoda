@@ -56,6 +56,7 @@ def news_resources(
     period: ResolvedPeriod,
     search: str = "",
     sort: str = "",
+    category: str = "",
 ) -> QuerySet[NewsResource]:
     """The catalogued articles a request is asking about, ordered.
 
@@ -86,6 +87,13 @@ def news_resources(
         # A windowed question is about publication dates, and a row without one
         # cannot answer it either way.
         queryset = queryset.filter(published_at__isnull=False)
+
+    if category:
+        # Blank is "not classified", which is a real state: nothing public on
+        # Koda.ee exposes the category, so an article carries one only once it
+        # has been read from the site. Filtering to a category therefore
+        # excludes the unclassified rather than guessing where they belong.
+        queryset = queryset.filter(category=category)
 
     if search:
         # Title first, because that is what a reader remembers. The path is

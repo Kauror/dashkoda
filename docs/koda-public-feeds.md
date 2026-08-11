@@ -151,6 +151,32 @@ corrects titles and publication dates, drives source freshness and populates the
 catalogue; `NewsFeedState`, the import history and the source's health are
 untouched. What changed is which population the viewer reads.
 
+### Whose news it is
+
+Every news node on Koda.ee carries `field_category`, a required list field. Two
+of its values are real categories — `meie_uudised` (shown as **Koja uudised**)
+and `soprade_uudised` (**Sõprade uudised**). The other four — `arhiiv`,
+`artiklid`, `ajakiri_teataja`, `rss_voog` — are the names of listing views, and
+no article was found stored under any of them: articles taken from
+`/et/uudised/arhiiv` all store one of the two real values, which is what
+establishes that the archive listing is simply *all* news.
+
+**Nothing public exposes it.** Checked, all four: the article page carries no
+marker and no `articleSection`; the RSS feed emits no `<category>`; JSON:API is
+disabled; and the archive view ignores every spelling of a category filter. The
+two category listing pages do show it — and they are capped at roughly 153 and
+27 articles, so they classify recent news and nothing older.
+
+So the history came from a one-time authenticated read of the site's own admin
+on 2026-08-11: 3 155 of 3 158 Estonian news nodes, **2 209 Koja uudised and 946
+Sõprade uudised**, imported through `import_news_categories`. Articles in
+English and Russian were not part of that read and carry no category.
+
+An article DashKoda has not been told about stays blank. Blank is not a third
+category: it is excluded from both filters and visible under `Kõik`, and the
+page states how many there are rather than letting two chips imply they cover
+everything.
+
 ### Where a publication date comes from
 
 Two sources, and the feed outranks the page:
