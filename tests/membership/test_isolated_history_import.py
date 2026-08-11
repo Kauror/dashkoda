@@ -108,6 +108,7 @@ def production_shaped_history():
         rows.append(
             InternalMembershipObservation(
                 source=source,
+                artifact=artifact,
                 import_run=run,
                 source_document=document,
                 external_snapshot_id=f"seed_snap_{i:04d}",

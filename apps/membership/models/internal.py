@@ -307,20 +307,9 @@ class MembershipHistoricalSourceDocument(models.Model):
         verbose_name = "Liikmeskonna aruandedokument"
         verbose_name_plural = "Liikmeskonna aruandedokumendid"
         constraints = [
-            # Scoped to the import that wrote it, because a document row belongs
-            # to a *generation* of the history rather than to the file for all
-            # time. Superseding keeps every old row and writes a new set beside
-            # it — that is the whole contract of `--supersede-previous` — and a
-            # rebuilt package necessarily names the same underlying Word
-            # documents, so keying on `(source, external_source_id)` alone made
-            # the second import fail on the first document it re-described.
-            # Superseding was therefore impossible to complete.
-            #
-            # Still one row per file per import: the same package cannot list a
-            # document twice, which is what this constraint was protecting.
             models.UniqueConstraint(
-                fields=["source", "external_source_id", "import_run"],
-                name="membershipsourcedoc_unique_source_id_per_run",
+                fields=["source", "external_source_id"],
+                name="membershipsourcedoc_unique_source_id",
             ),
         ]
         indexes = [
