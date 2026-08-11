@@ -77,8 +77,16 @@ test("rows are compact and carry no article summary", async ({ page }) => {
     ),
   );
   expect(heights.length).toBeGreaterThan(10);
-  // The old rows ran 100–150px because each carried a multi-line RSS summary.
-  expect(Math.max(...heights)).toBeLessThan(60);
+  /*
+   * The old rows ran 100–150px because each carried a multi-line RSS summary.
+   * The ceiling allows a deliberately absurd seeded headline to wrap onto a
+   * second line — that is the title column doing its job — while still failing
+   * if a summary or a second metadata line ever comes back.
+   */
+  expect(Math.max(...heights)).toBeLessThan(72);
+  // And an ordinary row is one line.
+  const typical = heights.slice().sort((a, b) => a - b)[Math.floor(heights.length / 2)];
+  expect(typical).toBeLessThan(46);
 
   // And the summary text itself is absent. The seed writes a fixed sentence
   // into every article's summary, so if any of it rendered this would find it.
@@ -170,6 +178,26 @@ test("an article title opens the original on Koda.ee", async ({ page }) => {
   await expect(link).toHaveAttribute("target", "_blank");
   await expect(link).toHaveAttribute("rel", /noopener/);
   await expect(link).toHaveAttribute("href", /koda\.ee/);
+});
+
+test("the archive is readable without dragging it sideways", async ({ page }) => {
+  /*
+   * Runs at every width. Every other table on this dashboard is `min-w-max` and
+   * scrolls inside its wrapper, which suits a row of figures with a natural
+   * width. A headline has none, so the same treatment sized this table to the
+   * longest title on the page and put the whole archive behind a horizontal
+   * scrollbar — on a phone, dragging sideways to read a headline. The title
+   * column wraps instead, and this is what says so.
+   */
+  await signIn(page);
+  await page.goto("/uudised/?periood=koik");
+
+  const scrolls = await page.evaluate(() => {
+    const table = document.querySelector("main table");
+    return table.scrollWidth - table.parentElement.clientWidth;
+  });
+
+  expect(scrolls).toBeLessThanOrEqual(1);
 });
 
 test("the archive never widens the page", async ({ page }) => {

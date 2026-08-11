@@ -101,27 +101,40 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
     <h2 id="section-news" class="sr-only">Uudiste arhiiv</h2>
 
     {% if archive.has_rows %}
+      {% comment %}
+      Deliberately **not** `min-w-max`. Every other table on this dashboard sets
+      it and scrolls inside its wrapper, which is right for a row of figures
+      that has a natural width — and wrong here. An article title has no natural
+      width, so `min-w-max` sized the table to the longest headline on the page
+      and put the archive behind a horizontal scrollbar at every width below
+      about 1900. On a phone that means dragging sideways to read a headline.
+
+      The title column wraps instead. The date and the figure are the columns
+      that must not break, so those two carry `whitespace-nowrap` and the title
+      takes whatever is left — one line for an ordinary headline at any width,
+      two for a long one on a phone.
+      {% endcomment %}
       <div class="w-full min-w-0 overflow-x-auto">
-        <table class="w-full min-w-max border-collapse text-sm">
+        <table class="w-full border-collapse text-sm">
           <caption class="sr-only">Avaldatud uudised ja nende mõõdetud lehevaatamised</caption>
           <thead>
             <tr>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kuupäev</th>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudis</th>
-              <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">{{ archive.views_heading }}</th>
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuupäev</th>
+              <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Uudis</th>
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">{{ archive.views_heading }}</th>
             </tr>
           </thead>
           <tbody>
             {% for row in archive.rows %}
               <tr>
-                <td class="border-b border-border px-3 py-1.5 whitespace-nowrap tabular-nums text-text-muted">
+                <td class="border-b border-border px-2 py-1.5 align-top whitespace-nowrap tabular-nums text-text-muted sm:px-3">
                   {% if row.has_date %}
                     <time datetime="{{ row.published_on|date:'c' }}">{{ row.published_on|date:"d.m.y" }}</time>
                   {% else %}
                     <span class="dk-meta">Kuupäev teadmata</span>
                   {% endif %}
                 </td>
-                <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
+                <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal sm:px-3">
                   <a class="dk-link relative" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
                     {{ row.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
                   </a>
@@ -131,7 +144,7 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
                 measured and an article nobody read are different facts, and only
                 one of them is a number.
                 {% endcomment %}
-                <td class="border-b border-border px-3 py-1.5 text-right tabular-nums {% if row.has_views %}text-text-secondary{% else %}text-text-muted{% endif %}">
+                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums sm:px-3 {% if row.has_views %}text-text-secondary{% else %}text-text-muted{% endif %}">
                   {% if row.has_views %}{{ row.views|group_thousands }}{% else %}—{% endif %}
                 </td>
               </tr>

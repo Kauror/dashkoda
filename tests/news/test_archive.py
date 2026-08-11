@@ -135,7 +135,6 @@ def test_the_archive_reaches_articles_the_feed_no_longer_lists(viewer_client, me
         artifact=artifact,
         import_run=run,
         observed_at=timezone.now(),
-        checksum="a" * 64,
         is_current=True,
         item_count=10,
     )
