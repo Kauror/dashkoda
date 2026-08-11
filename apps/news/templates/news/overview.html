@@ -122,28 +122,41 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
               <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuupäev</th>
               <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Uudis</th>
               {% comment %}
-              `break-words` on both text columns is what lets this table fit a
-              320-pixel phone. A column cannot shrink below its longest
-              unbreakable word, and `Lehevaatamised` is fourteen characters of
-              one word — with the longest word in a headline beside it, the
-              three columns' minimums came to 38 pixels more than the viewport.
-              Breaking is allowed only where it is needed; ordinary headlines
-              still wrap at spaces.
+              `break-all` below `sm` is what lets this table fit a 320-pixel
+              phone, and the choice of property is the whole point: a column
+              cannot shrink below its longest unbreakable word, and
+              `Lehevaatamised` is fourteen characters of one, with the longest
+              word of a headline beside it. Together they came to 38 pixels
+              more than the viewport.
+
+              `overflow-wrap: break-word` — Tailwind's `break-words` — does not
+              help, and that is not a subtlety worth rediscovering: it permits a
+              break when a line would overflow but is defined not to reduce the
+              intrinsic minimum content size, so the table's minimum stayed
+              exactly what it was. `word-break: break-all` does reduce it.
+
+              Applied only below `sm`. Breaking Estonian mid-word is worth it at
+              320 pixels and is not worth it anywhere else.
               {% endcomment %}
-              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-words text-text-muted uppercase sm:px-3">{{ archive.views_heading }}</th>
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">{{ archive.views_heading }}</th>
             </tr>
           </thead>
           <tbody>
             {% for row in archive.rows %}
               <tr>
-                <td class="border-b border-border px-2 py-1.5 align-top whitespace-nowrap tabular-nums text-text-muted sm:px-3">
+                {% comment %}
+                The date must not break; `Kuupäev teadmata` may. Putting the
+                nowrap on the cell would give the column a 110-pixel floor for
+                the sake of a label that reads perfectly well on two lines.
+                {% endcomment %}
+                <td class="border-b border-border px-2 py-1.5 align-top tabular-nums text-text-muted sm:px-3">
                   {% if row.has_date %}
-                    <time datetime="{{ row.published_on|date:'c' }}">{{ row.published_on|date:"d.m.y" }}</time>
+                    <time class="whitespace-nowrap" datetime="{{ row.published_on|date:'c' }}">{{ row.published_on|date:"d.m.y" }}</time>
                   {% else %}
                     <span class="dk-meta">Kuupäev teadmata</span>
                   {% endif %}
                 </td>
-                <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal break-words sm:px-3">
+                <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal break-all sm:px-3 sm:break-words">
                   <a class="dk-link relative" href="{{ row.url }}" target="_blank" rel="noopener noreferrer">
                     {{ row.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
                   </a>
