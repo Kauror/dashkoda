@@ -48,6 +48,7 @@ from .selectors import (
     CategoryRow,
     ComparisonWindow,
     ProductRow,
+    acquisitions_per_hundred,
     build_category_rows,
     build_product_rows,
     get_categories,
@@ -348,8 +349,6 @@ def build_overview(
     ]
     total_views = sum(known_views) if known_views else None
     conversion_units = sum((row.conversion_units for row in rows), Decimal(0))
-
-    from .selectors import acquisitions_per_hundred
 
     state = {
         "product_type": product_type,
