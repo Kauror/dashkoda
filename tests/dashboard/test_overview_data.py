@@ -817,9 +817,11 @@ def test_the_public_event_calendar_reaches_no_card(viewer):
 def test_a_failed_check_is_still_disclosed_and_keeps_the_last_good_data(viewer):
     """The attention section is gone; the disclosure is not.
 
-    The connection strip at the foot of the page counts the stale sources, so a
-    failed check is still stated where a reader can see it, and the last data
-    that did arrive stays on the page rather than being withdrawn.
+    The connection strip left the overview in #104 — an operational count shown
+    to a board that cannot act on it — so the stale source is now stated by
+    `/dashboard/varskus/`, which serves the same fragment `freshness.py` has
+    always fed. What must not change is the overview: the last data that did
+    arrive stays on it rather than being withdrawn.
 
     The news feed carries this now: the public event calendar is no longer one of
     the four sources the shell row speaks for.
@@ -828,8 +830,9 @@ def test_a_failed_check_is_still_disclosed_and_keeps_the_last_good_data(viewer):
     synchronize_news(collector=collector_raising(NewsCollectionError("Sünteetiline viga.")))
 
     page = text_of(viewer.get(reverse("home")))
+    freshness = text_of(viewer.get(reverse("dashboard-freshness")))
 
-    assert "Vananenud: 1" in page
+    assert "Vananenud: 1" in freshness
     assert "Sünteetiline viga" not in page, "no exception detail may reach a viewer"
     assert "Sünteetiline uudise pealkiri" in page or "Sünteetiline uudis" in page, (
         "the last good data must still be shown"

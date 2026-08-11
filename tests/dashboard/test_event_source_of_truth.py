@@ -152,7 +152,11 @@ def test_the_overview_preview_shows_the_programme_and_links_only_what_the_workbo
 
 
 def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_programme):
-    """A failed later check discloses itself and withdraws nothing."""
+    """A failed later check discloses itself and withdraws nothing.
+
+    The disclosure moved to `/dashboard/varskus/` in #104; the figures staying
+    put on the overview is the half that must never move.
+    """
     from apps.event_programme.public_download import PublicDownloadError
 
     synchronize_public_workbook(
@@ -160,8 +164,9 @@ def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_p
     )
 
     page = text_of(viewer.get(reverse("home")))
+    freshness = text_of(viewer.get(reverse("dashboard-freshness")))
 
-    assert "Vananenud: 1" in page
+    assert "Vananenud: 1" in freshness
     assert "sündmusi järgmise 30 päeva jooksul 1" in page, "the figures are not withdrawn"
     assert "sündmusi eelmise 30 päeva jooksul 2" in page
     assert "Sünteetiline tõrge" not in page, "no failure detail may reach a viewer"

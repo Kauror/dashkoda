@@ -36,8 +36,12 @@ from apps.membership.models import (
     RemovalReasonKey,
     SizeBand,
 )
-from apps.sources.models import ImportRun, ImportStatus
-from apps.sources.services import register_external_reference
+from apps.sources.services import (
+    build_import_run,
+    complete_import_run,
+    register_external_reference,
+    start_import_run,
+)
 
 from .package_factory import build_package
 
@@ -68,13 +72,18 @@ def production_shaped_history():
         sha256="e" * 64,
         size_bytes=10,
     )
-    run = ImportRun.objects.create(
-        source=source,
-        artifact=artifact,
-        importer_name="seed",
-        schema_version="1.0",
-        status=ImportStatus.SUCCEEDED,
-        dry_run=False,
+    # Through the lifecycle rather than straight to `succeeded`: a terminal run
+    # must carry `started_at` and `finished_at`, which two check constraints
+    # enforce, so setting the status by hand cannot produce a legal row.
+    run = complete_import_run(
+        start_import_run(
+            build_import_run(
+                artifact=artifact,
+                importer_name="seed",
+                schema_version="1.0",
+                dry_run=False,
+            )
+        )
     )
 
     documents = MembershipHistoricalSourceDocument.objects.bulk_create(

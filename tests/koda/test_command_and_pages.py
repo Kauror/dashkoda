@@ -342,10 +342,11 @@ def test_the_overview_shows_the_two_public_sources_it_still_feeds(viewer):
 def test_a_failed_check_shows_previous_data_with_a_warning(viewer):
     """A failed check is disclosed, and the last good number is not withdrawn.
 
-    Both now happen on the overview: the count is in the headline strip and the
-    stale source is counted in the connection strip at the foot of the page. The
-    Liikmeskond page no longer carries the directory's connection state, because
-    it no longer carries the directory.
+    The two halves live in two places. The overview keeps showing the last good
+    count — that is the half a reader must not lose. The connection state moved
+    off the overview in #104, because it is an operational fact shown to a board
+    that cannot act on it; `/dashboard/varskus/` still serves it, so this asserts
+    the disclosure where it now is rather than where it used to be.
     """
     synchronize_membership(collector=collector_returning(membership_collection(3395)))
     synchronize_membership(
@@ -353,10 +354,14 @@ def test_a_failed_check_shows_previous_data_with_a_warning(viewer):
     )
 
     body = viewer.get(reverse("home")).content.decode()
+    freshness = viewer.get(reverse("dashboard-freshness")).content.decode()
 
     assert "3395" in body, "the previous good number must still be shown"
-    assert "Vananenud: 1" in body, "the failed check is disclosed"
-    assert "Sünteetiline sisemine veateade" not in body, "no exception detail may reach a viewer"
+    assert "Vananenud: 1" in freshness, "the failed check is disclosed"
+    for page in (body, freshness):
+        assert "Sünteetiline sisemine veateade" not in page, (
+            "no exception detail may reach a viewer"
+        )
 
 
 def visible_text(response) -> str:
