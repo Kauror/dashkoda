@@ -96,17 +96,22 @@ def test_the_band_carries_no_provenance_caption(submit, viewer_client):
     assert "Automaatselt kogutud" not in page
 
 
-def test_the_visibility_page_still_states_how_each_figure_was_collected(submit, viewer_client):
-    """The guarantee the overview used to carry, kept where it belongs.
+def test_neither_page_words_a_typed_figure_as_a_collected_one(submit, viewer_client):
+    """The rule that survives, now that the definition list is gone.
 
-    A dashboard mixing typed figures with synchronised feeds has to say which
-    is which somewhere, or a number a person read off a screen last month looks
-    exactly like one a collector fetched this morning."""
+    `Allikate määratlused` was struck out on the board's marked-up print, and
+    with it the sentence naming each figure's source. What must still hold is
+    the narrower rule from AGENTS.md: a typed figure is never *worded* as a
+    feed. Which figures are typed is documented in `apps/visibility/registry.py`
+    rather than restated beside every number.
+    """
     submit(facebook_followers=4200)
 
     page = body(viewer_client.get(PAGE_URL))
 
-    assert "Väärtus sisestatakse käsitsi" in page
+    assert "4200" in page
+    for feed_word in ("sünkroonitud", "API-ga ühendatud", "automaatselt uuendatud"):
+        assert feed_word not in page.lower()
 
 
 def channel_band(response) -> str:
@@ -302,18 +307,18 @@ def test_the_page_shows_the_latest_value_for_each_channel(submit, viewer_client,
     assert f"{today.day}.{today:%m.%y}" in page
 
 
-def test_the_page_states_the_newsletter_definition(viewer_client):
+def test_the_page_no_longer_carries_a_definition_list(viewer_client):
+    """`Allikate määratlused` was struck out on the board's marked-up print.
+
+    What each metric counts is documented in the repository — `registry.py`
+    holds every definition and `docs/newsletter-audience.md` explains the
+    newsletter figures — rather than restated beside every number on the page.
+    """
     page = body(viewer_client.get(PAGE_URL))
 
-    assert "tellijate arv smailys" in page.lower()
-    assert "ei ole saadetud" in page.lower()
-
-
-def test_the_page_states_each_social_definition(viewer_client):
-    page = body(viewer_client.get(PAGE_URL))
-
-    assert "Allikate määratlused" in page
-    assert "jälgijate arv" in page.lower()
+    assert "Allikate määratlused" not in page
+    assert "Sotsiaalmeedia" not in page
+    assert "Uudiskirjade nimekirjad" not in page
 
 
 def test_a_correction_replaces_the_figure_rather_than_appearing_beside_it(
@@ -336,27 +341,22 @@ def test_a_correction_replaces_the_figure_rather_than_appearing_beside_it(
     assert "Asendatud" not in page
 
 
-def test_a_trend_needs_at_least_two_observations(submit, viewer_client, days_ago):
-    submit(observation_date=days_ago(30), facebook_followers=4100)
+def test_the_page_draws_no_social_sparkline(submit, viewer_client, today, days_ago):
+    """The `Sotsiaalmeedia` section was struck out on the board's marked-up print.
 
-    page = body(viewer_client.get(PAGE_URL))
-
-    assert "<polyline" not in page
-    assert "Trendi kuvamiseks on vaja vähemalt kahte vaatlust." in page
-
-
-def test_two_observations_draw_a_sparkline_with_an_accessible_table(
-    submit, viewer_client, today, days_ago
-):
+    Its per-channel sparklines went with it. The four figures are still on the
+    channel band above; what is gone is a second, larger copy of them, and the
+    series they were drawn from is no longer queried on every render.
+    """
     submit(observation_date=days_ago(30), facebook_followers=4100)
     submit(observation_date=today, facebook_followers=4200)
 
     page = body(viewer_client.get(PAGE_URL))
 
-    assert "<polyline" in page
-    assert "Andmed tabelina" in page
-    assert 'role="img"' in page
-    assert "vaatlust, väikseim" in page
+    assert "Sotsiaalmeedia" not in page
+    assert "Trendi kuvamiseks on vaja vähemalt kahte vaatlust." not in page
+    # The figure itself is still on the page, on the band.
+    assert "4200" in page
 
 
 def test_the_page_loads_no_chart_bundle(submit, viewer_client, today, days_ago):

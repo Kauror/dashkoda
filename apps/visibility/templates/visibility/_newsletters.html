@@ -15,7 +15,7 @@ Three rules this markup exists to keep:
     collection starts from now rather than imply the lists are empty.
 {% endcomment %}
 <section aria-labelledby="section-newsletter-analytics" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Uudiskirjade tulemused" heading_id="section-newsletter-analytics" description="Nimekirjade kasv ja saadetud numbrite tulemused." only %}
+  {% include "dashboard/components/section_header.html" with title="Uudiskirjade tulemused" heading_id="section-newsletter-analytics" only %}
 
   <div class="dk-section-body flex flex-col gap-4">
     <nav aria-label="Uudiskiri" class="flex flex-wrap gap-2">
@@ -41,7 +41,6 @@ Three rules this markup exists to keep:
 
       {% if newsletters.has_audience %}
         <div class="flex flex-col gap-4">
-          <h3 class="text-sm font-medium text-text">Nimekirjade suurus</h3>
           {% for card in newsletters.audience %}
             {% if card.has_data %}
               <div class="flex flex-col gap-2">
@@ -64,8 +63,6 @@ Three rules this markup exists to keep:
             {% endif %}
           {% endfor %}
         </div>
-
-        <p class="dk-meta">{{ newsletters.coverage_note }}</p>
       {% endif %}
 
       {% if newsletters.has_issues %}
@@ -93,16 +90,6 @@ Three rules this markup exists to keep:
               </tbody>
             </table>
           </div>
-          <p class="dk-meta">
-            Avamismäär ja klikimäär arvutatakse kohale toimetatud kirjadest, mitte
-            saadetutest: tagasi põrkunud kirja ei olnud võimalik avada. Klikimäär
-            loeb unikaalseid klikkijaid, mitte klikke.
-          </p>
-          <p class="dk-meta">
-            Loendis on kõik Smailyst välja saadetud kampaaniad, ka need, mis ei ole
-            ühegi kolme uudiskirja number — need on tähisega <strong>Muu</strong>.
-            Mustandid ja tühistatud kampaaniad siia ei jõua.
-          </p>
           {% if newsletters.has_more_sends %}
             <p>
               <a class="dk-link text-sm" href="{% url 'visibility-campaign-history' %}">

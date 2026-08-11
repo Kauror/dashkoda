@@ -28,18 +28,16 @@ from datetime import date
 from django.utils import timezone
 
 from apps.core.formatting import short_date, signed_integer
-from apps.dashboard.sparkline import Sparkline, build_sparkline
 
 from .ga4 import Ga4ConnectionStatus, get_connection_status
 from .models import CollectionMethod, VisibilityMetric
 from .newsletter_page import NewsletterSection, build_newsletter_section
-from .registry import SOCIAL_METRICS, VisibilityMetricSpec
+from .registry import SOCIAL_METRICS
 from .selectors import (
     MetricReading,
     NewsletterSummary,
     VisibilitySummary,
     WebsiteTraffic,
-    get_visibility_series,
     get_visibility_summary,
     get_website_traffic,
 )
@@ -71,9 +69,10 @@ class ChannelSlot:
     collects this" from "nothing has been entered yet".
 
     `source_label` and `method_label` are the exception: the card footer was
-    trimmed to the observation date alone, so the band no longer prints either.
-    A card still says a person typed the figure — that is `state_label`, in the
-    card's own header — and the Nähtavus page still names every source in full.
+    trimmed to the observation date alone, so the band no longer prints either,
+    and the Nähtavus page's definition list has since gone too. What a card still
+    carries is `state_label` in its own header, saying whether the figure was
+    typed or collected.
     """
 
     label: str
@@ -203,7 +202,11 @@ def _social_slot(reading: MetricReading, *, detail_url: str) -> ChannelSlot:
     return ChannelSlot(
         label=reading.label,
         value=reading.value,
-        unit=reading.unit if reading.has_data else "",
+        # No unit beside the figure. `Facebooki jälgijad · 12 230 jälgijat`
+        # says "followers" twice; the card's own title is the unit. The website
+        # card keeps `seanssi` because sessions are not visits and its title
+        # does not say which of the two the number is.
+        unit="",
         secondary=secondary,
         as_of=reading.as_of,
         source_label=reading.source_label,
@@ -238,41 +241,12 @@ def build_channel_band(
 
 
 @dataclass(frozen=True)
-class ChannelTrend:
-    """One channel's history, drawn and tabulated.
-
-    The sparkline is optional and the table is not. A series of fewer than two
-    points is not a trend, so nothing is drawn — but the values themselves stay
-    in the document either way, which is what makes the figure readable without
-    the drawing.
-    """
-
-    spec: VisibilityMetricSpec
-    reading: MetricReading
-    series: tuple[tuple[date, int], ...]
-    sparkline: Sparkline | None
-
-    @property
-    def label(self) -> str:
-        return self.spec.label
-
-    @property
-    def has_series(self) -> bool:
-        return bool(self.series)
-
-    @property
-    def point_count(self) -> int:
-        return len(self.series)
-
-
-@dataclass(frozen=True)
 class VisibilityPage:
     """Everything the Nähtavus template renders."""
 
     summary: VisibilitySummary
     newsletter: NewsletterSummary
     social: tuple[MetricReading, ...]
-    trends: tuple[ChannelTrend, ...]
     channels: tuple[ChannelSlot, ...]
     ga4: Ga4ConnectionStatus
     traffic: TrafficSection
@@ -282,28 +256,6 @@ class VisibilityPage:
     @property
     def has_any_data(self) -> bool:
         return self.summary.has_any_data
-
-    @property
-    def drawn_trends(self) -> tuple[ChannelTrend, ...]:
-        return tuple(trend for trend in self.trends if trend.has_series)
-
-
-def _trend(reading: MetricReading) -> ChannelTrend:
-    """One channel's whole history, drawn if there is enough of it.
-
-    Deliberately unwindowed. A fixed window would hide the first reading of a
-    metric someone entered a year ago, which on a hand-kept series is exactly the
-    point worth seeing — and the series is a handful of rows by construction, so
-    there is nothing to bound.
-    """
-    series = get_visibility_series(reading.spec.key)
-    return ChannelTrend(
-        spec=reading.spec,
-        reading=reading,
-        series=series,
-        # Returns `None` below two points: a single dot on an axis is not a trend.
-        sparkline=build_sparkline(series),
-    )
 
 
 def build_visibility_page(
@@ -318,13 +270,11 @@ def build_visibility_page(
     today = today or timezone.localdate()
     summary = get_visibility_summary(today=today)
     ga4_status = get_connection_status()
-    trends = tuple(_trend(reading) for reading in summary.social)
 
     return VisibilityPage(
         summary=summary,
         newsletter=summary.newsletter,
         social=summary.social,
-        trends=trends,
         channels=build_channel_band(summary=summary, ga4_status=ga4_status, detail_url=detail_url),
         ga4=ga4_status,
         traffic=build_traffic_section(period_key=period_key, section_key=section_key, today=today),
@@ -339,7 +289,6 @@ __all__ = [
     "SOCIAL_METRICS",
     "WEBSITE_LABEL",
     "ChannelSlot",
-    "ChannelTrend",
     "VisibilityMetric",
     "VisibilityPage",
     "build_channel_band",
