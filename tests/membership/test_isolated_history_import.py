@@ -37,6 +37,7 @@ from apps.membership.models import (
     SizeBand,
 )
 from apps.sources.models import ImportRun, ImportStatus
+from apps.sources.services import register_external_reference
 
 from .package_factory import build_package
 
@@ -56,8 +57,20 @@ PRODUCTION_SHAPE = {
 def production_shaped_history():
     """Seed a history with the same shape production carries."""
     source = ensure_internal_membership_source()
+    # Every import run carries the artifact it read, so the seed registers a
+    # metadata-only one rather than leaving the column null — which is what this
+    # fixture used to do, and why all six tests in this file errored at setup.
+    artifact = register_external_reference(
+        source=source,
+        external_reference="synthetic:membership-history-seed",
+        original_name="synthetic-history.zip",
+        mime_type="application/zip",
+        sha256="e" * 64,
+        size_bytes=10,
+    )
     run = ImportRun.objects.create(
         source=source,
+        artifact=artifact,
         importer_name="seed",
         schema_version="1.0",
         status=ImportStatus.SUCCEEDED,
