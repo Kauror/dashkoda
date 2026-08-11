@@ -508,6 +508,13 @@ def search_pages(
         # `icontains` on the stored canonical path. Parameterised by the ORM —
         # the term never becomes SQL, and it is never used as a regex.
         matching |= Q(path__icontains=term)
+        # A reader pastes what the browser gave them. `canonical_path` turns
+        # `https://www.koda.ee/et/liikmed/liikmemaks` into the form actually
+        # stored; without this the paste matches nothing, because no stored
+        # path contains the host.
+        canonical_term = canonical_path(term)
+        if canonical_term and canonical_term != term:
+            matching |= Q(path__icontains=canonical_term)
     if extra:
         matching |= Q(path__in=extra)
     rows = rows.filter(matching)

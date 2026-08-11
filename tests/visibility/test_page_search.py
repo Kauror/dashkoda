@@ -62,6 +62,10 @@ def day():
             is_current_for_date=True,
             has_page_detail=True,
             sessions=1,
+            # The site-level figure GA4 reports for the day, which is what the
+            # traffic series reads. Set from the page rows so a test can show
+            # that excluding a path from a *ranking* leaves the site total alone.
+            page_views=sum(views for _path, views in pages),
         )
         for path, views in pages:
             Ga4PageDaily.objects.create(
@@ -81,6 +85,7 @@ def news(url, title):
         path=canonical_path(url),
         title=title,
         title_origin="feed",
+        last_seen_at=timezone.now(),
     )
 
 
