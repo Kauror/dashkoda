@@ -59,6 +59,12 @@ class ContentPerformanceRow:
     type_label: str = ""
     published_on: date | None = None
     event_date: date | None = None
+    #: Every measured view, across the whole of GA4's coverage. `None` in the
+    #: ranking, where the question is only ever about the chosen period; set in
+    #: a search result, where the two figures answer different questions and
+    #: both are shown. `None` rather than `0`, because a page whose total was
+    #: never asked for has not been measured at zero.
+    total_views: int | None = None
 
     @property
     def has_known_identity(self) -> bool:
@@ -113,6 +119,48 @@ def _event_titles(paths: Sequence[str]) -> dict[str, tuple[str, date | None]]:
     return found
 
 
+#: How many catalogue matches one search may contribute. A term like "a" would
+#: otherwise name every article the Chamber has ever published; the ranking that
+#: follows is paginated anyway, so an unbounded path set buys nothing.
+MAX_TITLE_MATCHES = 300
+
+
+def paths_for_title(term: str, *, limit: int = MAX_TITLE_MATCHES) -> tuple[str, ...]:
+    """Canonical paths whose **known** title matches `term`.
+
+    This is what lets a search for "islandi" find
+    `/et/sundmused/eesti-islandi-arifoorum`, whose slug does contain it, and
+    equally what lets a search for a title find a page whose slug does not.
+
+    Only titles DashKoda already holds on authority: the durable news catalogue
+    and the public event catalogue. Nothing is derived from a slug — see
+    `describe_pages`, which shows a path when it does not know a name. A search
+    that invented "Ekspordi arendamine" from `/et/teenused/ekspordi-arendamine`
+    would be inventing the very thing the row is careful not to claim.
+
+    Two bounded queries, both `icontains` on an indexed catalogue. Services have
+    no title catalogue yet, and that costs nothing here: a service is still
+    found by its path, which is what `search_pages` matches on.
+    """
+    term = (term or "").strip()
+    if not term:
+        return ()
+
+    from apps.events.public_models import PublicEventResource
+    from apps.news.public_models import NewsResource
+
+    found: list[str] = list(
+        NewsResource.objects.filter(title__icontains=term).values_list("path", flat=True)[:limit]
+    )
+    found.extend(
+        canonical_path(url)
+        for url in PublicEventResource.objects.filter(title__icontains=term).values_list(
+            "canonical_url", flat=True
+        )[:limit]
+    )
+    return tuple(dict.fromkeys(path for path in found if path))
+
+
 def describe_pages(
     totals: Iterable, *, section: ContentSection | None = None
 ) -> tuple[ContentPerformanceRow, ...]:
@@ -144,7 +192,11 @@ def describe_pages(
         described.append(
             ContentPerformanceRow(
                 path=row.path,
-                page_views=row.page_views,
+                # A ranking row calls it `page_views`; a search match calls it
+                # `period_views` and carries a total beside it. Both mean views
+                # inside the chosen window, so both land in the same field.
+                page_views=getattr(row, "page_views", None) or getattr(row, "period_views", 0),
+                total_views=getattr(row, "total_views", None),
                 title=title,
                 # The badge names the section, which is a fact about the URL.
                 # It is shown whether or not a title was found, because "this

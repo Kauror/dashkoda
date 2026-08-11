@@ -29,6 +29,11 @@ from datetime import date, timedelta
 from django.db.models import Count, Max, Min, Q, QuerySet, Sum
 from django.db.models.functions import TruncMonth, TruncWeek
 
+from .content_ranking import (
+    CONTENT_RANKING_EXACT_EXCLUSIONS,
+    CONTENT_RANKING_PREFIX_EXCLUSIONS,
+    ERROR_DOCUMENT_PREFIXES,
+)
 from .ga4_paths import canonical_path, canonical_paths
 from .models import Ga4ChannelDaily, Ga4DailySnapshot, Ga4PageDaily
 
@@ -320,6 +325,31 @@ def get_channel_totals(*, start: date, end: date, limit: int = 12) -> tuple[Chan
 # ---------------------------------------------------------------------------
 
 
+def only_rankable(rows: QuerySet[Ga4PageDaily]) -> QuerySet[Ga4PageDaily]:
+    """Drop the utility paths from a page queryset, in the database.
+
+    Applied to the **content ranking and content search only**. Site totals,
+    the traffic series and the channel breakdown all read the untouched rows:
+    `/et` is 133 588 real page views and stays in every figure that claims to
+    count the website. What it may not do is compete with articles in a list of
+    content — see `apps.visibility.content_ranking` for the whole rationale and
+    for where the list came from.
+
+    Excluding here rather than after the slice is what makes the Top 20 a top
+    twenty *of content*. Filtering afterwards would leave a ranking of
+    seventeen.
+    """
+    rows = rows.exclude(path__in=CONTENT_RANKING_EXACT_EXCLUSIONS)
+    for prefix in ERROR_DOCUMENT_PREFIXES:
+        rows = rows.exclude(path__startswith=prefix)
+    for prefix in CONTENT_RANKING_PREFIX_EXCLUSIONS:
+        # Whole segments: the prefix itself, or something beneath it. A plain
+        # `startswith` would take `/en/services/search-cooperation-partner`,
+        # which is a service the Chamber sells.
+        rows = rows.exclude(Q(path=prefix) | Q(path__startswith=prefix + "/"))
+    return rows
+
+
 @dataclass(frozen=True)
 class PageTotal:
     path: str
@@ -373,6 +403,8 @@ def get_top_pages(
     if left_out:
         rows = rows.exclude(path__in=left_out)
 
+    rows = only_rankable(rows)
+
     aggregated = (
         rows.values("path")
         .annotate(
@@ -392,6 +424,119 @@ def get_top_pages(
             peak_active_users=row["peak_active_users"],
         )
         for row in aggregated
+    )
+
+
+#: How long a search term may be. Bounded so a pasted essay cannot become a
+#: `LIKE` over forty thousand paths.
+MAX_SEARCH_LENGTH = 120
+
+
+@dataclass(frozen=True)
+class PageMatch:
+    """One page a search found, with both figures a reader needs.
+
+    The two are different questions and are never the same number by
+    construction: `period_views` is what this page did inside the window the
+    reader chose, `total_views` is everything GA4 has ever measured for it. A
+    page can be busy this month and rare overall, or the reverse, and collapsing
+    them into one column would hide whichever the reader was actually asking
+    about.
+    """
+
+    path: str
+    period_views: int
+    total_views: int
+    days_seen: int
+
+
+def search_pages(
+    *,
+    term: str,
+    start: date,
+    end: date,
+    extra_paths: Iterable[str] = (),
+    prefix: str | Sequence[str] = "",
+    exclude: Sequence[str] = (),
+    limit: int = 50,
+    offset: int = 0,
+) -> tuple[tuple[PageMatch, ...], int]:
+    """Pages whose path matches `term`, or which `extra_paths` names.
+
+    Returns the requested slice and the **total** number of matches, so a caller
+    can paginate without counting rows itself.
+
+    Searched over the whole measured population rather than over a ranking:
+    a page sitting at #347 is exactly the kind of page somebody searches for,
+    and searching the Top 20 would answer only for pages the reader could
+    already see.
+
+    `extra_paths` is how a title search reaches here. The catalogues know that
+    "islandi" names `/et/sundmused/eesti-islandi-arifoorum`; this module knows
+    nothing about titles and does not need to — it is handed the paths and
+    unions them with its own path matches.
+
+    Three queries whatever the result count: one for the period figures, one for
+    the totals, one for the count. Nothing here runs per row.
+    """
+    term = (term or "").strip()[:MAX_SEARCH_LENGTH]
+    extra = tuple(dict.fromkeys(canonical_paths(extra_paths)))
+    if not term and not extra:
+        return (), 0
+
+    rows = current_pages().filter(report_date__gte=start, report_date__lte=end)
+
+    wanted = (prefix,) if isinstance(prefix, str) else tuple(prefix or ())
+    section_filter = Q()
+    for one in wanted:
+        if not one:
+            continue
+        section = canonical_path(one)
+        section_filter |= Q(path=section) | Q(path__startswith=section + "/")
+    if section_filter:
+        rows = rows.filter(section_filter)
+
+    left_out = tuple(canonical_path(path) for path in exclude if path)
+    if left_out:
+        rows = rows.exclude(path__in=left_out)
+    # A search is a search of *content*, so the same utility paths stay out.
+    # `/et/search/node` is not a result for the word "search".
+    rows = only_rankable(rows)
+
+    matching = Q()
+    if term:
+        # `icontains` on the stored canonical path. Parameterised by the ORM —
+        # the term never becomes SQL, and it is never used as a regex.
+        matching |= Q(path__icontains=term)
+    if extra:
+        matching |= Q(path__in=extra)
+    rows = rows.filter(matching)
+
+    aggregated = (
+        rows.values("path")
+        .annotate(period_views=Sum("page_views"), days_seen=Count("id"))
+        # Busiest first inside the chosen period, which is the question the
+        # reader asked; path breaks ties so the order is stable between renders.
+        .order_by("-period_views", "path")
+    )
+    total_matches = aggregated.count()
+    page = list(aggregated[offset : offset + limit])
+
+    # One grouped query for the totals of exactly the rows being shown, rather
+    # than one `SUM` per result.
+    totals = get_page_view_totals(row["path"] for row in page)
+
+    return (
+        tuple(
+            PageMatch(
+                path=row["path"],
+                period_views=row["period_views"] or 0,
+                total_views=totals[row["path"]].total if row["path"] in totals else 0,
+                days_seen=row["days_seen"],
+            )
+            for row in page
+        ),
+        total_matches,
     )
 
 
