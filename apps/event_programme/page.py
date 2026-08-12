@@ -20,7 +20,7 @@ Nothing here reaches outside PostgreSQL.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from urllib.parse import urlencode
 
 from django.core.paginator import Paginator
@@ -151,6 +151,9 @@ class ProgrammePage:
     coverage_start: object = None
     quality: tuple[QualityLink, ...] = ()
     clear_url: str = ""
+    #: The same question over the whole history: this filter state with the year
+    #: widened and everything else — the term above all — kept.
+    all_years_url: str = ""
     all_years_value: str = YEAR_ALL
     all_years_label: str = ALL_YEARS_LABEL
     public_link_options: tuple[Option, ...] = PUBLIC_LINK_OPTIONS
@@ -168,6 +171,32 @@ class ProgrammePage:
     def has_narrowed(self) -> bool:
         """Whether anything but the default period is applied."""
         return self.filters.is_active or self.filters.year is None
+
+    @property
+    def is_searching(self) -> bool:
+        return bool(self.filters.q)
+
+    @property
+    def search_is_year_bound(self) -> bool:
+        """Whether a search is answering inside a year the reader did not type.
+
+        The year defaults to the current one, which is right for a page whose
+        standing job is this year's programme — and surprising the moment
+        somebody searches, because a search reads as a question about the
+        register. `eksport` finds one event in 2026 and thirteen in the whole
+        programme, and nothing on screen said which had been asked.
+
+        So the page says it. The filter is not overridden: a reader may have set
+        the year deliberately, and a search that silently widened it would be
+        the same failure in the other direction.
+        """
+        return self.is_searching and self.filters.year is not None
+
+    @property
+    def year_bound_note(self) -> str:
+        if not self.search_is_year_bound:
+            return ""
+        return f"Otsitakse ainult {self.filters.year}. aasta sündmustest."
 
 
 def parse_filters(params, options: FilterOptions) -> ProgrammeFilters:
@@ -262,13 +291,12 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
         coverage_start=get_coverage().earliest,
         quality=_quality_links(snapshot),
         clear_url=reverse("events"),
+        all_years_url=_url(replace(filters, year=None)),
     )
 
 
 def _sort_options(filters: ProgrammeFilters) -> tuple[SortOption, ...]:
     """`Kuupäev` and `Enim vaadatud`, each carrying the current filters."""
-    from dataclasses import replace
-
     return tuple(
         SortOption(
             label=label,
