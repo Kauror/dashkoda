@@ -390,7 +390,8 @@ class TestTheAdminResolutionWorkflow:
         assert issue.resolved_at is not None
 
     def test_resolving_an_issue_records_an_audit_event(self, imported_package, staff_user, rf):
-        from apps.audit.models import AuditAction, AuditEvent
+        from apps.audit.models import AuditEvent
+        from apps.membership.audit_actions import MembershipAudit
 
         issue = MembershipDataIssue.objects.first()
         issue.resolved = True
@@ -399,7 +400,7 @@ class TestTheAdminResolutionWorkflow:
             self._post(rf, staff_user), issue, form=None, change=True
         )
 
-        assert AuditEvent.objects.filter(action=AuditAction.MEMBERSHIP_ISSUE_RESOLVED).exists()
+        assert AuditEvent.objects.filter(action=MembershipAudit.ISSUE_RESOLVED).exists()
 
     def test_unresolving_an_issue_clears_the_stamp(self, imported_package, staff_user, rf):
         issue = MembershipDataIssue.objects.first()

@@ -8,7 +8,8 @@ from decimal import Decimal
 import pytest
 from django.conf import settings
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
+from apps.membership.audit_actions import MembershipAudit
 from apps.membership.history_import import (
     IMPORTER_NAME,
     MembershipHistoryImportError,
@@ -72,7 +73,7 @@ def test_repeating_an_identical_import_changes_nothing(package_path, imported_pa
     assert repeated.unchanged is True
     assert InternalMembershipObservation.objects.count() == before
     assert repeated.import_run.pk == imported_package.import_run.pk
-    assert AuditEvent.objects.filter(action=AuditAction.MEMBERSHIP_HISTORY_UNCHANGED).exists()
+    assert AuditEvent.objects.filter(action=MembershipAudit.HISTORY_UNCHANGED).exists()
 
 
 def test_dry_run_then_live_import_works(package_path):
@@ -105,7 +106,7 @@ def test_failed_import_leaves_the_database_untouched(tmp_path, db):
 
     failed = ImportRun.objects.filter(status=ImportStatus.FAILED).first()
     assert failed is not None
-    assert AuditEvent.objects.filter(action=AuditAction.MEMBERSHIP_HISTORY_FAILED).exists()
+    assert AuditEvent.objects.filter(action=MembershipAudit.HISTORY_FAILED).exists()
 
 
 def test_invalid_package_never_creates_an_import_run(tmp_path):
@@ -294,7 +295,7 @@ def test_conflict_stores_document_ids_and_no_paths(imported_package):
 
 
 def test_audit_records_counts_and_no_source_content(imported_package):
-    event = AuditEvent.objects.get(action=AuditAction.MEMBERSHIP_HISTORY_IMPORTED)
+    event = AuditEvent.objects.get(action=MembershipAudit.HISTORY_IMPORTED)
     summary = event.change_summary
 
     assert summary["counts"]["observations"] == 3

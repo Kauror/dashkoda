@@ -34,8 +34,8 @@ import uuid
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.legal_work.audit_actions import LegalWorkAudit
 from apps.sources.workbook_sync import (
     ATTEMPT_FAILED,
     ATTEMPT_UNCHANGED,
@@ -188,7 +188,7 @@ def _record_unchanged(
                 ]
             )
             record_event(
-                action=AuditAction.LEGAL_WORK_SYNC_UNCHANGED,
+                action=LegalWorkAudit.SYNC_UNCHANGED,
                 obj=state.source,
                 correlation_id=correlation_id,
                 change_summary={

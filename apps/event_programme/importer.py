@@ -18,9 +18,9 @@ from pathlib import Path
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.collapse_guard import collapse_reason
+from apps.event_programme.audit_actions import EventProgrammeAudit
 from apps.sources.models import ImportRun, SourceArtifact
 from apps.sources.services import (
     build_import_run,
@@ -244,7 +244,7 @@ def import_artifact(
                 actor=actor,
             )
             record_event(
-                action=AuditAction.EVENT_PROGRAMME_SNAPSHOT_IMPORTED,
+                action=EventProgrammeAudit.SNAPSHOT_IMPORTED,
                 obj=snapshot,
                 actor=actor,
                 correlation_id=run.correlation_id,
@@ -289,7 +289,7 @@ def _publish(snapshot: EventProgrammeSnapshot, *, actor=None) -> None:
     snapshot.save(update_fields=["is_current"])
 
     record_event(
-        action=AuditAction.EVENT_PROGRAMME_SNAPSHOT_PUBLISHED,
+        action=EventProgrammeAudit.SNAPSHOT_PUBLISHED,
         obj=snapshot,
         actor=actor,
         correlation_id=snapshot.import_run.correlation_id,

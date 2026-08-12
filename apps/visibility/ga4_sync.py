@@ -44,7 +44,6 @@ from datetime import date, timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
     fail_feed,
@@ -62,6 +61,7 @@ from apps.sources.services import (
     register_external_reference,
     start_import_run,
 )
+from apps.visibility.audit_actions import VisibilityAudit
 
 from .bootstrap import ensure_ga4_source
 from .ga4 import (
@@ -316,7 +316,7 @@ def synchronize_ga4(
             mark_unchanged(
                 state,
                 correlation_id=correlation_id,
-                audit_action=AuditAction.GA4_SYNC_UNCHANGED,
+                audit_action=VisibilityAudit.GA4_SYNC_UNCHANGED,
                 change_summary={"source": source.slug, "window_end": end.isoformat()},
             )
         _remember_period(state, end)
@@ -514,7 +514,7 @@ def _publish_day(
                 actor=actor,
             )
             record_event(
-                action=AuditAction.GA4_OBSERVATION_IMPORTED,
+                action=VisibilityAudit.GA4_OBSERVATION_IMPORTED,
                 obj=snapshot,
                 actor=actor,
                 correlation_id=correlation_id,
@@ -601,7 +601,7 @@ def _fail(
         state,
         message,
         correlation_id=correlation_id,
-        audit_action=AuditAction.GA4_SYNC_FAILED,
+        audit_action=VisibilityAudit.GA4_SYNC_FAILED,
         logger=logger,
     )
     if report is not None:

@@ -4,7 +4,8 @@ import pytest
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
+from apps.legal_work.audit_actions import LegalWorkAudit
 from apps.legal_work.importer import IMPORTER_NAME, LegalWorkImportError, import_artifact
 from apps.legal_work.models import (
     LegalWorkItem,
@@ -232,8 +233,8 @@ def test_import_records_audit_events(make_workbook, register_workbook):
             "action", flat=True
         )
     )
-    assert AuditAction.LEGAL_WORK_SNAPSHOT_IMPORTED in actions
-    assert AuditAction.LEGAL_WORK_SNAPSHOT_PUBLISHED in actions
+    assert LegalWorkAudit.SNAPSHOT_IMPORTED in actions
+    assert LegalWorkAudit.SNAPSHOT_PUBLISHED in actions
 
 
 def test_external_reference_artifacts_cannot_be_imported(legal_work_source):

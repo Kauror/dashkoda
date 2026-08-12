@@ -10,10 +10,13 @@ class AuditEventImmutable(RuntimeError):
 
 
 class AuditAction(models.TextChoices):
-    """Actions recorded so far.
+    """The actions the source, artifact and import registry records.
 
-    Later pull requests add their own values; the field is deliberately a plain
-    CharField so a new action never needs a migration in a hurry.
+    Each domain declares its own in its own `audit_actions.py`, so a feature adds
+    an action without touching this file -- sixteen of this module's eighteen
+    commits were exactly that. The field is deliberately a plain `CharField`
+    with no `choices`, which is what lets an action live anywhere: the admin
+    filter is built from the values actually present in the table.
     """
 
     DATA_SOURCE_CREATED = "data_source.created", "Andmeallikas loodud"
@@ -24,265 +27,41 @@ class AuditAction(models.TextChoices):
     IMPORT_RUN_CREATED = "import_run.created", "Impordikäivitus loodud"
     IMPORT_RUN_SUCCEEDED = "import_run.succeeded", "Impordikäivitus õnnestus"
     IMPORT_RUN_FAILED = "import_run.failed", "Impordikäivitus ebaõnnestus"
-    LEGAL_WORK_SNAPSHOT_IMPORTED = (
-        "legal_work.snapshot_imported",
-        "Õigusloome hetkeseis imporditud",
-    )
-    LEGAL_WORK_SNAPSHOT_PUBLISHED = (
-        "legal_work.snapshot_published",
-        "Õigusloome hetkeseis kehtestatud",
-    )
-    LEGAL_WORK_SYNC_UNCHANGED = (
-        "legal_work.sync_unchanged",
-        "Õigusloome sünkroonimine: muutusteta",
-    )
-    LEGAL_WORK_SYNC_FAILED = (
-        "legal_work.sync_failed",
-        "Õigusloome sünkroonimine ebaõnnestus",
-    )
-    MEMBERSHIP_OBSERVATION_IMPORTED = (
-        "membership.observation_imported",
-        "Liikmete arv imporditud",
-    )
-    MEMBERSHIP_SYNC_UNCHANGED = (
-        "membership.sync_unchanged",
-        "Liikmete arv: muutusteta",
-    )
-    MEMBERSHIP_SYNC_FAILED = (
-        "membership.sync_failed",
-        "Liikmete arvu sünkroonimine ebaõnnestus",
-    )
     # The Chamber's internal board-report history. A separate dataset from the
     # public directory count above, so it gets its own actions rather than
     # reusing them and making the trail ambiguous.
-    MEMBERSHIP_HISTORY_IMPORTED = (
-        "membership.history_imported",
-        "Liikmeskonna ajalugu imporditud",
-    )
-    MEMBERSHIP_HISTORY_UNCHANGED = (
-        "membership.history_unchanged",
-        "Liikmeskonna ajalugu: muutusteta",
-    )
-    MEMBERSHIP_HISTORY_FAILED = (
-        "membership.history_failed",
-        "Liikmeskonna ajaloo import ebaõnnestus",
-    )
-    MEMBERSHIP_MANUAL_OBSERVATION_CREATED = (
-        "membership.manual_observation_created",
-        "Liikmeskonna aruanne käsitsi lisatud",
-    )
-    MEMBERSHIP_MANUAL_OBSERVATION_SUPERSEDED = (
-        "membership.manual_observation_superseded",
-        "Liikmeskonna vaatlus asendatud",
-    )
-    MEMBERSHIP_ISSUE_RESOLVED = (
-        "membership.issue_resolved",
-        "Liikmeskonna andmeprobleem lahendatud",
-    )
-    NEWS_SNAPSHOT_IMPORTED = (
-        "news.snapshot_imported",
-        "Uudiste hetkeseis imporditud",
-    )
-    NEWS_SYNC_UNCHANGED = (
-        "news.sync_unchanged",
-        "Uudised: muutusteta",
-    )
-    NEWS_SYNC_FAILED = (
-        "news.sync_failed",
-        "Uudiste sünkroonimine ebaõnnestus",
-    )
-    EVENTS_SNAPSHOT_IMPORTED = (
-        "events.snapshot_imported",
-        "Sündmuste hetkeseis imporditud",
-    )
-    EVENTS_SYNC_UNCHANGED = (
-        "events.sync_unchanged",
-        "Sündmused: muutusteta",
-    )
-    EVENTS_SYNC_FAILED = (
-        "events.sync_failed",
-        "Sündmuste sünkroonimine ebaõnnestus",
-    )
     # Discovery of the durable public event-page catalogue. Separate from the
     # calendar actions above because it is a different job on a different
     # schedule: that one publishes what is upcoming, this one accumulates
     # addresses for events that have already happened.
-    EVENT_PAGES_DISCOVERED = (
-        "events.pages_discovered",
-        "Avalikud sündmuste lehed läbi vaadatud",
-    )
     # The Chamber's own event programme, prepared from the operational service-code
     # workbook. A different dataset from the public Koda.ee listing above, so it
     # gets its own actions rather than reusing them and making the trail ambiguous.
-    EVENT_PROGRAMME_SNAPSHOT_IMPORTED = (
-        "event_programme.snapshot_imported",
-        "Sündmuste programmi hetkeseis imporditud",
-    )
-    EVENT_PROGRAMME_SNAPSHOT_PUBLISHED = (
-        "event_programme.snapshot_published",
-        "Sündmuste programmi hetkeseis kehtestatud",
-    )
     # Attaching public page addresses to programme events. A separate action
     # from the import above because it changes no programme field — only which
     # public page an event is understood to point at.
-    EVENT_PUBLIC_LINKS_MATCHED = (
-        "event_programme.public_links_matched",
-        "Sündmuste avalikud viited sobitatud",
-    )
-    EVENT_PROGRAMME_SYNC_UNCHANGED = (
-        "event_programme.sync_unchanged",
-        "Sündmuste programm: muutusteta",
-    )
-    EVENT_PROGRAMME_SYNC_FAILED = (
-        "event_programme.sync_failed",
-        "Sündmuste programmi sünkroonimine ebaõnnestus",
-    )
     # The public Koda.ee "Hetkel käsil" catalogue, collected to enrich the
     # legal-work records. A separate source from the workbook feed above, so it
     # gets its own actions: a failure here says nothing about the workbook.
-    CURRENT_TOPIC_SNAPSHOT_IMPORTED = (
-        "legal_work.current_topic_snapshot_imported",
-        "Hetkel käsil hetkeseis imporditud",
-    )
-    CURRENT_TOPIC_SYNC_UNCHANGED = (
-        "legal_work.current_topic_sync_unchanged",
-        "Hetkel käsil: muutusteta",
-    )
-    CURRENT_TOPIC_SYNC_FAILED = (
-        "legal_work.current_topic_sync_failed",
-        "Hetkel käsil sünkroonimine ebaõnnestus",
-    )
     # Derived match results: generated rather than collected. A `matched`
     # decision is what makes a legal topic clickable on the Õigusloome page.
-    CURRENT_TOPIC_MATCH_GENERATED = (
-        "legal_work.current_topic_match_generated",
-        "Õigusloome sobitamine arvutatud",
-    )
-    CURRENT_TOPIC_MATCH_UNCHANGED = (
-        "legal_work.current_topic_match_unchanged",
-        "Õigusloome sobitamine: muutusteta",
-    )
-    CURRENT_TOPIC_MATCH_FAILED = (
-        "legal_work.current_topic_match_failed",
-        "Õigusloome sobitamine ebaõnnestus",
-    )
     # The Koda.ee "Hetkel käsil" **archive**, collected as a fallback source of
     # consultation links. Its own actions: an archive outage says nothing about
     # the current catalogue, and the two must stay separable in the trail.
-    ARCHIVED_TOPIC_SNAPSHOT_IMPORTED = (
-        "legal_work.archived_topic_snapshot_imported",
-        "Arhiivi hetkeseis imporditud",
-    )
-    ARCHIVED_TOPIC_SYNC_UNCHANGED = (
-        "legal_work.archived_topic_sync_unchanged",
-        "Arhiiv: muutusteta",
-    )
-    ARCHIVED_TOPIC_SYNC_FAILED = (
-        "legal_work.archived_topic_sync_failed",
-        "Arhiivi sünkroonimine ebaõnnestus",
-    )
-    ARCHIVED_TOPIC_MATCH_GENERATED = (
-        "legal_work.archived_topic_match_generated",
-        "Arhiivi sobitamine arvutatud",
-    )
-    ARCHIVED_TOPIC_MATCH_UNCHANGED = (
-        "legal_work.archived_topic_match_unchanged",
-        "Arhiivi sobitamine: muutusteta",
-    )
-    ARCHIVED_TOPIC_MATCH_FAILED = (
-        "legal_work.archived_topic_match_failed",
-        "Arhiivi sobitamine ebaõnnestus",
-    )
     # The Chamber's own opinion documents. Private correspondence rather than a
     # public feed, so its summaries carry counts, snapshot ids and digest
     # prefixes only — never a filename, a recipient, a subject, document text or
     # a storage path.
-    OPINION_CATALOGUE_IMPORTED = (
-        "legal_work.opinion_catalogue_imported",
-        "Arvamuste kataloog imporditud",
-    )
-    OPINION_CATALOGUE_UNCHANGED = (
-        "legal_work.opinion_catalogue_unchanged",
-        "Arvamuste kataloog: muutusteta",
-    )
-    OPINION_CATALOGUE_FAILED = (
-        "legal_work.opinion_catalogue_failed",
-        "Arvamuste kataloogi ehitamine ebaõnnestus",
-    )
-    OPINION_DOCUMENT_QUARANTINED = (
-        "legal_work.opinion_document_quarantined",
-        "Arvamusdokument karantiini",
-    )
-    OPINION_MATCH_GENERATED = (
-        "legal_work.opinion_match_generated",
-        "Arvamuste sobitamine arvutatud",
-    )
-    OPINION_MATCH_UNCHANGED = (
-        "legal_work.opinion_match_unchanged",
-        "Arvamuste sobitamine: muutusteta",
-    )
-    OPINION_MATCH_FAILED = (
-        "legal_work.opinion_match_failed",
-        "Arvamuste sobitamine ebaõnnestus",
-    )
     # The public Koda.ee opinion corpus. Summaries carry counts, snapshot ids
     # and checksum prefixes only — never a URL, a title, a filename or text.
-    PUBLIC_OPINIONS_IMPORTED = (
-        "legal_work.public_opinions_imported",
-        "Avalik arvamuskorpus imporditud",
-    )
-    PUBLIC_OPINIONS_UNCHANGED = (
-        "legal_work.public_opinions_unchanged",
-        "Avalik arvamuskorpus: muutusteta",
-    )
-    PUBLIC_OPINIONS_FAILED = (
-        "legal_work.public_opinions_failed",
-        "Avaliku arvamuskorpuse kogumine ebaõnnestus",
-    )
     # Manually observed audience sizes. A batch event describes one submission;
     # the per-observation events describe what that submission did to each
     # metric, which is what makes a correction auditable on its own.
-    VISIBILITY_MANUAL_BATCH_PUBLISHED = (
-        "visibility.manual_batch_published",
-        "Nähtavuse näitajad käsitsi sisestatud",
-    )
-    VISIBILITY_OBSERVATION_PUBLISHED = (
-        "visibility.observation_published",
-        "Nähtavuse vaatlus avaldatud",
-    )
-    VISIBILITY_OBSERVATION_SUPERSEDED = (
-        "visibility.observation_superseded",
-        "Nähtavuse vaatlus asendatud",
-    )
     # Google Analytics website traffic: the one collected figure in this module,
     # so the only one with the three feed events every other collector has.
-    GA4_OBSERVATION_IMPORTED = (
-        "visibility.ga4_observation_imported",
-        "Veebiliikluse vaatlus imporditud",
-    )
-    GA4_SYNC_UNCHANGED = (
-        "visibility.ga4_sync_unchanged",
-        "Veebiliikluse kogumine: muutusteta",
-    )
-    GA4_SYNC_FAILED = (
-        "visibility.ga4_sync_failed",
-        "Veebiliikluse kogumine ebaõnnestus",
-    )
     # Smaily newsletter audiences: the second collected figure in this module.
     # The summaries carry segment counts and withheld metric keys, never an
     # address, a subscriber or a credential.
-    SMAILY_OBSERVATION_IMPORTED = (
-        "visibility.smaily_observation_imported",
-        "Uudiskirjade lugemine imporditud",
-    )
-    SMAILY_SYNC_UNCHANGED = (
-        "visibility.smaily_sync_unchanged",
-        "Uudiskirjade kogumine: muutusteta",
-    )
-    SMAILY_SYNC_FAILED = (
-        "visibility.smaily_sync_failed",
-        "Uudiskirjade kogumine ebaõnnestus",
-    )
     # Retention. The one scheduled action that deletes published rows, so it
     # leaves a permanent record of exactly how many and from which family.
     SNAPSHOTS_PRUNED = (
@@ -291,18 +70,6 @@ class AuditAction(models.TextChoices):
     )
     # E-pood. The manual commerce package, which publishes product metadata and
     # aggregated daily facts all-or-nothing.
-    SHOP_SNAPSHOT_IMPORTED = (
-        "shop.snapshot_imported",
-        "E-poe andmed imporditud",
-    )
-    SHOP_SNAPSHOT_UNCHANGED = (
-        "shop.snapshot_unchanged",
-        "E-poe andmed: muutusteta",
-    )
-    SHOP_SNAPSHOT_FAILED = (
-        "shop.snapshot_failed",
-        "E-poe andmete import ebaõnnestus",
-    )
 
 
 class AuditEventQuerySet(models.QuerySet):

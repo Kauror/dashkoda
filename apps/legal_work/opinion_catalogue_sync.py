@@ -33,7 +33,6 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
     describe_error,
@@ -45,6 +44,7 @@ from apps.core.feed_sync import (
     start_run,
     touch_checked,
 )
+from apps.legal_work.audit_actions import LegalWorkAudit
 from apps.sources.services import complete_import_run, publishing_run
 
 from .opinion_bootstrap import ensure_opinion_source
@@ -372,7 +372,7 @@ def _process_entry(
 
         if not validation.is_valid:
             record_event(
-                action=AuditAction.OPINION_DOCUMENT_QUARANTINED,
+                action=LegalWorkAudit.OPINION_DOCUMENT_QUARANTINED,
                 obj=blob,
                 actor=actor,
                 correlation_id=correlation_id,
@@ -517,7 +517,7 @@ def _publish(
             publish_current(snapshot)
             complete_import_run(run, rows_added=len(manifest), actor=actor)
             record_event(
-                action=AuditAction.OPINION_CATALOGUE_IMPORTED,
+                action=LegalWorkAudit.OPINION_CATALOGUE_IMPORTED,
                 obj=snapshot,
                 actor=actor,
                 correlation_id=correlation_id,
@@ -624,7 +624,7 @@ def _mark_unchanged(state, correlation_id, checksum: str, *, entries: int) -> No
     mark_unchanged(
         state,
         correlation_id=correlation_id,
-        audit_action=AuditAction.OPINION_CATALOGUE_UNCHANGED,
+        audit_action=LegalWorkAudit.OPINION_CATALOGUE_UNCHANGED,
         change_summary={
             "source": state.source.slug,
             "entries": entries,
@@ -661,7 +661,7 @@ def _fail(state, error: Exception, correlation_id) -> CatalogueReport:
         state,
         message,
         correlation_id=correlation_id,
-        audit_action=AuditAction.OPINION_CATALOGUE_FAILED,
+        audit_action=LegalWorkAudit.OPINION_CATALOGUE_FAILED,
         logger=logger,
     )
     return CatalogueReport(result=RESULT_FAILED, detail=message)

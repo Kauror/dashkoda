@@ -51,7 +51,6 @@ from dataclasses import dataclass, field
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
     ContentIdentity,
@@ -66,6 +65,7 @@ from apps.core.feed_sync import (
     touch_checked,
 )
 from apps.core.feeds import FeedResult
+from apps.legal_work.audit_actions import LegalWorkAudit
 from apps.sources.services import complete_import_run, fail_publication
 
 from .archive_bootstrap import ensure_archive_source
@@ -311,7 +311,7 @@ def synchronize_archived_topics(
             publish_current(snapshot)
             complete_import_run(run, rows_added=len(entries), actor=actor)
             record_event(
-                action=AuditAction.ARCHIVED_TOPIC_SNAPSHOT_IMPORTED,
+                action=LegalWorkAudit.ARCHIVED_TOPIC_SNAPSHOT_IMPORTED,
                 obj=snapshot,
                 actor=actor,
                 correlation_id=correlation_id,
@@ -641,7 +641,7 @@ def _unchanged(
         mark_unchanged(
             state,
             correlation_id=correlation_id,
-            audit_action=AuditAction.ARCHIVED_TOPIC_SYNC_UNCHANGED,
+            audit_action=LegalWorkAudit.ARCHIVED_TOPIC_SYNC_UNCHANGED,
             change_summary={
                 "source": state.source.slug,
                 "item_count": snapshot.item_count if snapshot else 0,
@@ -678,7 +678,7 @@ def _fail(state, message: str, correlation_id) -> ArchiveSyncReport:
         state,
         message,
         correlation_id=correlation_id,
-        audit_action=AuditAction.ARCHIVED_TOPIC_SYNC_FAILED,
+        audit_action=LegalWorkAudit.ARCHIVED_TOPIC_SYNC_FAILED,
         logger=logger,
     )
     return ArchiveSyncReport(result=outcome.result, detail=outcome.detail)

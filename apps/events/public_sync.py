@@ -24,8 +24,8 @@ import uuid
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.events.audit_actions import EventsAudit
 
 from .public_bootstrap import ensure_event_pages_source
 from .public_discovery import DiscoveryTally, discover_public_events
@@ -94,7 +94,7 @@ def discover_event_pages(
     snapshot = _record(source, tally, observed_at=observed_at)
 
     record_event(
-        action=AuditAction.EVENT_PAGES_DISCOVERED,
+        action=EventsAudit.EVENT_PAGES_DISCOVERED,
         obj=snapshot,
         actor=actor,
         correlation_id=correlation_id,

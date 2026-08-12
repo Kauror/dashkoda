@@ -13,7 +13,6 @@ import uuid
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
     describe_error,
@@ -27,6 +26,7 @@ from apps.core.feed_sync import (
     touch_checked,
 )
 from apps.core.feeds import FeedResult, SourceOutcome
+from apps.news.audit_actions import NewsAudit
 from apps.sources.services import complete_import_run, fail_publication
 
 from .bootstrap import ensure_news_source
@@ -127,7 +127,7 @@ def synchronize_news(*, dry_run: bool = False, actor=None, collector=None) -> So
             publish_current(snapshot)
             complete_import_run(run, rows_added=len(collection.entries), actor=actor)
             record_event(
-                action=AuditAction.NEWS_SNAPSHOT_IMPORTED,
+                action=NewsAudit.SNAPSHOT_IMPORTED,
                 obj=snapshot,
                 actor=actor,
                 correlation_id=correlation_id,
@@ -164,7 +164,7 @@ def _unchanged(state, collection, *, dry_run: bool, correlation_id) -> SourceOut
         mark_unchanged(
             state,
             correlation_id=correlation_id,
-            audit_action=AuditAction.NEWS_SYNC_UNCHANGED,
+            audit_action=NewsAudit.SYNC_UNCHANGED,
             change_summary={"source": state.source.slug, "item_count": count},
             etag=collection.etag if collection is not None else None,
             last_modified=collection.last_modified if collection is not None else None,
@@ -182,6 +182,6 @@ def _fail(state, message: str, correlation_id) -> SourceOutcome:
         state,
         message,
         correlation_id=correlation_id,
-        audit_action=AuditAction.NEWS_SYNC_FAILED,
+        audit_action=NewsAudit.SYNC_FAILED,
         logger=logger,
     )

@@ -9,9 +9,10 @@ from __future__ import annotations
 
 import pytest
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
 from apps.core.feeds import FeedResult
 from apps.core.public_http import PublicFetchError
+from apps.legal_work.audit_actions import LegalWorkAudit
 from apps.legal_work.models import (
     CurrentTopicFeedState,
     CurrentTopicItem,
@@ -158,7 +159,7 @@ def test_a_published_row_refuses_every_change(publish_current_topics):
 def test_a_publication_is_audited_without_source_content(publish_current_topics):
     publish_current_topics(site("alpha"))
 
-    event = AuditEvent.objects.get(action=AuditAction.CURRENT_TOPIC_SNAPSHOT_IMPORTED)
+    event = AuditEvent.objects.get(action=LegalWorkAudit.CURRENT_TOPIC_SNAPSHOT_IMPORTED)
     summary = event.change_summary
     assert summary["item_count"] == 1
     assert set(summary) == {
@@ -178,12 +179,12 @@ def test_an_unchanged_check_is_audited(publish_current_topics):
     publish_current_topics(site("alpha"))
     publish_current_topics(site("alpha"))
 
-    assert AuditEvent.objects.filter(action=AuditAction.CURRENT_TOPIC_SYNC_UNCHANGED).exists()
+    assert AuditEvent.objects.filter(action=LegalWorkAudit.CURRENT_TOPIC_SYNC_UNCHANGED).exists()
 
 
 def test_a_failure_is_audited(publish_current_topics):
     broken = FakeSite({}, errors={LISTING_PATH: PublicFetchError("Allikas vastas koodiga 503.")})
     publish_current_topics(broken)
 
-    event = AuditEvent.objects.get(action=AuditAction.CURRENT_TOPIC_SYNC_FAILED)
+    event = AuditEvent.objects.get(action=LegalWorkAudit.CURRENT_TOPIC_SYNC_FAILED)
     assert "http" not in str(event.change_summary)

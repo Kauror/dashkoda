@@ -21,8 +21,8 @@ from __future__ import annotations
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.membership.audit_actions import MembershipAudit
 
 from .models import (
     InternalMembershipObservation,
@@ -102,7 +102,7 @@ def supersede_observation(
     previous.save(update_fields=["quality_status"])
 
     record_event(
-        action=AuditAction.MEMBERSHIP_MANUAL_OBSERVATION_SUPERSEDED,
+        action=MembershipAudit.MANUAL_OBSERVATION_SUPERSEDED,
         obj=previous,
         actor=actor,
         correlation_id=correlation_id,
@@ -190,7 +190,7 @@ def publish_monthly_value(
 
     if previous:
         record_event(
-            action=AuditAction.MEMBERSHIP_MANUAL_OBSERVATION_SUPERSEDED,
+            action=MembershipAudit.MANUAL_OBSERVATION_SUPERSEDED,
             obj=value,
             actor=actor,
             correlation_id=correlation_id,

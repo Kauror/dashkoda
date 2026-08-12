@@ -11,7 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
+from apps.shop.audit_actions import ShopAudit
 from apps.shop.importing import ShopImportError, import_shop_package
 from apps.shop.models import (
     MemberStatus,
@@ -80,7 +81,7 @@ def test_live_import_publishes_everything(package):
 def test_import_is_audited(package):
     import_shop_package(package, dry_run=False)
 
-    event = AuditEvent.objects.get(action=AuditAction.SHOP_SNAPSHOT_IMPORTED)
+    event = AuditEvent.objects.get(action=ShopAudit.SNAPSHOT_IMPORTED)
     summary = event.change_summary
     assert summary["source_as_of"] == "2026-08-11"
     # Aggregate provenance only: no title, no price, no path.
@@ -114,7 +115,7 @@ def test_identical_reimport_is_unchanged(package):
     assert result.unchanged is True
     assert ShopDailyFact.objects.count() == 7
     assert ShopSourceState.objects.count() == 1
-    assert AuditEvent.objects.filter(action=AuditAction.SHOP_SNAPSHOT_UNCHANGED).exists()
+    assert AuditEvent.objects.filter(action=ShopAudit.SNAPSHOT_UNCHANGED).exists()
 
 
 def test_repackaged_identical_facts_are_unchanged(tmp_path):

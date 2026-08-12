@@ -17,8 +17,9 @@ from django.core.management import call_command
 from django.db.utils import IntegrityError
 from django.utils import timezone
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
 from apps.core.feeds import FeedLocked
+from apps.event_programme.audit_actions import EventProgrammeAudit
 from apps.event_programme.event_match_models import (
     EventPublicMatch,
     EventPublicMatchSnapshot,
@@ -202,7 +203,7 @@ def test_the_audit_entry_carries_counts_and_no_addresses(db, programme, page):
 
     run_event_matching()
 
-    event = AuditEvent.objects.get(action=AuditAction.EVENT_PUBLIC_LINKS_MATCHED)
+    event = AuditEvent.objects.get(action=EventProgrammeAudit.EVENT_PUBLIC_LINKS_MATCHED)
     assert event.change_summary["matched"] == 1
     assert "koda.ee" not in json.dumps(event.change_summary)
 

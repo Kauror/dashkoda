@@ -8,7 +8,8 @@ import pytest
 from django.test import Client
 from django.urls import reverse
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
+from apps.membership.audit_actions import MembershipAudit
 from apps.membership.models import (
     InternalMembershipObservation,
     InternalObservationImmutable,
@@ -167,7 +168,7 @@ def test_partial_entry_is_accepted(staff_client):
 def test_audit_event_records_aggregates_and_not_the_note(staff_client):
     staff_client.post(NEW_URL, confirm(form_data(source_note="Sisemine kommentaar juhatusele.")))
 
-    event = AuditEvent.objects.get(action=AuditAction.MEMBERSHIP_MANUAL_OBSERVATION_CREATED)
+    event = AuditEvent.objects.get(action=MembershipAudit.MANUAL_OBSERVATION_CREATED)
     summary = str(event.change_summary)
 
     assert "2026-02-05" in summary
@@ -320,9 +321,7 @@ def test_superseding_is_audited(staff_client):
         confirm(form_data(total_members="3410", supersedes=str(original.pk))),
     )
 
-    assert AuditEvent.objects.filter(
-        action=AuditAction.MEMBERSHIP_MANUAL_OBSERVATION_SUPERSEDED
-    ).exists()
+    assert AuditEvent.objects.filter(action=MembershipAudit.MANUAL_OBSERVATION_SUPERSEDED).exists()
 
 
 def test_a_superseded_observation_cannot_be_corrected_again(staff_client):

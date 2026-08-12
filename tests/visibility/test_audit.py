@@ -9,7 +9,8 @@ from __future__ import annotations
 
 import pytest
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
+from apps.visibility.audit_actions import VisibilityAudit
 from apps.visibility.models import VisibilityEntryBatch, VisibilityObservation
 
 from .conftest import NEW_URL, confirm, form_data
@@ -24,7 +25,7 @@ def _summaries(action) -> list[dict]:
 def test_a_published_batch_is_recorded(submit):
     submit(facebook_followers=4200)
 
-    summary = _summaries(AuditAction.VISIBILITY_MANUAL_BATCH_PUBLISHED)[0]
+    summary = _summaries(VisibilityAudit.MANUAL_BATCH_PUBLISHED)[0]
     batch = VisibilityEntryBatch.objects.get()
 
     assert summary["batch_id"] == batch.pk
@@ -37,7 +38,7 @@ def test_a_published_batch_is_recorded(submit):
 def test_every_observation_is_recorded_individually(submit):
     submit(facebook_followers=4200, linkedin_followers=2500)
 
-    summaries = _summaries(AuditAction.VISIBILITY_OBSERVATION_PUBLISHED)
+    summaries = _summaries(VisibilityAudit.OBSERVATION_PUBLISHED)
 
     assert len(summaries) == 2
     assert {summary["metric"] for summary in summaries} == {
@@ -51,7 +52,7 @@ def test_a_supersession_is_recorded_with_both_values(submit):
     submit(facebook_followers=4200)
     submit(facebook_followers=4250)
 
-    summary = _summaries(AuditAction.VISIBILITY_OBSERVATION_SUPERSEDED)[0]
+    summary = _summaries(VisibilityAudit.OBSERVATION_SUPERSEDED)[0]
 
     assert summary["metric"] == "facebook_followers"
     assert summary["superseded_value"] == 4200
@@ -62,10 +63,8 @@ def test_a_supersession_is_recorded_with_both_values(submit):
 def test_a_first_observation_records_no_supersession(submit):
     submit(facebook_followers=4200)
 
-    assert not AuditEvent.objects.filter(
-        action=AuditAction.VISIBILITY_OBSERVATION_SUPERSEDED
-    ).exists()
-    summary = _summaries(AuditAction.VISIBILITY_OBSERVATION_PUBLISHED)[0]
+    assert not AuditEvent.objects.filter(action=VisibilityAudit.OBSERVATION_SUPERSEDED).exists()
+    summary = _summaries(VisibilityAudit.OBSERVATION_PUBLISHED)[0]
     assert summary["supersedes_observation_id"] is None
 
 
@@ -76,8 +75,8 @@ def test_one_correlation_id_covers_a_whole_submission(submit):
     correlation_ids = set(
         AuditEvent.objects.filter(
             action__in=[
-                AuditAction.VISIBILITY_MANUAL_BATCH_PUBLISHED,
-                AuditAction.VISIBILITY_OBSERVATION_PUBLISHED,
+                VisibilityAudit.MANUAL_BATCH_PUBLISHED,
+                VisibilityAudit.OBSERVATION_PUBLISHED,
             ]
         ).values_list("correlation_id", flat=True)
     )
@@ -119,7 +118,7 @@ def test_no_profile_url_reaches_the_audit_trail(submit):
 def test_the_recorded_summary_is_aggregate_only(submit):
     submit(facebook_followers=4200)
 
-    summary = _summaries(AuditAction.VISIBILITY_OBSERVATION_PUBLISHED)[0]
+    summary = _summaries(VisibilityAudit.OBSERVATION_PUBLISHED)[0]
 
     assert set(summary) == {
         "source",
@@ -136,7 +135,7 @@ def test_the_content_hash_survives_redaction(submit):
     """A checksum is a wanted, non-secret fact and is exempt from the hash rule."""
     submit(facebook_followers=4200)
 
-    summary = _summaries(AuditAction.VISIBILITY_MANUAL_BATCH_PUBLISHED)[0]
+    summary = _summaries(VisibilityAudit.MANUAL_BATCH_PUBLISHED)[0]
 
     assert summary["content_sha256"] == VisibilityEntryBatch.objects.get().content_hash
     assert summary["content_sha256"] != "[redacted]"
@@ -146,7 +145,7 @@ def test_an_audit_event_cannot_be_rewritten_or_removed(submit):
     from apps.audit.models import AuditEventImmutable
 
     submit(facebook_followers=4200)
-    event = AuditEvent.objects.filter(action=AuditAction.VISIBILITY_MANUAL_BATCH_PUBLISHED).get()
+    event = AuditEvent.objects.filter(action=VisibilityAudit.MANUAL_BATCH_PUBLISHED).get()
 
     with pytest.raises(AuditEventImmutable):
         event.delete()

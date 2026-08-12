@@ -13,7 +13,8 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
+from apps.event_programme.audit_actions import EventProgrammeAudit
 from apps.event_programme.models import (
     EventProgrammeFeedState,
     EventProgrammeItem,
@@ -88,7 +89,7 @@ def test_identical_bytes_are_reported_unchanged(make_workbook):
     # Still exactly one snapshot: identical content publishes nothing new.
     assert EventProgrammeSnapshot.objects.count() == 1
     assert feed_state().last_result == SyncResult.UNCHANGED
-    assert AuditEvent.objects.filter(action=AuditAction.EVENT_PROGRAMME_SYNC_UNCHANGED).exists()
+    assert AuditEvent.objects.filter(action=EventProgrammeAudit.SYNC_UNCHANGED).exists()
 
 
 # -- what each timestamp means ------------------------------------------
@@ -202,7 +203,7 @@ def test_download_failure_preserves_the_published_snapshot(make_workbook):
     state = feed_state()
     assert state.last_result == SyncResult.FAILED
     assert state.current_snapshot == published
-    assert AuditEvent.objects.filter(action=AuditAction.EVENT_PROGRAMME_SYNC_FAILED).exists()
+    assert AuditEvent.objects.filter(action=EventProgrammeAudit.SYNC_FAILED).exists()
 
 
 def test_defective_workbook_preserves_the_published_snapshot(make_workbook):
@@ -381,5 +382,5 @@ def test_unconfigured_url_is_not_recorded_as_a_sync_failure(settings):
     with pytest.raises(PublicUrlNotConfigured):
         synchronize_public_workbook()
 
-    assert not AuditEvent.objects.filter(action=AuditAction.EVENT_PROGRAMME_SYNC_FAILED).exists()
+    assert not AuditEvent.objects.filter(action=EventProgrammeAudit.SYNC_FAILED).exists()
     assert feed_state().last_result == SyncResult.NEVER_RUN

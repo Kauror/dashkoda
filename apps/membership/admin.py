@@ -21,9 +21,9 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.admin import ReadOnlyAdmin
+from apps.membership.audit_actions import MembershipAudit
 
 from .models import (
     InternalMembershipObservation,
@@ -223,7 +223,7 @@ class ResolutionStampMixin:
         obj.save(update_fields=sorted(obj.MUTABLE_FIELDS))
         if became_resolved:
             record_event(
-                action=AuditAction.MEMBERSHIP_ISSUE_RESOLVED,
+                action=MembershipAudit.ISSUE_RESOLVED,
                 obj=obj,
                 actor=request.user,
                 change_summary=self.resolution_summary(obj),

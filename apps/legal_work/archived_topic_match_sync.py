@@ -22,8 +22,8 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.legal_work.audit_actions import LegalWorkAudit
 
 from .archived_topic_matching import ARCHIVE_MATCHER_VERSION, match_archive
 from .consultation import consultation_eligible_items
@@ -203,7 +203,7 @@ def _run(*, dry_run, actor, correlation_id) -> ArchiveMatchReport:
         _verify_written(snapshot, expected=len(outcomes))
         _publish_current(snapshot)
         record_event(
-            action=AuditAction.ARCHIVED_TOPIC_MATCH_GENERATED,
+            action=LegalWorkAudit.ARCHIVED_TOPIC_MATCH_GENERATED,
             obj=snapshot,
             actor=actor,
             correlation_id=correlation_id,
@@ -298,7 +298,7 @@ def _publish_current(snapshot) -> None:
 def _unchanged(snapshot, *, dry_run, correlation_id) -> ArchiveMatchReport:
     if not dry_run:
         record_event(
-            action=AuditAction.ARCHIVED_TOPIC_MATCH_UNCHANGED,
+            action=LegalWorkAudit.ARCHIVED_TOPIC_MATCH_UNCHANGED,
             obj=snapshot,
             correlation_id=correlation_id,
             change_summary={
@@ -322,7 +322,7 @@ def _unchanged(snapshot, *, dry_run, correlation_id) -> ArchiveMatchReport:
 
 def _fail(message: str, correlation_id) -> ArchiveMatchReport:
     record_event(
-        action=AuditAction.ARCHIVED_TOPIC_MATCH_FAILED,
+        action=LegalWorkAudit.ARCHIVED_TOPIC_MATCH_FAILED,
         object_type="legal_work.archive_match_run",
         object_id=str(correlation_id),
         correlation_id=correlation_id,

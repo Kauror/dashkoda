@@ -20,9 +20,10 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
 from apps.core.feeds import FeedResult
 from apps.sources.models import ImportRun, ImportStatus
+from apps.visibility.audit_actions import VisibilityAudit
 from apps.visibility.ga4 import ChannelRow, DayReading, Ga4NotConfigured, PageRow, RangeCollection
 from apps.visibility.ga4_sync import (
     RECONCILIATION_DAYS,
@@ -459,7 +460,7 @@ def test_a_published_day_carries_its_artifact_and_a_succeeded_import_run():
 def test_the_audit_event_carries_counts_and_never_a_page_list():
     sync({DAY: reading(pages=(("/et/uudised/a", 40), ("/et/uudised/b", 25)))})
 
-    event = AuditEvent.objects.get(action=AuditAction.GA4_OBSERVATION_IMPORTED)
+    event = AuditEvent.objects.get(action=VisibilityAudit.GA4_OBSERVATION_IMPORTED)
     assert event.change_summary["page_rows"] == 2
     assert event.change_summary["report_date"] == DAY.isoformat()
     assert "/et/uudised/a" not in json.dumps(event.change_summary)
