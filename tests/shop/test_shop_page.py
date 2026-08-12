@@ -79,11 +79,17 @@ def test_the_overview_counts_order_lines_not_orders(client, authenticate_viewer,
 
     The synthetic package has an order carrying two different products, so the
     overview's figure must not be presented as a count of orders.
+
+    Both assertions name the rendered KPI label rather than the bare word,
+    because the page says „Tellimused" on purpose one paragraph further down —
+    in the sentence explaining what a single *product's* page means by it. That
+    sentence is the distinction being drawn, not a violation of it, and a
+    substring check over the whole page cannot tell the two apart.
     """
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "Tellimusridu" in content
-    assert "Tellimused" not in content
+    assert ">Tellimusridu</h3>" in content
+    assert ">Tellimused</h3>" not in content
     assert "loeb iga toote eraldi" in content
 
 
