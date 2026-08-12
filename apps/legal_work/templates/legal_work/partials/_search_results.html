@@ -1,0 +1,101 @@
+{% comment %}
+The register search's answer — the region a keystroke replaces.
+
+Context:
+  search – a LegalWorkSearch from `apps.legal_work.search`, already presented
+
+Rendered in two places and identical in both: inside `overview.html` on a full
+page load, and alone by `legal_work_search_fragment` on every keystroke. A
+reader with no JavaScript submits the form and gets this from the first path; a
+reader with the bundle gets it from the second. Neither is a degraded version of
+the other, which stays true only for as long as this is one template.
+
+**The search box is deliberately not in here.** htmx replaces this element's
+contents, and an input inside a replaced region loses its caret, its selection
+and its focus on every keystroke.
+
+**The status chips deliberately are.** They are links, so they cost nothing on a
+swap — and each one's href carries the current term. Left outside, they would
+still hold whatever was typed at page load, so a reader who types "käibemaks"
+and then clicks `Töös` would silently lose the word they had just typed. That is
+the only reason they sit in here rather than beside the box.
+{% endcomment %}
+<nav aria-label="Kirje seis" class="flex flex-wrap gap-2">
+  {% for option in search.statuses %}
+    <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+       href="?{{ option.query }}#section-search"
+       {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+  {% endfor %}
+</nav>
+
+{% comment %}
+What was searched, or what was found. Said here rather than above the form,
+because a line outside the swap cannot change while somebody types — and a
+reader narrowing a search must never be left under a caption claiming the whole
+register when they are looking at four matches.
+{% endcomment %}
+{% if search.is_searching %}
+  <p class="dk-meta">{{ search.summary }}</p>
+{% else %}
+  <p class="dk-meta">{{ search.scope_note }}</p>
+{% endif %}
+
+{% if search.is_searching %}
+  {% if search.has_results %}
+    <div class="w-full min-w-0 overflow-x-auto">
+      <table class="w-full min-w-max border-collapse text-sm">
+        <caption class="sr-only">Otsingu tulemused õigusloome registrist</caption>
+        <thead>
+          <tr>
+            <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
+            <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Õigusakti liik</th>
+            <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sisse</th>
+            <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Välja</th>
+            <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in search.results %}
+            <tr>
+              <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
+              <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.act_type|default:"—" }}</td>
+              <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
+                {% if row.item.received_date %}{{ row.item.received_date|date:"j.m.y" }}{% else %}—{% endif %}
+              </td>
+              {% comment %}
+              The send date rather than the deadline: a search reaches mostly
+              concluded records, and what a reader wants of one is when it went
+              out. An explicitly not-sent record carries no date by model
+              constraint and shows the dash honestly.
+              {% endcomment %}
+              <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
+                {% if row.item.sent_date %}{{ row.item.sent_date|date:"j.m.y" }}{% else %}—{% endif %}
+              </td>
+              <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    {% comment %}
+    Ordinary links, not htmx. A reader who has narrowed to one page of results
+    and then asks for page two is no longer typing, and a real navigation there
+    keeps the back button meaning what it says — the same choice the Nähtavus
+    searches make.
+    {% endcomment %}
+    {% if search.total_pages > 1 %}
+      <nav aria-label="Otsingutulemuste leheküljed" class="flex flex-wrap items-center justify-between gap-3">
+        {% if search.has_previous %}
+          <a class="dk-button dk-button-secondary" href="?{{ search.previous_query }}#section-search">Eelmine</a>
+        {% else %}<span></span>{% endif %}
+        <span class="dk-meta">Lehekülg {{ search.page_number }} / {{ search.total_pages }}</span>
+        {% if search.has_next %}
+          <a class="dk-button dk-button-secondary" href="?{{ search.next_query }}#section-search">Järgmine</a>
+        {% else %}<span></span>{% endif %}
+      </nav>
+    {% endif %}
+  {% else %}
+    {% include "dashboard/components/empty_state.html" with message="Ühtegi kirjet ei leitud." detail="Proovi teist sõna või vali mõni teine seis." only %}
+  {% endif %}
+{% endif %}
