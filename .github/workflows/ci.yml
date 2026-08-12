@@ -155,8 +155,19 @@ jobs:
         run: uv run python manage.py collectstatic --noinput
 
   # Production-shape verification: the images, what the runtime image contains,
-  # Compose networking, the in-container suite, health and route smoke tests,
-  # the startup-log gate and volume persistence.
+  # Compose networking, migrations against the composed database, health and
+  # route smoke tests, the startup-log gate and volume persistence.
+  #
+  # The full pytest suite deliberately does NOT run here. It used to, and it
+  # doubled the pipeline's cost — the same tests, the same settings module and
+  # the same digest-pinned PostgreSQL image already run in `quality-and-host-tests`,
+  # so the second run could only catch a defect in the dev image's Python
+  # environment itself. That seam is covered more directly by everything this
+  # job still does — migrate and collectstatic inside the container, the HTTP
+  # smoke against the running service, the startup-log gate — and by the
+  # browser job, which drives every page through this same runtime. The trade
+  # is explicit: an image-only breakage that none of those touch goes unseen
+  # here in exchange for ~15 minutes on every push.
   container-integration:
     name: Container integration
     runs-on: ubuntu-latest
@@ -211,8 +222,6 @@ jobs:
           docker compose -f compose.yaml -f compose.dev.yaml up -d --wait
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py migrate
           docker compose -f compose.yaml -f compose.dev.yaml exec -T web python manage.py collectstatic --noinput
-          docker compose -f compose.yaml -f compose.dev.yaml exec -T \
-            -e DJANGO_SETTINGS_MODULE=config.settings.test web uv run pytest
           docker compose -f compose.yaml -f compose.dev.yaml ps
           curl --fail --show-error --retry 5 --retry-connrefused --retry-delay 1 \
             http://127.0.0.1:8000/health/live/
