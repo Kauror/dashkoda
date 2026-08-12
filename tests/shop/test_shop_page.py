@@ -285,7 +285,12 @@ def test_a_stale_export_does_not_show_a_rate_for_unimported_days(
     content = response.content.decode()
 
     assert response.status_code == 200
-    assert "veebivõrdlust ei ole" in content or "veebimõõtmist ei ole" in content
+    # Scoped to the web section, and asserting the absence of the rate rather
+    # than only the presence of a sentence. A refusal that still printed a
+    # number underneath it would pass a wording check and fail the reader.
+    web = content.split('aria-labelledby="section-web"')[1].split("</section>")[0]
+    assert "Veebivõrdlus ei ole selle perioodi kohta võimalik" in web
+    assert "Soetusi / 100" not in web
 
 
 def test_the_shop_appears_in_the_navigation(client, authenticate_viewer, seeded):
