@@ -15,17 +15,15 @@ from __future__ import annotations
 
 import datetime as dt
 import logging
-import re
 from dataclasses import dataclass
 from email.utils import parsedate_to_datetime
-from html import unescape
-from html.parser import HTMLParser
 from xml.etree import ElementTree
 
 from django.conf import settings
 
 from apps.core.canonical import canonical_checksum
 from apps.core.public_http import PublicFetchError, fetch, is_allowed_public_url
+from apps.core.text import to_plain_text as core_to_plain_text
 
 logger = logging.getLogger("dashkoda.news.collector")
 
@@ -62,79 +60,16 @@ class NewsCollection:
     last_modified: str
 
 
-class _TextExtractor(HTMLParser):
-    """Collect visible text, dropping scripts, styles and every tag."""
-
-    _SKIP = frozenset({"script", "style", "noscript", "template", "iframe"})
-    # Elements that imply a break in the prose. Without this, `</p><p>` would
-    # run two sentences together into one word.
-    _BLOCK = frozenset(
-        {
-            "p",
-            "div",
-            "br",
-            "li",
-            "ul",
-            "ol",
-            "tr",
-            "td",
-            "th",
-            "section",
-            "article",
-            "header",
-            "footer",
-            "h1",
-            "h2",
-            "h3",
-            "h4",
-            "h5",
-            "h6",
-            "blockquote",
-            "figure",
-            "figcaption",
-        }
-    )
-
-    def __init__(self):
-        super().__init__(convert_charrefs=True)
-        self._parts: list[str] = []
-        self._suppress = 0
-
-    def handle_starttag(self, tag, attrs):
-        if tag in self._SKIP:
-            self._suppress += 1
-        elif tag in self._BLOCK:
-            self._parts.append(" ")
-
-    def handle_endtag(self, tag):
-        if tag in self._SKIP and self._suppress:
-            self._suppress -= 1
-        elif tag in self._BLOCK:
-            self._parts.append(" ")
-
-    def handle_data(self, data):
-        if not self._suppress:
-            self._parts.append(data)
-
-    @property
-    def text(self) -> str:
-        return " ".join("".join(self._parts).split())
-
-
 def to_plain_text(value: str, *, limit: int | None = None) -> str:
-    """Reduce feed HTML to a bounded, safe plain-text summary."""
-    if not value:
-        return ""
-    extractor = _TextExtractor()
-    extractor.feed(unescape(value))
-    extractor.close()
-    text = extractor.text
-    # A stray tag written as an entity survives unescaping; strip any residue.
-    text = " ".join(re.sub(r"<[^>]*>", " ", text).split())
-    limit = settings.KODA_SUMMARY_MAX_LENGTH if limit is None else limit
-    if len(text) > limit:
-        text = text[:limit].rstrip() + "…"
-    return text
+    """Reduce feed HTML to a bounded, safe plain-text summary.
+
+    The mechanism lives in `apps.core.text`, which four collectors share. What
+    stays here is this feed's own ceiling: an RSS summary is capped at
+    `KODA_SUMMARY_MAX_LENGTH` so that no article is reproduced in full.
+    """
+    return core_to_plain_text(
+        value, limit=settings.KODA_SUMMARY_MAX_LENGTH if limit is None else limit
+    )
 
 
 def collect_news(

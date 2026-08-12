@@ -2,6 +2,7 @@ import os
 
 from .base import *  # noqa: F403
 from .database import postgres_database
+from .env import optional_boolean_env
 
 DEBUG = True
 SECRET_KEY = os.environ.get(
@@ -16,7 +17,7 @@ VIEWER_RATE_LIMIT_SECRET = os.environ.get(
     "VIEWER_RATE_LIMIT_SECRET",
     "dashkoda-local-only-rate-limit-secret",
 )
-TRUST_CLOUDFLARE_IP_HEADER = os.environ.get("TRUST_CLOUDFLARE_IP_HEADER", "false").lower() == "true"
+TRUST_CLOUDFLARE_IP_HEADER = optional_boolean_env("TRUST_CLOUDFLARE_IP_HEADER", default=False)
 STORAGES["staticfiles"] = {  # noqa: F405
     "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage",
 }

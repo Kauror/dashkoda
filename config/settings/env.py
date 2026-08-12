@@ -37,3 +37,16 @@ def boolean_env(name: str) -> bool:
     if raw_value == "false":
         return False
     raise ImproperlyConfigured(f"Environment variable must be true or false: {name}")
+
+
+def optional_boolean_env(name: str, *, default: bool) -> bool:
+    """Like :func:`boolean_env`, but absence is allowed and means ``default``.
+
+    A value that is present and unreadable is still refused. `os.environ.get(...)
+    == "true"` would quietly treat `ture` -- or `True`, or `1` -- as false, and a
+    development machine silently trusting no proxy header is exactly the kind of
+    difference from production that is discovered late.
+    """
+    if name not in os.environ:
+        return default
+    return boolean_env(name)
