@@ -29,8 +29,8 @@ from pathlib import Path
 from django.conf import settings
 from django.db import transaction
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.membership.audit_actions import MembershipAudit
 from apps.sources.models import ImportRun, ImportStatus, SourceArtifact
 from apps.sources.services import (
     build_import_run,
@@ -645,7 +645,7 @@ def import_history_package(
     already = _existing_successful_run(import_key)
     if already is not None and not dry_run:
         record_event(
-            action=AuditAction.MEMBERSHIP_HISTORY_UNCHANGED,
+            action=MembershipAudit.HISTORY_UNCHANGED,
             obj=already,
             actor=actor,
             correlation_id=already.correlation_id,
@@ -734,7 +734,7 @@ def import_history_package(
                 actor=actor,
             )
             record_event(
-                action=AuditAction.MEMBERSHIP_HISTORY_IMPORTED,
+                action=MembershipAudit.HISTORY_IMPORTED,
                 obj=run,
                 actor=actor,
                 correlation_id=run.correlation_id,
@@ -762,7 +762,7 @@ def import_history_package(
         # and the run can be closed honestly.
         fail_publication(run, errors=[_sanitized(error)], actor=actor)
         record_event(
-            action=AuditAction.MEMBERSHIP_HISTORY_FAILED,
+            action=MembershipAudit.HISTORY_FAILED,
             obj=run,
             actor=actor,
             correlation_id=run.correlation_id,

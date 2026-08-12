@@ -23,8 +23,8 @@ from datetime import date
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.visibility.audit_actions import VisibilityAudit
 
 from .models import VisibilityObservation
 
@@ -88,7 +88,7 @@ def supersede_observation(
     previous.save(update_fields=["is_current_for_date"])
 
     record_event(
-        action=AuditAction.VISIBILITY_OBSERVATION_SUPERSEDED,
+        action=VisibilityAudit.OBSERVATION_SUPERSEDED,
         obj=previous,
         actor=actor,
         correlation_id=correlation_id,
@@ -141,7 +141,7 @@ def publish_observation(
         observation.save(update_fields=["is_current_for_date"])
 
     record_event(
-        action=AuditAction.VISIBILITY_OBSERVATION_PUBLISHED,
+        action=VisibilityAudit.OBSERVATION_PUBLISHED,
         obj=observation,
         actor=actor,
         correlation_id=correlation_id,

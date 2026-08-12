@@ -24,7 +24,6 @@ from dataclasses import dataclass, field
 
 from django.conf import settings
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_commands import (
     EXIT_FAILED,
@@ -34,6 +33,7 @@ from apps.core.feed_commands import (
 from apps.core.feeds import FeedLocked
 from apps.core.feeds import advisory_lock as _advisory_lock
 from apps.core.feeds import advisory_lock_key as _advisory_lock_key
+from apps.legal_work.audit_actions import LegalWorkAudit
 
 from .models import LegalWorkFeedState, SyncResult
 
@@ -121,7 +121,7 @@ def record_failure(state: LegalWorkFeedState, message: str, *, correlation_id) -
     state.last_error_summary = message[:500]
     state.save(update_fields=["last_result", "last_error_summary", "last_checked_at", "updated_at"])
     record_event(
-        action=AuditAction.LEGAL_WORK_SYNC_FAILED,
+        action=LegalWorkAudit.SYNC_FAILED,
         obj=state.source,
         correlation_id=correlation_id,
         change_summary={"detail": message[:300]},

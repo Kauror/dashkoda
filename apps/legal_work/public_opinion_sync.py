@@ -48,7 +48,6 @@ from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.canonical import canonical_checksum
 from apps.core.feed_sync import (
@@ -62,6 +61,7 @@ from apps.core.feed_sync import (
     start_run,
     touch_checked,
 )
+from apps.legal_work.audit_actions import LegalWorkAudit
 from apps.sources.services import complete_import_run, publishing_run
 
 from .current_topics import content_key_for
@@ -624,7 +624,7 @@ def _read_document(*, attachment, order, known, now, dry_run, report, session):
         report.new_blobs += 1
         if not validation.is_valid:
             record_event(
-                action=AuditAction.OPINION_DOCUMENT_QUARANTINED,
+                action=LegalWorkAudit.OPINION_DOCUMENT_QUARANTINED,
                 obj=blob,
                 change_summary={
                     "reason": str(validation.status),
@@ -907,7 +907,7 @@ def _publish(
                 state.backfill_complete = True
                 state.save(update_fields=["backfill_complete", "updated_at"])
             record_event(
-                action=AuditAction.PUBLIC_OPINIONS_IMPORTED,
+                action=LegalWorkAudit.PUBLIC_OPINIONS_IMPORTED,
                 obj=snapshot,
                 actor=actor,
                 correlation_id=correlation_id,
@@ -932,7 +932,7 @@ def _mark_unchanged(state, correlation_id, checksum: str, *, pages: int) -> None
     mark_unchanged(
         state,
         correlation_id=correlation_id,
-        audit_action=AuditAction.PUBLIC_OPINIONS_UNCHANGED,
+        audit_action=LegalWorkAudit.PUBLIC_OPINIONS_UNCHANGED,
         change_summary={
             "source": state.source.slug,
             "pages": pages,
@@ -950,7 +950,7 @@ def _fail(
         state,
         message,
         correlation_id=correlation_id,
-        audit_action=AuditAction.PUBLIC_OPINIONS_FAILED,
+        audit_action=LegalWorkAudit.PUBLIC_OPINIONS_FAILED,
         logger=logger,
     )
     return PublicOpinionReport(result=RESULT_FAILED, detail=message, dry_run=dry_run, full=full)

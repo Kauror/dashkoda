@@ -35,8 +35,8 @@ from decimal import Decimal
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.membership.audit_actions import MembershipAudit
 from apps.sources.models import SourceArtifact
 from apps.sources.services import (
     build_import_run,
@@ -579,7 +579,7 @@ def publish_manual_report(
     complete_import_run(run, rows_added=1 + child_rows + monthly_rows, actor=actor)
 
     record_event(
-        action=AuditAction.MEMBERSHIP_MANUAL_OBSERVATION_CREATED,
+        action=MembershipAudit.MANUAL_OBSERVATION_CREATED,
         obj=observation,
         actor=actor,
         correlation_id=run.correlation_id,

@@ -49,7 +49,6 @@ from decimal import Decimal
 from django.db import IntegrityError, transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.sources.models import SourceArtifact
 from apps.sources.services import (
@@ -58,6 +57,7 @@ from apps.sources.services import (
     register_external_reference,
     start_import_run,
 )
+from apps.visibility.audit_actions import VisibilityAudit
 
 from .bootstrap import ensure_manual_visibility_sources
 from .models import (
@@ -527,7 +527,7 @@ def publish_submission(
             written += _publish_source(submission, batch=batch, source=sources[slug], actor=actor)
 
         record_event(
-            action=AuditAction.VISIBILITY_MANUAL_BATCH_PUBLISHED,
+            action=VisibilityAudit.MANUAL_BATCH_PUBLISHED,
             obj=batch,
             actor=actor,
             correlation_id=batch.correlation_id,

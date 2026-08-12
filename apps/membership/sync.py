@@ -14,7 +14,6 @@ import uuid
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
     describe_error,
@@ -28,6 +27,7 @@ from apps.core.feed_sync import (
     touch_checked,
 )
 from apps.core.feeds import FeedResult, SourceOutcome
+from apps.membership.audit_actions import MembershipAudit
 from apps.sources.services import complete_import_run, fail_publication
 
 from .bootstrap import ensure_membership_source
@@ -124,7 +124,7 @@ def synchronize_membership(*, dry_run: bool = False, actor=None, collector=None)
             publish_current(observation)
             complete_import_run(run, rows_added=1, actor=actor)
             record_event(
-                action=AuditAction.MEMBERSHIP_OBSERVATION_IMPORTED,
+                action=MembershipAudit.OBSERVATION_IMPORTED,
                 obj=observation,
                 actor=actor,
                 correlation_id=correlation_id,
@@ -161,7 +161,7 @@ def _unchanged(state, collection, *, dry_run: bool, correlation_id) -> SourceOut
         mark_unchanged(
             state,
             correlation_id=correlation_id,
-            audit_action=AuditAction.MEMBERSHIP_SYNC_UNCHANGED,
+            audit_action=MembershipAudit.SYNC_UNCHANGED,
             change_summary={"source": state.source.slug, "total_members": total},
             etag=collection.etag if collection is not None else None,
             last_modified=collection.last_modified if collection is not None else None,
@@ -179,6 +179,6 @@ def _fail(state, message: str, correlation_id) -> SourceOutcome:
         state,
         message,
         correlation_id=correlation_id,
-        audit_action=AuditAction.MEMBERSHIP_SYNC_FAILED,
+        audit_action=MembershipAudit.SYNC_FAILED,
         logger=logger,
     )

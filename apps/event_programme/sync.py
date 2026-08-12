@@ -36,11 +36,11 @@ from dataclasses import dataclass, field
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feeds import FeedLocked
 from apps.core.feeds import advisory_lock as _advisory_lock
 from apps.core.feeds import advisory_lock_key as _advisory_lock_key
+from apps.event_programme.audit_actions import EventProgrammeAudit
 from apps.sources.workbook_sync import (
     ATTEMPT_FAILED,
     ATTEMPT_UNCHANGED,
@@ -149,7 +149,7 @@ def record_failure(state: EventProgrammeFeedState, message: str, *, correlation_
     state.last_error_summary = message[:500]
     state.save(update_fields=["last_result", "last_error_summary", "last_checked_at", "updated_at"])
     record_event(
-        action=AuditAction.EVENT_PROGRAMME_SYNC_FAILED,
+        action=EventProgrammeAudit.SYNC_FAILED,
         obj=state.source,
         correlation_id=correlation_id,
         change_summary={"detail": message[:300]},
@@ -274,7 +274,7 @@ def _record_unchanged(
                 ]
             )
             record_event(
-                action=AuditAction.EVENT_PROGRAMME_SYNC_UNCHANGED,
+                action=EventProgrammeAudit.SYNC_UNCHANGED,
                 obj=state.source,
                 correlation_id=correlation_id,
                 change_summary={

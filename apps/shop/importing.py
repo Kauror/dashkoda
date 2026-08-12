@@ -37,8 +37,8 @@ from pathlib import Path
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.shop.audit_actions import ShopAudit
 from apps.sources.models import ImportRun, ImportStatus, SourceArtifact
 from apps.sources.services import (
     build_import_run,
@@ -462,7 +462,7 @@ def import_shop_package(
             run = already or (state.import_run if state else None)
             if run is not None:
                 record_event(
-                    action=AuditAction.SHOP_SNAPSHOT_UNCHANGED,
+                    action=ShopAudit.SNAPSHOT_UNCHANGED,
                     obj=run,
                     actor=actor,
                     correlation_id=run.correlation_id,
@@ -529,7 +529,7 @@ def import_shop_package(
             )
             complete_import_run(run, rows_added=sum(counts.values()), actor=actor)
             record_event(
-                action=AuditAction.SHOP_SNAPSHOT_IMPORTED,
+                action=ShopAudit.SNAPSHOT_IMPORTED,
                 obj=state,
                 actor=actor,
                 correlation_id=run.correlation_id,
@@ -545,7 +545,7 @@ def import_shop_package(
     except Exception as error:  # noqa: BLE001 - recorded, re-raised below
         fail_publication(run, errors=[_sanitized(error)], actor=actor)
         record_event(
-            action=AuditAction.SHOP_SNAPSHOT_FAILED,
+            action=ShopAudit.SNAPSHOT_FAILED,
             obj=run,
             actor=actor,
             correlation_id=run.correlation_id,

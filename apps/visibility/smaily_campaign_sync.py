@@ -47,7 +47,6 @@ from datetime import date, timedelta
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.core.feed_sync import get_feed_state, touch_checked
 from apps.core.feeds import FeedResult, SourceOutcome
 from apps.sources.models import SourceArtifact
@@ -58,6 +57,7 @@ from apps.sources.services import (
     register_external_reference,
     start_import_run,
 )
+from apps.visibility.audit_actions import VisibilityAudit
 
 from .bootstrap import ensure_smaily_source
 from .models import SmailyCampaign, SmailyCampaignStats, SmailyFeedState
@@ -487,7 +487,7 @@ def _publish_statistics(*, source, actor, correlation_id, report: CampaignReport
     from apps.audit.services import record_event
 
     record_event(
-        action=AuditAction.SMAILY_OBSERVATION_IMPORTED,
+        action=VisibilityAudit.SMAILY_OBSERVATION_IMPORTED,
         obj=run,
         correlation_id=correlation_id,
         actor=actor,

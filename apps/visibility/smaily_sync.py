@@ -48,7 +48,6 @@ from datetime import date
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.core.feed_sync import (
     fail_feed,
     get_feed_state,
@@ -65,6 +64,7 @@ from apps.sources.services import (
     register_external_reference,
     start_import_run,
 )
+from apps.visibility.audit_actions import VisibilityAudit
 
 from .bootstrap import ensure_smaily_source
 from .models import (
@@ -240,7 +240,7 @@ def synchronize_smaily(
             mark_unchanged(
                 state,
                 correlation_id=correlation_id,
-                audit_action=AuditAction.SMAILY_SYNC_UNCHANGED,
+                audit_action=VisibilityAudit.SMAILY_SYNC_UNCHANGED,
                 change_summary={"source": source.slug, "observed_on": day.isoformat()},
             )
         if state.last_period_end != day:
@@ -395,7 +395,7 @@ def _publish(
     from apps.audit.services import record_event
 
     record_event(
-        action=AuditAction.SMAILY_OBSERVATION_IMPORTED,
+        action=VisibilityAudit.SMAILY_OBSERVATION_IMPORTED,
         obj=snapshot,
         correlation_id=correlation_id,
         actor=actor,
@@ -477,7 +477,7 @@ def _fail(state, message: str, correlation_id, *, report: SyncReport | None = No
         state,
         message,
         correlation_id=correlation_id,
-        audit_action=AuditAction.SMAILY_SYNC_FAILED,
+        audit_action=VisibilityAudit.SMAILY_SYNC_FAILED,
         logger=logger,
     )
     if report is not None:

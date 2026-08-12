@@ -20,9 +20,10 @@ from io import StringIO
 import pytest
 from django.core.management import call_command
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
 from apps.core.feeds import FeedResult
 from apps.sources.models import ImportRun, ImportStatus
+from apps.visibility.audit_actions import VisibilityAudit
 from apps.visibility.models import (
     CollectionMethod,
     SmailyAudienceSnapshot,
@@ -154,7 +155,7 @@ def test_an_unchanged_reading_publishes_nothing_the_second_time():
     assert outcome.extra["action"] == ReadingAction.UNCHANGED
     assert SmailyAudienceSnapshot.objects.count() == 1
     assert SmailySegmentDaily.objects.count() == 4
-    assert AuditEvent.objects.filter(action=AuditAction.SMAILY_SYNC_UNCHANGED).exists()
+    assert AuditEvent.objects.filter(action=VisibilityAudit.SMAILY_SYNC_UNCHANGED).exists()
 
 
 def test_an_unchanged_reading_does_not_supersede_the_observation():
@@ -270,7 +271,7 @@ def test_a_transport_failure_summary_names_no_host_or_credential():
     summary = SmailyFeedState.objects.get().last_error_summary
     assert "sendsmaily" not in summary
     assert "example" not in summary
-    assert AuditEvent.objects.filter(action=AuditAction.SMAILY_SYNC_FAILED).exists()
+    assert AuditEvent.objects.filter(action=VisibilityAudit.SMAILY_SYNC_FAILED).exists()
 
 
 def test_missing_configuration_names_the_settings_and_publishes_nothing():

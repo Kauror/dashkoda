@@ -26,8 +26,8 @@ from dataclasses import dataclass, field
 
 from django.db import transaction
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.legal_work.audit_actions import LegalWorkAudit
 
 from .consultation import consultation_eligible_items
 from .current_topic_matching import MATCHER_VERSION, match_all
@@ -187,7 +187,7 @@ def _run(*, dry_run: bool, actor, correlation_id) -> MatchOutcomeReport:
         _verify_written(snapshot, expected=len(outcomes))
         _publish_current(snapshot)
         record_event(
-            action=AuditAction.CURRENT_TOPIC_MATCH_GENERATED,
+            action=LegalWorkAudit.CURRENT_TOPIC_MATCH_GENERATED,
             obj=snapshot,
             actor=actor,
             correlation_id=correlation_id,
@@ -285,7 +285,7 @@ def _publish_current(snapshot) -> None:
 def _unchanged(snapshot, *, dry_run: bool, correlation_id) -> MatchOutcomeReport:
     if not dry_run:
         record_event(
-            action=AuditAction.CURRENT_TOPIC_MATCH_UNCHANGED,
+            action=LegalWorkAudit.CURRENT_TOPIC_MATCH_UNCHANGED,
             obj=snapshot,
             correlation_id=correlation_id,
             change_summary={
@@ -310,7 +310,7 @@ def _unchanged(snapshot, *, dry_run: bool, correlation_id) -> MatchOutcomeReport
 
 def _fail(message: str, correlation_id) -> MatchOutcomeReport:
     record_event(
-        action=AuditAction.CURRENT_TOPIC_MATCH_FAILED,
+        action=LegalWorkAudit.CURRENT_TOPIC_MATCH_FAILED,
         # A failed run has no snapshot to point at, so the trail is keyed by the
         # run itself. The correlation id ties it to whatever else that run wrote.
         object_type="legal_work.match_run",

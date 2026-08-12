@@ -12,7 +12,8 @@ from __future__ import annotations
 import pytest
 from django.db import IntegrityError, transaction
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
+from apps.legal_work.audit_actions import LegalWorkAudit
 from apps.legal_work.current_topic_match_sync import run_current_topic_matching
 from apps.legal_work.current_topic_matching import MATCHER_VERSION
 from apps.legal_work.models import (
@@ -285,7 +286,7 @@ def test_no_legal_work_item_gains_a_public_url_field():
 def test_a_match_run_is_audited_without_topic_or_url(ready):
     run_current_topic_matching()
 
-    event = AuditEvent.objects.get(action=AuditAction.CURRENT_TOPIC_MATCH_GENERATED)
+    event = AuditEvent.objects.get(action=LegalWorkAudit.CURRENT_TOPIC_MATCH_GENERATED)
     summary = event.change_summary
     assert summary["matcher_version"] == MATCHER_VERSION
     assert set(summary) == {
@@ -309,11 +310,11 @@ def test_an_unchanged_run_is_audited(ready):
     run_current_topic_matching()
     run_current_topic_matching()
 
-    assert AuditEvent.objects.filter(action=AuditAction.CURRENT_TOPIC_MATCH_UNCHANGED).exists()
+    assert AuditEvent.objects.filter(action=LegalWorkAudit.CURRENT_TOPIC_MATCH_UNCHANGED).exists()
 
 
 def test_a_failed_run_is_audited(imported_snapshot):
     run_current_topic_matching()
 
-    event = AuditEvent.objects.get(action=AuditAction.CURRENT_TOPIC_MATCH_FAILED)
+    event = AuditEvent.objects.get(action=LegalWorkAudit.CURRENT_TOPIC_MATCH_FAILED)
     assert event.change_summary["matcher_version"] == MATCHER_VERSION

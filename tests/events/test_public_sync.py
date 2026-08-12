@@ -13,8 +13,9 @@ from contextlib import contextmanager
 import pytest
 from django.core.management import call_command
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
 from apps.core.feeds import FeedLocked
+from apps.events.audit_actions import EventsAudit
 from apps.events.management.commands import discover_koda_event_pages as command_module
 from apps.events.public_discovery import WARN_DETAIL_CAP, DiscoveryTally
 from apps.events.public_models import DiscoveryMode, PublicEventDiscoverySnapshot
@@ -74,7 +75,7 @@ def test_the_audit_entry_carries_counts_and_no_addresses(db):
 
     discover_event_pages(discover=run)
 
-    event = AuditEvent.objects.get(action=AuditAction.EVENT_PAGES_DISCOVERED)
+    event = AuditEvent.objects.get(action=EventsAudit.EVENT_PAGES_DISCOVERED)
     assert event.change_summary["urls_seen"] == 1516
     assert event.change_summary["created"] == 38
     assert "koda.ee" not in json.dumps(event.change_summary)
@@ -88,7 +89,7 @@ def test_a_dry_run_records_nothing(db):
     assert tally.created == 5
     assert run.calls[0]["dry_run"] is True
     assert not PublicEventDiscoverySnapshot.objects.exists()
-    assert not AuditEvent.objects.filter(action=AuditAction.EVENT_PAGES_DISCOVERED).exists()
+    assert not AuditEvent.objects.filter(action=EventsAudit.EVENT_PAGES_DISCOVERED).exists()
 
 
 # -- the command ---------------------------------------------------------

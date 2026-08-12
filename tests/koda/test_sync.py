@@ -10,14 +10,17 @@ import datetime as dt
 
 import pytest
 
-from apps.audit.models import AuditAction, AuditEvent
+from apps.audit.models import AuditEvent
 from apps.core.feeds import FeedResult
+from apps.events.audit_actions import EventsAudit
 from apps.events.collector import EventCollectionError
 from apps.events.models import EventItem, EventSnapshot
 from apps.events.sync import synchronize_events
+from apps.membership.audit_actions import MembershipAudit
 from apps.membership.collector import MembershipCollectionError
 from apps.membership.models import MembershipCountObservation, MembershipFeedState
 from apps.membership.sync import synchronize_membership
+from apps.news.audit_actions import NewsAudit
 from apps.news.collector import NewsCollectionError
 from apps.news.models import NewsFeedState, NewsItem, NewsSnapshot
 from apps.news.sync import synchronize_news
@@ -203,7 +206,7 @@ def test_membership_stores_no_member_rows():
 def test_membership_audit_carries_only_safe_facts():
     synchronize_membership(collector=collector_returning(membership_collection(3000)))
 
-    event = AuditEvent.objects.get(action=AuditAction.MEMBERSHIP_OBSERVATION_IMPORTED)
+    event = AuditEvent.objects.get(action=MembershipAudit.OBSERVATION_IMPORTED)
     assert event.change_summary["total_members"] == 3000
     assert event.change_summary["source"] == "koda-public-members"
     assert "sha256" in event.change_summary
@@ -293,7 +296,7 @@ def test_news_dry_run_then_live_of_the_same_content_succeeds():
 def test_news_audit_carries_no_feed_body():
     synchronize_news(collector=collector_returning(news_collection(3)))
 
-    event = AuditEvent.objects.get(action=AuditAction.NEWS_SNAPSHOT_IMPORTED)
+    event = AuditEvent.objects.get(action=NewsAudit.SNAPSHOT_IMPORTED)
     assert event.change_summary["item_count"] == 3
     blob = str(event.change_summary)
     assert "<rss" not in blob
@@ -386,7 +389,7 @@ def test_events_dry_run_then_live_of_the_same_content_succeeds():
 def test_events_audit_carries_no_page_html():
     synchronize_events(collector=collector_returning(event_collection(3)))
 
-    event = AuditEvent.objects.get(action=AuditAction.EVENTS_SNAPSHOT_IMPORTED)
+    event = AuditEvent.objects.get(action=EventsAudit.SNAPSHOT_IMPORTED)
     assert event.change_summary["item_count"] == 3
     assert "<div" not in str(event.change_summary)
 

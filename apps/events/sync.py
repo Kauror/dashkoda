@@ -12,7 +12,6 @@ import uuid
 from django.db import transaction
 from django.utils import timezone
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
     describe_error,
@@ -26,6 +25,7 @@ from apps.core.feed_sync import (
     touch_checked,
 )
 from apps.core.feeds import FeedResult, SourceOutcome
+from apps.events.audit_actions import EventsAudit
 from apps.sources.services import complete_import_run, fail_publication
 
 from .bootstrap import ensure_events_source
@@ -119,7 +119,7 @@ def synchronize_events(*, dry_run: bool = False, actor=None, collector=None) -> 
             publish_current(snapshot)
             complete_import_run(run, rows_added=len(collection.entries), actor=actor)
             record_event(
-                action=AuditAction.EVENTS_SNAPSHOT_IMPORTED,
+                action=EventsAudit.SNAPSHOT_IMPORTED,
                 obj=snapshot,
                 actor=actor,
                 correlation_id=correlation_id,
@@ -150,7 +150,7 @@ def _unchanged(state, *, dry_run: bool, correlation_id) -> SourceOutcome:
         mark_unchanged(
             state,
             correlation_id=correlation_id,
-            audit_action=AuditAction.EVENTS_SYNC_UNCHANGED,
+            audit_action=EventsAudit.SYNC_UNCHANGED,
             change_summary={"source": state.source.slug, "item_count": count},
         )
     return SourceOutcome(
@@ -166,6 +166,6 @@ def _fail(state, message: str, correlation_id) -> SourceOutcome:
         state,
         message,
         correlation_id=correlation_id,
-        audit_action=AuditAction.EVENTS_SYNC_FAILED,
+        audit_action=EventsAudit.SYNC_FAILED,
         logger=logger,
     )

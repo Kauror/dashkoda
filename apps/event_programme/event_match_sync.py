@@ -24,8 +24,8 @@ from dataclasses import dataclass, field
 from django.db import transaction
 from django.db.models import Max
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
+from apps.event_programme.audit_actions import EventProgrammeAudit
 from apps.events.public_models import PublicEventResource
 
 from .event_match_models import EventPublicMatch, EventPublicMatchSnapshot
@@ -157,7 +157,7 @@ def run_event_matching(*, dry_run: bool = False, actor=None) -> MatchReport:
         report.snapshot_id = snapshot.pk
 
     record_event(
-        action=AuditAction.EVENT_PUBLIC_LINKS_MATCHED,
+        action=EventProgrammeAudit.EVENT_PUBLIC_LINKS_MATCHED,
         obj=snapshot,
         actor=actor,
         correlation_id=correlation_id,

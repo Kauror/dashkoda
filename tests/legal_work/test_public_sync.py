@@ -16,6 +16,7 @@ import pytest
 from django.core.management import call_command
 
 from apps.audit.models import AuditAction, AuditEvent
+from apps.legal_work.audit_actions import LegalWorkAudit
 from apps.legal_work.models import LegalWorkFeedState, LegalWorkSnapshot, SyncResult
 from apps.legal_work.public_download import (
     XLSX_MIME_TYPE,
@@ -512,7 +513,7 @@ def test_the_unchanged_audit_event_carries_the_checksum_not_the_url(make_workboo
 
     synchronize_public_workbook(downloader=FakeDownloader(path))
 
-    event = AuditEvent.objects.get(action=AuditAction.LEGAL_WORK_SYNC_UNCHANGED)
+    event = AuditEvent.objects.get(action=LegalWorkAudit.SYNC_UNCHANGED)
     assert event.change_summary["sha256"] == hashlib.sha256(path.read_bytes()).hexdigest()
     assert SECRET_MARKER not in str(event.change_summary)
 
@@ -522,7 +523,7 @@ def test_a_failure_audit_event_carries_no_url(make_workbook):
         downloader=FakeDownloader(error=PublicDownloadError("Jagamislink keeldus (403)."))
     )
 
-    event = AuditEvent.objects.get(action=AuditAction.LEGAL_WORK_SYNC_FAILED)
+    event = AuditEvent.objects.get(action=LegalWorkAudit.SYNC_FAILED)
     assert SECRET_MARKER not in str(event.change_summary)
     assert "403" in str(event.change_summary)
 
@@ -538,8 +539,8 @@ def test_one_correlation_id_threads_the_whole_run(make_workbook):
     )
     assert result.result == SyncResult.IMPORTED
     assert AuditAction.ARTIFACT_REGISTERED in actions
-    assert AuditAction.LEGAL_WORK_SNAPSHOT_IMPORTED in actions
-    assert AuditAction.LEGAL_WORK_SNAPSHOT_PUBLISHED in actions
+    assert LegalWorkAudit.SNAPSHOT_IMPORTED in actions
+    assert LegalWorkAudit.SNAPSHOT_PUBLISHED in actions
 
 
 # -- command ------------------------------------------------------------

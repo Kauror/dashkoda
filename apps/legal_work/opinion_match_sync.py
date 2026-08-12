@@ -26,9 +26,9 @@ from decimal import Decimal
 
 from django.db import transaction
 
-from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import describe_error
+from apps.legal_work.audit_actions import LegalWorkAudit
 
 from .models import LegalWorkItem, LegalWorkSnapshot, MatchDecision
 from .opinion_classification import DocumentClassification
@@ -192,7 +192,7 @@ def run_opinion_matching(*, dry_run: bool = False, actor=None) -> MatchReport:
         message = describe_error(error)
         logger.warning("opinion_matching failed: %s", type(error).__name__)
         record_event(
-            action=AuditAction.OPINION_MATCH_FAILED,
+            action=LegalWorkAudit.OPINION_MATCH_FAILED,
             obj=legal_snapshot,
             actor=actor,
             correlation_id=correlation_id,
@@ -558,7 +558,7 @@ def _generate(
         report.snapshot_id = snapshot.pk
 
         record_event(
-            action=AuditAction.OPINION_MATCH_GENERATED,
+            action=LegalWorkAudit.OPINION_MATCH_GENERATED,
             obj=snapshot,
             actor=actor,
             correlation_id=correlation_id,
