@@ -257,3 +257,147 @@ def test_a_blob_created_after_the_migration_still_gets_an_identifier():
     )
 
     assert blob.public_id is not None
+
+
+# -- 0009: the catalogue key learns about the filename normaliser -------------
+#
+# `0007` added `filename_normaliser_version`, taught the unchanged check to
+# compare it, and left `opinioncatalogue_unique_manifest_and_extractor` keyed on
+# three columns. So the code decided a manifest needed republishing whenever the
+# normaliser changed, and the database refused the row — a deadlock, because
+# publishing is what records the new version. `0009` widens the key to the same
+# four facts the check reads.
+
+CATALOGUE_BEFORE = "0008_public_opinion_source"
+CATALOGUE_AFTER = "0009_catalogue_key_includes_the_normaliser"
+
+#: The shape production is in: one published catalogue whose normaliser stamp
+#: predates the field, so it is the empty string.
+CHECKSUM = "9" * 64
+
+
+def seed_catalogue(apps):
+    source = apps.get_model("sources", "DataSource").objects.create(
+        slug="koda-legal-opinions",
+        name="Koja arvamused",
+    )
+    artifact = apps.get_model("sources", "SourceArtifact").objects.create(
+        source=source,
+        external_reference="chamber-opinion-inbox",
+        original_name="opinion-source-manifest",
+        mime_type="application/json",
+        sha256=CHECKSUM,
+        size_bytes=128,
+    )
+    run = apps.get_model("sources", "ImportRun").objects.create(
+        source=source,
+        artifact=artifact,
+        importer_name="legal_opinion_catalogue",
+        schema_version="1.0",
+        import_key="a" * 64,
+        status="succeeded",
+        dry_run=False,
+        started_at="2026-08-08T06:20:00+00:00",
+        finished_at="2026-08-08T06:21:00+00:00",
+    )
+    apps.get_model("legal_work", "OpinionCatalogueSnapshot").objects.create(
+        source=source,
+        artifact=artifact,
+        import_run=run,
+        source_manifest_checksum=CHECKSUM,
+        extractor_version="1.0",
+        filename_normaliser_version="",
+        observed_at="2026-08-08T06:21:00+00:00",
+        entry_count=147,
+        is_current=True,
+    )
+
+
+def test_the_widened_catalogue_key_survives_a_published_snapshot(populated_migration):
+    """A row that satisfied the three-column key satisfies the four-column one,
+    so the migration cannot fail on the catalogue production already holds."""
+    apps = populated_migration(
+        "legal_work", before=CATALOGUE_BEFORE, after=CATALOGUE_AFTER, seed=seed_catalogue
+    )
+
+    Snapshot = apps.get_model("legal_work", "OpinionCatalogueSnapshot")
+
+    row = Snapshot.objects.get()
+    assert row.entry_count == 147, "the published catalogue is untouched"
+    assert row.filename_normaliser_version == ""
+
+
+def test_a_new_normaliser_may_republish_the_same_manifest(populated_migration):
+    """The deadlock, gone: identical bytes and extractor, a newer filename
+    reader, and the row is now allowed to exist."""
+    apps = populated_migration(
+        "legal_work", before=CATALOGUE_BEFORE, after=CATALOGUE_AFTER, seed=seed_catalogue
+    )
+
+    Snapshot = apps.get_model("legal_work", "OpinionCatalogueSnapshot")
+    old = Snapshot.objects.get()
+    # A snapshot owns its run one-to-one, so the republication needs its own.
+    later_run = apps.get_model("sources", "ImportRun").objects.create(
+        source_id=old.source_id,
+        artifact_id=old.artifact_id,
+        importer_name="legal_opinion_catalogue",
+        schema_version="1.0+x1.0+f1.1",
+        import_key="b" * 64,
+        status="succeeded",
+        dry_run=False,
+        started_at="2026-08-12T06:20:00+00:00",
+        finished_at="2026-08-12T06:21:00+00:00",
+    )
+
+    Snapshot.objects.create(
+        source_id=old.source_id,
+        artifact_id=old.artifact_id,
+        import_run=later_run,
+        source_manifest_checksum=CHECKSUM,
+        extractor_version="1.0",
+        filename_normaliser_version="1.1",
+        observed_at="2026-08-12T06:20:00+00:00",
+        entry_count=147,
+        is_current=False,
+    )
+
+    assert Snapshot.objects.count() == 2
+
+
+def test_the_same_readers_still_may_not_publish_the_manifest_twice(populated_migration):
+    """What the key was protecting is kept: nothing changed, nothing republishes."""
+    from django.db.utils import IntegrityError
+
+    apps = populated_migration(
+        "legal_work", before=CATALOGUE_BEFORE, after=CATALOGUE_AFTER, seed=seed_catalogue
+    )
+
+    Snapshot = apps.get_model("legal_work", "OpinionCatalogueSnapshot")
+    old = Snapshot.objects.get()
+
+    # Its own run, or the one-to-one would raise and this would pass for the
+    # wrong reason without ever reaching the key under test.
+    later_run = apps.get_model("sources", "ImportRun").objects.create(
+        source_id=old.source_id,
+        artifact_id=old.artifact_id,
+        importer_name="legal_opinion_catalogue",
+        schema_version="1.0+x1.0+f",
+        import_key="c" * 64,
+        status="succeeded",
+        dry_run=False,
+        started_at="2026-08-12T06:20:00+00:00",
+        finished_at="2026-08-12T06:21:00+00:00",
+    )
+
+    with pytest.raises(IntegrityError):
+        Snapshot.objects.create(
+            source_id=old.source_id,
+            artifact_id=old.artifact_id,
+            import_run=later_run,
+            source_manifest_checksum=CHECKSUM,
+            extractor_version="1.0",
+            filename_normaliser_version="",
+            observed_at="2026-08-12T06:20:00+00:00",
+            entry_count=147,
+            is_current=False,
+        )

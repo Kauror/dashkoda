@@ -13,11 +13,14 @@ from django.core.management import call_command
 
 from apps.legal_work.models import SnapshotImmutable
 from apps.legal_work.opinion_catalogue_sync import (
+    IMPORTER_NAME,
     RESULT_IMPORTED,
     RESULT_PARTIAL,
     RESULT_UNCHANGED,
+    SCHEMA_VERSION,
     synchronize_opinion_documents,
 )
+from apps.legal_work.opinion_filenames import FILENAME_NORMALISER_VERSION
 from apps.legal_work.opinion_models import (
     CatalogueBuildState,
     OpinionCatalogueEntry,
@@ -28,6 +31,8 @@ from apps.legal_work.opinion_models import (
 )
 from apps.legal_work.opinion_pdf import ExtractionStatus, ValidationStatus
 from apps.legal_work.opinion_storage import blob_path, store_root
+from apps.sources.models import ImportRun, SourceArtifact
+from apps.sources.services import calculate_import_key
 
 from .opinion_factory import build_zip, make_encrypted_pdf, make_pdf, opinion_pdf
 
@@ -86,6 +91,53 @@ def test_a_repeated_build_reports_unchanged(opinion_roots, opinion_source):
 
     assert report.result == RESULT_UNCHANGED
     assert OpinionCatalogueSnapshot.objects.filter(is_current=True).count() == 1
+
+
+def test_a_stale_normaliser_version_republishes_instead_of_failing_for_ever(
+    opinion_roots, opinion_source
+):
+    """The production deadlock this guards against.
+
+    Raising `FILENAME_NORMALISER_VERSION` invalidates the unchanged fast path on
+    purpose — dates and recipients are parsed out of filenames, so a new reader
+    changes the catalogue from identical bytes. The run then reaches `_publish`
+    with a checksum whose artifact already exists.
+
+    Registering it again raised `ArtifactRejected`, and the failure was
+    self-perpetuating: publishing is what writes the new version stamp, so every
+    later run took the same path and failed the same way. It failed daily from
+    2026-08-09 until this was fixed, and no rerun could ever clear it.
+    """
+    source, _ = opinion_roots
+    bootstrap(source, letters(2))
+    synchronize_opinion_documents()
+    published = OpinionCatalogueSnapshot.objects.get(is_current=True)
+    # Rewind to the state `0007` left behind, both halves of it. The snapshot
+    # predates the field so its stamp is empty, and its run was keyed on the
+    # bare schema version — rewinding only the snapshot would leave the run
+    # already carrying today's derived key and test nothing.
+    #
+    # `update` rather than `save` because a published snapshot is immutable
+    # through the model.
+    OpinionCatalogueSnapshot.objects.filter(pk=published.pk).update(filename_normaliser_version="")
+    ImportRun.objects.filter(pk=published.import_run_id).update(
+        schema_version=SCHEMA_VERSION,
+        import_key=calculate_import_key(
+            IMPORTER_NAME, SCHEMA_VERSION, published.source_manifest_checksum
+        ),
+    )
+    before = SourceArtifact.objects.count()
+
+    report = synchronize_opinion_documents()
+
+    assert report.result == RESULT_IMPORTED, "a stale stamp must republish, not fail"
+    assert SourceArtifact.objects.count() == before
+    current = OpinionCatalogueSnapshot.objects.get(is_current=True)
+    assert current.filename_normaliser_version == FILENAME_NORMALISER_VERSION, (
+        "publishing is what clears the condition, so it must actually happen"
+    )
+    # And the next run settles back to the fast path rather than churning.
+    assert synchronize_opinion_documents().result == RESULT_UNCHANGED
 
 
 def test_a_changed_inbox_publishes_a_new_snapshot(opinion_roots, opinion_source):
