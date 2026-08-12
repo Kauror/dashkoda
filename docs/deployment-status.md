@@ -274,6 +274,44 @@ repository**, and none was entered during development.
 
 **No server, Cloudflare, DNS, tunnel or schedule change.**
 
+### Smaily: connected and collecting
+
+The newsletter audiences were connected on **2026-08-10**. Two scheduled jobs
+run: `sync_smaily` reads each list's current size, and `sync_smaily_campaigns`
+catalogues completed sends with their aggregate statistics.
+
+What is configured on the host:
+
+| | |
+| --- | --- |
+| `SMAILY_SUBDOMAIN`, `SMAILY_API_USERNAME`, `SMAILY_API_PASSWORD` | set, from the environment |
+| Cron entries | `sync_smaily` 05:20 Tallinn, `sync_smaily_campaigns` 05:25 |
+| Live acceptance | performed against the real account |
+
+Two things are worth knowing before touching this job.
+
+**The three variables must be named under `environment:` in `compose.yaml`, not
+only set in the environment file.** Compose reads `.env` for interpolation, so a
+variable never referenced there does not reach the container and both commands
+report every setting missing however correct the file is. That cost one
+deployment round trip.
+
+**There is no backfill for list sizes and there cannot be one.** Smaily reports
+what a list holds now, so the history begins on the day collection started and a
+missed day is unrecoverable — which is why `SmailyAudienceSnapshot` is never
+pruned. The campaign catalogue is different and *can* be rebuilt from the API.
+
+The credential deserves care beyond the usual: Smaily's API users have no
+permission model, so the account that reads a list can also send campaigns and
+delete subscribers. That the integration cannot write is a property of our code
+rather than of the credential — see `apps/visibility/smaily.py`, which is the
+only module that issues a request, whose method is a literal `GET` and whose
+endpoint is a lookup into a fixed set. **No production figure, segment name or
+credential is committed to this repository.**
+
+**No server, Cloudflare, DNS or tunnel change; the two cron entries were
+installed by an administrator.**
+
 ## What the current-topic matching changes here
 
 **No environment variable, no volume, no container and no server-side change.**
