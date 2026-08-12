@@ -39,6 +39,17 @@ from urllib.parse import quote
 
 from django.utils import timezone
 
+from apps.core.query_state import (  # noqa: F401 - re-exported for the view
+    parse_iso_date,
+    parse_page,
+)
+from apps.core.query_state import (
+    parse_search as core_parse_search,
+)
+from apps.core.query_state import (
+    parse_sort as core_parse_sort,
+)
+
 #: The query parameters this page reads.
 PARAM_PERIOD = "periood"
 PARAM_FROM = "alates"
@@ -157,21 +168,6 @@ class ResolvedPeriod:
         return lower, upper
 
 
-def parse_iso_date(raw: str | None) -> date | None:
-    """The date a `type="date"` field submitted, or `None` for anything else.
-
-    A date input submits `YYYY-MM-DD` and nothing else, so that is the only
-    shape read. An empty field, a hand-typed URL or an injection attempt is not
-    a date and resolves to "no date given" rather than to an error page.
-    """
-    if not raw:
-        return None
-    try:
-        return date.fromisoformat(raw.strip())
-    except ValueError, AttributeError:
-        return None
-
-
 #: How the archive is ordered.
 SORT_NEWEST = "uusimad"
 SORT_VIEWS = "vaadatud"
@@ -180,26 +176,13 @@ SORT_LABELS = {SORT_NEWEST: "Uusimad", SORT_VIEWS: "Enim vaadatud"}
 
 
 def parse_sort(raw: str | None) -> str:
-    """The ordering asked for, or the default. Never raises."""
-    value = (raw or "").strip()
-    return value if value in SORT_KEYS else SORT_NEWEST
+    """The ordering asked for, or newest-first."""
+    return core_parse_sort(raw, allowed=SORT_KEYS, default=SORT_NEWEST)
 
 
 def parse_search(raw: str | None) -> str:
-    """The search term, trimmed and bounded."""
-    return (raw or "").strip()[:MAX_SEARCH_LENGTH]
-
-
-def parse_page(raw: str | int | None) -> int:
-    """The page number asked for, floored at one.
-
-    A rotted bookmark is not an error page. A page beyond the end is clamped
-    later, once the row count is known.
-    """
-    try:
-        return max(int(raw), 1)
-    except TypeError, ValueError:
-        return 1
+    """The search term, bounded to what this archive's index is worth."""
+    return core_parse_search(raw, limit=MAX_SEARCH_LENGTH)
 
 
 def resolve_period(

@@ -23,6 +23,18 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from urllib.parse import quote
 
+from apps.core.query_state import (  # noqa: F401 - re-exported for the view
+    parse_int_list,
+    parse_iso_date,
+    parse_page,
+)
+from apps.core.query_state import (
+    parse_search as core_parse_search,
+)
+from apps.core.query_state import (
+    parse_sort as core_parse_sort,
+)
+
 PARAM_PERIOD = "periood"
 PARAM_FROM = "alates"
 PARAM_TO = "kuni"
@@ -101,39 +113,9 @@ class ResolvedShopPeriod:
         return f"{PARAM_PERIOD}={self.key}"
 
 
-def parse_iso_date(raw: str | None) -> date | None:
-    if not raw:
-        return None
-    try:
-        return date.fromisoformat(raw.strip())
-    except ValueError, AttributeError:
-        return None
-
-
 def parse_search(raw: str | None) -> str:
-    return (raw or "").strip()[:MAX_SEARCH_LENGTH]
-
-
-def parse_page(raw: str | int | None) -> int:
-    try:
-        return max(int(raw), 1)
-    except TypeError, ValueError:
-        return 1
-
-
-def parse_int_list(values) -> tuple[int, ...]:
-    """Whatever of a repeated query parameter is actually an integer.
-
-    A rotted bookmark carrying `kategooria=abc` narrows to nothing rather than
-    raising; the page still renders and the reader can pick again.
-    """
-    out: list[int] = []
-    for value in values or ():
-        try:
-            out.append(int(value))
-        except TypeError, ValueError:
-            continue
-    return tuple(dict.fromkeys(out))
+    """The search term, bounded to what the product index is worth."""
+    return core_parse_search(raw, limit=MAX_SEARCH_LENGTH)
 
 
 def resolve_period(
@@ -267,8 +249,8 @@ SORT_COLUMNS = (SORT_TITLE, SORT_UNITS, SORT_VALUE, SORT_VIEWS, SORT_CONVERSION)
 
 
 def parse_sort(raw: str | None) -> str:
-    value = (raw or "").strip()
-    return value if value in SORT_KEYS else SORT_UNITS
+    """The ordering asked for, or by units sold."""
+    return core_parse_sort(raw, allowed=SORT_KEYS, default=SORT_UNITS)
 
 
 __all__ = [
