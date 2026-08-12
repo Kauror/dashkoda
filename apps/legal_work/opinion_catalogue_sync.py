@@ -45,7 +45,7 @@ from apps.core.feed_sync import (
     start_run,
     touch_checked,
 )
-from apps.sources.services import complete_import_run, fail_import_run
+from apps.sources.services import complete_import_run, publishing_run
 
 from .opinion_bootstrap import ensure_opinion_source
 from .opinion_classification import classify_document
@@ -486,7 +486,7 @@ def _publish(
         correlation_id=correlation_id,
     )
 
-    try:
+    with publishing_run(run, errors=[{"type": "publication_failed"}], actor=actor):
         with transaction.atomic():
             snapshot = OpinionCatalogueSnapshot(
                 source=source,
@@ -534,11 +534,6 @@ def _publish(
                     "extractor_version": EXTRACTOR_VERSION,
                 },
             )
-    except Exception:
-        run.refresh_from_db()
-        if not run.is_terminal:
-            fail_import_run(run, errors=[{"type": "publication_failed"}], actor=actor)
-        raise
 
     state.build_state = CatalogueBuildState.COMPLETE
     state.building_manifest_checksum = ""

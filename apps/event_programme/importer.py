@@ -25,7 +25,7 @@ from apps.sources.models import ImportRun, SourceArtifact
 from apps.sources.services import (
     build_import_run,
     complete_import_run,
-    fail_import_run,
+    fail_publication,
     start_import_run,
 )
 
@@ -268,9 +268,7 @@ def import_artifact(
     except Exception as error:
         # The atomic block above has already rolled back, so the previous
         # current snapshot is intact and the run can be closed cleanly.
-        run.refresh_from_db()
-        if not run.is_terminal:
-            fail_import_run(run, errors=[_sanitized(error)], actor=actor)
+        fail_publication(run, errors=[_sanitized(error)], actor=actor)
         if isinstance(error, WorkbookContractError):
             raise EventProgrammeImportError(str(error)) from error
         raise

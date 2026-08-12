@@ -6,6 +6,8 @@ the rules are readable in one place and the audit trail cannot be forgotten.
 
 import hashlib
 import uuid
+from collections.abc import Callable
+from contextlib import contextmanager
 from pathlib import Path
 
 from django.conf import settings
@@ -482,3 +484,71 @@ def fail_import_run(run: ImportRun, *, errors: list | None = None, actor=None) -
             },
         )
     return run
+
+
+def fail_publication(
+    run: ImportRun,
+    *,
+    errors: list | None = None,
+    actor=None,
+) -> None:
+    """Close ``run`` after a failed publication, unless it is already closed.
+
+    Publication happens inside a transaction, so a failure has already rolled
+    the database back by the time a caller sees it. Two things follow, and both
+    are easy to get wrong by hand:
+
+    - **the row is whatever the database last committed, not what this process
+      last set in memory.** A publisher that called :func:`complete_import_run`
+      as its final statement inside the atomic block holds an in-memory run
+      marked succeeded, while the committed row went back to running. Failing it
+      without re-reading asks for a ``succeeded -> failed`` transition, which the
+      state machine forbids — so `InvalidImportTransition` is raised *from the
+      error handler* and buries the failure it was meant to record;
+    - **the run may legitimately be closed already**, by a publisher that failed
+      after finishing its own bookkeeping. Failing it twice is the same illegal
+      transition.
+
+    Hence: refresh, and only fail a run that is not already terminal.
+
+    Use :func:`publishing_run` instead where the handler does nothing else. This
+    is for the callers that also translate the error or write their own audit
+    event, so that they share the rule rather than restating it.
+    """
+    run.refresh_from_db()
+    if not run.is_terminal:
+        fail_import_run(run, errors=errors, actor=actor)
+
+
+@contextmanager
+def publishing_run(
+    run: ImportRun,
+    *,
+    errors: list | Callable[[BaseException], list] | None = None,
+    actor=None,
+):
+    """Publish inside this, and a failure closes the run before it propagates.
+
+    The common shape: wrap the atomic block, and :func:`fail_publication` does
+    the bookkeeping described there.
+
+    ``errors`` is the payload for :func:`fail_import_run`. Pass a list for a
+    fixed one, or a callable taking the exception for a payload derived from it
+    — a sanitizer, typically, since an unsanitized exception may quote the
+    source file it failed on.
+
+    The exception is always re-raised. What a failed publication *means* — a
+    disclosed feed state, a domain error, an audit event — belongs to the
+    caller, so this deliberately decides none of it.
+    """
+    try:
+        yield
+    except Exception as error:
+        if errors is None:
+            payload = [{"type": type(error).__name__}]
+        elif callable(errors):
+            payload = errors(error)
+        else:
+            payload = errors
+        fail_publication(run, errors=payload, actor=actor)
+        raise

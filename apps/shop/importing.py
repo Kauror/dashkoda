@@ -44,7 +44,7 @@ from apps.sources.services import (
     build_import_run,
     calculate_import_key,
     complete_import_run,
-    fail_import_run,
+    fail_publication,
     register_external_reference,
     start_import_run,
 )
@@ -543,7 +543,7 @@ def import_shop_package(
                 },
             )
     except Exception as error:  # noqa: BLE001 - recorded, re-raised below
-        fail_import_run(run, errors=[_sanitized(error)], actor=actor)
+        fail_publication(run, errors=[_sanitized(error)], actor=actor)
         record_event(
             action=AuditAction.SHOP_SNAPSHOT_FAILED,
             obj=run,

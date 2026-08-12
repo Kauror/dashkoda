@@ -61,7 +61,7 @@ from apps.sources.models import SourceArtifact
 from apps.sources.services import (
     build_import_run,
     complete_import_run,
-    fail_import_run,
+    publishing_run,
     register_external_reference,
     start_import_run,
 )
@@ -329,7 +329,9 @@ def _publish(
     )
     start_import_run(run)
 
-    try:
+    with publishing_run(
+        run, errors=[{"detail": "Smaily lugemise avaldamine ebaõnnestus."}], actor=actor
+    ):
         with transaction.atomic():
             # Locked, because the unique index allows exactly one current
             # revision per date and two runs on the same day would otherwise
@@ -389,9 +391,6 @@ def _publish(
                 rows_added=1 + len(reading.segments),
                 actor=actor,
             )
-    except Exception:
-        fail_import_run(run, errors=[{"detail": "Smaily lugemise avaldamine ebaõnnestus."}])
-        raise
 
     from apps.audit.services import record_event
 

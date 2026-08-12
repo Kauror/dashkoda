@@ -62,7 +62,7 @@ from apps.core.feed_sync import (
     start_run,
     touch_checked,
 )
-from apps.sources.services import complete_import_run, fail_import_run
+from apps.sources.services import complete_import_run, publishing_run
 
 from .current_topics import content_key_for
 from .opinion_classification import classify_document
@@ -834,7 +834,7 @@ def _publish(
         correlation_id=correlation_id,
     )
 
-    try:
+    with publishing_run(run, errors=[{"type": "publication_failed"}], actor=actor):
         with transaction.atomic():
             snapshot = PublicOpinionSnapshot(
                 source=source,
@@ -923,11 +923,6 @@ def _publish(
                     "full": full,
                 },
             )
-    except Exception:
-        run.refresh_from_db()
-        if not run.is_terminal:
-            fail_import_run(run, errors=[{"type": "publication_failed"}], actor=actor)
-        raise
 
     mark_imported(state, snapshot, current_field="current_snapshot")
     return snapshot

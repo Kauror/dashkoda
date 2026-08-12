@@ -66,7 +66,7 @@ from apps.core.feed_sync import (
     touch_checked,
 )
 from apps.core.feeds import FeedResult
-from apps.sources.services import complete_import_run, fail_import_run
+from apps.sources.services import complete_import_run, fail_publication
 
 from .archive_bootstrap import ensure_archive_source
 from .archived_topics import (
@@ -332,9 +332,7 @@ def synchronize_archived_topics(
                 },
             )
     except Exception as error:  # noqa: BLE001
-        run.refresh_from_db()
-        if not run.is_terminal:
-            fail_import_run(run, errors=[{"type": type(error).__name__}], actor=actor)
+        fail_publication(run, errors=[{"type": type(error).__name__}], actor=actor)
         return _fail(state, describe_error(error), correlation_id)
 
     mark_imported(state, snapshot, current_field="current_snapshot")
