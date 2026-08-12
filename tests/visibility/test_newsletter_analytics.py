@@ -59,6 +59,38 @@ def read(day, *, members=100, others=200, enews=30, evestnik=40, drop=()):
     synchronize_smaily(observed_on=day, collector=FakeCollector(rows))
 
 
+def _provenance():
+    """An artifact and import run for a synthetic send to hang off.
+
+    `SmailyCampaignStats` requires both, and this used to reach for
+    `SourceArtifact.objects.first()` — which is `None` unless some earlier call
+    in the same test happened to run `read()` and leave one behind. A test that
+    only issues campaigns got a null and a `NotNullViolation`, so the helper
+    made a test's correctness depend on the order of the lines above it.
+    """
+    from apps.sources.models import ImportRun, SourceArtifact
+    from apps.sources.services import build_import_run, register_external_reference
+    from apps.visibility.bootstrap import ensure_smaily_source
+
+    artifact = SourceArtifact.objects.first()
+    if artifact is None:
+        artifact = register_external_reference(
+            source=ensure_smaily_source(),
+            external_reference="synthetic:smaily-campaign-stats",
+            original_name="synthetic.json",
+            mime_type="application/json",
+            sha256="c" * 64,
+            size_bytes=10,
+        )
+    run = ImportRun.objects.first() or build_import_run(
+        artifact=artifact,
+        importer_name="synthetic_smaily_test",
+        schema_version="1.0",
+        dry_run=False,
+    )
+    return artifact, run
+
+
 def issue(
     campaign_id,
     *,
@@ -79,10 +111,7 @@ def issue(
     )
     if delivered is None:
         return campaign
-    from apps.sources.models import ImportRun, SourceArtifact
-
-    artifact = SourceArtifact.objects.first()
-    run = ImportRun.objects.first()
+    artifact, run = _provenance()
     SmailyCampaignStats.objects.create(
         campaign=campaign,
         artifact=artifact,

@@ -25,10 +25,16 @@ pytestmark = pytest.mark.django_db
 
 TODAY = dt.date(2026, 8, 11)
 
-#: Count, page slice, coverage, catalogue-exists, undated-count. Stated as a
-#: number rather than a range so that adding a sixth query is a decision
-#: somebody makes on purpose.
-EXPECTED_QUERIES = 5
+#: Count, page slice, coverage, catalogue facts. Stated as a number rather than
+#: a range so that adding another query is a decision somebody makes on purpose.
+#:
+#: It was five, and the number is the reason this file matters. #106 added a
+#: third catalogue-wide count for the unclassified total without touching this
+#: budget, so the three tests below had been failing on `main` from the moment
+#: it merged — unseen, because that run and the merge run after it were both
+#: cancelled early. The catalogue-wide questions are one conditional aggregate
+#: now, which is why the number went down rather than up.
+EXPECTED_QUERIES = 4
 
 
 def catalogue(count: int) -> None:

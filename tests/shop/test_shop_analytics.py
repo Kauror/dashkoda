@@ -122,9 +122,20 @@ def test_the_two_pages_are_never_added(imported, ga4_day):
 
 
 def test_an_unmeasured_product_has_no_views_and_no_rate(imported, ga4_day):
+    """Unknown, not zero — which needs a window whose page detail is *not*
+    complete, because that is the whole condition the distinction turns on.
+
+    With one measured day the window collapses to that day, page detail covers
+    all of it, and an absent path is then a genuine measured zero rather than an
+    unknown. That is `page_views_in_window` working as documented, so the second
+    day here is what makes the window describe the ordinary state instead: GA4
+    reporting a day it has no page-level breakdown for.
+    """
     ga4_day(dt.date(2026, 3, 10), pages=((PRODUCT_PATH, 400),))
+    ga4_day(dt.date(2026, 3, 11), has_page_detail=False)
 
     window = resolve_comparison(start=None, end=None)
+    assert not window.page_detail_complete
     row = next(
         item
         for item in build_product_rows(window)
@@ -290,7 +301,10 @@ def test_ranking_query_count_does_not_grow_with_products(
 def test_search_runs_over_the_whole_population(imported):
     window = resolve_comparison(start=None, end=None)
 
-    by_title = build_product_rows(window, search="Näidisleping")
+    # `Näidisleping` alone is not a discriminating term: the long-title product
+    # is called `Väga pikk näidislepingu pealkiri …`, and a substring search
+    # matching an inflected form is the behaviour wanted rather than a defect.
+    by_title = build_product_rows(window, search="Näidisleping ühe")
     by_path = build_product_rows(window, search="toosuhted/naidisleping")
     by_id = build_product_rows(window, search=str(DOCUMENT_WITH_BOTH_PAGES))
 

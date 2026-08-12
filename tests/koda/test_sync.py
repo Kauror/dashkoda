@@ -174,6 +174,17 @@ def test_membership_stores_no_member_rows():
         "MembershipRemovalReason",
         "MembershipDataIssue",
         "MembershipMetricConflict",
+        # Board-decision batches and new-member periods, added by the schema 2.0
+        # import. Aggregates only: each of the five carries a `member_count`, a
+        # size band or a reason key, an external batch/period identifier and its
+        # provenance — and no field capable of naming, coding or linking to an
+        # individual member. Checked field by field before being allowed here,
+        # which is what this assertion is for.
+        "MembershipDecisionBatch",
+        "MembershipDecisionBatchReason",
+        "MembershipDecisionBatchSizeMovement",
+        "MembershipNewMemberPeriod",
+        "MembershipNewMemberSizeDistribution",
     }
 
     for model in models:

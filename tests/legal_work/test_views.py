@@ -245,19 +245,21 @@ def test_overview_shows_real_legal_work_data_once_imported(
 def test_overview_discloses_a_failed_sync_alongside_old_data(
     client, authenticate_viewer, imported_snapshot, legal_work_source
 ):
-    """The failure is disclosed where the board will see it, and the last good
-    data stays on the page rather than being withdrawn.
+    """The failure is disclosed, and the last good data stays on the overview
+    rather than being withdrawn.
 
-    Since the attention section was removed the disclosure is the connection
-    strip at the foot of the overview, which counts the stale sources."""
+    The connection strip left the overview in #104, so the stale count is now
+    served by `/dashboard/varskus/`. The overview keeping its figures is the
+    part that matters to a reader and is asserted here unchanged."""
     state = get_feed_state(legal_work_source)
     state.last_result = SyncResult.FAILED
     state.save()
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
+    freshness = client.get("/dashboard/varskus/").content.decode()
 
-    assert "Vananenud: 1" in content
+    assert "Vananenud: 1" in freshness
     assert "Sünteetiline avatud teema" in content
 
 

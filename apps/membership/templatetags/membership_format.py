@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from django import template
 
-from apps.core.formatting import group_thousands, percentage, whole_euros
+from apps.core.formatting import group_thousands, integer, percentage, whole_euros
 
 register = template.Library()
 
@@ -22,10 +22,28 @@ def group_thousands_filter(value):
     The card printed its member totals raw while the euro amounts beside them
     were grouped, so one figure in the same row read as `3402` and another as
     `1 276 101 €`.
+
+    Takes a number. Chaining it after `floatformat` hands it a *string*, which
+    is a `ValueError` rather than a wrong figure — see `integer` below, which is
+    what a `Decimal` count wants.
     """
     if value is None:
         return ""
     return group_thousands(value)
+
+
+@register.filter(name="integer")
+def integer_filter(value):
+    """A `Decimal` count as a whole grouped number: `1 276`.
+
+    `group_thousands` alone renders `Decimal("4.00")` as `4.00`, because it
+    groups whatever it is given rather than quantising it. Reaching for
+    `floatformat:0` first to fix that is what broke the E-pood pages: the filter
+    returns a string, and formatting a string with `,` raises.
+    """
+    if value is None:
+        return ""
+    return integer(value)
 
 
 @register.filter(name="whole_euros")

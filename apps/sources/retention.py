@@ -192,6 +192,16 @@ NEVER_PRUNED: dict[str, str] = {
         "what it held last year, so a pruned reading is not re-collectable from "
         "anywhere — deleting one destroys that day permanently."
     ),
+    "shop.ShopProductSnapshot": (
+        "The E-pood catalogue's observation history, not a rolling feed. One "
+        "row per product per observation date, and the *older* ones are what "
+        "make the newest meaningful: `latest_snapshots()` picks the current "
+        "title and category with `DISTINCT ON`, so a product that moved out of "
+        "a category last year is placed by its latest observation rather than "
+        "counted in that category forever. The source is a manual export, so a "
+        "pruned observation is not re-collectable — and a superseded row is "
+        "provenance for the correction that replaced it."
+    ),
 }
 
 

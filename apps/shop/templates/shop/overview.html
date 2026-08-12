@@ -158,7 +158,7 @@ other.
                             <rect x="0" y="0" width="{% widthratio point.units overview.max_month_units 100 %}" height="6" rx="3" class="fill-brand"/>
                           {% endif %}
                         </svg>
-                        <span class="tabular-nums text-text-secondary">{{ point.units|floatformat:0|group_thousands }}</span>
+                        <span class="tabular-nums text-text-secondary">{{ point.units|integer }}</span>
                       </span>
                     </td>
                     <td class="border-b border-border px-2 py-1.5 text-right align-middle whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ point.ordered_value_net|whole_euros }}</td>

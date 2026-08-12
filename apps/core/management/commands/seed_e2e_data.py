@@ -1115,9 +1115,22 @@ def _analytics_content_pages() -> tuple[tuple[str, int], ...]:
     # separate traffic — the split the E-pood page must never add together.
     for index in range(1, SHOP_INFORMATION_PRODUCTS + 1):
         rows.append((f"/et/tooriistad/sunteetiline-{index}", 40 - index * 3))
+    # The shop's event product *is* one of the events seeded above — that is what
+    # `SHOP_EVENT_INDEX` points at — so this row names a path the events loop has
+    # already measured. The overlap is deliberate; emitting the path twice was
+    # not, and a duplicate here is not a cosmetic problem: GA4 stores one row per
+    # path per day, so the second one fails the unique constraint, the whole
+    # `synchronize_ga4` call rolls back, and the seed silently produces a
+    # database with no website analytics at all. Six tests were failing on it.
     rows.append((f"/et/sundmused/sunteetiline-{SHOP_EVENT_INDEX}", 22))
     rows.append(("/et/pood/tooted/sunteetiline-fyysiline", 18))
-    return tuple(rows)
+    # First weight wins. The guard is kept rather than the duplicate simply
+    # deleted because this list is assembled from five independent loops over
+    # four domains, and the next collision would fail exactly as quietly.
+    unique: dict[str, int] = {}
+    for path, weight in rows:
+        unique.setdefault(path, weight)
+    return tuple(unique.items())
 
 
 #: Every page row, utility and content together. The site's own figures are the

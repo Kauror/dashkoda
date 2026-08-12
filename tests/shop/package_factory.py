@@ -53,7 +53,14 @@ def _csv_bytes(name: str, rows: list[dict], *, header: tuple[str, ...] | None = 
     return buffer.getvalue().encode("utf-8")
 
 
-def default_products() -> list[dict]:
+#: The as-of date every default row is observed on. A package is only coherent
+#: when its observations do not postdate its own export, so this is also the
+#: manifest's `source_as_of` — and a builder given a manifest that moves that
+#: date backwards moves the observations with it. See `PackageBuilder`.
+DEFAULT_AS_OF = "2026-08-11"
+
+
+def default_products(observed_on: str = DEFAULT_AS_OF) -> list[dict]:
     return [
         {
             "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
@@ -67,7 +74,7 @@ def default_products() -> list[dict]:
             "member_price_current_net": "15.0000",
             "members_only": "false",
             "connected_event_node_id": "",
-            "observed_on": "2026-08-11",
+            "observed_on": observed_on,
         },
         {
             "source_product_id": str(DOCUMENT_PRODUCT_PAGE_ONLY),
@@ -84,7 +91,7 @@ def default_products() -> list[dict]:
             "member_price_current_net": "0.0000",
             "members_only": "false",
             "connected_event_node_id": "",
-            "observed_on": "2026-08-11",
+            "observed_on": observed_on,
         },
         {
             "source_product_id": str(EVENT_PRODUCT),
@@ -98,7 +105,7 @@ def default_products() -> list[dict]:
             "member_price_current_net": "39.0000",
             "members_only": "false",
             "connected_event_node_id": "777001",
-            "observed_on": "2026-08-11",
+            "observed_on": observed_on,
         },
         {
             "source_product_id": str(PHYSICAL_PRODUCT),
@@ -112,36 +119,36 @@ def default_products() -> list[dict]:
             "member_price_current_net": "",
             "members_only": "",
             "connected_event_node_id": "",
-            "observed_on": "2026-08-11",
+            "observed_on": observed_on,
         },
     ]
 
 
-def default_product_paths() -> list[dict]:
+def default_product_paths(observed_on: str = DEFAULT_AS_OF) -> list[dict]:
     return [
         {
             "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
             "page_role": "product",
             "canonical_path": "/et/pood/lepingute-naidised/toosuhted/naidisleping",
-            "observed_on": "2026-08-11",
+            "observed_on": observed_on,
         },
         {
             "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
             "page_role": "information",
             "canonical_path": "/et/tooriistad/naidisleping",
-            "observed_on": "2026-08-11",
+            "observed_on": observed_on,
         },
         {
             "source_product_id": str(DOCUMENT_PRODUCT_PAGE_ONLY),
             "page_role": "product",
             "canonical_path": "/et/pood/lepingute-naidised/komplektid/naidiskomplekt",
-            "observed_on": "2026-08-11",
+            "observed_on": observed_on,
         },
         {
             "source_product_id": str(EVENT_PRODUCT),
             "page_role": "event",
             "canonical_path": "/et/sundmused/naidiskoolitus",
-            "observed_on": "2026-08-11",
+            "observed_on": observed_on,
         },
         # PHYSICAL_PRODUCT deliberately has no path: a product with no mapping
         # must still appear in Commerce totals and must yield no conversion.
@@ -237,7 +244,7 @@ def default_manifest() -> dict:
     return {
         "schema_version": "1.0",
         "source_name": "Koda.ee Commerce (sünteetiline testväljavõte)",
-        "source_as_of": "2026-08-11",
+        "source_as_of": DEFAULT_AS_OF,
         "coverage_start": "2020-10-22",
         "coverage_end": "2026-08-11",
         "exported_at": "2026-08-11T12:00:00+03:00",
@@ -251,10 +258,22 @@ def default_manifest() -> dict:
 
 @dataclass
 class PackageBuilder:
-    """A valid package by default, with one seam per failure mode."""
+    """A valid package by default, with one seam per failure mode.
 
-    products: list[dict] = field(default_factory=default_products)
-    product_paths: list[dict] = field(default_factory=default_product_paths)
+    `products` and `product_paths` default to `None` rather than to the lists
+    themselves so that the default rows can be observed on whatever day the
+    manifest says the export was taken. They used to be built independently of
+    it, which made the builder produce an *invalid* package the moment a test
+    moved `source_as_of` backwards to describe a stale export — the observations
+    stayed in August and the contract rejected them for postdating the export.
+    Two of the stale-Commerce tests were failing on exactly that.
+
+    Passing either list explicitly overrides this entirely, which is what the
+    contract tests that deliberately postdate an observation rely on.
+    """
+
+    products: list[dict] | None = None
+    product_paths: list[dict] | None = None
     daily_facts: list[dict] = field(default_factory=default_daily_facts)
     manifest: dict = field(default_factory=default_manifest)
 
@@ -267,6 +286,13 @@ class PackageBuilder:
     undeclared: dict[str, bytes] = field(default_factory=dict)
     corrupt_digest_for: str | None = None
     wrap_in_root: bool = True
+
+    def __post_init__(self) -> None:
+        as_of = self.manifest.get("source_as_of", DEFAULT_AS_OF)
+        if self.products is None:
+            self.products = default_products(as_of)
+        if self.product_paths is None:
+            self.product_paths = default_product_paths(as_of)
 
     def _payloads(self) -> dict[str, bytes]:
         payloads: dict[str, bytes] = {}

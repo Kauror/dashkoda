@@ -22,7 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal
 
-from apps.core.formatting import euros, group_thousands, short_date
+from apps.core.formatting import euros, group_thousands, long_date
 
 from .models import MemberStatus, PageRole, PaymentClass, ProductType
 from .periods import (
@@ -48,6 +48,7 @@ from .selectors import (
     CategoryRow,
     ComparisonWindow,
     ProductRow,
+    acquisitions_per_hundred,
     build_category_rows,
     build_product_rows,
     get_categories,
@@ -349,8 +350,6 @@ def build_overview(
     total_views = sum(known_views) if known_views else None
     conversion_units = sum((row.conversion_units for row in rows), Decimal(0))
 
-    from .selectors import acquisitions_per_hundred
-
     state = {
         "product_type": product_type,
         "categories": categories,
@@ -361,13 +360,11 @@ def build_overview(
 
     return ShopOverview(
         has_source=True,
-        as_of_label=short_date(coverage.source_as_of),
-        coverage_label=(
-            f"{short_date(coverage.coverage_start)}–{short_date(coverage.coverage_end)}"
-        ),
+        as_of_label=long_date(coverage.source_as_of),
+        coverage_label=(f"{long_date(coverage.coverage_start)}–{long_date(coverage.coverage_end)}"),
         window=window,
         web_interval_label=(
-            f"{short_date(window.web_start)}–{short_date(window.web_end)}" if window.has_web else ""
+            f"{long_date(window.web_start)}–{long_date(window.web_end)}" if window.has_web else ""
         ),
         web_is_partial=window.web_is_partial,
         period=resolved,
@@ -582,12 +579,10 @@ def build_product_detail(
 
     return ProductDetail(
         found=True,
-        as_of_label=short_date(coverage.source_as_of),
-        coverage_label=(
-            f"{short_date(coverage.coverage_start)}–{short_date(coverage.coverage_end)}"
-        ),
+        as_of_label=long_date(coverage.source_as_of),
+        coverage_label=(f"{long_date(coverage.coverage_start)}–{long_date(coverage.coverage_end)}"),
         web_interval_label=(
-            f"{short_date(window.web_start)}–{short_date(window.web_end)}" if window.has_web else ""
+            f"{long_date(window.web_start)}–{long_date(window.web_end)}" if window.has_web else ""
         ),
         web_is_partial=window.web_is_partial,
         source_product_id=source_product_id,
