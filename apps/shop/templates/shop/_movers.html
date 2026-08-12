@@ -1,0 +1,30 @@
+{% comment %}
+One side of "Mis muutus?" — products ranked by absolute change in acquired
+units.
+
+Context:
+  movers – a tuple of MoverPresenter
+
+The change is the headline and the percentage is the aside, because a list
+ordered by percentage is a list of the smallest products in the catalogue: one
+unit becoming four is +300%. A product with no previous activity says `uus`
+rather than an infinity.
+{% endcomment %}
+{% if movers %}
+  <ol class="flex flex-col gap-1.5">
+    {% for mover in movers %}
+      <li class="flex min-w-0 items-baseline justify-between gap-3">
+        <span class="min-w-0">
+          <a class="break-words text-sm text-text hover:underline" href="{% url 'shop-product' mover.source_product_id %}">{{ mover.title }}</a>
+          {% if mover.category_name %}<span class="block dk-meta">{{ mover.category_name }}</span>{% endif %}
+        </span>
+        <span class="flex-none text-right">
+          <span class="text-sm font-semibold tabular-nums text-text">{{ mover.change_label }}</span>
+          {% if mover.context %}<span class="block dk-meta tabular-nums">{{ mover.context }}</span>{% endif %}
+        </span>
+      </li>
+    {% endfor %}
+  </ol>
+{% else %}
+  <p class="dk-meta">Muutusi ei ole.</p>
+{% endif %}

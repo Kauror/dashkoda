@@ -44,6 +44,10 @@ class ShopPeriod:
     key: str
     label: str
     days: int | None
+    #: Whether this belongs in the first row of controls. Seven equal-weight
+    #: buttons is a menu, not a control: the reader has to read all of them
+    #: before choosing any. Five is a glance.
+    is_primary: bool = True
 
     @property
     def is_all(self) -> bool:
@@ -55,13 +59,16 @@ class ShopPeriod:
 
 
 PERIODS: tuple[ShopPeriod, ...] = (
-    ShopPeriod(key="30", label="30 päeva", days=30),
-    ShopPeriod(key="90", label="90 päeva", days=90),
-    ShopPeriod(key="1a", label="1 aasta", days=365),
-    ShopPeriod(key="3a", label="3 aastat", days=1095),
-    ShopPeriod(key="5a", label="5 aastat", days=1825),
+    ShopPeriod(key="30", label="30 p", days=30),
+    ShopPeriod(key="90", label="90 p", days=90),
+    ShopPeriod(key="1a", label="1 a", days=365),
+    ShopPeriod(key="3a", label="3 a", days=1095),
     ShopPeriod(key=ALL_KEY, label="Kõik", days=None),
-    ShopPeriod(key=CUSTOM_KEY, label="Kohandatud", days=None),
+    # Kept, and kept out of the first row. Five years is a rare question on a
+    # dataset whose whole history is under six, and a custom range is a second
+    # thought rather than a first one.
+    ShopPeriod(key="5a", label="5 aastat", days=1825, is_primary=False),
+    ShopPeriod(key=CUSTOM_KEY, label="Kohandatud", days=None, is_primary=False),
 )
 
 DEFAULT_PERIOD = PERIODS[2]  # 1 aasta: a shop question is rarely about a month
@@ -243,13 +250,20 @@ SORT_VIEWS = "vaatamised"
 SORT_CONVERSION = "maar"
 SORT_TITLE = "nimi"
 SORT_KEYS = (SORT_UNITS, SORT_VALUE, SORT_VIEWS, SORT_CONVERSION, SORT_TITLE)
+#: Column headings, not sentences. The table is the place these are read, and a
+#: heading of four words in a right-aligned numeric column wraps to three lines
+#: at 320 pixels. What each one means is in `Andmete kohta`.
 SORT_LABELS = {
+    SORT_TITLE: "Toode",
     SORT_UNITS: "Soetatud",
-    SORT_VALUE: "Tellitud väärtus",
-    SORT_VIEWS: "Tootelehe vaatamised",
-    SORT_CONVERSION: "Soetusi / 100 vaatamist",
-    SORT_TITLE: "Nimi",
+    SORT_VALUE: "Väärtus",
+    SORT_VIEWS: "Vaatamised",
+    SORT_CONVERSION: "/ 100",
 }
+
+#: The order the explorer's columns appear in, which is also the order the
+#: sortable headers are built in.
+SORT_COLUMNS = (SORT_TITLE, SORT_UNITS, SORT_VALUE, SORT_VIEWS, SORT_CONVERSION)
 
 
 def parse_sort(raw: str | None) -> str:
@@ -272,6 +286,7 @@ __all__ = [
     "PARAM_TO",
     "PARAM_TYPE",
     "PERIODS",
+    "SORT_COLUMNS",
     "SORT_CONVERSION",
     "SORT_KEYS",
     "SORT_LABELS",
