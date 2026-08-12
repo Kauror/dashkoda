@@ -16,7 +16,9 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.db import models
 
+from apps.core import e2e_seed as core_seed
 from apps.core.management.commands import seed_e2e_data
+from apps.event_programme import e2e_seed as event_programme_seed
 from apps.event_programme.models import (
     DeliveryMode,
     EventProgrammeItem,
@@ -24,10 +26,12 @@ from apps.event_programme.models import (
     EventStatus,
 )
 from apps.events.models import EventItem, EventSnapshot
+from apps.legal_work import e2e_seed as legal_work_seed
 from apps.legal_work.models import LegalWorkItem, LegalWorkSnapshot
 from apps.membership.models import InternalMembershipObservation, MembershipCountObservation
 from apps.news.models import NewsItem, NewsSnapshot
 from apps.sources.models import ImportRun, ImportStatus
+from apps.visibility import e2e_seed as visibility_seed
 from apps.visibility.models import VisibilityObservation
 
 pytestmark = pytest.mark.django_db
@@ -229,9 +233,9 @@ def test_the_seeded_event_programme_workbook_is_byte_identical_across_a_second_b
     import time
 
     today = dt.date(2099, 6, 1)
-    first = seed_e2e_data._write_event_programme_workbook(tmp_path / "first.xlsx", today)
+    first = event_programme_seed.write_workbook(tmp_path / "first.xlsx", today)
     time.sleep(1.1)
-    second = seed_e2e_data._write_event_programme_workbook(tmp_path / "second.xlsx", today)
+    second = event_programme_seed.write_workbook(tmp_path / "second.xlsx", today)
 
     assert (
         hashlib.sha256(first.read_bytes()).hexdigest()
@@ -244,9 +248,7 @@ def test_the_seeded_event_programme_workbook_satisfies_the_real_contract(tmp_pat
 
     from apps.event_programme.workbook import parse_workbook
 
-    path = seed_e2e_data._write_event_programme_workbook(
-        tmp_path / "programme.xlsx", dt.date(2099, 6, 1)
-    )
+    path = event_programme_seed.write_workbook(tmp_path / "programme.xlsx", dt.date(2099, 6, 1))
     parsed = parse_workbook(path)
 
     assert len(parsed.rows) > 50
@@ -323,9 +325,9 @@ def test_the_seeded_workbook_is_byte_identical_across_a_second_boundary(tmp_path
     import time
 
     today = dt.date(2099, 6, 1)
-    first = seed_e2e_data._write_legal_work_workbook(tmp_path / "first.xlsx", today)
+    first = legal_work_seed.write_workbook(tmp_path / "first.xlsx", today)
     time.sleep(1.1)
-    second = seed_e2e_data._write_legal_work_workbook(tmp_path / "second.xlsx", today)
+    second = legal_work_seed.write_workbook(tmp_path / "second.xlsx", today)
 
     assert (
         hashlib.sha256(first.read_bytes()).hexdigest()
@@ -339,7 +341,7 @@ def test_the_seeded_workbook_still_satisfies_the_real_contract(tmp_path):
 
     from apps.legal_work.workbook import parse_workbook
 
-    path = seed_e2e_data._write_legal_work_workbook(tmp_path / "seed.xlsx", dt.date(2099, 6, 1))
+    path = legal_work_seed.write_workbook(tmp_path / "seed.xlsx", dt.date(2099, 6, 1))
     parsed = parse_workbook(path)
 
     assert len(parsed.rows) > 20
@@ -412,8 +414,8 @@ def test_the_seed_connects_the_website_section():
 
     assert get_connection_status().is_connected
     days = Ga4DailySnapshot.objects.filter(is_current_for_date=True)
-    assert days.count() == seed_e2e_data.ANALYTICS_DAYS
-    assert days.filter(has_page_detail=True).count() == seed_e2e_data.ANALYTICS_DAYS
+    assert days.count() == visibility_seed.ANALYTICS_DAYS
+    assert days.filter(has_page_detail=True).count() == visibility_seed.ANALYTICS_DAYS
     assert Ga4PageDaily.objects.exists()
     assert Ga4ChannelDaily.objects.exists()
 
@@ -468,7 +470,7 @@ def test_the_seeded_ranking_shows_a_title_long_enough_to_truncate():
     run_seed()
 
     labels = [row.label for row in build_traffic_section(period_key="koik").ranking]
-    assert seed_e2e_data.LONG_TITLE in labels
+    assert core_seed.LONG_TITLE in labels
 
 
 def test_the_seeded_history_is_searchable_beyond_the_ranking():
@@ -477,7 +479,7 @@ def test_the_seeded_history_is_searchable_beyond_the_ranking():
 
     run_seed()
 
-    quiet = seed_e2e_data.ANALYTICS_QUIET_PATH
+    quiet = visibility_seed.ANALYTICS_QUIET_PATH
     ranking = build_traffic_section(period_key="koik")
     assert quiet not in {row.path for row in ranking.ranking}
 
@@ -488,7 +490,7 @@ def test_the_seeded_history_is_searchable_beyond_the_ranking():
     # And by its catalogued title, which appears in no path at all — so this
     # passes only because `synchronize_news` really did catalogue the article.
     by_title = build_traffic_section(
-        period_key="koik", search=seed_e2e_data.ANALYTICS_QUIET_TITLE_TERM
+        period_key="koik", search=visibility_seed.ANALYTICS_QUIET_TITLE_TERM
     )
     assert quiet in {row.path for row in by_title.results}
 
