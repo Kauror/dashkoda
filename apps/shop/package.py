@@ -56,15 +56,25 @@ from apps.visibility.ga4_paths import canonical_path
 #: The importer's own contract version, combined with the package digest to make
 #: the import key. Raising it makes a previously imported package importable
 #: again under new parsing rules.
-PACKAGE_SCHEMA_VERSION = "1.0"
+PACKAGE_SCHEMA_VERSION = "2.0"
 
 #: Manifest schema versions this importer knows how to read.
-SUPPORTED_MANIFEST_SCHEMA_VERSIONS = frozenset({"1.0"})
+#:
+#: **1.0 is still read on purpose.** A dataset published from a 1.0 package is
+#: live, and refusing its own package would mean the only way to re-import it is
+#: to rebuild it. What 1.0 cannot carry is stated rather than guessed: no
+#: free/paid classification (every unit stays *not stated*) and no distinct
+#: order count (the interface falls back to counting order lines and says so).
+SUPPORTED_MANIFEST_SCHEMA_VERSIONS = frozenset({"1.0", "2.0"})
+
+#: The version from which the split and the distinct-order count are required.
+SPLIT_FROM_VERSION = "2.0"
 
 MANIFEST_NAME = "manifest.json"
 PRODUCTS_NAME = "products.csv"
 DAILY_FACTS_NAME = "daily_facts.csv"
 PRODUCT_PATHS_NAME = "product_paths.csv"
+DAILY_ORDERS_NAME = "daily_orders.csv"
 
 CHUNK_SIZE = 64 * 1024
 MAX_COMPRESSION_RATIO = 200
@@ -122,6 +132,28 @@ REQUIRED_HEADERS: dict[str, tuple[str, ...]] = {
     ),
 }
 
+#: What 2.0 adds. The header check stays exact per version, so a 1.0 file
+#: offering these columns is refused and a 2.0 file omitting them is too.
+DAILY_FACTS_HEADER_V2 = (*REQUIRED_HEADERS[DAILY_FACTS_NAME], "free_units", "paid_units")
+DAILY_ORDERS_HEADER_V2 = ("report_date", "product_type", "distinct_order_count")
+
+
+def headers_for(name: str, version: str) -> tuple[str, ...]:
+    """The exact header a file must present under a given manifest version."""
+    if name == DAILY_FACTS_NAME and version >= SPLIT_FROM_VERSION:
+        return DAILY_FACTS_HEADER_V2
+    if name == DAILY_ORDERS_NAME:
+        return DAILY_ORDERS_HEADER_V2
+    return REQUIRED_HEADERS[name]
+
+
+def required_paths(version: str) -> tuple[str, ...]:
+    base = (MANIFEST_NAME, *REQUIRED_HEADERS)
+    if version >= SPLIT_FROM_VERSION:
+        return (*base, DAILY_ORDERS_NAME)
+    return base
+
+
 REQUIRED_PATHS: tuple[str, ...] = (MANIFEST_NAME, *REQUIRED_HEADERS)
 
 
@@ -163,6 +195,26 @@ class DailyFactRow:
     units: Decimal
     ordered_value_net: Decimal
     currency: str
+    #: `None` together when the package is 1.0 and did not classify. Not zero:
+    #: the source said nothing, which is a third state.
+    free_units: Decimal | None = None
+    paid_units: Decimal | None = None
+
+    @property
+    def unknown_units(self) -> Decimal | None:
+        """Units the source classified as neither free nor paid."""
+        if self.free_units is None or self.paid_units is None:
+            return None
+        return self.units - self.free_units - self.paid_units
+
+
+@dataclass(frozen=True)
+class DailyOrderRow:
+    """Distinct Commerce orders on one day, for one product type or for all."""
+
+    report_date: date
+    product_type: str
+    distinct_order_count: int
 
 
 @dataclass(frozen=True)
@@ -196,6 +248,16 @@ class ParsedPackage:
     products: tuple[ProductRow, ...]
     daily_facts: tuple[DailyFactRow, ...]
     product_paths: tuple[ProductPathRow, ...]
+    daily_orders: tuple[DailyOrderRow, ...] = ()
+
+    @property
+    def has_order_counts(self) -> bool:
+        """Whether this package can answer "how many distinct orders"."""
+        return bool(self.daily_orders)
+
+    @property
+    def has_free_paid_split(self) -> bool:
+        return bool(self.daily_facts) and self.daily_facts[0].free_units is not None
 
     @property
     def row_counts(self) -> dict[str, int]:
@@ -204,6 +266,7 @@ class ParsedPackage:
             "products": len(self.products),
             "daily_facts": len(self.daily_facts),
             "product_paths": len(self.product_paths),
+            "daily_orders": len(self.daily_orders),
         }
 
 
@@ -344,14 +407,14 @@ def _required_date(value: str | None, *, column: str) -> date:
         raise PackageContractError(f"Veerg {column} peab olema kujul AAAA-KK-PP.") from error
 
 
-def _rows(payload: bytes, *, name: str):
+def _rows(payload: bytes, *, name: str, expected: tuple[str, ...] | None = None):
     try:
         text = payload.decode("utf-8-sig")
     except UnicodeDecodeError as error:
         raise PackageContractError(f"Fail ei ole UTF-8: {name}.") from error
 
     reader = csv.DictReader(io.StringIO(text, newline=""))
-    expected = REQUIRED_HEADERS[name]
+    expected = expected if expected is not None else REQUIRED_HEADERS[name]
     actual = tuple(reader.fieldnames or ())
     if actual != expected:
         unexpected = [column for column in actual if column not in expected]
@@ -487,7 +550,9 @@ def _load_manifest(payloads: dict[str, bytes]) -> tuple[PackageManifest, dict[st
     return manifest, listed
 
 
-def _verify_manifest(payloads: dict[str, bytes], listed: dict[str, dict]) -> None:
+def _verify_manifest(
+    payloads: dict[str, bytes], listed: dict[str, dict], *, version: str = "1.0"
+) -> None:
     for path, entry in listed.items():
         payload = payloads.get(path)
         if payload is None:
@@ -502,7 +567,7 @@ def _verify_manifest(payloads: dict[str, bytes], listed: dict[str, dict]) -> Non
     if undeclared:
         raise PackageContractError("Pakett sisaldab manifestis loetlemata faile.")
 
-    missing = [path for path in REQUIRED_PATHS if path not in payloads]
+    missing = [path for path in required_paths(version) if path not in payloads]
     if missing:
         raise PackageContractError(f"Paketist puudub kohustuslik fail: {missing[0]}.")
 
@@ -569,9 +634,14 @@ def _parse_products(payload: bytes, *, manifest: PackageManifest) -> tuple[Produ
 
 
 def _parse_daily_facts(payload: bytes, *, manifest: PackageManifest) -> tuple[DailyFactRow, ...]:
+    classified = manifest.schema_version >= SPLIT_FROM_VERSION
     rows: list[DailyFactRow] = []
     seen: set[tuple[date, int, str, str, str]] = set()
-    for raw in _rows(payload, name=DAILY_FACTS_NAME):
+    for raw in _rows(
+        payload,
+        name=DAILY_FACTS_NAME,
+        expected=headers_for(DAILY_FACTS_NAME, manifest.schema_version),
+    ):
         state = _required_text(raw["commerce_state"], column="commerce_state")
         if state != REQUIRED_ORDER_STATE:
             raise PackageContractError(
@@ -612,6 +682,22 @@ def _parse_daily_facts(payload: bytes, *, manifest: PackageManifest) -> tuple[Da
         if order_count < 0:
             raise PackageContractError("Veerg order_count ei tohi olla negatiivne.")
 
+        units = _not_negative(_required_decimal(raw["units"], column="units"), column="units")
+
+        free_units = paid_units = None
+        if classified:
+            free_units = _not_negative(
+                _required_decimal(raw["free_units"], column="free_units"), column="free_units"
+            )
+            paid_units = _not_negative(
+                _required_decimal(raw["paid_units"], column="paid_units"), column="paid_units"
+            )
+            if free_units + paid_units > units:
+                raise PackageContractError(
+                    "Tasuta ja tasuliste ühikute summa ületab ühikute arvu: "
+                    f"{report_date} toode {product_id}."
+                )
+
         rows.append(
             DailyFactRow(
                 report_date=report_date,
@@ -619,16 +705,68 @@ def _parse_daily_facts(payload: bytes, *, manifest: PackageManifest) -> tuple[Da
                 member_status=member_status,
                 payment_class=payment_class,
                 order_count=order_count,
-                units=_not_negative(
-                    _required_decimal(raw["units"], column="units"), column="units"
-                ),
+                units=units,
                 ordered_value_net=_not_negative(
                     _required_decimal(raw["ordered_value_net"], column="ordered_value_net"),
                     column="ordered_value_net",
                 ),
                 currency=currency,
+                free_units=free_units,
+                paid_units=paid_units,
             )
         )
+    return tuple(rows)
+
+
+def _parse_daily_orders(payload: bytes, *, manifest: PackageManifest) -> tuple[DailyOrderRow, ...]:
+    """Distinct order counts per day, per product type and for all types.
+
+    The blank `product_type` row is required for every day that has any type
+    row: without it the page has no honest total, because adding the type rows
+    counts an order spanning two types twice.
+    """
+    rows: list[DailyOrderRow] = []
+    seen: set[tuple[date, str]] = set()
+    by_date: dict[date, list[DailyOrderRow]] = {}
+    for raw in _rows(
+        payload, name=DAILY_ORDERS_NAME, expected=headers_for(DAILY_ORDERS_NAME, "2.0")
+    ):
+        report_date = _required_date(raw["report_date"], column="report_date")
+        if report_date > manifest.coverage_end or report_date < manifest.coverage_start:
+            raise PackageContractError(
+                f"Tellimuste kokkuvõtte kuupäev on väljaspool kaetud perioodi: {report_date}."
+            )
+        product_type = _text(raw["product_type"])
+        if product_type and product_type not in ALLOWED_PRODUCT_TYPES:
+            raise PackageContractError(f"Tundmatu tooteliik kokkuvõttes: {product_type}.")
+        key = (report_date, product_type)
+        if key in seen:
+            raise PackageContractError(
+                f"Tellimuste kokkuvõte kordub: {report_date} {product_type or 'kõik'}."
+            )
+        seen.add(key)
+
+        count = _required_int(raw["distinct_order_count"], column="distinct_order_count")
+        if count < 0:
+            raise PackageContractError("Veerg distinct_order_count ei tohi olla negatiivne.")
+        row = DailyOrderRow(
+            report_date=report_date, product_type=product_type, distinct_order_count=count
+        )
+        rows.append(row)
+        by_date.setdefault(report_date, []).append(row)
+
+    for report_date, day_rows in by_date.items():
+        total = next((r for r in day_rows if not r.product_type), None)
+        if total is None:
+            raise PackageContractError(
+                f"Päeval {report_date} puudub kõiki tooteliike hõlmav kokkuvõtte rida."
+            )
+        by_type = sum(r.distinct_order_count for r in day_rows if r.product_type)
+        if by_type and total.distinct_order_count > by_type:
+            raise PackageContractError(
+                f"Päeva {report_date} koondarv on suurem kui tooteliikide summa; "
+                "eri tellimuste arv ei saa ületada ridade summat."
+            )
     return tuple(rows)
 
 
@@ -757,10 +895,19 @@ def content_checksum(parsed: ParsedPackage) -> str:
                     str(row.units),
                     str(row.ordered_value_net),
                     row.currency,
+                    None if row.free_units is None else str(row.free_units),
+                    None if row.paid_units is None else str(row.paid_units),
                 ]
                 for row in parsed.daily_facts
             ],
             key=lambda item: (item[0], item[1], item[2], item[3], item[7]),
+        ),
+        "daily_orders": sorted(
+            [
+                [row.report_date.isoformat(), row.product_type, row.distinct_order_count]
+                for row in parsed.daily_orders
+            ],
+            key=lambda item: (item[0], item[1]),
         ),
         "product_paths": sorted(
             [
@@ -802,7 +949,7 @@ def read_package(path: Path | str, *, limits: PackageLimits | None = None) -> Pa
         raise PackageContractError("Pakett on vigane ZIP-fail.") from error
 
     manifest, listed = _load_manifest(payloads)
-    _verify_manifest(payloads, listed)
+    _verify_manifest(payloads, listed, version=manifest.schema_version)
 
     parsed = ParsedPackage(
         package_sha256=package_sha256,
@@ -811,6 +958,11 @@ def read_package(path: Path | str, *, limits: PackageLimits | None = None) -> Pa
         products=_parse_products(payloads[PRODUCTS_NAME], manifest=manifest),
         daily_facts=_parse_daily_facts(payloads[DAILY_FACTS_NAME], manifest=manifest),
         product_paths=_parse_product_paths(payloads[PRODUCT_PATHS_NAME], manifest=manifest),
+        daily_orders=(
+            _parse_daily_orders(payloads[DAILY_ORDERS_NAME], manifest=manifest)
+            if DAILY_ORDERS_NAME in payloads
+            else ()
+        ),
     )
     _check_references(parsed)
     return parsed
@@ -821,13 +973,17 @@ __all__ = [
     "ALLOWED_PAGE_ROLES",
     "ALLOWED_PAYMENT_CLASSES",
     "ALLOWED_PRODUCT_TYPES",
+    "DAILY_FACTS_HEADER_V2",
     "DAILY_FACTS_NAME",
+    "DAILY_ORDERS_HEADER_V2",
+    "DAILY_ORDERS_NAME",
     "MANIFEST_NAME",
     "PACKAGE_SCHEMA_VERSION",
     "PRODUCTS_NAME",
     "PRODUCT_PATHS_NAME",
     "REQUIRED_HEADERS",
     "DailyFactRow",
+    "DailyOrderRow",
     "PackageContractError",
     "PackageLimits",
     "PackageManifest",

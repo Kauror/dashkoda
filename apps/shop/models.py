@@ -18,6 +18,10 @@ different lifetimes:
 - **`ShopDailyFact`** — the transactional grain, aggregated. One row per day per
   product per member status per payment class. This is the only model carrying
   money and counts, and it holds no customer of any kind.
+- **`ShopDailySummary`** — how many *distinct* orders a day carried, which the
+  fact grain cannot answer: an order of three templates lands in three cells.
+  Counted at import, where the identifiers still exist, and only the total
+  survives.
 - **`ShopSourceState`** — what the source covers and which of its semantics have
   been verified. Without it a stale export looks exactly like a quiet month.
 
@@ -415,6 +419,40 @@ class ShopDailyFact(models.Model):
         verbose_name="Tellitud väärtus (KM-ta)",
     )
 
+    #: How the units split between free and paid, classified line by line at
+    #: import rather than inferred from this cell's total afterwards — a cell
+    #: mixing a free acquisition with a paid one has a positive total and would
+    #: read as entirely paid.
+    #:
+    #: All three are null together when the source did not classify (schema 1.0
+    #: packages), and that is a third state: **not stated**, distinct from an
+    #: explicit zero. When present they sum to `units`, which a constraint below
+    #: enforces.
+    free_units = models.DecimalField(
+        max_digits=QUANTITY_DIGITS,
+        decimal_places=QUANTITY_PLACES,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="Tasuta ühikuid",
+    )
+    paid_units = models.DecimalField(
+        max_digits=QUANTITY_DIGITS,
+        decimal_places=QUANTITY_PLACES,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="Tasulisi ühikuid",
+    )
+    unknown_units = models.DecimalField(
+        max_digits=QUANTITY_DIGITS,
+        decimal_places=QUANTITY_PLACES,
+        null=True,
+        blank=True,
+        validators=[MinValueValidator(0)],
+        verbose_name="Määramata ühikuid",
+    )
+
     is_current = models.BooleanField(default=True, db_index=True, verbose_name="Kehtiv")
     supersedes = models.OneToOneField(
         "self",
@@ -453,6 +491,20 @@ class ShopDailyFact(models.Model):
                 condition=Q(ordered_value_net__gte=0),
                 name="shopdailyfact_value_not_negative",
             ),
+            # Either the source classified every unit or it classified none.
+            # A partial split would let a template add three numbers that do not
+            # make the whole and show a free share of the wrong denominator.
+            models.CheckConstraint(
+                condition=(
+                    Q(free_units__isnull=True, paid_units__isnull=True, unknown_units__isnull=True)
+                    | Q(
+                        free_units__isnull=False,
+                        paid_units__isnull=False,
+                        unknown_units__isnull=False,
+                    )
+                ),
+                name="shopdailyfact_split_all_or_nothing",
+            ),
         ]
         indexes = [
             models.Index(fields=["product", "report_date"]),
@@ -469,6 +521,95 @@ class ShopDailyFact(models.Model):
                 raise ShopImmutable(
                     "A published shop fact is immutable; a correction creates a "
                     "new current row that supersedes it."
+                )
+        return super().save(*args, **kwargs)
+
+
+class ShopDailySummary(models.Model):
+    """How many **distinct** Commerce orders were placed on one day.
+
+    `ShopDailyFact` cannot answer this. Its grain is one row per product per
+    dimension cell, so an order carrying three templates contributes to three
+    cells and summing it counts that order three times. On the real dataset
+    11.5% of orders carry more than one line — one carries 33 — and the gap
+    between 5 627 lines and 4 056 orders is 39%.
+
+    So the count is computed where the order identifiers still exist, at import,
+    and only the total survives. **No order number, order ID or customer field
+    is stored anywhere in this application**; the importer reads identifiers to
+    count them and discards them in the same pass.
+
+    ## Why product type, and why a blank row beside it
+
+    A row per `product_type` lets the page answer "how many contract orders",
+    and a row with `product_type = ""` carries the true count for the day across
+    every type. Both are needed because an order containing a document and a
+    physical product belongs to two type rows but is one order: adding the type
+    rows would count it twice, exactly the error this model exists to remove.
+
+    Deliberately **no category dimension**. One order routinely spans
+    categories, so a per-category distinct count cannot be summed into anything,
+    and offering one would invite precisely that.
+    """
+
+    #: The row that counts every type together. Not a product type, and stored
+    #: as a blank rather than null so the unique constraint can include it.
+    ALL_TYPES = ""
+
+    report_date = models.DateField(db_index=True, verbose_name="Kuupäev")
+    product_type = models.CharField(
+        max_length=32,
+        blank=True,
+        db_index=True,
+        verbose_name="Tooteliik",
+        help_text="Tühi tähendab kõiki tooteliike kokku.",
+    )
+    distinct_order_count = models.PositiveIntegerField(verbose_name="Eri tellimusi")
+
+    is_current = models.BooleanField(default=True, db_index=True, verbose_name="Kehtiv")
+    supersedes = models.OneToOneField(
+        "self",
+        null=True,
+        blank=True,
+        on_delete=models.SET_NULL,
+        related_name="superseded_by",
+        verbose_name="Asendab",
+    )
+    import_run = models.ForeignKey(
+        ImportRun,
+        null=True,
+        blank=True,
+        on_delete=models.PROTECT,
+        related_name="shop_daily_summaries",
+        verbose_name="Impordijooks",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    MUTABLE_FIELDS = frozenset({"is_current"})
+
+    class Meta:
+        ordering = ("-report_date", "product_type")
+        verbose_name = "E-poe päevakokkuvõte"
+        verbose_name_plural = "E-poe päevakokkuvõtted"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["report_date", "product_type"],
+                condition=Q(is_current=True),
+                name="shopdailysummary_one_current_per_day_and_type",
+            ),
+        ]
+        indexes = [models.Index(fields=["report_date", "product_type"])]
+
+    def __str__(self) -> str:
+        return f"{self.report_date:%d.%m.%Y} {self.product_type or 'kõik'}"
+
+    def save(self, *args, **kwargs):
+        if self.pk is not None and not self._state.adding:
+            update_fields = kwargs.get("update_fields")
+            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
+                raise ShopImmutable(
+                    "A published daily summary is immutable; a correction creates "
+                    "a new current row that supersedes it."
                 )
         return super().save(*args, **kwargs)
 
@@ -575,6 +716,7 @@ __all__ = [
     "PaymentClass",
     "ProductType",
     "ShopDailyFact",
+    "ShopDailySummary",
     "ShopImmutable",
     "ShopProduct",
     "ShopProductPage",

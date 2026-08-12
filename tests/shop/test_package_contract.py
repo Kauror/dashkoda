@@ -27,6 +27,7 @@ from .package_factory import (
     PHYSICAL_PRODUCT,
     build_package,
     default_daily_facts,
+    default_daily_orders,
     default_manifest,
     default_product_paths,
     default_products,
@@ -372,6 +373,128 @@ def test_checksum_changes_when_a_figure_changes(tmp_path):
     rows = default_daily_facts()
     rows[1] = {**rows[1], "units": "4.00"}
     second = read_package(build_package(tmp_path, daily_facts=rows, filename="b.zip"))
+    assert content_checksum(first) != content_checksum(second)
+
+
+# ---------------------------------------------------------------------------
+# Schema 2.0: the free/paid split and the distinct order count
+# ---------------------------------------------------------------------------
+
+
+def test_a_two_point_zero_package_carries_the_split_and_the_orders(tmp_path):
+    parsed = read_package(build_package(tmp_path))
+
+    assert parsed.has_free_paid_split is True
+    assert parsed.has_order_counts is True
+    assert parsed.row_counts["daily_orders"] == 10
+
+
+def test_a_one_point_zero_package_is_still_readable_and_states_nothing(tmp_path):
+    """The live dataset was published from 1.0; its own package must still load."""
+    manifest = {**default_manifest(), "schema_version": "1.0"}
+    parsed = read_package(build_package(tmp_path, manifest=manifest))
+
+    assert parsed.has_free_paid_split is False
+    assert parsed.has_order_counts is False
+    # Not stated is not zero.
+    assert all(row.free_units is None and row.unknown_units is None for row in parsed.daily_facts)
+
+
+def test_two_point_zero_refuses_a_facts_file_without_the_split(tmp_path):
+    from apps.shop.package import REQUIRED_HEADERS
+
+    rows = [
+        {k: v for k, v in row.items() if k not in ("free_units", "paid_units")}
+        for row in default_daily_facts()
+    ]
+    package = build_package(
+        tmp_path,
+        headers={DAILY_FACTS_NAME: REQUIRED_HEADERS[DAILY_FACTS_NAME]},
+        extra_values={DAILY_FACTS_NAME: rows},
+    )
+    with pytest.raises(PackageContractError, match="päis"):
+        read_package(package)
+
+
+def test_a_split_larger_than_the_units_is_refused(tmp_path):
+    rows = default_daily_facts()
+    rows[0] = {**rows[0], "free_units": "5.00", "paid_units": "5.00"}
+    package = build_package(tmp_path, daily_facts=rows)
+    with pytest.raises(PackageContractError, match="ületab ühikute arvu"):
+        read_package(package)
+
+
+def test_an_unclassified_remainder_is_kept_as_unknown(tmp_path):
+    """Two units, neither classified: the remainder is unknown, never free."""
+    parsed = read_package(build_package(tmp_path))
+    row = next(
+        r
+        for r in parsed.daily_facts
+        if r.report_date.isoformat() == "2026-04-02"
+        and r.source_product_id == DOCUMENT_WITH_BOTH_PAGES
+    )
+
+    assert row.free_units == Decimal("0.00")
+    assert row.paid_units == Decimal("0.00")
+    assert row.unknown_units == row.units
+
+
+def test_a_day_without_an_all_types_row_is_refused(tmp_path):
+    """Adding the per-type rows would count a two-type order twice."""
+    rows = [r for r in default_daily_orders() if r["product_type"]]
+    package = build_package(tmp_path, daily_orders=rows)
+    with pytest.raises(PackageContractError, match="kõiki tooteliike"):
+        read_package(package)
+
+
+def test_a_total_larger_than_the_sum_of_its_types_is_refused(tmp_path):
+    rows = default_daily_orders()
+    rows[2] = {**rows[2], "distinct_order_count": "99"}
+    package = build_package(tmp_path, daily_orders=rows)
+    with pytest.raises(PackageContractError, match="suurem kui tooteliikide summa"):
+        read_package(package)
+
+
+def test_a_duplicate_summary_row_is_refused(tmp_path):
+    rows = default_daily_orders()
+    rows.append(dict(rows[0]))
+    package = build_package(tmp_path, daily_orders=rows)
+    with pytest.raises(PackageContractError, match="kordub"):
+        read_package(package)
+
+
+def test_an_unknown_product_type_in_the_summary_is_refused(tmp_path):
+    rows = default_daily_orders()
+    rows[1] = {**rows[1], "product_type": "membership"}
+    package = build_package(tmp_path, daily_orders=rows)
+    with pytest.raises(PackageContractError, match="Tundmatu tooteliik"):
+        read_package(package)
+
+
+def test_a_summary_outside_coverage_is_refused(tmp_path):
+    rows = default_daily_orders()
+    rows[0] = {**rows[0], "report_date": "2026-09-01"}
+    package = build_package(tmp_path, daily_orders=rows)
+    with pytest.raises(PackageContractError, match="väljaspool kaetud perioodi"):
+        read_package(package)
+
+
+def test_the_checksum_notices_a_changed_order_count(tmp_path):
+    first = read_package(build_package(tmp_path, filename="a.zip"))
+    rows = default_daily_orders()
+    rows[2] = {**rows[2], "distinct_order_count": "4"}
+    rows[3] = {**rows[3], "distinct_order_count": "4"}
+    second = read_package(build_package(tmp_path, daily_orders=rows, filename="b.zip"))
+
+    assert content_checksum(first) != content_checksum(second)
+
+
+def test_the_checksum_notices_a_changed_split(tmp_path):
+    first = read_package(build_package(tmp_path, filename="a.zip"))
+    rows = default_daily_facts()
+    rows[0] = {**rows[0], "free_units": "2.00", "paid_units": "0.00"}
+    second = read_package(build_package(tmp_path, daily_facts=rows, filename="b.zip"))
+
     assert content_checksum(first) != content_checksum(second)
 
 
