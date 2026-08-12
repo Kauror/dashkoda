@@ -156,10 +156,15 @@ untouched. What changed is which population the viewer reads.
 Every news node on Koda.ee carries `field_category`, a required list field. Two
 of its values are real categories — `meie_uudised` (shown as **Koja uudised**)
 and `soprade_uudised` (**Sõprade uudised**). The other four — `arhiiv`,
-`artiklid`, `ajakiri_teataja`, `rss_voog` — are the names of listing views, and
-no article was found stored under any of them: articles taken from
-`/et/uudised/arhiiv` all store one of the two real values, which is what
-establishes that the archive listing is simply *all* news.
+`artiklid`, `ajakiri_teataja`, `rss_voog` — are the names of listing views.
+Articles taken from `/et/uudised/arhiiv` store one of the two real values and
+never `arhiiv`, which is what establishes that the archive listing is simply
+*all* news.
+
+This page first said no article was stored under any of the four. Reading every
+news node and translation — 4 554 of them — found **one** stored as `artiklid`.
+It stays unclassified, which is the right answer for a value that is neither
+category, but "none" was an overstatement and is corrected here.
 
 **Nothing public exposes it.** Checked, all four: the article page carries no
 marker and no `articleSection`; the RSS feed emits no `<category>`; JSON:API is
@@ -167,10 +172,31 @@ disabled; and the archive view ignores every spelling of a category filter. The
 two category listing pages do show it — and they are capped at roughly 153 and
 27 articles, so they classify recent news and nothing older.
 
-So the history came from a one-time authenticated read of the site's own admin
-on 2026-08-11: 3 155 of 3 158 Estonian news nodes, **2 209 Koja uudised and 946
-Sõprade uudised**, imported through `import_news_categories`. Articles in
-English and Russian were not part of that read and carry no category.
+So the history came from two authenticated reads of the site's own admin on
+2026-08-11 and 2026-08-12, imported through `import_news_categories`: first all
+3 155 readable Estonian news nodes, then all 1 399 English and Russian
+translations. Translations share their node with the Estonian original and the
+category with it, so a translation is classified by reading its own edit form
+rather than by inheriting anything.
+
+The result is **2 625 Koja uudised, 959 Sõprade uudised and 30 unclassified** out
+of 3 614 catalogued articles.
+
+Two things account for the remaining thirty, and neither is a gap worth closing:
+
+- **seven are not articles.** `/et/uudised`, `/et/uudised/arhiiv`, the two
+  category listings, the newsletter signup, the podcast page and the RSS page.
+  They carry no category because they are not news;
+- **twenty-three are stale aliases.** DashKoda catalogues the path GA4 recorded
+  traffic under, and Koda.ee has since renamed the article. The row is a real
+  page with real measured traffic whose current address differs, so the honest
+  state is unclassified rather than matched by guesswork.
+
+**No Russian article is catalogued at all.** All 650 exist on Koda.ee and none
+appears in `NewsResource`, because nothing under `/ru/novosti/` has turned up in
+the GA4 news traffic the catalogue is built from. Their categories were read and
+imported anyway, and every one came back as an unmatched row — they will attach
+themselves if those pages ever draw measured traffic.
 
 An article DashKoda has not been told about stays blank. Blank is not a third
 category: it is excluded from both filters and visible under `Kõik`, and the
