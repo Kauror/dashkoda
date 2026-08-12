@@ -39,7 +39,7 @@ from urllib.parse import unquote, urljoin, urlparse
 from django.conf import settings
 
 from apps.core.public_http import PublicFetchError, fetch, is_allowed_public_url
-from apps.news.collector import to_plain_text
+from apps.core.text import to_plain_text
 
 from .current_topics import FULL_DATE_PATTERN
 from .models import MAX_CANONICAL_URL_LENGTH, MAX_TOPIC_TITLE_LENGTH
