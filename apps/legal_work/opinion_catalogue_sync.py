@@ -97,6 +97,28 @@ RESULT_PARTIAL = "partial"
 RESULT_FAILED = "failed"
 
 
+def run_schema_version() -> str:
+    """What this importer produces, in the form `import_key` has to see.
+
+    An import run's key is `(importer, schema version, content digest)`, and a
+    successful live import may exist once per key — that is the sources layer's
+    idempotency guarantee and it is right. But it means anything that changes
+    what the *same bytes* produce must change the schema version, or the second
+    run is refused as a repeat of one already done.
+
+    Both readers qualify. The extractor decides what text a document yields, and
+    the filename normaliser decides its date, recipient and subject. When `0007`
+    raised the normaliser to correct CP437 filenames, the catalogue's contents
+    changed while this string stayed `1.0`, so the republication it called for
+    could not open a run — the third and last of the constraints that made the
+    2026-08-09 failure permanent.
+
+    Derived rather than restated by hand, so the next reader bump cannot
+    recreate that deadlock by forgetting this line.
+    """
+    return f"{SCHEMA_VERSION}+x{EXTRACTOR_VERSION}+f{FILENAME_NORMALISER_VERSION}"
+
+
 @dataclass
 class CatalogueReport:
     """What a run did, in numbers an operator and a JSON consumer can both use.
@@ -499,7 +521,7 @@ def _publish(
         importer_name=IMPORTER_NAME,
         external_reference=EXTERNAL_REFERENCE,
         artifact_name=ARTIFACT_NAME,
-        schema_version=SCHEMA_VERSION,
+        schema_version=run_schema_version(),
         dry_run=False,
         actor=actor,
         correlation_id=correlation_id,

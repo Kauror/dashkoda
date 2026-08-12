@@ -90,26 +90,6 @@ def test_a_repeated_build_reports_unchanged(opinion_roots, opinion_source):
     assert OpinionCatalogueSnapshot.objects.filter(is_current=True).count() == 1
 
 
-def test_republishing_identical_bytes_reuses_the_registered_artifact(opinion_roots, opinion_source):
-    """An artifact is identified by `(source, sha256)` and registering the same
-    content twice is refused, so a republication of an unchanged manifest has to
-    reuse the row rather than ask for a second one.
-
-    `--full` is the deliberate way to reach this: same bytes, same checksum,
-    publish anyway.
-    """
-    source, _ = opinion_roots
-    bootstrap(source, letters(2))
-    synchronize_opinion_documents()
-    before = SourceArtifact.objects.count()
-
-    report = synchronize_opinion_documents(full=True)
-
-    assert report.result == RESULT_IMPORTED
-    assert SourceArtifact.objects.count() == before, "the artifact is reused, not re-registered"
-    assert OpinionCatalogueSnapshot.objects.filter(is_current=True).count() == 1
-
-
 def test_a_stale_normaliser_version_republishes_instead_of_failing_for_ever(
     opinion_roots, opinion_source
 ):

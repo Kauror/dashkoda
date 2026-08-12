@@ -335,11 +335,22 @@ def test_a_new_normaliser_may_republish_the_same_manifest(populated_migration):
 
     Snapshot = apps.get_model("legal_work", "OpinionCatalogueSnapshot")
     old = Snapshot.objects.get()
+    # A snapshot owns its run one-to-one, so the republication needs its own.
+    later_run = apps.get_model("sources", "ImportRun").objects.create(
+        source_id=old.source_id,
+        artifact_id=old.artifact_id,
+        importer_name="legal_opinion_catalogue",
+        schema_version="1.0+x1.0+f1.1",
+        status="succeeded",
+        dry_run=False,
+        started_at="2026-08-12T06:20:00+00:00",
+        finished_at="2026-08-12T06:21:00+00:00",
+    )
 
     Snapshot.objects.create(
         source_id=old.source_id,
         artifact_id=old.artifact_id,
-        import_run_id=old.import_run_id,
+        import_run=later_run,
         source_manifest_checksum=CHECKSUM,
         extractor_version="1.0",
         filename_normaliser_version="1.1",
@@ -362,11 +373,24 @@ def test_the_same_readers_still_may_not_publish_the_manifest_twice(populated_mig
     Snapshot = apps.get_model("legal_work", "OpinionCatalogueSnapshot")
     old = Snapshot.objects.get()
 
+    # Its own run, or the one-to-one would raise and this would pass for the
+    # wrong reason without ever reaching the key under test.
+    later_run = apps.get_model("sources", "ImportRun").objects.create(
+        source_id=old.source_id,
+        artifact_id=old.artifact_id,
+        importer_name="legal_opinion_catalogue",
+        schema_version="1.0+x1.0+f",
+        status="succeeded",
+        dry_run=False,
+        started_at="2026-08-12T06:20:00+00:00",
+        finished_at="2026-08-12T06:21:00+00:00",
+    )
+
     with pytest.raises(IntegrityError):
         Snapshot.objects.create(
             source_id=old.source_id,
             artifact_id=old.artifact_id,
-            import_run_id=old.import_run_id,
+            import_run=later_run,
             source_manifest_checksum=CHECKSUM,
             extractor_version="1.0",
             filename_normaliser_version="",
