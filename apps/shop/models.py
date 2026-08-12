@@ -393,7 +393,15 @@ class ShopDailyFact(models.Model):
     )
     currency = models.CharField(max_length=3, default=DEFAULT_CURRENCY, verbose_name="Valuuta")
 
-    order_count = models.PositiveIntegerField(verbose_name="Tellimusi")
+    #: Orders in **this cell** — that is, orders containing this product on this
+    #: day under this member status and payment class. It is therefore additive
+    #: across days for one product, and **not** additive across products: an
+    #: order carrying three templates contributes one to each of three cells.
+    #: Summing it over a whole catalogue counts order *lines*, which is why the
+    #: overview says `Tellimusridu` and only a product's own page says
+    #: `Tellimused`. On the first real dataset the difference is 5 551 lines
+    #: against 4 052 distinct orders.
+    order_count = models.PositiveIntegerField(verbose_name="Tellimusridu")
     units = models.DecimalField(
         max_digits=QUANTITY_DIGITS,
         decimal_places=QUANTITY_PLACES,

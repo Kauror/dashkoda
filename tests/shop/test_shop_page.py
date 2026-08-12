@@ -74,6 +74,29 @@ def test_value_is_never_called_revenue(client, authenticate_viewer, seeded):
     assert "Laekunud" not in content
 
 
+def test_the_overview_counts_order_lines_not_orders(client, authenticate_viewer, seeded):
+    """Summing the cell grain across products counts an order once per product.
+
+    The synthetic package has an order carrying two different products, so the
+    overview's figure must not be presented as a count of orders.
+    """
+    content = _get(client, authenticate_viewer).content.decode()
+
+    assert "Tellimusridu" in content
+    assert "Tellimused" not in content
+    assert "loeb iga toote eraldi" in content
+
+
+def test_a_single_product_may_call_them_orders(client, authenticate_viewer, seeded):
+    """On one product's page the sum is over that product's cells alone."""
+    authenticate_viewer(client)
+    url = reverse("shop-product", args=[DOCUMENT_WITH_BOTH_PAGES])
+    content = client.get(url).content.decode()
+
+    assert "Tellimused" in content
+    assert "sisaldasid seda toodet" in content
+
+
 def test_the_member_split_is_withheld_until_verified(client, authenticate_viewer, seeded):
     content = _get(client, authenticate_viewer).content.decode()
 

@@ -108,7 +108,17 @@ other.
       {% include "dashboard/components/section_header.html" with title="Valitud periood" heading_id="section-kpis" description="Lõpetatud Commerce'i tellimused." only %}
       <div class="dk-kpi-strip">
         {% include "dashboard/components/kpi_card.html" with label="Soetatud ühikud" value=overview.units flush=True only %}
-        {% include "dashboard/components/kpi_card.html" with label="Tellimused" value=overview.orders flush=True only %}
+        {% comment %}
+        `Tellimusridu`, not `Tellimused`. The stored grain is one row per day per
+        product per member status per payment class, so summing it across
+        products counts an order once for every product it contained. On the
+        real dataset that is 5 551 rows against 4 052 distinct orders — a
+        headline 37% too high if it were called orders.
+
+        A single product's page does say `Tellimused`, because there the sum is
+        over one product's cells only and each order appears once.
+        {% endcomment %}
+        {% include "dashboard/components/kpi_card.html" with label="Tellimusridu" value=overview.orders flush=True only %}
         {% include "dashboard/components/kpi_card.html" with label="Tellitud väärtus (KM-ta)" value=overview.value secondary=overview.invoice_value|add:" arvega" flush=True only %}
         {% if overview.window.has_web %}
           {% include "dashboard/components/kpi_card.html" with label="Tootelehe vaatamised" value=overview.product_views comparison_period=overview.web_interval_label flush=True only %}
@@ -117,6 +127,12 @@ other.
         {% endif %}
       </div>
     </section>
+
+    <p class="dk-meta">
+      „Tellimusridu“ loeb iga toote eraldi: kui üks tellimus sisaldas kolme
+      lepingupõhja, on see kolm rida. Eri tellimuste arv on sellest väiksem.
+      Ühe toote lehel tähendab „Tellimused“ tellimusi, mis seda toodet sisaldasid.
+    </p>
 
     {% if overview.window.has_web %}
       <p class="dk-meta">
