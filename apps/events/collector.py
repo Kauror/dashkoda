@@ -41,7 +41,7 @@ from django.conf import settings
 from apps.core.canonical import canonical_checksum
 from apps.core.public_http import PublicFetchError, fetch, is_allowed_public_url
 from apps.core.structured_data import find_by_type
-from apps.news.collector import to_plain_text
+from apps.core.text import to_plain_text
 
 logger = logging.getLogger("dashkoda.events.collector")
 

@@ -45,7 +45,7 @@ from django.utils import timezone
 
 from apps.core.canonical import canonical_checksum
 from apps.core.public_http import FetchFailure, PublicFetchError, fetch, is_allowed_public_url
-from apps.news.collector import to_plain_text
+from apps.core.text import to_plain_text
 
 from .current_topics import (
     ACCEPTED_CONTENT_TYPES,

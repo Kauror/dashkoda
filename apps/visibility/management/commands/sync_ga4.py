@@ -29,9 +29,8 @@ from datetime import date
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.core.feed_commands import FeedCommandOutputMixin
+from apps.core.feed_commands import EXIT_FAILED, FeedCommandOutputMixin
 from apps.core.feeds import FeedLocked, FeedResult, advisory_lock
-from apps.legal_work.sync import EXIT_FAILED
 from apps.visibility.ga4_sync import (
     BACKFILL_CHUNK_DAYS,
     LOCK_NAME,

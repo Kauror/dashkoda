@@ -50,7 +50,7 @@ from django.conf import settings
 
 from apps.core.canonical import canonical_checksum
 from apps.core.public_http import PublicFetchError, fetch, is_allowed_public_url
-from apps.news.collector import to_plain_text
+from apps.core.text import to_plain_text
 
 from .models import (
     MAX_BODY_TEXT_LENGTH,

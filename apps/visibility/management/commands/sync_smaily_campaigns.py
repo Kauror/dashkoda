@@ -35,9 +35,8 @@ Exit codes:
 
 from django.core.management.base import BaseCommand, CommandError
 
-from apps.core.feed_commands import FeedCommandOutputMixin
+from apps.core.feed_commands import EXIT_FAILED, FeedCommandOutputMixin
 from apps.core.feeds import FeedLocked, FeedResult, advisory_lock
-from apps.legal_work.sync import EXIT_FAILED
 from apps.visibility.smaily_campaign_sync import (
     CAMPAIGN_LIST_LIMIT,
     LOCK_NAME,
