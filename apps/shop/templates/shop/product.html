@@ -61,7 +61,13 @@ The current price pair is shown as a current fact, dated.
     {% include "dashboard/components/section_header.html" with title="Valitud periood" heading_id="section-product-kpis" description="Lõpetatud Commerce'i tellimused." only %}
     <div class="dk-kpi-strip">
       {% include "dashboard/components/kpi_card.html" with label="Soetatud ühikud" value=detail.units flush=True only %}
-      {% include "dashboard/components/kpi_card.html" with label="Tellimused" value=detail.orders flush=True only %}
+      {% comment %}
+      `Tellimused` is accurate here and only here: the sum runs over one
+      product's cells, so an order that contained this product is counted once
+      however many other products it also contained. The overview says
+      `Tellimusridu` for exactly the opposite reason.
+      {% endcomment %}
+      {% include "dashboard/components/kpi_card.html" with label="Tellimused" value=detail.orders secondary="tellimust, mis sisaldasid seda toodet" flush=True only %}
       {% include "dashboard/components/kpi_card.html" with label="Tellitud väärtus (KM-ta)" value=detail.value flush=True only %}
       {% include "dashboard/components/kpi_card.html" with label="Soetusi / 100 tootelehe vaatamise kohta" value=detail.rate comparison_period=detail.web_interval_label flush=True only %}
     </div>

@@ -84,6 +84,27 @@ application does not have it.
 | recognised revenue | the Chamber's accounting system — **not connected** |
 | membership counts | the membership sources, never shop purchases |
 
+### Order lines, not orders
+
+`ShopDailyFact.order_count` counts orders **in its own cell** — orders
+containing that product, on that day, under that member status and payment
+class. That makes it additive across days for one product and **not** additive
+across products: an order carrying three templates contributes one to each of
+three cells.
+
+So the two surfaces name it differently, and the difference is not cosmetic:
+
+| Surface | Label | Why |
+| --- | --- | --- |
+| `/epood/` overview | **Tellimusridu** | the sum spans products, so an order is counted once per product it contained |
+| `/epood/toode/<id>/` | **Tellimused** | the sum spans one product's cells, so each order appears once |
+
+On the first real dataset that is **5 551 order lines against 4 052 distinct
+orders** — calling the overview figure "orders" would overstate it by 37%.
+
+A true distinct-order count across products is not derivable from this grain and
+would need an order-level dimension the aggregate deliberately does not carry.
+
 ### Acquisitions, not downloads
 
 A completed document order is a reasonable proxy for a template being acquired,
