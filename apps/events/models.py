@@ -16,6 +16,7 @@ from django.db import models
 from django.db.models import F, Q
 
 from apps.core.feeds import FeedResult
+from apps.core.immutability import ImmutableWriteGuard
 from apps.sources.models import DataSource
 
 
@@ -23,7 +24,7 @@ class EventImmutable(RuntimeError):
     """Raised when something tries to rewrite an imported snapshot or item."""
 
 
-class EventSnapshot(models.Model):
+class EventSnapshot(ImmutableWriteGuard, models.Model):
     source = models.ForeignKey(
         DataSource,
         on_delete=models.PROTECT,
@@ -48,6 +49,8 @@ class EventSnapshot(models.Model):
     imported_at = models.DateTimeField(auto_now_add=True, verbose_name="Imporditud")
 
     MUTABLE_FIELDS = frozenset({"is_current"})
+    IMMUTABLE_ERROR = EventImmutable
+    IMMUTABLE_MESSAGE = "An imported event snapshot may only change its is_current flag."
 
     class Meta:
         ordering = ("-observed_at", "-id")
@@ -64,17 +67,8 @@ class EventSnapshot(models.Model):
     def __str__(self) -> str:
         return f"Sündmused {self.observed_at:%d.%m.%Y} ({self.item_count})"
 
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise EventImmutable(
-                    "An imported event snapshot may only change its is_current flag."
-                )
-        return super().save(*args, **kwargs)
 
-
-class EventItem(models.Model):
+class EventItem(ImmutableWriteGuard, models.Model):
     snapshot = models.ForeignKey(
         EventSnapshot,
         on_delete=models.CASCADE,
@@ -93,6 +87,9 @@ class EventItem(models.Model):
     ends_at = models.DateTimeField(null=True, blank=True, verbose_name="Lõpuaeg")
     location = models.CharField(max_length=200, blank=True, verbose_name="Toimumiskoht")
     source_order = models.PositiveIntegerField(verbose_name="Järjekord allikas")
+
+    IMMUTABLE_ERROR = EventImmutable
+    IMMUTABLE_MESSAGE = "An imported event cannot be changed."
 
     class Meta:
         ordering = ("starts_on", "title", "stable_key")
@@ -124,11 +121,6 @@ class EventItem(models.Model):
     @property
     def has_exact_start(self) -> bool:
         return self.starts_at is not None
-
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            raise EventImmutable("An imported event cannot be changed.")
-        return super().save(*args, **kwargs)
 
 
 class EventFeedState(models.Model):

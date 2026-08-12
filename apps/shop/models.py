@@ -62,6 +62,7 @@ from django.core.validators import MinValueValidator
 from django.db import models
 from django.db.models import Q
 
+from apps.core.immutability import ImmutableWriteGuard
 from apps.sources.models import DataSource, ImportRun
 
 #: Money is `Decimal` everywhere, never float. Four decimal places because
@@ -142,7 +143,7 @@ class PageRole(models.TextChoices):
     EVENT = "event", "Sündmuse leht"
 
 
-class ShopProduct(models.Model):
+class ShopProduct(ImmutableWriteGuard, models.Model):
     """One Koda.ee Commerce product, identified by its Commerce product ID.
 
     Carries no title, no price and no category: all three are observations that
@@ -162,6 +163,11 @@ class ShopProduct(models.Model):
 
     #: Identity is fixed. Only the observation window may move.
     MUTABLE_FIELDS = frozenset({"last_seen_on"})
+    IMMUTABLE_ERROR = ShopImmutable
+    IMMUTABLE_MESSAGE = (
+        "A shop product keeps its Commerce ID and type; only {fields} may be re-observed."
+    )
+    ALLOW_UNRESTRICTED_SAVE = True
 
     class Meta:
         ordering = ("source_product_id",)
@@ -171,18 +177,8 @@ class ShopProduct(models.Model):
     def __str__(self) -> str:
         return f"#{self.source_product_id}"
 
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is not None and not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise ShopImmutable(
-                    "A shop product keeps its Commerce ID and type; only "
-                    f"{sorted(self.MUTABLE_FIELDS)} may be re-observed."
-                )
-        return super().save(*args, **kwargs)
 
-
-class ShopProductSnapshot(models.Model):
+class ShopProductSnapshot(ImmutableWriteGuard, models.Model):
     """Catalogue metadata for one product as observed on one day.
 
     **Everything here is current-state data with a date attached, never history.**
@@ -259,6 +255,11 @@ class ShopProductSnapshot(models.Model):
 
     #: Only the current flag moves after publication; a correction is a new row.
     MUTABLE_FIELDS = frozenset({"is_current"})
+    IMMUTABLE_ERROR = ShopImmutable
+    IMMUTABLE_MESSAGE = (
+        "A published product observation is immutable; a correction "
+        "creates a new current row that supersedes it."
+    )
 
     class Meta:
         ordering = ("-observed_on", "product_id")
@@ -283,16 +284,6 @@ class ShopProductSnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"{self.title[:60]} ({self.observed_on:%d.%m.%Y})"
-
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise ShopImmutable(
-                    "A published product observation is immutable; a correction "
-                    "creates a new current row that supersedes it."
-                )
-        return super().save(*args, **kwargs)
 
 
 class ShopProductPage(models.Model):
@@ -358,7 +349,7 @@ class ShopProductPage(models.Model):
         return f"{self.get_page_role_display()}: {self.path}"
 
 
-class ShopDailyFact(models.Model):
+class ShopDailyFact(ImmutableWriteGuard, models.Model):
     """Completed Commerce activity for one product on one day, one dimension cell.
 
     **Completed means the Drupal Commerce order `state`, and nothing else.** The
@@ -473,6 +464,11 @@ class ShopDailyFact(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     MUTABLE_FIELDS = frozenset({"is_current"})
+    IMMUTABLE_ERROR = ShopImmutable
+    IMMUTABLE_MESSAGE = (
+        "A published shop fact is immutable; a correction creates a "
+        "new current row that supersedes it."
+    )
 
     class Meta:
         ordering = ("-report_date", "product_id")
@@ -514,18 +510,8 @@ class ShopDailyFact(models.Model):
     def __str__(self) -> str:
         return f"{self.report_date:%d.%m.%Y} #{self.product_id}"
 
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise ShopImmutable(
-                    "A published shop fact is immutable; a correction creates a "
-                    "new current row that supersedes it."
-                )
-        return super().save(*args, **kwargs)
 
-
-class ShopDailySummary(models.Model):
+class ShopDailySummary(ImmutableWriteGuard, models.Model):
     """How many **distinct** Commerce orders were placed on one day.
 
     `ShopDailyFact` cannot answer this. Its grain is one row per product per
@@ -586,6 +572,11 @@ class ShopDailySummary(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     MUTABLE_FIELDS = frozenset({"is_current"})
+    IMMUTABLE_ERROR = ShopImmutable
+    IMMUTABLE_MESSAGE = (
+        "A published daily summary is immutable; a correction creates "
+        "a new current row that supersedes it."
+    )
 
     class Meta:
         ordering = ("-report_date", "product_type")
@@ -603,18 +594,8 @@ class ShopDailySummary(models.Model):
     def __str__(self) -> str:
         return f"{self.report_date:%d.%m.%Y} {self.product_type or 'kõik'}"
 
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise ShopImmutable(
-                    "A published daily summary is immutable; a correction creates "
-                    "a new current row that supersedes it."
-                )
-        return super().save(*args, **kwargs)
 
-
-class ShopSourceState(models.Model):
+class ShopSourceState(ImmutableWriteGuard, models.Model):
     """What the current shop dataset covers, and which semantics are trusted.
 
     Without this row the interface cannot tell a stale export from a quiet
@@ -675,6 +656,10 @@ class ShopSourceState(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
 
     MUTABLE_FIELDS = frozenset({"is_current"})
+    IMMUTABLE_ERROR = ShopImmutable
+    IMMUTABLE_MESSAGE = (
+        "A published source state is immutable; a new import creates a new current row."
+    )
 
     class Meta:
         ordering = ("-observed_at", "-id")
@@ -698,15 +683,6 @@ class ShopSourceState(models.Model):
 
     def __str__(self) -> str:
         return f"E-poe andmed seisuga {self.source_as_of:%d.%m.%Y}"
-
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise ShopImmutable(
-                    "A published source state is immutable; a new import creates a new current row."
-                )
-        return super().save(*args, **kwargs)
 
 
 __all__ = [

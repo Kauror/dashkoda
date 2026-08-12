@@ -30,6 +30,7 @@ import uuid
 from django.db import models
 from django.db.models import F, Q
 
+from apps.core.immutability import ImmutableWriteGuard
 from apps.sources.models import DataSource
 
 from .models import EventImmutable
@@ -56,7 +57,7 @@ class DiscoveryOrigin(models.TextChoices):
     CURRENT = "current", "Jooksev nimekiri"
 
 
-class PublicEventResource(models.Model):
+class PublicEventResource(ImmutableWriteGuard, models.Model):
     """One canonical Koda.ee event page, kept after its event has passed."""
 
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
@@ -92,6 +93,8 @@ class PublicEventResource(models.Model):
             "last_changed_at",
         }
     )
+    IMMUTABLE_ERROR = EventImmutable
+    IMMUTABLE_MESSAGE = "A public event page keeps its identity; only {fields} may be re-observed."
 
     class Meta:
         ordering = ("-starts_on", "title", "stable_key")
@@ -109,18 +112,8 @@ class PublicEventResource(models.Model):
     def __str__(self) -> str:
         return f"{self.starts_on:%d.%m.%Y} {self.title[:60]}"
 
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise EventImmutable(
-                    "A public event page keeps its identity; only "
-                    f"{sorted(self.MUTABLE_FIELDS)} may be re-observed."
-                )
-        return super().save(*args, **kwargs)
 
-
-class PublicEventDiscoverySnapshot(models.Model):
+class PublicEventDiscoverySnapshot(ImmutableWriteGuard, models.Model):
     """One discovery run: what happened, not what exists.
 
     Resources are cumulative and do not belong to a run, so a partial or failed
@@ -150,6 +143,8 @@ class PublicEventDiscoverySnapshot(models.Model):
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="Loodud")
 
     MUTABLE_FIELDS = frozenset({"is_current"})
+    IMMUTABLE_ERROR = EventImmutable
+    IMMUTABLE_MESSAGE = "A discovery run is immutable; only its is_current flag may change."
 
     class Meta:
         ordering = ("-observed_at", "-id")
@@ -165,12 +160,3 @@ class PublicEventDiscoverySnapshot(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_mode_display()} {self.observed_at:%d.%m.%Y %H:%M}"
-
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise EventImmutable(
-                    "A discovery run is immutable; only its is_current flag may change."
-                )
-        return super().save(*args, **kwargs)

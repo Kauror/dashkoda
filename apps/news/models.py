@@ -13,6 +13,7 @@ from django.db import models
 from django.db.models import Q
 
 from apps.core.feeds import FeedResult
+from apps.core.immutability import ImmutableWriteGuard
 from apps.sources.models import DataSource
 
 
@@ -20,7 +21,7 @@ class NewsImmutable(RuntimeError):
     """Raised when something tries to rewrite an imported snapshot or item."""
 
 
-class NewsSnapshot(models.Model):
+class NewsSnapshot(ImmutableWriteGuard, models.Model):
     source = models.ForeignKey(
         DataSource,
         on_delete=models.PROTECT,
@@ -45,6 +46,8 @@ class NewsSnapshot(models.Model):
     imported_at = models.DateTimeField(auto_now_add=True, verbose_name="Imporditud")
 
     MUTABLE_FIELDS = frozenset({"is_current"})
+    IMMUTABLE_ERROR = NewsImmutable
+    IMMUTABLE_MESSAGE = "An imported news snapshot may only change its is_current flag."
 
     class Meta:
         ordering = ("-observed_at", "-id")
@@ -61,17 +64,8 @@ class NewsSnapshot(models.Model):
     def __str__(self) -> str:
         return f"Uudised {self.observed_at:%d.%m.%Y} ({self.item_count})"
 
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is None or not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise NewsImmutable(
-                    "An imported news snapshot may only change its is_current flag."
-                )
-        return super().save(*args, **kwargs)
 
-
-class NewsItem(models.Model):
+class NewsItem(ImmutableWriteGuard, models.Model):
     """One feed entry. Immutable once its snapshot has been written."""
 
     snapshot = models.ForeignKey(
@@ -90,6 +84,9 @@ class NewsItem(models.Model):
     summary = models.TextField(blank=True, verbose_name="Kokkuvõte")
     source_order = models.PositiveIntegerField(verbose_name="Järjekord allikas")
 
+    IMMUTABLE_ERROR = NewsImmutable
+    IMMUTABLE_MESSAGE = "An imported news item cannot be changed."
+
     class Meta:
         ordering = ("-published_at", "guid")
         verbose_name = "Uudis"
@@ -107,11 +104,6 @@ class NewsItem(models.Model):
 
     def __str__(self) -> str:
         return self.title[:80]
-
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            raise NewsImmutable("An imported news item cannot be changed.")
-        return super().save(*args, **kwargs)
 
 
 class NewsFeedState(models.Model):

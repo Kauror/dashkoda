@@ -28,6 +28,8 @@ import uuid
 
 from django.db import models
 
+from apps.core.immutability import ImmutableWriteGuard
+
 
 #: Where a title came from. A feed entry is authoritative — the Chamber wrote it
 #: — while a page fetch is a reading of the public site, and the two are worth
@@ -41,7 +43,7 @@ class NewsResourceImmutable(RuntimeError):
     """Raised when something tries to rewrite a resource's identity."""
 
 
-class NewsResource(models.Model):
+class NewsResource(ImmutableWriteGuard, models.Model):
     """One canonical Koda.ee news page, kept after it leaves the feed."""
 
     public_id = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
@@ -68,6 +70,9 @@ class NewsResource(models.Model):
     MUTABLE_FIELDS = frozenset(
         {"title", "published_at", "title_origin", "category", "last_seen_at"}
     )
+    IMMUTABLE_ERROR = NewsResourceImmutable
+    IMMUTABLE_MESSAGE = "A news resource's canonical URL and path may not change."
+    ALLOW_UNRESTRICTED_SAVE = True
 
     class Meta:
         ordering = ("-published_at", "path")
@@ -77,15 +82,6 @@ class NewsResource(models.Model):
 
     def __str__(self) -> str:
         return self.title[:80] or self.path
-
-    def save(self, *args, **kwargs):
-        if self.pk is not None and not self._state.adding:
-            update_fields = kwargs.get("update_fields")
-            if update_fields is not None and not set(update_fields) <= self.MUTABLE_FIELDS:
-                raise NewsResourceImmutable(
-                    "A news resource's canonical URL and path may not change."
-                )
-        return super().save(*args, **kwargs)
 
 
 __all__ = ["NewsResource", "NewsResourceImmutable", "TitleOrigin"]
