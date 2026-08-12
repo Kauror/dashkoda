@@ -10,11 +10,17 @@ field. Two of its values are the ones that mean something here:
   uudised**.
 
 The field's other values — `arhiiv`, `artiklid`, `ajakiri_teataja`, `rss_voog` —
-are **not** categories in any meaningful sense. They are the names of listing
-views, and no article was found stored under any of them: articles taken from
-`/et/uudised/arhiiv` all store `meie_uudised` or `soprade_uudised`. So a value
+are the names of listing views rather than kinds of article. `arhiiv` in
+particular is the whole-news listing: articles taken from `/et/uudised/arhiiv`
+store `meie_uudised` or `soprade_uudised`, never `arhiiv`, which is what
+establishes that the archive page is simply all news.
+
+This module first claimed no article was stored under any of the four. That was
+wrong: reading all 4 554 news nodes and translations found **one** stored as
+`artiklid`. The behaviour it justified is unchanged and still right — a value
 outside the two below is recorded as unknown rather than invented into a third
-category.
+category — but one row is not "none", and a comment that overstates its evidence
+is worse than one that states less.
 
 **Nothing public exposes this.** The article page carries no category marker,
 the RSS feed emits no `<category>`, there is no JSON:API, and the archive view
