@@ -53,6 +53,7 @@ from .models import (
     PaymentClass,
     ProductType,
     ShopDailyFact,
+    ShopDailySummary,
     ShopProduct,
     ShopProductPage,
     ShopProductSnapshot,
@@ -738,6 +739,260 @@ def build_category_rows(rows: Sequence[ProductRow]) -> tuple[CategoryRow, ...]:
     )
 
 
+# ---------------------------------------------------------------------------
+# Distinct orders, and the free/paid mix
+# ---------------------------------------------------------------------------
+
+
+def get_distinct_orders(
+    *, start: date | None, end: date | None, product_type: str = ""
+) -> int | None:
+    """How many distinct Commerce orders a window carried.
+
+    `None` when the imported dataset cannot answer — a package published under
+    schema 1.0 carries no order counts at all, and the interface then falls back
+    to counting order **lines** and says which it is showing. Zero would be a
+    different and false claim.
+
+    Summing across days is safe because an order belongs to exactly one day.
+    Summing across product types is **not**, which is why a blank-type row
+    exists and is what an unfiltered call reads.
+    """
+    if start is None or end is None:
+        return None
+    rows = ShopDailySummary.objects.filter(
+        is_current=True,
+        report_date__gte=start,
+        report_date__lte=end,
+        product_type=product_type or ShopDailySummary.ALL_TYPES,
+    )
+    total = rows.aggregate(total=Sum("distinct_order_count"))["total"]
+    if total is not None:
+        return total
+    # Nothing for this window: distinguish "no summaries exist at all" from
+    # "this window genuinely had none".
+    return 0 if ShopDailySummary.objects.filter(is_current=True).exists() else None
+
+
+@dataclass(frozen=True)
+class MixBreakdown:
+    """How units divide between free, paid and unclassified."""
+
+    free: Decimal | None = None
+    paid: Decimal | None = None
+    unknown: Decimal | None = None
+
+    @property
+    def is_known(self) -> bool:
+        return self.free is not None and self.paid is not None
+
+    @property
+    def total(self) -> Decimal:
+        return (self.free or ZERO) + (self.paid or ZERO) + (self.unknown or ZERO)
+
+    @property
+    def free_share(self) -> Decimal | None:
+        """Free units as a percentage of the units that were classified.
+
+        The denominator excludes the unclassified remainder on purpose: a share
+        of a total that includes "we do not know" is a share of nothing in
+        particular.
+        """
+        if not self.is_known:
+            return None
+        classified = (self.free or ZERO) + (self.paid or ZERO)
+        if classified <= 0:
+            return None
+        return (self.free / classified * 100).quantize(Decimal("0.1"))
+
+
+def get_free_paid_split(window: ComparisonWindow, **filters) -> MixBreakdown:
+    """The free/paid mix over the Commerce window, or an unknown one."""
+    if not window.has_commerce:
+        return MixBreakdown()
+    row = _facts_in_window(window, **filters).aggregate(
+        free=Sum("free_units"), paid=Sum("paid_units"), unknown=Sum("unknown_units")
+    )
+    if row["free"] is None and row["paid"] is None:
+        return MixBreakdown()
+    return MixBreakdown(
+        free=row["free"] or ZERO, paid=row["paid"] or ZERO, unknown=row["unknown"] or ZERO
+    )
+
+
+# ---------------------------------------------------------------------------
+# Movers
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class MoverRow:
+    """One product's change in acquired units between two equal windows."""
+
+    source_product_id: int
+    title: str
+    category_name: str
+    current_units: Decimal
+    previous_units: Decimal
+
+    @property
+    def change(self) -> Decimal:
+        return self.current_units - self.previous_units
+
+    @property
+    def is_new(self) -> bool:
+        """Nothing before, something now — which has no percentage."""
+        return self.previous_units == 0 and self.current_units > 0
+
+    @property
+    def percentage_change(self) -> Decimal | None:
+        if self.previous_units == 0:
+            return None
+        return ((self.change) / self.previous_units * 100).quantize(Decimal("1"))
+
+
+def _units_by_product(start: date | None, end: date | None, **filters) -> dict[int, Decimal]:
+    if start is None or end is None:
+        return {}
+    rows = ShopDailyFact.objects.filter(
+        is_current=True, report_date__gte=start, report_date__lte=end
+    )
+    product_types = filters.get("product_types") or ()
+    if product_types:
+        rows = rows.filter(product__product_type__in=product_types)
+    category_term_ids = filters.get("category_term_ids") or ()
+    if category_term_ids:
+        rows = rows.filter(product_id__in=_product_pks_in_categories(category_term_ids))
+    return {
+        row["product_id"]: row["units"] or ZERO
+        for row in rows.values("product_id").annotate(units=Sum("units"))
+    }
+
+
+def get_product_movers(
+    *,
+    current_start: date | None,
+    current_end: date | None,
+    previous_start: date | None,
+    previous_end: date | None,
+    limit: int = 5,
+    **filters,
+) -> tuple[tuple[MoverRow, ...], tuple[MoverRow, ...]]:
+    """The products that rose and fell most, by **absolute** unit change.
+
+    Ranked on the absolute change rather than the percentage on purpose: a
+    product that went from one unit to four has grown 300% and moved three
+    units, and a list ordered by percentage is a list of the smallest products
+    in the catalogue. The percentage is offered beside the number, not instead
+    of it.
+
+    Two grouped queries, whatever the catalogue size.
+    """
+    if previous_start is None or previous_end is None:
+        return (), ()
+
+    current = _units_by_product(current_start, current_end, **filters)
+    previous = _units_by_product(previous_start, previous_end, **filters)
+    if not current and not previous:
+        return (), ()
+
+    snapshots = {
+        snapshot.product_id: snapshot for snapshot in latest_snapshots().select_related("product")
+    }
+    rows: list[MoverRow] = []
+    for pk in set(current) | set(previous):
+        snapshot = snapshots.get(pk)
+        if snapshot is None:
+            continue
+        rows.append(
+            MoverRow(
+                source_product_id=snapshot.product.source_product_id,
+                title=snapshot.title,
+                category_name=snapshot.category_name,
+                current_units=current.get(pk, ZERO),
+                previous_units=previous.get(pk, ZERO),
+            )
+        )
+
+    risers = sorted([r for r in rows if r.change > 0], key=lambda r: (-r.change, r.title))
+    fallers = sorted([r for r in rows if r.change < 0], key=lambda r: (r.change, r.title))
+    return tuple(risers[:limit]), tuple(fallers[:limit])
+
+
+# ---------------------------------------------------------------------------
+# Web effectiveness
+# ---------------------------------------------------------------------------
+
+#: Below this many product-page views inside the comparison window a rate is not
+#: offered as a ranking position. Deliberately a round, explainable number
+#: rather than a derived one: with a denominator of nine views a single
+#: acquisition swings the rate by eleven points, and no threshold computed from
+#: this data would be more defensible than one a reader can hold in their head.
+MIN_VIEWS_FOR_OPPORTUNITY = 100
+
+
+@dataclass(frozen=True)
+class OpportunityRow:
+    source_product_id: int
+    title: str
+    category_name: str
+    views: int
+    units: Decimal
+    rate: Decimal | None
+
+
+def get_web_opportunities(
+    rows: Sequence[ProductRow], *, limit: int = 5, minimum_views: int = MIN_VIEWS_FOR_OPPORTUNITY
+) -> tuple[tuple[OpportunityRow, ...], tuple[OpportunityRow, ...]]:
+    """Products with attention but weak acquisition, and the reverse.
+
+    Both lists require a real denominator: a product with four measured views
+    and one acquisition has a rate of 25 per 100 and belongs in neither list.
+    Derived from rows already built, so this costs no query at all.
+    """
+    eligible: list[OpportunityRow] = []
+    for row in rows:
+        figure = row.product_page_views
+        if figure is None or figure.views is None or figure.views < minimum_views:
+            continue
+        rate = row.acquisitions_per_hundred
+        if rate is None:
+            continue
+        eligible.append(
+            OpportunityRow(
+                source_product_id=row.source_product_id,
+                title=row.title,
+                category_name=row.category_name,
+                views=figure.views,
+                units=row.conversion_units,
+                rate=rate,
+            )
+        )
+    if not eligible:
+        return (), ()
+
+    # Weak acquisition despite attention: the lowest rates among the pages that
+    # actually get looked at, biggest audience first where rates tie.
+    weak = sorted(eligible, key=lambda r: (r.rate, -r.views))[:limit]
+    # Strong acquisition on comparatively little traffic: highest rate first,
+    # and among equal rates the one with least traffic is the more striking.
+    strong = sorted(eligible, key=lambda r: (-r.rate, r.views))[:limit]
+    return tuple(weak), tuple(strong)
+
+
+def concentration_share(rows: Sequence[ProductRow], *, top: int = 10) -> Decimal | None:
+    """What share of acquired units the largest `top` products account for.
+
+    `None` when the population is too small for the statement to mean anything:
+    "the top 10 of 9 products are 100%" is arithmetic, not insight.
+    """
+    units = sorted((row.units for row in rows), reverse=True)
+    total = sum(units, ZERO)
+    if len(units) <= top or total <= 0:
+        return None
+    return (sum(units[:top], ZERO) / total * 100).quantize(Decimal("1"))
+
+
 def get_product(source_product_id: int) -> ShopProduct | None:
     return ShopProduct.objects.filter(source_product_id=source_product_id).first()
 
@@ -758,9 +1013,18 @@ def catalogue_counts() -> dict[str, int]:
 
 __all__ = [
     "CONVERSION_BASE",
+    "MIN_VIEWS_FOR_OPPORTUNITY",
     "CategoryRow",
     "CommerceTotals",
     "ComparisonWindow",
+    "MixBreakdown",
+    "MoverRow",
+    "OpportunityRow",
+    "concentration_share",
+    "get_distinct_orders",
+    "get_free_paid_split",
+    "get_product_movers",
+    "get_web_opportunities",
     "MemberStatus",
     "MonthPoint",
     "PageViewFigure",

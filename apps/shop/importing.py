@@ -56,6 +56,7 @@ from .models import (
     PaymentClass,
     ProductType,
     ShopDailyFact,
+    ShopDailySummary,
     ShopProduct,
     ShopProductPage,
     ShopProductSnapshot,
@@ -300,7 +301,14 @@ def _write_paths(parsed: ParsedPackage, *, products, run: ImportRun) -> int:
 
 
 #: The measures whose equality decides "this day is unchanged".
-_FACT_FIELDS = ("order_count", "units", "ordered_value_net")
+_FACT_FIELDS = (
+    "order_count",
+    "units",
+    "ordered_value_net",
+    "free_units",
+    "paid_units",
+    "unknown_units",
+)
 
 
 def _write_facts(parsed: ParsedPackage, *, products, run: ImportRun) -> int:
@@ -329,6 +337,9 @@ def _write_facts(parsed: ParsedPackage, *, products, run: ImportRun) -> int:
             order_count=row.order_count,
             units=row.units,
             ordered_value_net=row.ordered_value_net,
+            free_units=row.free_units,
+            paid_units=row.paid_units,
+            unknown_units=row.unknown_units,
             import_run=run,
         )
         key = (
@@ -350,6 +361,46 @@ def _write_facts(parsed: ParsedPackage, *, products, run: ImportRun) -> int:
         ShopDailyFact.objects.filter(pk__in=superseded).update(is_current=False)
     if to_create:
         ShopDailyFact.objects.bulk_create(to_create)
+    return len(to_create)
+
+
+def _write_summaries(parsed: ParsedPackage, *, run: ImportRun) -> int:
+    """Distinct order counts per day. Nothing identifying reaches this table.
+
+    The counts arrive already aggregated: the package producer read the order
+    identifiers, counted the distinct ones and wrote only the total. No order
+    number ever enters this application, and no field here could hold one.
+    """
+    if not parsed.daily_orders:
+        return 0
+
+    dates = {row.report_date for row in parsed.daily_orders}
+    current = {
+        (summary.report_date, summary.product_type): summary
+        for summary in ShopDailySummary.objects.filter(is_current=True, report_date__in=dates)
+    }
+    superseded: list[int] = []
+    to_create: list[ShopDailySummary] = []
+
+    for row in parsed.daily_orders:
+        candidate = ShopDailySummary(
+            report_date=row.report_date,
+            product_type=row.product_type,
+            distinct_order_count=row.distinct_order_count,
+            import_run=run,
+        )
+        found = current.get((row.report_date, row.product_type))
+        if found is not None:
+            if found.distinct_order_count == candidate.distinct_order_count:
+                continue
+            superseded.append(found.pk)
+            candidate.supersedes = found
+        to_create.append(candidate)
+
+    if superseded:
+        ShopDailySummary.objects.filter(pk__in=superseded).update(is_current=False)
+    if to_create:
+        ShopDailySummary.objects.bulk_create(to_create)
     return len(to_create)
 
 
@@ -471,6 +522,7 @@ def import_shop_package(
                 "products": _write_snapshots(parsed, products=products, run=run),
                 "product_paths": _write_paths(parsed, products=products, run=run),
                 "daily_facts": _write_facts(parsed, products=products, run=run),
+                "daily_orders": _write_summaries(parsed, run=run),
             }
             state = _write_state(
                 parsed, source=source, run=run, digest=digest, counts=parsed.row_counts

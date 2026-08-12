@@ -52,10 +52,12 @@ def test_the_page_is_behind_the_viewer_gate(client):
 
 
 def test_the_as_of_date_is_shown(client, authenticate_viewer, seeded):
+    """One quiet metadata line, not a paragraph of methodology."""
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "E-poe andmed seisuga 11.08.2026" in content
-    assert "Tellimuste ajalugu" in content
+    assert "Andmed 11.08.2026" in content
+    assert "Tellimused 22.10.2020" in content
+    assert "Andmete kohta" in content
 
 
 def test_the_dataset_is_never_described_as_live(client, authenticate_viewer, seeded):
@@ -69,28 +71,49 @@ def test_value_is_never_called_revenue(client, authenticate_viewer, seeded):
     """Koda.ee records no payment receipt, so this is ordered value."""
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "Tellitud väärtus (KM-ta)" in content
+    assert "Tellitud väärtus" in content
+    assert "KM-ta" in content
     assert "Tulu" not in content
     assert "Laekunud" not in content
+    assert "Müük" not in content
 
 
-def test_the_overview_counts_order_lines_not_orders(client, authenticate_viewer, seeded):
-    """Summing the cell grain across products counts an order once per product.
+def test_the_overview_says_orders_once_distinct_counts_are_imported(
+    client, authenticate_viewer, seeded
+):
+    """Schema 2.0 carries distinct order counts, so the label may say orders.
 
-    The synthetic package has an order carrying two different products, so the
-    overview's figure must not be presented as a count of orders.
-
-    Both assertions name the rendered KPI label rather than the bare word,
-    because the page says „Tellimused" on purpose one paragraph further down —
-    in the sentence explaining what a single *product's* page means by it. That
-    sentence is the distinction being drawn, not a violation of it, and a
-    substring check over the whole page cannot tell the two apart.
+    Naming the rendered KPI label rather than the bare word, as #112 established
+    on the test this one replaced. The redesign made that necessary a second
+    time over: the metadata line now reads „Tellimused 22.10.2020", so a
+    substring check for the bare word passes whatever the card is labelled.
     """
+    content = _get(client, authenticate_viewer).content.decode()
+
+    assert ">Tellimused</h3>" in content
+    assert ">Tellimusridu</h3>" not in content
+
+
+def test_the_overview_falls_back_to_order_lines_without_distinct_counts(
+    client, authenticate_viewer, tmp_path
+):
+    """A dataset published from schema 1.0 cannot claim distinct orders."""
+    manifest = {**default_manifest(), "schema_version": "1.0"}
+    import_shop_package(build_package(tmp_path, manifest=manifest), dry_run=False)
+
     content = _get(client, authenticate_viewer).content.decode()
 
     assert ">Tellimusridu</h3>" in content
     assert ">Tellimused</h3>" not in content
-    assert "loeb iga toote eraldi" in content
+    assert "eri tellimuste arv ei ole imporditud" in content
+
+
+def test_only_three_commerce_kpis_carry_the_headline(client, authenticate_viewer, seeded):
+    """A fourth equal-weight card would make the web caveats headline material."""
+    content = _get(client, authenticate_viewer).content.decode()
+    strip = content.split('id="section-kpis"')[1].split("</section>")[0]
+
+    assert strip.count("text-metric") == 3
 
 
 def test_a_single_product_may_call_them_orders(client, authenticate_viewer, seeded):
@@ -115,12 +138,20 @@ def test_the_member_split_is_withheld_until_verified(client, authenticate_viewer
 # ---------------------------------------------------------------------------
 
 
-def test_both_view_columns_are_present_and_named_apart(client, authenticate_viewer, seeded):
+def test_the_explorer_drops_the_information_column(client, authenticate_viewer, seeded):
+    """Information-page traffic is depth; it lives on the product's own page."""
+    content = _get(client, authenticate_viewer).content.decode()
+    explorer = content.split('id="tooted"')[1]
+
+    assert "Tutvustus" not in explorer
+    assert "Vaatamised" in explorer
+
+
+def test_the_two_page_rule_is_stated_in_the_methodology(client, authenticate_viewer, seeded):
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "Tooteleht" in content
-    assert "Tutvustus" in content
     assert "ei liideta" in content
+    assert "<details" in content
 
 
 def test_an_unmeasured_figure_renders_as_a_dash(client, authenticate_viewer, seeded):
@@ -215,11 +246,17 @@ def test_no_inline_style_reaches_the_page(client, authenticate_viewer, seeded):
 
 
 def test_the_product_table_lets_long_titles_wrap(client, authenticate_viewer, seeded):
-    """A title has no natural width; `min-w-max` would put it behind a scrollbar."""
-    content = _get(client, authenticate_viewer).content.decode()
+    """A title has no natural width; `min-w-max` would put it behind a scrollbar.
 
-    assert "min-w-max" not in content
-    assert "overflow-x-auto" in content
+    Scoped to the explorer rather than the whole page. The shared trend chart
+    carries its own accompanying table, and that one *is* a row of figures with
+    a natural width, so `min-w-max` is right there and wrong here.
+    """
+    content = _get(client, authenticate_viewer).content.decode()
+    explorer = content.split('id="tooted"')[1]
+
+    assert "min-w-max" not in explorer
+    assert "overflow-x-auto" in explorer
 
 
 def test_a_stale_export_does_not_show_a_rate_for_unimported_days(
@@ -255,7 +292,12 @@ def test_a_stale_export_does_not_show_a_rate_for_unimported_days(
     content = response.content.decode()
 
     assert response.status_code == 200
-    assert "veebivõrdlust ei ole" in content or "veebimõõtmist ei ole" in content
+    # Scoped to the web section, and asserting the absence of the rate rather
+    # than only the presence of a sentence. A refusal that still printed a
+    # number underneath it would pass a wording check and fail the reader.
+    web = content.split('aria-labelledby="section-web"')[1].split("</section>")[0]
+    assert "Veebivõrdlus ei ole selle perioodi kohta võimalik" in web
+    assert "Soetusi / 100" not in web
 
 
 def test_the_shop_appears_in_the_navigation(client, authenticate_viewer, seeded):

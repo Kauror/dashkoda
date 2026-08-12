@@ -20,14 +20,16 @@ import io
 import json
 import zipfile
 from dataclasses import dataclass, field
+from decimal import Decimal
 from pathlib import Path
 
 from apps.shop.package import (
     DAILY_FACTS_NAME,
+    DAILY_ORDERS_NAME,
     MANIFEST_NAME,
     PRODUCT_PATHS_NAME,
     PRODUCTS_NAME,
-    REQUIRED_HEADERS,
+    headers_for,
 )
 
 PACKAGE_ROOT = "dashkoda-epood-package"
@@ -43,8 +45,14 @@ def _row(header: tuple[str, ...], values: dict) -> dict:
     return {name: values.get(name, "") for name in header}
 
 
-def _csv_bytes(name: str, rows: list[dict], *, header: tuple[str, ...] | None = None) -> bytes:
-    header = header or REQUIRED_HEADERS[name]
+def _csv_bytes(
+    name: str,
+    rows: list[dict],
+    *,
+    header: tuple[str, ...] | None = None,
+    version: str = "2.0",
+) -> bytes:
+    header = header or headers_for(name, version)
     buffer = io.StringIO(newline="")
     writer = csv.DictWriter(buffer, fieldnames=list(header), lineterminator="\n")
     writer.writeheader()
@@ -156,7 +164,14 @@ def default_product_paths(observed_on: str = DEFAULT_AS_OF) -> list[dict]:
 
 
 def default_daily_facts() -> list[dict]:
-    return [
+    """Fact cells, with the free/paid split schema 2.0 requires.
+
+    The split is stated per row rather than derived from the cell value on the
+    way out, because that is the whole point of classifying at line level: a
+    cell mixing a free acquisition with a paid one has a positive total and
+    would otherwise read as entirely paid.
+    """
+    rows = [
         # Before GA4 coverage begins (2023-06-16 on the real property): must
         # never enter a conversion numerator.
         {
@@ -238,11 +253,63 @@ def default_daily_facts() -> list[dict]:
             "currency": "EUR",
         },
     ]
+    for row in rows:
+        units = Decimal(row["units"])
+        if Decimal(row["ordered_value_net"]) == 0:
+            row["free_units"], row["paid_units"] = f"{units:.2f}", "0.00"
+        else:
+            row["free_units"], row["paid_units"] = "0.00", f"{units:.2f}"
+    # One cell whose classification the source could not complete: two units,
+    # one of them paid, the remainder genuinely unknown rather than free.
+    rows[3]["free_units"], rows[3]["paid_units"] = "0.00", "0.00"
+    return rows
+
+
+def _with_split(row: dict) -> dict:
+    """A fact row with a free/paid split, derived from its value if absent.
+
+    Only a default. `default_daily_facts` states the split explicitly, including
+    one row whose remainder is deliberately unclassified, and nothing here
+    overwrites a stated value.
+    """
+    if "free_units" in row and "paid_units" in row:
+        return row
+    units = Decimal(row.get("units") or "0")
+    free = units if Decimal(row.get("ordered_value_net") or "0") == 0 else Decimal(0)
+    return {**row, "free_units": f"{free:.2f}", "paid_units": f"{units - free:.2f}"}
+
+
+def default_daily_orders() -> list[dict]:
+    """Distinct order counts, including the required all-types row per day.
+
+    2026-03-10 deliberately carries two product cells from **one** order, so a
+    test can show that adding the fact grain would count it twice.
+    """
+    return [
+        {"report_date": "2021-03-04", "product_type": "", "distinct_order_count": "2"},
+        {"report_date": "2021-03-04", "product_type": "document", "distinct_order_count": "2"},
+        {"report_date": "2026-03-10", "product_type": "", "distinct_order_count": "3"},
+        {"report_date": "2026-03-10", "product_type": "document", "distinct_order_count": "3"},
+        {"report_date": "2026-04-02", "product_type": "", "distinct_order_count": "5"},
+        {"report_date": "2026-04-02", "product_type": "document", "distinct_order_count": "5"},
+        {"report_date": "2026-05-20", "product_type": "", "distinct_order_count": "6"},
+        {
+            "report_date": "2026-05-20",
+            "product_type": "event_registration",
+            "distinct_order_count": "6",
+        },
+        {"report_date": "2026-06-01", "product_type": "", "distinct_order_count": "1"},
+        {
+            "report_date": "2026-06-01",
+            "product_type": "physical_product",
+            "distinct_order_count": "1",
+        },
+    ]
 
 
 def default_manifest() -> dict:
     return {
-        "schema_version": "1.0",
+        "schema_version": "2.0",
         "source_name": "Koda.ee Commerce (sünteetiline testväljavõte)",
         "source_as_of": DEFAULT_AS_OF,
         "coverage_start": "2020-10-22",
@@ -275,6 +342,9 @@ class PackageBuilder:
     products: list[dict] | None = None
     product_paths: list[dict] | None = None
     daily_facts: list[dict] = field(default_factory=default_daily_facts)
+    #: `None` builds the default set; an explicit empty list writes the file
+    #: with no rows, which is how a 2.0 package with no orders is simulated.
+    daily_orders: list[dict] | None = None
     manifest: dict = field(default_factory=default_manifest)
 
     #: Override a file's header, to simulate an export that grew a column.
@@ -293,6 +363,28 @@ class PackageBuilder:
             self.products = default_products(as_of)
         if self.product_paths is None:
             self.product_paths = default_product_paths(as_of)
+        if self.daily_orders is None:
+            self.daily_orders = default_daily_orders()
+        if self.version < "2.0":
+            # A 1.0 package cannot carry either addition. Dropping the columns
+            # here is what lets a test build a genuine 1.0 export rather than a
+            # 2.0 one with holes in it.
+            self.daily_orders = []
+            self.daily_facts = [
+                {k: v for k, v in row.items() if k not in ("free_units", "paid_units")}
+                for row in self.daily_facts
+            ]
+        else:
+            # A test that hands over its own fact rows is making a point about
+            # dates, states or products — not about the free/paid split. Filling
+            # the split from the row's own value keeps those tests readable
+            # instead of making every one of them restate two columns it does
+            # not care about. A row that states the split keeps what it stated.
+            self.daily_facts = [_with_split(row) for row in self.daily_facts]
+
+    @property
+    def version(self) -> str:
+        return str(self.manifest.get("schema_version", "2.0"))
 
     def _payloads(self) -> dict[str, bytes]:
         payloads: dict[str, bytes] = {}
@@ -301,12 +393,14 @@ class PackageBuilder:
             PRODUCT_PATHS_NAME: self.product_paths,
             DAILY_FACTS_NAME: self.daily_facts,
         }
+        if self.version >= "2.0":
+            tables[DAILY_ORDERS_NAME] = self.daily_orders
         for name, rows in tables.items():
             if name in self.omit:
                 continue
             header = self.headers.get(name)
             values = self.extra_values.get(name, rows)
-            payloads[name] = _csv_bytes(name, values, header=header)
+            payloads[name] = _csv_bytes(name, values, header=header, version=self.version)
         return payloads
 
     def build(self, directory: Path, *, filename: str = "epood.zip") -> Path:

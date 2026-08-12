@@ -12,6 +12,7 @@ from apps.core.admin import ReadOnlyAdmin
 
 from .models import (
     ShopDailyFact,
+    ShopDailySummary,
     ShopProduct,
     ShopProductPage,
     ShopProductSnapshot,
@@ -74,6 +75,15 @@ class ShopDailyFactAdmin(ReadOnlyAdmin):
     date_hierarchy = "report_date"
     ordering = ("-report_date", "product_id")
     list_select_related = ("product", "import_run")
+
+
+@admin.register(ShopDailySummary)
+class ShopDailySummaryAdmin(ReadOnlyAdmin):
+    list_display = ("report_date", "product_type", "distinct_order_count", "is_current")
+    list_filter = ("is_current", "product_type")
+    date_hierarchy = "report_date"
+    ordering = ("-report_date", "product_type")
+    list_select_related = ("import_run",)
 
 
 @admin.register(ShopSourceState)
