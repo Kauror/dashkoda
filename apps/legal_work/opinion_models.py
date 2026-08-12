@@ -280,9 +280,26 @@ class OpinionCatalogueSnapshot(models.Model):
                 condition=Q(is_current=True),
                 name="opinioncatalogue_one_current_per_source",
             ),
+            # The three facts that decide whether a manifest still needs
+            # publishing, and therefore exactly the three the sync's unchanged
+            # check compares. They have to be the same set: the check reads the
+            # normaliser version because dates, recipients and subjects are
+            # parsed out of filenames, so a new reader changes the catalogue
+            # from identical bytes — and this constraint omitted it, which meant
+            # the code decided to republish and the database refused. `0007`
+            # added the field and the check without widening the key.
+            #
+            # The result was a deadlock rather than a one-off error: publishing
+            # is what records the new version, so every later run met the same
+            # mismatch and was refused again. It failed nightly from 2026-08-09.
             models.UniqueConstraint(
-                fields=["source", "source_manifest_checksum", "extractor_version"],
-                name="opinioncatalogue_unique_manifest_and_extractor",
+                fields=[
+                    "source",
+                    "source_manifest_checksum",
+                    "extractor_version",
+                    "filename_normaliser_version",
+                ],
+                name="opinioncatalogue_unique_manifest_and_readers",
             ),
             models.CheckConstraint(
                 condition=Q(valid_count__lte=F("entry_count")),
