@@ -1,10 +1,31 @@
 import pytest
 from django.contrib.auth.hashers import make_password
 
+# The synthetic viewer PIN every test authenticates with. One constant, so the
+# hash below and the `viewer_pin` fixture cannot drift apart.
+VIEWER_PIN = "8642"
+
+
+@pytest.fixture(scope="session")
+def viewer_pin_hash():
+    """The PIN's Django hash, computed once for the whole session.
+
+    `make_password` is deliberately expensive — production-strength PBKDF2,
+    about a second of key stretching per call. Hashing inside the autouse
+    fixture below meant every test paid that second before it started, which
+    made the hash, not the tests, the suite's dominant cost: the DB-free half
+    of the suite measured 1,495 tests in 26 minutes, ~0.99 s per test, against
+    ~1 s per hash. One hash is as synthetic as three thousand.
+
+    The hash itself stays real: `check_password` in the login tests still
+    exercises the production hasher against a production-shaped value.
+    """
+    return make_password(VIEWER_PIN)
+
 
 @pytest.fixture(autouse=True)
-def viewer_access_settings(settings):
-    settings.VIEWER_PIN_HASH = make_password("8642")
+def viewer_access_settings(settings, viewer_pin_hash):
+    settings.VIEWER_PIN_HASH = viewer_pin_hash
     settings.VIEWER_PIN_VERSION = 3
     settings.VIEWER_RATE_LIMIT_SECRET = "synthetic-test-rate-limit-secret"
     settings.TRUST_CLOUDFLARE_IP_HEADER = False
@@ -68,7 +89,7 @@ def populated_migration(transactional_db):
 
 @pytest.fixture
 def viewer_pin():
-    return "8642"
+    return VIEWER_PIN
 
 
 @pytest.fixture
