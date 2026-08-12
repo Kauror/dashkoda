@@ -635,3 +635,75 @@ def test_the_page_reports_nothing_when_no_programme_is_published(viewer):
     page = text_of(response)
     assert "Andmeallikas ei ole veel ühendatud." in page
     assert "Vastavaid sündmusi" not in page
+
+
+# -- a search that answers inside a year says so -----------------------------
+#
+# The year filter defaults to the current one, which is right for a page whose
+# standing job is this year's programme and surprising the moment somebody
+# searches: on production `eksport` found one event in 2026 and thirteen in the
+# whole programme, and nothing on screen said which question had been answered.
+#
+# The filter is not overridden — a reader may have set the year deliberately —
+# so the page states the scope and offers the wider question in one click.
+
+
+def test_a_search_inside_the_default_year_says_which_year(viewer_client, programme):
+    response = viewer_client.get(PAGE_URL, {"q": "seminar"})
+
+    applied = response.context["page"].filters.year
+    assert applied is not None, "the fixture no longer exercises a year-bound search"
+    # The year actually applied, named — not a guess and not the calendar year.
+    assert f"Otsitakse ainult {applied}. aasta sündmustest." in text_of(response)
+    assert "Otsi kõigist aastatest" in body(response)
+
+
+def test_the_widening_link_keeps_the_term_and_the_other_filters(viewer_client, programme):
+    response = viewer_client.get(PAGE_URL, {"q": "seminar", "tag": "seminar"})
+
+    url = response.context["page"].all_years_url
+
+    assert "year=all" in url
+    assert "q=seminar" in url
+    assert "tag=seminar" in url
+
+
+def test_the_widening_link_actually_widens(viewer_client, programme):
+    """The point of the notice: following it must find more than the year did."""
+    narrow = viewer_client.get(PAGE_URL, {"q": "seminar"})
+    wide = viewer_client.get(PAGE_URL, {"q": "seminar", "year": "all"})
+
+    assert wide.context["page"].result_count > narrow.context["page"].result_count
+
+
+def test_nothing_is_said_when_the_reader_asked_for_every_year(viewer_client, programme):
+    response = viewer_client.get(PAGE_URL, {"q": "seminar", "year": "all"})
+
+    assert "Otsitakse ainult" not in text_of(response)
+
+
+def test_nothing_is_said_when_nobody_is_searching(viewer_client, programme):
+    """Browsing this year's programme is the page doing its job, not a narrowed
+    search, and a caveat there would be noise on every visit."""
+    response = viewer_client.get(PAGE_URL)
+
+    assert "Otsitakse ainult" not in text_of(response)
+
+
+def test_the_notice_travels_with_the_live_search_fragment(viewer_client, programme):
+    """It depends on the term and the year, so it has to live inside the swapped
+    region — outside it would be frozen at whatever was true on page load."""
+    fragment = viewer_client.get(
+        reverse("event-programme-search"), {"q": "seminar"}
+    ).content.decode()
+
+    assert "Otsitakse ainult" in fragment
+    assert "Otsi kõigist aastatest" in fragment
+
+
+def test_the_fragment_stops_saying_it_once_the_years_are_widened(viewer_client, programme):
+    fragment = viewer_client.get(
+        reverse("event-programme-search"), {"q": "seminar", "year": "all"}
+    ).content.decode()
+
+    assert "Otsitakse ainult" not in fragment

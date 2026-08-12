@@ -20,6 +20,25 @@ and has to keep up with them.
 Pagination stays ordinary links. A reader asking for page two has stopped
 filtering, and a real navigation keeps the back button meaning what it says.
 {% endcomment %}
+{% comment %}
+Said here, inside the swapped region, because it depends on both the term and
+the year and must appear and vanish as somebody types. Above the form it would
+be frozen at whatever was true on page load.
+
+The year filter defaults to the current one, which is right for a page whose
+standing job is this year's programme and surprising the moment somebody
+searches: `eksport` finds one event in 2026 and thirteen in the whole
+programme. The filter is not overridden — a reader may have set the year on
+purpose — so the page states the scope and offers the wider question in one
+click, with the term and every other filter kept.
+{% endcomment %}
+{% if page.search_is_year_bound %}
+  <p class="flex flex-wrap items-baseline gap-x-2 px-4 py-2 text-sm text-text-secondary sm:px-5">
+    {{ page.year_bound_note }}
+    <a class="dk-link" href="{{ page.all_years_url }}">Otsi kõigist aastatest</a>
+  </p>
+{% endif %}
+
 <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-4 py-2 sm:px-5">
   <p class="text-sm text-text-secondary tabular-nums">Vastavaid sündmusi: <span class="font-semibold text-text">{{ page.result_count }}</span></p>
   {% if page.pagination.has_pages %}
