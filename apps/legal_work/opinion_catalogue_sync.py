@@ -36,8 +36,10 @@ from django.utils import timezone
 from apps.audit.models import AuditAction
 from apps.audit.services import record_event
 from apps.core.feed_sync import (
+    ContentIdentity,
     describe_error,
     fail_feed,
+    find_published_artifact,
     get_feed_state,
     mark_imported,
     mark_unchanged,
@@ -467,16 +469,33 @@ def _publish(
     The artifact is metadata-only. The documents live in the managed store and
     are never copied into the artifact area, which is served under a different
     policy and is not where private correspondence belongs.
+
+    **The artifact is reused when these bytes are already registered.** An
+    artifact's identity is `(source, sha256)` and registering the same content
+    twice is refused, so publishing a manifest this source has seen before must
+    hand `start_run` the existing row rather than ask for a second one — exactly
+    as `public_opinion_sync` and every feed collector does.
+
+    Republishing an unchanged manifest is a real case rather than a defensive
+    one. The fast path above returns early only when the checksum *and* both
+    version stamps match; raising `FILENAME_NORMALISER_VERSION` deliberately
+    invalidates it, because dates and recipients are parsed out of filenames and
+    a new reader changes the catalogue from identical bytes. That is precisely
+    when this runs, and passing `existing_artifact=None` made it fail:
+    `ArtifactRejected: Selle allika all on sama sisuga fail juba registreeritud.`
+    Worse, it could not recover — publishing is what would have written the new
+    version stamp, so every subsequent run took the same path and failed the
+    same way, daily, from 2026-08-09.
     """
-    collection = type(
-        "Collection",
-        (),
-        {"sha256": checksum, "size_bytes": sum(entry.byte_size for entry in manifest)},
-    )()
+    identity = ContentIdentity(
+        sha256=checksum,
+        size_bytes=sum(entry.byte_size for entry in manifest),
+    )
+    existing_artifact, _already_published = find_published_artifact(source, checksum, IMPORTER_NAME)
     artifact, run = start_run(
         source,
-        collection,
-        existing_artifact=None,
+        identity,
+        existing_artifact=existing_artifact,
         importer_name=IMPORTER_NAME,
         external_reference=EXTERNAL_REFERENCE,
         artifact_name=ARTIFACT_NAME,

@@ -18,6 +18,7 @@ from apps.legal_work.opinion_catalogue_sync import (
     RESULT_UNCHANGED,
     synchronize_opinion_documents,
 )
+from apps.legal_work.opinion_filenames import FILENAME_NORMALISER_VERSION
 from apps.legal_work.opinion_models import (
     CatalogueBuildState,
     OpinionCatalogueEntry,
@@ -28,6 +29,7 @@ from apps.legal_work.opinion_models import (
 )
 from apps.legal_work.opinion_pdf import ExtractionStatus, ValidationStatus
 from apps.legal_work.opinion_storage import blob_path, store_root
+from apps.sources.models import SourceArtifact
 
 from .opinion_factory import build_zip, make_encrypted_pdf, make_pdf, opinion_pdf
 
@@ -86,6 +88,63 @@ def test_a_repeated_build_reports_unchanged(opinion_roots, opinion_source):
 
     assert report.result == RESULT_UNCHANGED
     assert OpinionCatalogueSnapshot.objects.filter(is_current=True).count() == 1
+
+
+def test_republishing_identical_bytes_reuses_the_registered_artifact(opinion_roots, opinion_source):
+    """An artifact is identified by `(source, sha256)` and registering the same
+    content twice is refused, so a republication of an unchanged manifest has to
+    reuse the row rather than ask for a second one.
+
+    `--full` is the deliberate way to reach this: same bytes, same checksum,
+    publish anyway.
+    """
+    source, _ = opinion_roots
+    bootstrap(source, letters(2))
+    synchronize_opinion_documents()
+    before = SourceArtifact.objects.count()
+
+    report = synchronize_opinion_documents(full=True)
+
+    assert report.result == RESULT_IMPORTED
+    assert SourceArtifact.objects.count() == before, "the artifact is reused, not re-registered"
+    assert OpinionCatalogueSnapshot.objects.filter(is_current=True).count() == 1
+
+
+def test_a_stale_normaliser_version_republishes_instead_of_failing_for_ever(
+    opinion_roots, opinion_source
+):
+    """The production deadlock this guards against.
+
+    Raising `FILENAME_NORMALISER_VERSION` invalidates the unchanged fast path on
+    purpose — dates and recipients are parsed out of filenames, so a new reader
+    changes the catalogue from identical bytes. The run then reaches `_publish`
+    with a checksum whose artifact already exists.
+
+    Registering it again raised `ArtifactRejected`, and the failure was
+    self-perpetuating: publishing is what writes the new version stamp, so every
+    later run took the same path and failed the same way. It failed daily from
+    2026-08-09 until this was fixed, and no rerun could ever clear it.
+    """
+    source, _ = opinion_roots
+    bootstrap(source, letters(2))
+    synchronize_opinion_documents()
+    published = OpinionCatalogueSnapshot.objects.get(is_current=True)
+    # Rewrite history the way the real database holds it: a snapshot published
+    # before the field existed carries an empty stamp. `update` rather than
+    # `save` because a published snapshot is immutable through the model.
+    OpinionCatalogueSnapshot.objects.filter(pk=published.pk).update(filename_normaliser_version="")
+    before = SourceArtifact.objects.count()
+
+    report = synchronize_opinion_documents()
+
+    assert report.result == RESULT_IMPORTED, "a stale stamp must republish, not fail"
+    assert SourceArtifact.objects.count() == before
+    current = OpinionCatalogueSnapshot.objects.get(is_current=True)
+    assert current.filename_normaliser_version == FILENAME_NORMALISER_VERSION, (
+        "publishing is what clears the condition, so it must actually happen"
+    )
+    # And the next run settles back to the fast path rather than churning.
+    assert synchronize_opinion_documents().result == RESULT_UNCHANGED
 
 
 def test_a_changed_inbox_publishes_a_new_snapshot(opinion_roots, opinion_source):
