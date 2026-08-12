@@ -81,11 +81,17 @@ def test_value_is_never_called_revenue(client, authenticate_viewer, seeded):
 def test_the_overview_says_orders_once_distinct_counts_are_imported(
     client, authenticate_viewer, seeded
 ):
-    """Schema 2.0 carries distinct order counts, so the label may say orders."""
+    """Schema 2.0 carries distinct order counts, so the label may say orders.
+
+    Naming the rendered KPI label rather than the bare word, as #112 established
+    on the test this one replaced. The redesign made that necessary a second
+    time over: the metadata line now reads „Tellimused 22.10.2020", so a
+    substring check for the bare word passes whatever the card is labelled.
+    """
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "Tellimused" in content
-    assert "Tellimusridu" not in content
+    assert ">Tellimused</h3>" in content
+    assert ">Tellimusridu</h3>" not in content
 
 
 def test_the_overview_falls_back_to_order_lines_without_distinct_counts(
@@ -97,7 +103,8 @@ def test_the_overview_falls_back_to_order_lines_without_distinct_counts(
 
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "Tellimusridu" in content
+    assert ">Tellimusridu</h3>" in content
+    assert ">Tellimused</h3>" not in content
     assert "eri tellimuste arv ei ole imporditud" in content
 
 

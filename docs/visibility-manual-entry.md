@@ -20,20 +20,31 @@ historical row.
 
 ## Scope
 
+These four are what the form offers, and they are the whole of it. `manual_entry`
+in `apps/visibility/registry.py` is the single fact the form, its preview and its
+confirmation page all derive from, so this table cannot drift from the form
+without that flag changing.
+
 | Metric | Estonian label | Unit | Source | Stale after |
 | --- | --- | --- | --- | --- |
-| `newsletter_member_recipients` | Liikmete uudiskirja aktiivsed saajad | saajat | `manual-smaily-audience` | 90 days |
-| `newsletter_nonmember_recipients` | Mitteliikmete uudiskirja aktiivsed saajad | saajat | `manual-smaily-audience` | 90 days |
-| `newsletter_overlap_recipients` | Mõlemas nimekirjas olevad saajad | saajat | `manual-smaily-audience` | 90 days |
 | `facebook_followers` | Facebooki jälgijad | jälgijat | `manual-facebook-followers` | 45 days |
 | `linkedin_followers` | LinkedIni jälgijad | jälgijat | `manual-linkedin-followers` | 45 days |
 | `instagram_followers` | Instagrami jälgijad | jälgijat | `manual-instagram-followers` | 45 days |
 | `youtube_subscribers` | YouTube’i tellijad | tellijat | `manual-youtube-subscribers` | 45 days |
 
-Website traffic (`ga4-website-traffic`) is registered as a source and has its
-own optional daily collector. It counts as connected only once an observation
-has been published. See
+Website traffic (`ga4-website-traffic`) is registered as a source and has its own
+daily collector; its configuration is optional, and it counts as connected only
+once an observation has been published. See
 [Google Analytics](#google-analytics-website-traffic).
+
+**The three newsletter lists were once typed here and are not any more.** They
+are collected daily by `sync_smaily`, one metric per list — e-Teataja, eNews and
+e-Vestnik, each reported on its own and never summed. An earlier model split a
+single newsletter into member, non-member and overlap recipients; it never
+matched what actually goes out, and those three keys are retired. Observations
+recorded under them stay in the table because they were real readings, but no
+registry entry describes them, so nothing reads them and the form does not offer
+them. See [newsletter-audience.md](newsletter-audience.md).
 
 Deliberately out of scope, and absent from the schema: post reach, impressions,
 engagement, video views, newsletter opens, newsletter clicks, media coverage,

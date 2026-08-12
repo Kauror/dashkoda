@@ -116,14 +116,21 @@ The future monolith will separate shared infrastructure from business modules:
   selectors, the calendar collector and its feed state. It is **supplementary**:
   it has no route, it produces no dashboard total and it never overrides an
   event-programme field. The Sündmused page names it as a secondary connection.
-- `visibility` owns the manually observed audience sizes — the three newsletter
-  lists, each reported on its own and never summed, and the four social follower
-  counts — their metric
-  registry, selectors, staff entry workflow, the Nähtavus page, the overview's
-  channel band and the Google Analytics website-traffic collector (`sync_ga4`,
-  optional and off until the deployment supplies a property ID and a read-only
-  service-account key). It stores no platform credential and no individual
-  subscriber, follower or visitor.
+- `visibility` owns the audience figures and the website's own traffic: the four
+  hand-entered social follower counts, the three newsletter lists — each reported
+  on its own and never summed — collected from Smaily by `sync_smaily` and
+  `sync_smaily_campaigns`, and the Google Analytics daily history collected by
+  `sync_ga4`. With them come the metric registry, the selectors, the staff entry
+  workflow, the Nähtavus page and the overview's channel band. It stores no
+  platform credential and no individual subscriber, follower or visitor. Its GA4
+  path canonicalisation and page-view selectors are read by `news`,
+  `event_programme` and `shop`, which makes them a shared internal interface
+  rather than a private detail.
+- `shop` owns the E-pood commerce analytics: the products, their storefront
+  pages, the daily ordered-volume facts and the source state, the strict manual
+  package importer, the GA4-joined selectors and the `/epood/` pages. Its source
+  is a prepared PII-free export, never a live connection to Koda.ee, and it
+  withholds a dimension rather than guessing when the export cannot state one.
 
 Each public feed is its own business app rather than one generic "web scraper"
 domain, because what makes a member count valid has nothing to do with what
@@ -362,12 +369,29 @@ and the internal board-report history count different things; see
 - a durable legal-matter identity independent of the workbook's positional
   identifiers, its own opinion matcher, internal resource pages and the one
   authenticated route through which a private PDF can be read
+- the **public Koda.ee opinion source**: both article listings walked as one
+  corpus, attachment PDFs stored in the same content-addressed blob store, and a
+  letter-keyed matcher whose relations carry both provenances
+- the **internal membership history**: the board-report package importer, the
+  immutable observation and monthly-value tables, the staff correction form and
+  the Liikmeskond analytics with its server-rendered trend
+- the **GA4 website-traffic history**: one immutable revision per reporting day
+  with page and acquisition rows, the reconciliation window that respects GA4's
+  own late revisions, the traffic section on Nähtavus, page search, the content
+  ranking, and the measured view counts shown beside news and events
+- the **Smaily newsletter audiences**: daily list sizes per segment against a
+  pinned segment registry, the completed-campaign catalogue with aggregate
+  statistics, and a client that can only issue `GET` against a fixed endpoint set
+- the **News archive**: a durable article catalogue that keeps old articles named
+  after they leave the feed, publication dates read from the article pages, and a
+  filterable, paginated historical page
+- the **E-pood analytics module**: `apps/shop`, its validated manual package
+  importer, the GA4-joined selectors, `/epood/` and the per-product page
 
 ## Not implemented yet
 
 There is no Unraid override, Cloudflare or DNS configuration, backup or restore
-automation, rollback tooling, staging environment, membership domain model,
-chart or demo data in this repository.
+automation, rollback tooling or staging environment in this repository.
 
 Automatic legal-topic links cover the current `Hetkel käsil` listing, its
 archive, and — for records whose opinion has already gone out — an internal
@@ -375,11 +399,13 @@ resource page carrying the letter that answered it. The two populations are
 disjoint by construction: a consultation link needs the record to be open and
 unanswered, an opinion link needs it sent and dated, so a sent record can never
 fall through to a consultation it has already replied to. See
-[legal-opinion-matching.md](legal-opinion-matching.md). `Meie arvamus`
-pages, public opinion PDFs, news items and attached draft legislation are not
-collected and are not modelled. Neither opinion command is scheduled by this
-repository; the intended times are documented and the Unraid templates are
-examples, not installations.
+[legal-opinion-matching.md](legal-opinion-matching.md). `Meie arvamus` pages and
+the public opinion PDFs attached to them **are** now collected and modelled, as
+a second and separate opinion source; see
+[legal-opinion-public-source.md](legal-opinion-public-source.md). The draft
+legislation attached to a consultation is still neither collected nor modelled.
+No opinion command is scheduled by this repository; the intended times are
+documented and the Unraid templates are examples, not installations.
 
 Fookusteemad is an inert navigation entry, because no source is connected for
 it. Arvamused, Finantsid and Projektid were inert entries too and were removed
@@ -389,20 +415,25 @@ only while somebody is waiting for it.
 The four **social** audience figures are not collected. A staff user types them
 in and `apps/visibility` publishes them through the ordinary artifact and import
 path, but no Meta, LinkedIn, Instagram or YouTube integration exists, and none
-is planned in this stage. Two channels are collected. The scheduled
+is planned in this stage. Two channels are collected instead. The scheduled
 `sync_smaily` command reads the three newsletter list sizes through a read-only
-Smaily client. Website visits are the other: the scheduled `sync_ga4` command
-can collect one completed day of Google Analytics traffic when the deployment
-supplies `GA4_PROPERTY_ID` and a mounted read-only service-account key. Until
-an observation has actually been published the website slot stays `Lisamisel`;
-configuration alone never makes the page claim a connection.
+Smaily client, and `sync_smaily_campaigns` catalogues completed sends. Website
+visits are the other: the scheduled `sync_ga4` command collects completed days
+of Google Analytics traffic wherever the deployment supplies `GA4_PROPERTY_ID`
+and a mounted read-only service-account key. Both are configured on the pilot
+deployment; [deployment-status.md](deployment-status.md) is where that is
+recorded, because what this repository implements and what a given deployment
+has switched on are different statements. Until an observation has actually been
+published the website slot stays `Lisamisel`; configuration alone never makes the
+page claim a connection.
 
 Press coverage, the newsletter itself and event history once an event has passed
 remain entirely unconnected, and no model is capable of holding those.
 
-The 05:30–06:50 chain is **documented here as a template**; this repository installs
+The 05:15–06:50 chain is **documented here as a template**; this repository installs
 no schedule. An administrator has installed it on the pilot host. See
-[deployment-status.md](deployment-status.md).
+[operations-runbook.md](operations-runbook.md) for the jobs and their times, and
+[deployment-status.md](deployment-status.md) for what is actually installed.
 
 The Microsoft Graph collection route was retired without ever completing live
 acceptance; the public sharing link is the one recurring legal-work route.
@@ -418,6 +449,9 @@ An application deployment exists at `dash.orgusaar.ee`, but the operations
 milestone it belongs to is not complete. See
 [deployment-status.md](deployment-status.md).
 
-The legal-work feed is a deliberate change in feature order: it is the first
+The legal-work feed was a deliberate change in feature order: it is the first
 end-to-end proof of concept with real business data, delivered ahead of the
-membership domain. The next planned stage remains `membership-domain`.
+membership domain. That domain has since shipped — the public directory count
+and the internal board-report history, which are two sources and are never
+merged — so this document no longer names a single next stage. What is planned
+is decided per brief, and only an implementing pull request adds a module here.

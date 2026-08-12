@@ -28,21 +28,39 @@ collecting alongside it as a separate, supplementary feed for publicly announced
 upcoming events, and never overrides it. See
 [docs/event-programme-feed.md](docs/event-programme-feed.md).
 
-The communication-channel figures — the three newsletter lists and the Facebook,
-LinkedIn, Instagram and YouTube follower counts — are **entered by hand** by a
-staff user and shown at `/nahtavus/` and in the overview's channel band. Nothing
-collects them: there is no social or mailing-list integration, no credential and
-no scheduled job.
+The four **social** follower counts — Facebook, LinkedIn, Instagram and YouTube
+— are **entered by hand** by a staff user and shown at `/nahtavus/` and in the
+overview's channel band. Nothing collects them: there is no social integration,
+no credential and no scheduled job, and no model field is capable of holding an
+individual follower. See
+[docs/visibility-manual-entry.md](docs/visibility-manual-entry.md).
 
-Website traffic is the one exception, and it is **built but switched off**. The
-Google Analytics collector, its command and its feed state all exist; the
-deployment has no property ID, no service-account key and no schedule, so
-nothing is ever requested and the website slot honestly reports no connection.
-See [docs/visibility-manual-entry.md](docs/visibility-manual-entry.md) and
+The three **newsletter** lists are collected, not typed. The scheduled
+`sync_smaily` command reads each list's current size through a read-only Smaily
+client, and `sync_smaily_campaigns` catalogues completed sends with their
+aggregate statistics. No email address, name, subscriber identifier or
+per-recipient open, click or bounce is ever requested or stored. There is no
+backfill for list sizes and there cannot be one: Smaily reports what a list
+holds now. See [docs/newsletter-audience.md](docs/newsletter-audience.md).
+
+**Website traffic** is collected as well. The scheduled `sync_ga4` command reads
+completed reporting days from the Google Analytics Data API through a read-only
+service account and stores each day as an immutable revision, with its page and
+acquisition rows. GA4 revises recent days, so the job reconciles the last
+several completed days rather than fetching yesterday. No individual visitor is
+stored. See [docs/website-analytics.md](docs/website-analytics.md).
+
+`/epood/` is the **E-pood analytics** module: the Koda.ee Commerce storefront's
+ordered volume and value, joined to measured page traffic. Its source is a
+prepared, PII-free export imported by `import_shop_snapshot`, so the pages
+render their empty state until an export has been imported. Two dimensions are
+deliberately withheld pending confirmation of what the source actually means.
+See [docs/shop-analytics.md](docs/shop-analytics.md).
+
+Sections with no connected source still render an explicit empty state — nothing
+on those pages is a placeholder metric. Which sources are configured on the
+pilot deployment, as opposed to implemented here, is recorded in
 [docs/deployment-status.md](docs/deployment-status.md).
-
-The remaining sections still render an explicit empty state, because no other
-data source is connected — nothing on those pages is a placeholder metric.
 
 The workbook stays in OneDrive. The MVP collection route reads it through a
 view-only public sharing link:
@@ -194,23 +212,52 @@ npm run e2e
 
 ## Documentation
 
+Foundations:
+
 - [docs/architecture.md](docs/architecture.md) — module boundaries and runtime
 - [docs/data-model.md](docs/data-model.md) — sources, artifacts, imports, audit
+- [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
+- [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
+- [docs/security.md](docs/security.md) — viewer access boundary and browser policy
+
+Sources, one document each:
+
 - [docs/legal-work-feed.md](docs/legal-work-feed.md) — the OneDrive legal-work
   feed, its workbook contract, both sync routes and the 07:00 schedule
 - [docs/koda-public-feeds.md](docs/koda-public-feeds.md) — the public member,
   news and event feeds, what the member count means, and the 07:05 schedule
+- [docs/event-programme-feed.md](docs/event-programme-feed.md) — the Chamber's
+  authoritative event programme and its workbook
 - [docs/internal-membership-history.md](docs/internal-membership-history.md) —
   the Chamber's own board-report membership history, why it is a separate source
   from the public member count, the one-time import and the staff entry form
+- [docs/website-analytics.md](docs/website-analytics.md) — the GA4 collector, the
+  daily-revision model and the metric semantics
+- [docs/newsletter-audience.md](docs/newsletter-audience.md) — the Smaily list
+  sizes and campaign catalogue, and the segment registry
+- [docs/shop-analytics.md](docs/shop-analytics.md) — E-pood commerce semantics,
+  the manual export contract and the two withheld dimensions
 - [docs/visibility-manual-entry.md](docs/visibility-manual-entry.md) — the
-  manually entered newsletter and social audience figures, the newsletter union
-  rule, the staff data-entry hub and the Google Analytics collector, which is
-  implemented but disabled
-- [docs/design-system.md](docs/design-system.md) — tokens, components, breakpoints
-- [docs/frontend.md](docs/frontend.md) — build, assets, logo provenance, Playwright
-- [docs/security.md](docs/security.md) — viewer access boundary and browser policy
+  hand-entered social audience figures and the staff data-entry hub
+
+The legal-work catalogues and matchers:
+
+- [docs/legal-current-topic-matching.md](docs/legal-current-topic-matching.md) —
+  the `Hetkel käsil` catalogue and its matcher
+- [docs/legal-consultation-links.md](docs/legal-consultation-links.md) — when a
+  consultation link is offered, and when it is not
+- [docs/legal-opinion-documents.md](docs/legal-opinion-documents.md) — the
+  private opinion-document catalogue and its content-addressed store
+- [docs/legal-opinion-matching.md](docs/legal-opinion-matching.md) — durable
+  matter identity, the opinion matcher and the internal resource pages
+- [docs/legal-opinion-public-source.md](docs/legal-opinion-public-source.md) —
+  the public Koda.ee opinion source and why it is a second source
+
+Operations:
+
 - [docs/local-runtime.md](docs/local-runtime.md) — Compose runtime operations
+- [docs/operations-runbook.md](docs/operations-runbook.md) — the scheduled jobs,
+  their Tallinn times and the UTC cron pairs
 - [docs/deployment-status.md](docs/deployment-status.md) — what runs, what does not
 
 ## Current boundaries
