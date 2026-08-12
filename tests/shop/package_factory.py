@@ -265,6 +265,20 @@ def default_daily_facts() -> list[dict]:
     return rows
 
 
+def _with_split(row: dict) -> dict:
+    """A fact row with a free/paid split, derived from its value if absent.
+
+    Only a default. `default_daily_facts` states the split explicitly, including
+    one row whose remainder is deliberately unclassified, and nothing here
+    overwrites a stated value.
+    """
+    if "free_units" in row and "paid_units" in row:
+        return row
+    units = Decimal(row.get("units") or "0")
+    free = units if Decimal(row.get("ordered_value_net") or "0") == 0 else Decimal(0)
+    return {**row, "free_units": f"{free:.2f}", "paid_units": f"{units - free:.2f}"}
+
+
 def default_daily_orders() -> list[dict]:
     """Distinct order counts, including the required all-types row per day.
 
@@ -360,6 +374,13 @@ class PackageBuilder:
                 {k: v for k, v in row.items() if k not in ("free_units", "paid_units")}
                 for row in self.daily_facts
             ]
+        else:
+            # A test that hands over its own fact rows is making a point about
+            # dates, states or products — not about the free/paid split. Filling
+            # the split from the row's own value keeps those tests readable
+            # instead of making every one of them restate two columns it does
+            # not care about. A row that states the split keeps what it stated.
+            self.daily_facts = [_with_split(row) for row in self.daily_facts]
 
     @property
     def version(self) -> str:

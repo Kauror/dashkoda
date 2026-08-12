@@ -239,11 +239,17 @@ def test_no_inline_style_reaches_the_page(client, authenticate_viewer, seeded):
 
 
 def test_the_product_table_lets_long_titles_wrap(client, authenticate_viewer, seeded):
-    """A title has no natural width; `min-w-max` would put it behind a scrollbar."""
-    content = _get(client, authenticate_viewer).content.decode()
+    """A title has no natural width; `min-w-max` would put it behind a scrollbar.
 
-    assert "min-w-max" not in content
-    assert "overflow-x-auto" in content
+    Scoped to the explorer rather than the whole page. The shared trend chart
+    carries its own accompanying table, and that one *is* a row of figures with
+    a natural width, so `min-w-max` is right there and wrong here.
+    """
+    content = _get(client, authenticate_viewer).content.decode()
+    explorer = content.split('id="tooted"')[1]
+
+    assert "min-w-max" not in explorer
+    assert "overflow-x-auto" in explorer
 
 
 def test_a_stale_export_does_not_show_a_rate_for_unimported_days(
