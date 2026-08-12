@@ -368,3 +368,135 @@ def test_the_search_costs_no_extra_link_query(
     # A count and a page slice, and nothing else — in particular no second link
     # resolution, which would be one query per extra list.
     assert len(searched) - len(plain) <= 2
+
+
+# -- the live-search fragment ------------------------------------------------
+#
+# The same contract the Nähtavus searches follow: the form submits and reloads
+# without JavaScript, and with the bundle the identical partial is swapped in on
+# each keystroke. Both paths render one template, which is the only thing that
+# keeps them from drifting.
+
+FRAGMENT = "legal-work-search"
+
+
+def test_the_fragment_is_a_fragment(viewer, make_workbook, register_workbook):
+    publish(
+        [synthetic_row(record_id="SYN-1", topic="Leitav teema", source_row=2)],
+        make_workbook,
+        register_workbook,
+    )
+
+    content = viewer.get(reverse(FRAGMENT), {"otsing": "Leitav"}).content.decode()
+
+    assert "Leitav teema" in content
+    for shell in ("<html", "<body", "Peamenüü", "Koja töölaud", "Hetkel töös"):
+        assert shell not in content
+    # The box must never come back in the swap: htmx replaces this region's
+    # contents, and an input inside it loses the caret on every keystroke.
+    assert 'type="search"' not in content
+    assert "<form" not in content
+
+
+def test_the_fragment_and_the_page_render_the_same_rows(viewer, make_workbook, register_workbook):
+    """One template, two paths. If these ever disagree, a reader typing sees
+    something a reader reloading does not."""
+    publish(
+        [
+            synthetic_row(record_id="SYN-1", topic="Käibemaksu teema", source_row=2),
+            synthetic_row(record_id="SYN-2", topic="Muu teema", source_row=3),
+        ],
+        make_workbook,
+        register_workbook,
+    )
+
+    fragment = viewer.get(reverse(FRAGMENT), {"otsing": "Käibemaksu"}).content.decode()
+    page = viewer.get(reverse("legal-work"), {"otsing": "Käibemaksu"}).content.decode()
+
+    assert "Käibemaksu teema" in fragment
+    assert "Käibemaksu teema" in page
+    assert "Muu teema" not in fragment
+    assert "1 kirje." in fragment
+    assert "1 kirje." in page
+
+
+def test_the_fragment_keeps_the_status_it_was_given(viewer, make_workbook, register_workbook):
+    publish(
+        [
+            synthetic_row(record_id="SYN-O", topic="Maksuteema avatud", source_row=2),
+            synthetic_row(
+                record_id="SYN-S",
+                topic="Maksuteema saadetud",
+                sent_date=dt.date(2099, 2, 2),
+                sent_status="sent",
+                is_open=False,
+                source_row=3,
+            ),
+        ],
+        make_workbook,
+        register_workbook,
+    )
+
+    narrowed = viewer.get(
+        reverse(FRAGMENT), {"otsing": "Maksuteema", "seis": SEARCH_OPEN}
+    ).content.decode()
+
+    assert "Maksuteema avatud" in narrowed
+    assert "Maksuteema saadetud" not in narrowed
+
+
+def test_the_fragment_pushes_the_page_it_belongs_to(viewer):
+    response = viewer.get(reverse(FRAGMENT), {"otsing": "käibemaks"})
+
+    pushed = response.headers["HX-Push-Url"]
+    assert pushed.startswith(reverse("legal-work"))
+    assert "otsing=k%C3%A4ibemaks" in pushed
+    assert pushed.endswith("#section-search")
+
+
+def test_the_fragment_resets_the_page_number(viewer):
+    """A reader on page 3 who types a new term is asking a new question, and
+    carrying `lk` into it answers "no results" for anything shorter."""
+    response = viewer.get(reverse(FRAGMENT), {"otsing": "uus", "lk": "3"})
+
+    assert "lk=" not in response.headers["HX-Push-Url"]
+
+
+def test_the_fragment_carries_the_status_into_the_address_bar(viewer):
+    response = viewer.get(
+        reverse(FRAGMENT),
+        {"otsing": "x", "seis": SEARCH_OPEN},
+        headers={"HX-Current-URL": "https://dash.orgusaar.ee/oigusloome/?seis=toos"},
+    )
+
+    assert "seis=toos" in response.headers["HX-Push-Url"]
+
+
+def test_a_cleared_box_pushes_the_unfiltered_page(viewer):
+    """An empty term removes its key rather than pushing `?otsing=`."""
+    response = viewer.get(reverse(FRAGMENT), {"otsing": ""})
+
+    assert "otsing=" not in response.headers["HX-Push-Url"]
+
+
+def test_the_fragment_still_offers_the_status_chips(viewer, make_workbook, register_workbook):
+    """They live inside the swapped region precisely so each one carries the
+    term the reader has just typed; outside, they would still hold whatever was
+    there at page load."""
+    publish(
+        [synthetic_row(record_id="SYN-1", topic="Käibemaksu teema", source_row=2)],
+        make_workbook,
+        register_workbook,
+    )
+
+    content = viewer.get(reverse(FRAGMENT), {"otsing": "Käibemaksu"}).content.decode()
+
+    assert "Välja läinud" in content
+    assert "otsing=K%C3%A4ibemaksu" in content
+
+
+def test_the_fragment_is_behind_the_viewer_gate(client):
+    response = client.get(reverse(FRAGMENT), {"otsing": "x"})
+
+    assert response.status_code == 302
+    assert response.headers["Location"].startswith("/sisene/")

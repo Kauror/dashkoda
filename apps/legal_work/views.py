@@ -16,11 +16,13 @@ cannot be a link in one section and plain text in another.
 from datetime import timedelta
 
 from django.shortcuts import render
+from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from apps.dashboard.connections import planned
 from apps.dashboard.freshness import current_freshness
+from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
 
 from .search import (
@@ -37,6 +39,7 @@ from .selectors import (
     DEFAULT_RECENT_LIMIT,
     count_received_since,
     count_sent_since,
+    get_current_snapshot,
     get_latest_sent_items,
     get_legal_work_summary,
     get_open_items,
@@ -114,4 +117,48 @@ def legal_work_overview(request):
             "activity_window_days": ACTIVITY_WINDOW_DAYS,
             "focus_topics": FOCUS_TOPICS,
         },
+    )
+
+
+#: What this page understands. A live-search fragment carries the reader's
+#: current query forward so a reload keeps the status they had chosen — and
+#: carries *only* these, because the value ends up in somebody's address bar.
+LEGAL_WORK_PARAMS = (PARAM_QUERY, PARAM_STATUS, PARAM_PAGE)
+
+
+@require_GET
+def legal_work_search_fragment(request):
+    """The register-search results alone, for a reader typing in the box.
+
+    Only the search is rebuilt. Reaching for the whole page would re-read the
+    standing lists, the deadlines and the freshness row on every keystroke to
+    render a table that uses none of them.
+
+    Links are resolved here too, because a found record must be as clickable
+    from a keystroke as it is from a reload — one query for one list, rather
+    than the page's one query for four.
+
+    Page one, always: a new term is a new question, and a reader on page 3 of
+    one search would otherwise be told there are no results for the next.
+    """
+    snapshot = get_current_snapshot()
+    search = build_search(
+        snapshot,
+        query=parse_query(request.GET.get(PARAM_QUERY)),
+        status=parse_status(request.GET.get(PARAM_STATUS)),
+        population=get_legal_work_summary().total_count,
+    )
+    return search_fragment(
+        request,
+        "legal_work/partials/_search_results.html",
+        {"search": search.presented_with(resolve_links_for(search.results))},
+        pushed=push_url(
+            request,
+            path=reverse("legal-work"),
+            allowed=LEGAL_WORK_PARAMS,
+            # The section's own parsing has already trimmed and bounded the
+            # term, so what reaches the address bar is what reached the query.
+            updates={PARAM_QUERY: search.query, PARAM_STATUS: search.status, PARAM_PAGE: ""},
+            anchor="#section-search",
+        ),
     )

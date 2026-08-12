@@ -81,86 +81,54 @@ current snapshot the page renders the documented empty states instead.
   <section aria-labelledby="section-search" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Otsi registrist" heading_id="section-search" only %}
     <div class="dk-section-body flex min-w-0 flex-col gap-3">
-      <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
+      {% comment %}
+      A plain GET form. Without the bundle it submits and reloads; with it, the
+      input's `hx-*` attributes filter the rows below as somebody types and the
+      form is never submitted. Both paths render the same partial.
+
+      The status travels as a hidden field so `hx-include` carries it: narrowing
+      to `Töös` and then typing must stay inside `Töös`, and neither submitting
+      nor typing may quietly widen the question.
+
+      `lk` is deliberately absent. A reader on page 3 who types a new term is
+      asking a new question, and carrying the page number into it answers "no
+      results" for anything matching fewer pages. The fragment resets to page
+      one and `push_url` drops the parameter to match.
+      {% endcomment %}
+      <form method="get" action="#section-search" class="flex min-w-0 flex-wrap items-center gap-2">
         {% if search.status %}<input type="hidden" name="seis" value="{{ search.status }}">{% endif %}
         <label for="otsing" class="sr-only">Otsi õigusloome registrist</label>
-        <input type="search" id="otsing" name="otsing" value="{{ search.query }}"
-               maxlength="120" placeholder="Teema, number, saaja, seis…"
-               class="dk-input w-full min-w-0 sm:w-80">
+        <input type="search"
+               id="otsing"
+               name="otsing"
+               value="{{ search.query }}"
+               maxlength="120"
+               placeholder="Teema, number, saaja, seis…"
+               autocomplete="off"
+               class="dk-input w-full min-w-0 sm:w-80"
+               hx-get="{% url 'legal-work-search' %}"
+               hx-trigger="input changed delay:250ms, search"
+               hx-target="#legal-search-results"
+               hx-swap="innerHTML"
+               hx-include="closest form"
+               hx-sync="this:replace"
+               hx-indicator="#legal-searching">
         <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
         {% if search.is_searching %}
           <a class="dk-link text-sm" href="?">Tühjenda</a>
         {% endif %}
+        <p id="legal-searching" class="dk-indicator dk-meta self-center" aria-hidden="true">Otsin…</p>
       </form>
 
-      <nav aria-label="Kirje seis" class="flex flex-wrap gap-2">
-        {% for option in search.statuses %}
-          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-             href="?{{ option.query }}#section-search"
-             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
-        {% endfor %}
-      </nav>
-
-      {% if search.is_searching %}
-        <p class="dk-meta">{{ search.summary }}</p>
-      {% else %}
-        <p class="dk-meta">{{ search.scope_note }}</p>
-      {% endif %}
+      {% comment %}
+      The swapped region. `aria-live="polite"` tells a screen reader that rows
+      arrived without a page change, the same contract the Nähtavus searches
+      follow.
+      {% endcomment %}
+      <div id="legal-search-results" aria-live="polite" class="flex min-w-0 flex-col gap-3">
+        {% include "legal_work/partials/_search_results.html" with search=search only %}
+      </div>
     </div>
-
-    {% if search.is_searching and search.has_results %}
-      <div class="w-full min-w-0 overflow-x-auto">
-        <table class="w-full min-w-max border-collapse text-sm">
-          <caption class="sr-only">Otsingu tulemused õigusloome registrist</caption>
-          <thead>
-            <tr>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Õigusakti liik</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sisse</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Välja</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for row in search.results %}
-              <tr>
-                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.act_type|default:"—" }}</td>
-                <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
-                  {% if row.item.received_date %}{{ row.item.received_date|date:"j.m.y" }}{% else %}—{% endif %}
-                </td>
-                {% comment %}
-                The send date rather than the deadline: a search reaches mostly
-                concluded records, and what a reader wants of one is when it
-                went out. An explicitly not-sent record has no date by model
-                constraint and shows the dash honestly.
-                {% endcomment %}
-                <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
-                  {% if row.item.sent_date %}{{ row.item.sent_date|date:"j.m.y" }}{% else %}—{% endif %}
-                </td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-
-      {% if search.total_pages > 1 %}
-        <nav aria-label="Otsingutulemuste leheküljed" class="dk-section-body flex flex-wrap items-center justify-between gap-3">
-          {% if search.has_previous %}
-            <a class="dk-button dk-button-secondary" href="?{{ search.previous_query }}#section-search">Eelmine</a>
-          {% else %}<span></span>{% endif %}
-          <span class="dk-meta">Lehekülg {{ search.page_number }} / {{ search.total_pages }}</span>
-          {% if search.has_next %}
-            <a class="dk-button dk-button-secondary" href="?{{ search.next_query }}#section-search">Järgmine</a>
-          {% else %}<span></span>{% endif %}
-        </nav>
-      {% endif %}
-    {% elif search.is_searching %}
-      <div class="dk-section-body">
-        {% include "dashboard/components/empty_state.html" with message="Ühtegi kirjet ei leitud." detail="Proovi teist sõna või vali mõni teine seis." only %}
-      </div>
-    {% endif %}
   </section>
 
   {# ---------------- 2. Hetkel töös ---------------- #}
