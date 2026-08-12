@@ -25,6 +25,9 @@ from urllib.parse import quote
 from django.utils import timezone
 
 from apps.core.formatting import group_thousands, percent
+from apps.core.query_state import (  # noqa: F401 - re-exported for the view
+    parse_search as core_parse_search,
+)
 from apps.dashboard.sparkline import TrendChart, TrendSource, build_trend_chart
 
 from .content_performance import ContentPerformanceRow, describe_pages, paths_for_title
@@ -112,11 +115,9 @@ def parse_search(raw: str | None) -> str:
     """The search term, trimmed and bounded. Never raises, never reaches SQL.
 
     Free text, unlike the period and the section, which are validated against
-    closed registries. What bounds it instead is a length cap and the ORM: the
-    term is only ever a parameter to `icontains`, never a regex and never a
-    fragment of a query.
+    closed registries.
     """
-    return (raw or "").strip()[:MAX_SEARCH_LENGTH]
+    return core_parse_search(raw, limit=MAX_SEARCH_LENGTH)
 
 
 @dataclass(frozen=True)
