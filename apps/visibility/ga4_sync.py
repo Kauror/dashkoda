@@ -58,7 +58,7 @@ from apps.sources.models import SourceArtifact
 from apps.sources.services import (
     build_import_run,
     complete_import_run,
-    fail_import_run,
+    publishing_run,
     register_external_reference,
     start_import_run,
 )
@@ -442,7 +442,7 @@ def _publish_day(
     )
     start_import_run(run)
 
-    try:
+    with publishing_run(run, errors=[{"type": "publish_failed"}], actor=actor):
         with transaction.atomic():
             # Locked, because the unique index allows exactly one current
             # revision per date and two runs reconciling the same window would
@@ -532,11 +532,6 @@ def _publish_day(
                     "figures_reported": reading.has_any_figure,
                 },
             )
-    except Exception:
-        run.refresh_from_db()
-        if not run.is_terminal:
-            fail_import_run(run, errors=[{"type": "publish_failed"}], actor=actor)
-        raise
 
     counts.page_rows_written += len(reading.pages)
     counts.channel_rows_written += len(reading.channels)

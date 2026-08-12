@@ -26,7 +26,7 @@ from apps.core.feed_sync import (
     touch_checked,
 )
 from apps.core.feeds import FeedResult, SourceOutcome
-from apps.sources.services import complete_import_run, fail_import_run
+from apps.sources.services import complete_import_run, fail_publication
 
 from .bootstrap import ensure_events_source
 from .collector import NORMALISED_SCHEMA_VERSION, EventCollectionError, collect_events
@@ -132,9 +132,7 @@ def synchronize_events(*, dry_run: bool = False, actor=None, collector=None) -> 
                 },
             )
     except Exception as error:  # noqa: BLE001
-        run.refresh_from_db()
-        if not run.is_terminal:
-            fail_import_run(run, errors=[{"type": type(error).__name__}], actor=actor)
+        fail_publication(run, errors=[{"type": type(error).__name__}], actor=actor)
         return _fail(state, describe_error(error), correlation_id)
 
     mark_imported(state, snapshot, current_field="current_snapshot")

@@ -54,7 +54,7 @@ from apps.sources.models import SourceArtifact
 from apps.sources.services import (
     build_import_run,
     complete_import_run,
-    fail_import_run,
+    publishing_run,
     register_external_reference,
     start_import_run,
 )
@@ -451,7 +451,9 @@ def _publish_statistics(*, source, actor, correlation_id, report: CampaignReport
     start_import_run(run)
 
     written = 0
-    try:
+    with publishing_run(
+        run, errors=[{"detail": "Kampaaniate statistika avaldamine ebaõnnestus."}], actor=actor
+    ):
         with transaction.atomic():
             for entry in report.payloads:
                 campaign = entry["campaign"]
@@ -481,9 +483,6 @@ def _publish_statistics(*, source, actor, correlation_id, report: CampaignReport
                 written += 1
 
             complete_import_run(run, rows_added=written, actor=actor)
-    except Exception:
-        fail_import_run(run, errors=[{"detail": "Kampaaniate statistika avaldamine ebaõnnestus."}])
-        raise
 
     from apps.audit.services import record_event
 

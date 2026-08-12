@@ -36,7 +36,7 @@ from apps.sources.services import (
     build_import_run,
     calculate_import_key,
     complete_import_run,
-    fail_import_run,
+    fail_publication,
     register_external_reference,
     start_import_run,
 )
@@ -760,9 +760,7 @@ def import_history_package(
     except Exception as error:
         # The atomic block has already rolled back, so nothing partial survives
         # and the run can be closed honestly.
-        run.refresh_from_db()
-        if not run.is_terminal:
-            fail_import_run(run, errors=[_sanitized(error)], actor=actor)
+        fail_publication(run, errors=[_sanitized(error)], actor=actor)
         record_event(
             action=AuditAction.MEMBERSHIP_HISTORY_FAILED,
             obj=run,
