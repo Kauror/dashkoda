@@ -150,6 +150,21 @@ raises `ImmutableFieldError` on any change. Correctable metadata such as
 `mime_type` stays editable. The admin exposes no change or delete action at all,
 so the normal workflow cannot reach these paths.
 
+Every other published record enforces the same rule through one guard,
+`apps.core.immutability.ImmutableWriteGuard`. A model names the fields that may
+still move (`MUTABLE_FIELDS`), what to raise and what to say; with no mutable
+fields it is frozen entirely. Each domain keeps its own exception type, so
+`except NewsImmutable` still means news.
+
+**One variation is deliberate and worth knowing about.** A `save()` that names no
+`update_fields` rewrites every column. Almost every guarded model refuses it —
+but `NewsResource` and `ShopProduct` permit it, which is how both were written
+before the guard was consolidated, and `ALLOW_UNRESTRICTED_SAVE` preserves that
+rather than tightening it silently. Both are re-observed catalogue rows whose
+collectors always pass `update_fields`, so nothing relies on the permission
+today; whether to withdraw it is a decision about those two catalogues, not a
+side effect of moving code.
+
 ### Private storage
 
 Files never enter PostgreSQL. They are written through
