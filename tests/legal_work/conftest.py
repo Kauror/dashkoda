@@ -27,6 +27,13 @@ def superuser(db):
 
 
 @pytest.fixture
+def viewer(client, authenticate_viewer):
+    """A PIN-authenticated viewer, the same fixture the other suites define."""
+    authenticate_viewer(client)
+    return client
+
+
+@pytest.fixture
 def make_workbook(tmp_path):
     """Write a synthetic workbook and return its path."""
     counter = {"index": 0}

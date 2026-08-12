@@ -63,7 +63,107 @@ current snapshot the page renders the documented empty states instead.
     </section>
   {% endif %}
 
-  {# ---------------- 1. Hetkel töös ---------------- #}
+  {# ---------------- 1. Otsing ---------------- #}
+  {% comment %}
+  A search over the whole register, above the two standing lists rather than
+  instead of them.
+
+  `Hetkel töös` and `Viimati välja läinud` together draw 33 of the snapshot's
+  612 records. Every other record — every concluded topic, every opinion older
+  than the last fifteen — was imported, matched to its public consultation and
+  then unreachable from the page that is about it. This is how you reach one.
+
+  The box is always here; the results appear only once something is typed, so a
+  reader who never searches sees the page exactly as it was. A found record
+  carries the same public link, resolved by the same rule, as it would in either
+  list above — the view resolves them all in one query.
+  {% endcomment %}
+  <section aria-labelledby="section-search" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Otsi registrist" heading_id="section-search" only %}
+    <div class="dk-section-body flex min-w-0 flex-col gap-3">
+      <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
+        {% if search.status %}<input type="hidden" name="seis" value="{{ search.status }}">{% endif %}
+        <label for="otsing" class="sr-only">Otsi õigusloome registrist</label>
+        <input type="search" id="otsing" name="otsing" value="{{ search.query }}"
+               maxlength="120" placeholder="Teema, number, saaja, seis…"
+               class="dk-input w-full min-w-0 sm:w-80">
+        <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+        {% if search.is_searching %}
+          <a class="dk-link text-sm" href="?">Tühjenda</a>
+        {% endif %}
+      </form>
+
+      <nav aria-label="Kirje seis" class="flex flex-wrap gap-2">
+        {% for option in search.statuses %}
+          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+             href="?{{ option.query }}#section-search"
+             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+        {% endfor %}
+      </nav>
+
+      {% if search.is_searching %}
+        <p class="dk-meta">{{ search.summary }}</p>
+      {% else %}
+        <p class="dk-meta">{{ search.scope_note }}</p>
+      {% endif %}
+    </div>
+
+    {% if search.is_searching and search.has_results %}
+      <div class="w-full min-w-0 overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <caption class="sr-only">Otsingu tulemused õigusloome registrist</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Õigusakti liik</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sisse</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Välja</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in search.results %}
+              <tr>
+                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.act_type|default:"—" }}</td>
+                <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
+                  {% if row.item.received_date %}{{ row.item.received_date|date:"j.m.y" }}{% else %}—{% endif %}
+                </td>
+                {% comment %}
+                The send date rather than the deadline: a search reaches mostly
+                concluded records, and what a reader wants of one is when it
+                went out. An explicitly not-sent record has no date by model
+                constraint and shows the dash honestly.
+                {% endcomment %}
+                <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
+                  {% if row.item.sent_date %}{{ row.item.sent_date|date:"j.m.y" }}{% else %}—{% endif %}
+                </td>
+                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if search.total_pages > 1 %}
+        <nav aria-label="Otsingutulemuste leheküljed" class="dk-section-body flex flex-wrap items-center justify-between gap-3">
+          {% if search.has_previous %}
+            <a class="dk-button dk-button-secondary" href="?{{ search.previous_query }}#section-search">Eelmine</a>
+          {% else %}<span></span>{% endif %}
+          <span class="dk-meta">Lehekülg {{ search.page_number }} / {{ search.total_pages }}</span>
+          {% if search.has_next %}
+            <a class="dk-button dk-button-secondary" href="?{{ search.next_query }}#section-search">Järgmine</a>
+          {% else %}<span></span>{% endif %}
+        </nav>
+      {% endif %}
+    {% elif search.is_searching %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Ühtegi kirjet ei leitud." detail="Proovi teist sõna või vali mõni teine seis." only %}
+      </div>
+    {% endif %}
+  </section>
+
+  {# ---------------- 2. Hetkel töös ---------------- #}
   <section aria-labelledby="section-open" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Hetkel töös" heading_id="section-open" only %}
     {% if open_items %}
@@ -108,7 +208,7 @@ current snapshot the page renders the documented empty states instead.
     {% endif %}
   </section>
 
-  {# ---------------- 2. Viimati välja läinud ---------------- #}
+  {# ---------------- 3. Viimati välja läinud ---------------- #}
   <section aria-labelledby="section-sent" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Viimati välja läinud" heading_id="section-sent" only %}
     {% if sent_items %}
@@ -151,7 +251,7 @@ current snapshot the page renders the documented empty states instead.
     {% endif %}
   </section>
 
-  {# ---------------- 3. Fookusteemad ---------------- #}
+  {# ---------------- 4. Fookusteemad ---------------- #}
   <section aria-labelledby="section-focus" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Fookusteemad" heading_id="section-focus" badge_label="Lisamisel" badge_variant="neutral" only %}
     <div class="dk-section-body">
@@ -159,7 +259,7 @@ current snapshot the page renders the documented empty states instead.
     </div>
   </section>
 
-  {# ---------------- 4. Andmete seis ---------------- #}
+  {# ---------------- 5. Andmete seis ---------------- #}
   <section aria-labelledby="section-data-state" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="section-data-state" only %}
     <div class="dk-section-body flex flex-col gap-3">

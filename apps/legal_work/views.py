@@ -23,6 +23,15 @@ from apps.dashboard.connections import planned
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
+from .search import (
+    PARAM_PAGE,
+    PARAM_QUERY,
+    PARAM_STATUS,
+    build_search,
+    parse_page,
+    parse_query,
+    parse_status,
+)
 from .selectors import (
     ACTIVITY_WINDOW_DAYS,
     DEFAULT_RECENT_LIMIT,
@@ -64,7 +73,19 @@ def legal_work_overview(request):
     open_items = list(get_open_items(snapshot))
     sent_items = list(get_latest_sent_items(snapshot, limit=DEFAULT_RECENT_LIMIT))
     deadlines = get_upcoming_deadlines(snapshot) if snapshot else ()
-    links = resolve_links_for(open_items, sent_items, deadlines)
+
+    # The search is materialised alongside the standing lists, before links are
+    # resolved, so it joins the page's single link query. A record found by
+    # search and also sitting in `Hetkel töös` is asked about once and links
+    # identically in both places.
+    search = build_search(
+        snapshot,
+        query=parse_query(request.GET.get(PARAM_QUERY)),
+        status=parse_status(request.GET.get(PARAM_STATUS)),
+        page=parse_page(request.GET.get(PARAM_PAGE)),
+        population=summary.total_count if summary.has_data else 0,
+    )
+    links = resolve_links_for(open_items, sent_items, deadlines, search.results)
 
     return render(
         request,
@@ -89,6 +110,7 @@ def legal_work_overview(request):
             "received_recent": count_received_since(snapshot, window_start) if snapshot else None,
             "sent_recent": count_sent_since(snapshot, window_start) if snapshot else None,
             "deadlines": present_deadlines(deadlines, links),
+            "search": search.presented_with(links),
             "activity_window_days": ACTIVITY_WINDOW_DAYS,
             "focus_topics": FOCUS_TOPICS,
         },

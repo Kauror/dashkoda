@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 
 from django.conf import settings
-from django.db.models import F
+from django.db.models import F, Q
 from django.utils import timezone
 
 from apps.core.feeds import FeedSummaryMixin
@@ -129,6 +129,58 @@ def get_newest_received_items(
         .filter(received_date__isnull=False, received_date__lte=_today())
         .order_by("-received_date", "topic", "record_id")[:limit]
     )
+
+
+#: What a search may look at. Every one of these is a field a lawyer would
+#: recognise from the workbook itself; nothing is matched against an internal
+#: key the reader has never seen.
+SEARCH_FIELDS = ("topic", "record_id", "act_type", "recipient", "stage", "next_step")
+
+#: How long a search term may be. It reaches the ORM as a parameter and never as
+#: SQL; the cap is here so a pathological query string cannot become a
+#: pathological `LIKE`.
+MAX_SEARCH_LENGTH = 120
+
+#: The statuses a search can be narrowed to.
+SEARCH_ALL = ""
+SEARCH_OPEN = "toos"
+SEARCH_SENT = "valjas"
+SEARCH_STATUSES = (SEARCH_ALL, SEARCH_OPEN, SEARCH_SENT)
+
+
+def search_items(
+    snapshot: LegalWorkSnapshot | None = None, *, query: str = "", status: str = SEARCH_ALL
+):
+    """Every record in the current snapshot matching `query`.
+
+    **The whole register, not the two lists the page draws.** `Hetkel töös` is
+    eighteen open records and `Viimati välja läinud` is the fifteen most recent
+    sends; the snapshot holds six hundred. A topic concluded last spring was
+    therefore invisible on this page however well you knew its name, which is
+    what this answers.
+
+    Bounded the same way everything else here is: the current snapshot only, so
+    a retired revision can never answer a search, and a term that reaches no
+    field returns nothing rather than everything.
+    """
+    snapshot = snapshot or get_current_snapshot()
+    queryset = _items(snapshot)
+
+    if status == SEARCH_OPEN:
+        queryset = queryset.filter(is_open=True)
+    elif status == SEARCH_SENT:
+        queryset = queryset.filter(sent_status=SentStatus.SENT, sent_date__isnull=False)
+
+    query = (query or "").strip()
+    if query:
+        matching = Q()
+        for field in SEARCH_FIELDS:
+            matching |= Q(**{f"{field}__icontains": query})
+        queryset = queryset.filter(matching)
+
+    # Newest arrival first, undated last, then a stable tie-break so two renders
+    # of one search never disagree about the order.
+    return queryset.order_by(F("received_date").desc(nulls_last=True), "topic", "record_id")
 
 
 def count_received_since(snapshot: LegalWorkSnapshot | None, since: date) -> int:
