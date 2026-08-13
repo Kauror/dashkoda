@@ -158,7 +158,12 @@ def test_no_unique_constraint_in_the_app_survives_a_supersede(
                 # here would be a second, drifting copy of it.
                 continue
             fields = list(constraint.fields)
-            rows = list(model.objects.values_list(*fields))
+            # SQL treats NULLs as distinct in a unique constraint, so a nullable
+            # column repeating `None` is not a duplicate. Python disagrees, and
+            # comparing the tuples naively reports every row of a two-parent
+            # table — `MembershipNewMemberSizeDistribution` has 560 rows whose
+            # `period` is null — as a violation the database never had.
+            rows = [row for row in model.objects.values_list(*fields) if None not in row]
             assert len(rows) == len(set(rows)), (
                 f"{model.__name__}.{constraint.name} has duplicates after a supersede"
             )
