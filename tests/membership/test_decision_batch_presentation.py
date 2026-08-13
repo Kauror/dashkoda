@@ -32,19 +32,40 @@ from apps.membership.models import (
     QualityStatus,
     SizeBand,
 )
-from apps.sources.models import ImportRun, ImportStatus
+from apps.sources.services import (
+    build_import_run,
+    complete_import_run,
+    register_external_reference,
+    start_import_run,
+)
 
 pytestmark = pytest.mark.django_db
 
 
 @pytest.fixture
 def batch(internal_source):
-    run = ImportRun.objects.create(
+    # An import run carries the artifact it read and must reach `succeeded`
+    # through its lifecycle: `artifact` is non-null and two check constraints
+    # require `started_at` and `finished_at`. Creating one straight into a
+    # terminal state cannot produce a legal row — the same mistake that was
+    # already corrected in `test_isolated_history_import`.
+    artifact = register_external_reference(
         source=internal_source,
-        importer_name="seed",
-        schema_version="2.0",
-        status=ImportStatus.SUCCEEDED,
-        dry_run=False,
+        external_reference="synthetic:decision-batch-presentation",
+        original_name="synthetic-batches.zip",
+        mime_type="application/zip",
+        sha256="c" * 64,
+        size_bytes=11,
+    )
+    run = complete_import_run(
+        start_import_run(
+            build_import_run(
+                artifact=artifact,
+                importer_name="seed",
+                schema_version="2.0",
+                dry_run=False,
+            )
+        )
     )
     row = MembershipDecisionBatch.objects.create(
         source=internal_source,
@@ -150,12 +171,22 @@ def test_the_chart_never_calls_a_batch_a_year_to_date_figure(batch):
 
 
 def test_a_multi_month_period_is_returned_whole(internal_source):
-    run = ImportRun.objects.create(
-        source=internal_source,
-        importer_name="seed",
-        schema_version="2.0",
-        status=ImportStatus.SUCCEEDED,
-        dry_run=False,
+    run = complete_import_run(
+        start_import_run(
+            build_import_run(
+                artifact=register_external_reference(
+                    source=internal_source,
+                    external_reference="synthetic:new-member-period",
+                    original_name="synthetic-period.zip",
+                    mime_type="application/zip",
+                    sha256="b" * 64,
+                    size_bytes=9,
+                ),
+                importer_name="seed",
+                schema_version="2.0",
+                dry_run=False,
+            )
+        )
     )
     period = MembershipNewMemberPeriod.objects.create(
         source=internal_source,

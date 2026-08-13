@@ -166,6 +166,7 @@ def seed_decision_batches(today: dt.date) -> str:
         QualityStatus,
         SizeBand,
     )
+    from apps.sources.models import SourceArtifact
     from apps.sources.services import (
         build_import_run,
         complete_import_run,
@@ -174,14 +175,28 @@ def seed_decision_batches(today: dt.date) -> str:
     )
 
     source = ensure_internal_membership_source()
-    artifact = register_external_reference(
-        source=source,
-        external_reference="synthetic:membership-decision-batches",
-        original_name="synthetic-batches.zip",
-        mime_type="application/zip",
-        sha256="d" * 64,
-        size_bytes=12,
-    )
+
+    # The seed is run twice in the same database by design, and a second run
+    # must publish nothing new. Batches are immutable once written, so the
+    # second pass returns rather than trying to write them again.
+    existing = MembershipDecisionBatch.objects.filter(
+        source=source, external_batch_id__startswith="seed_batch_"
+    ).count()
+    if existing:
+        return f"juhatuse otsuste partiid: {existing} (juba olemas)"
+
+    # The same bytes under one source are one artifact, and registering a
+    # duplicate is refused — which is what a second seed run would otherwise do.
+    artifact = SourceArtifact.objects.filter(source=source, sha256="d" * 64).first()
+    if artifact is None:
+        artifact = register_external_reference(
+            source=source,
+            external_reference="synthetic:membership-decision-batches",
+            original_name="synthetic-batches.zip",
+            mime_type="application/zip",
+            sha256="d" * 64,
+            size_bytes=12,
+        )
     # Through the lifecycle rather than straight to a terminal status: two check
     # constraints require `started_at` and `finished_at` on a finished run.
     run = complete_import_run(
