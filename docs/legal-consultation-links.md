@@ -204,7 +204,7 @@ path and no crawl delay.
 
 | | current | archive |
 | --- | --- | --- |
-| version | `1.1-norm1.0` | `archive-1.0-norm1.0` |
+| version | `1.1-norm1.1` | `archive-1.0-norm1.1` |
 | field size | ~7 | ~170 and growing |
 | automatic match | 62.00 | **72.00** |
 | plausible floor | 38.00 | **48.00** |

@@ -97,6 +97,21 @@ A consultation page is an editorial invitation written by Koda.ee; an opinion
 letter is formal correspondence carrying an outgoing date, an outgoing number,
 an addressee and a subject line that no consultation page has.
 
+**Normaliser 1.1** adds the letter's own stock opening to the stop vocabulary.
+"Arvamuse esitamine <instrument> kohta" is the act, not the subject: `arvamus`,
+`arvamust` and `kohta` were already stop words, but the genitive `arvamuse` was
+not, and it is the form that occurs — 71.7% of the 152-document catalogue,
+against 5.9% for `arvamus`. `esitamine` (48.0%) and `avaldamine` (23.0%) join
+it. Without them two unrelated letters shared `{arvamuse, esitamine}` and
+resembled each other on subject overlap. Measured as a dry run against
+production before release, the change moved **no** decision in any of the three
+matchers that share this vocabulary — opinion 123 matched / 89 ambiguous / 370
+unmatched, current 4 matched, archive 1/2/10, identical before and after. The
+version moves because the rule moved, which is the contract in
+`text_normalisation`, and it regenerates all three matchers' snapshots on their
+next run. The catalogue is keyed on `FILENAME_NORMALISER_VERSION` instead, so
+nothing is re-extracted and no blob is rebuilt.
+
 Weights, renormalised over the signals that actually apply so a record missing
 one is not capped: date 0.34, subject 0.26, instrument 0.18, rarity 0.12,
 recipient 0.10. Thresholds: match 70.00, ambiguous 45.00, minimum winning margin
