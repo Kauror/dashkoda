@@ -143,12 +143,23 @@ def membership_overview(request):
     # year-to-date position, while a batch describes what a single decision did.
     # Drawing them together would invite exactly the addition the whole dataset
     # is built to prevent.
+    #
+    # The section shows one decision at a time. Eight years of decisions cannot
+    # be drawn at once and averaging them would be meaningless, so the control
+    # picks a decision and the charts describe exactly that one. Its default is
+    # the newest, which is the one a reader arriving at the page is asking about.
     decision_charts = []
     batches = get_decision_batches(
         date_from=window.start if window else None,
         date_to=window.end if window else None,
     )
-    for batch in batches[:2]:
+    decisions = _decisions_offered(batches)
+    chosen = _one_of(
+        request.GET.get(PARAM_DECISION),
+        [key for key, _label in decisions],
+        decisions[0][0] if decisions else "",
+    )
+    for batch in [b for b in batches if _decision_key(b) == chosen]:
         if batch.reasons:
             decision_charts.append(decision_batch_reasons_chart(batch))
         if batch.sizes:
@@ -157,6 +168,8 @@ def membership_overview(request):
     # Only resolved values reach a link: the window is clamped to the history
     # and both choices have already been validated.
     control_state: dict[str, str] = {PARAM_VIEW: view, PARAM_BENCHMARK: benchmark}
+    if chosen:
+        control_state[PARAM_DECISION] = chosen
     if window is not None:
         control_state[PARAM_FROM] = window.start.isoformat()
         control_state[PARAM_TO] = window.end.isoformat()
@@ -220,6 +233,28 @@ def membership_overview(request):
                 "kogunenud arv ega ole sellega liidetav."
             ),
             charts=tuple(decision_charts),
+            toggles=(
+                (
+                    Toggle(
+                        label="Otsus",
+                        options=tuple(
+                            _toggle(
+                                control_state,
+                                PARAM_DECISION,
+                                key,
+                                label,
+                                chosen,
+                                anchor="section-decisions",
+                            )
+                            for key, label in decisions
+                        ),
+                    ),
+                )
+                # One decision is not a choice, and a control that cannot change
+                # anything reads as a control that is broken.
+                if len(decisions) > 1
+                else ()
+            ),
         ),
     ]
 
@@ -269,7 +304,49 @@ def _one_of(raw: str | None, allowed, fallback: str) -> str:
     return raw if raw in allowed else fallback
 
 
-def _toggle(state: dict, param: str, value: str, label: str, active: str) -> ToggleOption:
+#: Which board decision the decision section describes.
+PARAM_DECISION = "otsus"
+
+#: How many decisions the control offers. The list is a row of links, not a
+#: dropdown, so it has to stay readable; older decisions remain reachable by
+#: narrowing the date window, which already filters the batches.
+MAX_DECISIONS_OFFERED = 8
+
+
+def _decision_key(batch) -> str:
+    """A decision's identity for the control: its as-of date.
+
+    Termination and suspension are two batches of the same decision, so keying
+    on the date brings both under one choice rather than offering the reader two
+    halves of the same board meeting.
+    """
+    return batch.as_of_date.isoformat() if batch.as_of_date else ""
+
+
+def _decisions_offered(batches) -> list[tuple[str, str]]:
+    """The decisions the control lists, newest first, de-duplicated by date."""
+    seen: dict[str, str] = {}
+    for batch in batches:
+        key = _decision_key(batch)
+        if not key or key in seen:
+            continue
+        label = batch.as_of_date.strftime("%d.%m.%Y")
+        if batch.reference:
+            label = f"{label} · {batch.reference}"
+        seen[key] = label
+        if len(seen) >= MAX_DECISIONS_OFFERED:
+            break
+    return list(seen.items())
+
+
+def _toggle(
+    state: dict,
+    param: str,
+    value: str,
+    label: str,
+    active: str,
+    anchor: str = "section-recruitment",
+) -> ToggleOption:
     """One control option, as a link that keeps every other choice intact.
 
     The link is assembled from `state`, which holds only values this view has
@@ -288,6 +365,6 @@ def _toggle(state: dict, param: str, value: str, label: str, active: str) -> Tog
     # to the section rather than to the top of the page.
     return ToggleOption(
         label=label,
-        query=f"?{urlencode(params)}#section-recruitment",
+        query=f"?{urlencode(params)}#{anchor}",
         is_active=active == value,
     )
