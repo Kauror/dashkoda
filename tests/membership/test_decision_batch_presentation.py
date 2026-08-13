@@ -225,8 +225,14 @@ def test_the_page_renders_the_decision_section(viewer_client, batch):
 
 
 def _second_decision(internal_source, batch):
-    """A second, older decision so the control has something to choose between."""
-    return MembershipDecisionBatch.objects.create(
+    """A second, older decision so the control has something to choose between.
+
+    It carries both distributions, because every batch in production does: they
+    are counted from the appendix's own member rows, so a batch without them
+    does not occur. A childless fixture made this decision render no charts at
+    all, and the picker then appeared not to work.
+    """
+    row = MembershipDecisionBatch.objects.create(
         source=internal_source,
         import_run=batch.import_run,
         external_batch_id="batch_seed_2",
@@ -237,6 +243,13 @@ def _second_decision(internal_source, batch):
         member_count=4,
         quality_status=QualityStatus.VERIFIED,
     )
+    MembershipDecisionBatchSizeMovement.objects.create(
+        batch=row, size_band_key=SizeBand.EMPLOYEES_1_4, member_count=4
+    )
+    MembershipDecisionBatchReason.objects.create(
+        batch=row, reason_key=BatchDepartureReasonKey.FINANCIAL, member_count=4
+    )
+    return row
 
 
 def test_the_page_defaults_to_the_newest_decision(viewer_client, internal_source, batch):
