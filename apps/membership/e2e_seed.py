@@ -140,3 +140,112 @@ def seed_internal(today: dt.date) -> str:
         publish_manual_report(report)
         published += 1
     return f"liikmeskonna aruanded (sisemine): {published} vaatlust"
+
+
+def seed_decision_batches(today: dt.date) -> str:
+    """Two board-decision batches, so `section-decisions` is actually drawn.
+
+    There is no manual form for a batch — they arrive only through the schema
+    2.0 import — so this writes them directly, the same way the import does.
+
+    Without this the section is invisible to the browser suite, which is the
+    blind spot that hid the website-traffic section until it was seeded: a
+    green run proves the parts work, not that anything reaches them.
+
+    The two dates differ on purpose. The appendix is compiled on one day and the
+    board signs on another, and a batch whose label collapsed them would pass a
+    test that only ever saw one date.
+    """
+    from apps.membership.bootstrap import ensure_internal_membership_source
+    from apps.membership.models import (
+        BatchDepartureReasonKey,
+        DecisionBatchKind,
+        MembershipDecisionBatch,
+        MembershipDecisionBatchReason,
+        MembershipDecisionBatchSizeMovement,
+        QualityStatus,
+        SizeBand,
+    )
+    from apps.sources.services import (
+        build_import_run,
+        complete_import_run,
+        register_external_reference,
+        start_import_run,
+    )
+
+    source = ensure_internal_membership_source()
+    artifact = register_external_reference(
+        source=source,
+        external_reference="synthetic:membership-decision-batches",
+        original_name="synthetic-batches.zip",
+        mime_type="application/zip",
+        sha256="d" * 64,
+        size_bytes=12,
+    )
+    # Through the lifecycle rather than straight to a terminal status: two check
+    # constraints require `started_at` and `finished_at` on a finished run.
+    run = complete_import_run(
+        start_import_run(
+            build_import_run(
+                artifact=artifact,
+                importer_name="seed",
+                schema_version="2.0",
+                dry_run=False,
+            )
+        )
+    )
+
+    as_of = today - dt.timedelta(days=30)
+    decided = today - dt.timedelta(days=23)
+
+    plan = (
+        (
+            DecisionBatchKind.TERMINATION,
+            17,
+            # Includes both new bands, so the page has to render a supporter and
+            # an unknown size rather than only employee counts.
+            {
+                SizeBand.EMPLOYEES_1_4: 8,
+                SizeBand.EMPLOYEES_5_9: 4,
+                SizeBand.EMPLOYEES_20_49: 3,
+                SizeBand.GROUP_COMPANY: 1,
+                SizeBand.UNKNOWN: 1,
+            },
+            {
+                BatchDepartureReasonKey.FINANCIAL: 7,
+                BatchDepartureReasonKey.NO_SERVICE_VALUE: 5,
+                BatchDepartureReasonKey.LIQUIDATION: 3,
+                BatchDepartureReasonKey.OTHER: 2,
+            },
+        ),
+        (
+            DecisionBatchKind.SUSPENSION,
+            4,
+            {SizeBand.EMPLOYEES_1_4: 3, SizeBand.SUPPORTER: 1},
+            {BatchDepartureReasonKey.ACTIVITY_CEASED: 4},
+        ),
+    )
+
+    seeded = 0
+    for kind, count, sizes, reasons in plan:
+        batch = MembershipDecisionBatch.objects.create(
+            source=source,
+            import_run=run,
+            external_batch_id=f"seed_batch_{kind}",
+            batch_kind=kind,
+            as_of_date=as_of,
+            decision_date=decided,
+            decision_reference="otsus nr 4",
+            member_count=count,
+            quality_status=QualityStatus.VERIFIED,
+        )
+        for band, number in sizes.items():
+            MembershipDecisionBatchSizeMovement.objects.create(
+                batch=batch, size_band_key=band, member_count=number
+            )
+        for key, number in reasons.items():
+            MembershipDecisionBatchReason.objects.create(
+                batch=batch, reason_key=key, member_count=number
+            )
+        seeded += 1
+    return f"juhatuse otsuste partiid: {seeded}"

@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { expectNoHorizontalOverflow, signIn, watchConsole } from "../helpers.js";
+import {
+  expectNoHorizontalOverflow,
+  signIn,
+  watchConsole,
+} from "../helpers.js";
 
 /*
  * The Liikmeskond analytics, against seeded content.
@@ -45,7 +49,9 @@ async function tooltipText(page, index = 0) {
   return (await tooltip.innerText()).trim();
 }
 
-test("every chart mounts with real dimensions and no console error", async ({ page }) => {
+test("every chart mounts with real dimensions and no console error", async ({
+  page,
+}) => {
   oncePerRun();
   const errors = watchConsole(page);
 
@@ -63,7 +69,9 @@ test("every chart mounts with real dimensions and no console error", async ({ pa
   expect(errors).toEqual([]);
 });
 
-test("the four analytical sections are separate and named", async ({ page }) => {
+test("the four analytical sections are separate and named", async ({
+  page,
+}) => {
   oncePerRun();
   await open_(page);
 
@@ -78,12 +86,18 @@ test("the four analytical sections are separate and named", async ({ page }) => 
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
   }
   // Still a heading, still the section's accessible name, just not painted.
-  await expect(page.getByRole("heading", { name: "Liikmeskonna areng" })).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Liikmeskonna areng" }),
+  ).toHaveCount(1);
   // The single range control that governed only some of the charts is gone.
-  await expect(page.getByRole("heading", { name: "Ajaloolised trendid" })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Ajaloolised trendid" }),
+  ).toHaveCount(0);
 });
 
-test("a tooltip appears and states formatted Estonian figures", async ({ page }) => {
+test("a tooltip appears and states formatted Estonian figures", async ({
+  page,
+}) => {
   oncePerRun();
   await open_(page);
 
@@ -94,7 +108,9 @@ test("a tooltip appears and states formatted Estonian figures", async ({ page })
   expect(text).not.toMatch(/\d{4}-\d{2}-\d{2}/);
 });
 
-test("the size-movement tooltip never states a departure as a negative", async ({ page }) => {
+test("the size-movement tooltip never states a departure as a negative", async ({
+  page,
+}) => {
   oncePerRun();
   /*
    * The defect this chart shipped with: the removed count is negated so the bar
@@ -128,7 +144,9 @@ test("the size-movement tooltip never states a departure as a negative", async (
   expect(text).not.toMatch(/Lahkunud[\s\S]{0,12}[-−]\d/);
 });
 
-test("a range preset redraws the growth chart and marks itself active", async ({ page }) => {
+test("a range preset redraws the growth chart and marks itself active", async ({
+  page,
+}) => {
   oncePerRun();
   await open_(page);
 
@@ -139,21 +157,31 @@ test("a range preset redraws the growth chart and marks itself active", async ({
   const whole = presets.filter({ hasText: "Kõik" }).first();
   await whole.click();
 
-  await expect(page).toHaveURL(/alates=\d{4}-\d{2}-\d{2}&kuni=\d{4}-\d{2}-\d{2}/);
+  await expect(page).toHaveURL(
+    /alates=\d{4}-\d{2}-\d{2}&kuni=\d{4}-\d{2}-\d{2}/,
+  );
   await expect(
-    page.locator('section[aria-labelledby="section-growth"] [aria-current="true"]'),
+    page.locator(
+      'section[aria-labelledby="section-growth"] [aria-current="true"]',
+    ),
   ).toHaveText("Kõik");
 });
 
-test("the monthly and cumulative views draw different data", async ({ page }) => {
+test("the monthly and cumulative views draw different data", async ({
+  page,
+}) => {
   oncePerRun();
   await open_(page);
 
-  const section = page.locator('section[aria-labelledby="section-recruitment"]');
+  const section = page.locator(
+    'section[aria-labelledby="section-recruitment"]',
+  );
   await expect(section).toBeVisible();
 
   const payload = async () =>
-    page.locator("#internal-membership-monthly").evaluate((node) => node.textContent);
+    page
+      .locator("#internal-membership-monthly")
+      .evaluate((node) => node.textContent);
 
   const monthly = await payload();
   await section.getByRole("link", { name: "Kumulatiivselt" }).click();
@@ -162,7 +190,11 @@ test("the monthly and cumulative views draw different data", async ({ page }) =>
 
   expect(cumulative).not.toEqual(monthly);
   await expect(
-    page.locator('section[aria-labelledby="section-recruitment"] [aria-current="true"]').first(),
+    page
+      .locator(
+        'section[aria-labelledby="section-recruitment"] [aria-current="true"]',
+      )
+      .first(),
   ).toHaveText("Kumulatiivselt");
 });
 
@@ -183,7 +215,9 @@ test("a control link carries only resolved parameters", async ({ page }) => {
   expect(href).not.toContain("onbekend");
 });
 
-test("every chart keeps its data table alongside the drawing", async ({ page }) => {
+test("every chart keeps its data table alongside the drawing", async ({
+  page,
+}) => {
   oncePerRun();
   await open_(page);
 
@@ -220,10 +254,14 @@ test("charts keep a readable height at every width", async ({ page }) => {
   const box = await canvases(page).first().boundingBox();
 
   expect(box.height).toBeGreaterThanOrEqual(200);
-  expect(box.width).toBeLessThanOrEqual(await page.evaluate(() => document.documentElement.clientWidth));
+  expect(box.width).toBeLessThanOrEqual(
+    await page.evaluate(() => document.documentElement.clientWidth),
+  );
 });
 
-test("section controls wrap rather than pushing the page sideways", async ({ page }) => {
+test("section controls wrap rather than pushing the page sideways", async ({
+  page,
+}) => {
   await open_(page);
 
   const escaping = await page
@@ -231,10 +269,73 @@ test("section controls wrap rather than pushing the page sideways", async ({ pag
     .evaluateAll(
       (nodes) =>
         nodes.filter(
-          (node) => node.getBoundingClientRect().right > document.documentElement.clientWidth + 1,
+          (node) =>
+            node.getBoundingClientRect().right >
+            document.documentElement.clientWidth + 1,
         ).length,
     );
 
   expect(escaping).toBe(0);
+  await expectNoHorizontalOverflow(page);
+});
+
+/*
+ * Board-decision batches.
+ *
+ * The section exists only because the seed now creates batches; before that it
+ * was invisible here, which is the same blind spot that hid the website-traffic
+ * section until it was seeded. A green run proves the parts work, not that
+ * anything reaches them.
+ */
+test("the decision section is drawn and keeps itself apart from year-to-date", async ({
+  page,
+}) => {
+  oncePerRun();
+
+  await open_(page);
+
+  const section = page
+    .locator("#section-decisions")
+    .locator("xpath=ancestor::section[1]");
+  await expect(section).toBeVisible();
+  await expect(section.getByText("Juhatuse otsused")).toBeVisible();
+
+  // The caveat has to be on the page, not only in the code: a batch is one
+  // decision's own list and is not addable to a year-to-date figure.
+  await expect(
+    section.getByText(/ei ole aasta algusest kogunenud arv/i),
+  ).toBeVisible();
+
+  // Both of its charts mount with real dimensions.
+  const drawn = section.locator("[data-chart-canvas] canvas");
+  const count = await drawn.count();
+  expect(count).toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    const box = await drawn.nth(index).boundingBox();
+    expect(box.width).toBeGreaterThan(0);
+    expect(box.height).toBeGreaterThan(0);
+  }
+});
+
+test("a decision chart names both of its dates", async ({ page }) => {
+  oncePerRun();
+
+  await open_(page);
+
+  const section = page
+    .locator("#section-decisions")
+    .locator("xpath=ancestor::section[1]");
+  // The appendix is compiled on one day and signed on another; a label that
+  // collapsed them would hide which day a figure describes.
+  await expect(section.getByText(/seisuga/i).first()).toBeVisible();
+  await expect(section.getByText(/otsus/i).first()).toBeVisible();
+});
+
+test("the decision section does not make the page scroll sideways", async ({
+  page,
+}) => {
+  await open_(page);
+
+  await expect(page.locator("#section-decisions")).toBeAttached();
   await expectNoHorizontalOverflow(page);
 });

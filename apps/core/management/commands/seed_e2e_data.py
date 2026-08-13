@@ -88,6 +88,10 @@ class Command(BaseCommand):
             news_seed.seed(today),
             membership_seed.seed_public(),
             membership_seed.seed_internal(today),
+            # After the internal reports: the decision section is drawn on the
+            # same page, and seeding it separately is what makes it visible to
+            # the browser suite at all.
+            membership_seed.seed_decision_batches(today),
             visibility_seed.seed_manual(today),
             # After the news and the events: the page rows resolve their titles
             # from those catalogues, and a ranking seeded first would show paths
