@@ -29,7 +29,7 @@ import unicodedata
 from apps.core.text_folding import TOKEN_PATTERN as _TOKEN_PATTERN
 from apps.core.text_folding import fold
 
-NORMALISER_VERSION = "1.0"
+NORMALISER_VERSION = "1.1"
 
 # Editorial scaffolding. These are the phrases the Chamber wraps around every
 # consultation — the invitation, not the subject — and they appear on nearly
@@ -158,6 +158,28 @@ STOP_TOKENS: frozenset[str] = frozenset(
         "valminud",
         "kehtestab",
         "algatanud",
+        # The *correspondence's* own vocabulary, as distinct from the
+        # consultation's above. An outgoing opinion letter opens by naming the
+        # act it performs — "Arvamuse esitamine <instrument> kohta" — and that
+        # opening says nothing about which instrument follows.
+        #
+        # `arvamus` and `arvamust` were already listed but the genitive was
+        # not, and the genitive is the form that actually occurs: measured over
+        # the 152-document opinion catalogue (filename subject plus the
+        # subject parsed from the letter's own header), `arvamuse` appears in
+        # 71.7% of documents against 5.9% for `arvamus` and 3.3% for
+        # `arvamust`. `esitamine` reaches 48.0% and `avaldamine` 23.0%.
+        # `kohta`, the fourth word of the same stock opening, is already above.
+        #
+        # Leaving them out let two unrelated letters share `{arvamuse,
+        # esitamine}` and look related on subject overlap — which is how a
+        # document filed under the wrong name kept a plausible-looking claim on
+        # a topic whose text it does not contain.
+        "arvamuse",
+        "esitamine",
+        "esitamise",
+        "avaldamine",
+        "avaldamiseks",
     }
 )
 

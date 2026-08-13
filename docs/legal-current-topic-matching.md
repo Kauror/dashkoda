@@ -208,7 +208,7 @@ the instrument.
 ### Thresholds and decisions
 
 ```text
-matcher version   1.1-norm1.0
+matcher version   1.1-norm1.1
 automatic match   score ≥ 62.00  and margin ≥ 12.00  and no blocking contradiction
 plausible floor   score ≥ 38.00  and no blocking contradiction
 ```
@@ -437,7 +437,7 @@ JSON output carries aggregates and identifiers only:
 ```json
 {"result": "imported", "detail": "…", "dry_run": false, "snapshot_id": 4,
  "legal_item_count": 31, "current_topic_count": 9, "matched_count": 2,
- "ambiguous_count": 3, "unmatched_count": 26, "matcher_version": "1.1-norm1.0"}
+ "ambiguous_count": 3, "unmatched_count": 26, "matcher_version": "1.1-norm1.1"}
 ```
 
 No topic, candidate title, URL, page text, evidence text or HTML ever appears in
