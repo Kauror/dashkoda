@@ -35,6 +35,8 @@ from .charts import (
     Toggle,
     ToggleOption,
     available_benchmarks,
+    decision_batch_reasons_chart,
+    decision_batch_sizes_chart,
     fee_collection_chart,
     monthly_new_members_chart,
     removal_reasons_chart,
@@ -43,6 +45,7 @@ from .charts import (
 )
 from .internal_selectors import (
     DEFAULT_MONTHLY_HISTORY_YEARS,
+    get_decision_batches,
     get_fee_collection_trend,
     get_internal_membership_latest,
     get_internal_membership_quality_summary,
@@ -135,6 +138,22 @@ def membership_overview(request):
                 removal_reasons_chart(reasons, observation_date=latest.observation_date)
             )
 
+    # Board-decision batches. Kept in their own section, and never folded into
+    # the movement section above: that one describes an observation's
+    # year-to-date position, while a batch describes what a single decision did.
+    # Drawing them together would invite exactly the addition the whole dataset
+    # is built to prevent.
+    decision_charts = []
+    batches = get_decision_batches(
+        date_from=window.start if window else None,
+        date_to=window.end if window else None,
+    )
+    for batch in batches[:2]:
+        if batch.reasons:
+            decision_charts.append(decision_batch_reasons_chart(batch))
+        if batch.sizes:
+            decision_charts.append(decision_batch_sizes_chart(batch))
+
     # Only resolved values reach a link: the window is clamped to the history
     # and both choices have already been validated.
     control_state: dict[str, str] = {PARAM_VIEW: view, PARAM_BENCHMARK: benchmark}
@@ -192,6 +211,15 @@ def membership_overview(request):
             title="Liikmete liikumine",
             description="",
             charts=tuple(movement_charts),
+        ),
+        AnalyticsSection(
+            section_id="section-decisions",
+            title="Juhatuse otsused",
+            description=(
+                "Ühe juhatuse otsuse enda nimekiri. Ei ole aasta algusest "
+                "kogunenud arv ega ole sellega liidetav."
+            ),
+            charts=tuple(decision_charts),
         ),
     ]
 

@@ -34,8 +34,11 @@ from .models import (
     InternalMembershipObservation,
     IssueSeverity,
     MembershipDataIssue,
+    MembershipDecisionBatch,
     MembershipMetricConflict,
     MembershipMonthlyNewMemberValue,
+    MembershipNewMemberPeriod,
+    MembershipNewMemberSizeDistribution,
     MembershipRemovalReason,
     MembershipSizeMovement,
     MonthlyValueStatus,
@@ -447,6 +450,183 @@ def get_removal_reasons(observation_id: int) -> tuple[dict, ...]:
             ),
         }
         for row in counted
+    )
+
+
+@dataclass(frozen=True)
+class DecisionBatch:
+    """One board decision's own list of departures.
+
+    Deliberately not merged with anything year-to-date. `as_of_date` is when the
+    members were counted and `decision_date` is when the board acted; the two are
+    often different days and occasionally the same one, and neither is derived
+    from the other.
+    """
+
+    id: int
+    kind: str
+    kind_label: str
+    as_of_date: date | None
+    as_of_precision: str
+    decision_date: date | None
+    reference: str
+    member_count: int | None
+    corroborated: bool
+    quality_status: str
+    sizes: tuple[dict, ...]
+    reasons: tuple[dict, ...]
+
+    @property
+    def is_disputed(self) -> bool:
+        return bool(
+            self.quality_status in (QualityStatus.CONFLICTED, QualityStatus.REVIEW_REQUIRED)
+        )
+
+
+def get_decision_batches(
+    date_from: date | None = None,
+    date_to: date | None = None,
+    *,
+    limit: int = 60,
+) -> tuple[DecisionBatch, ...]:
+    """Board-decision batches, newest first, with their two distributions.
+
+    Returns `()` rather than a zero when no decision is on record for a window:
+    a period with no batch is a period the board did not record that way, not a
+    period in which nobody left.
+    """
+    queryset = MembershipDecisionBatch.objects.filter(source__slug=_internal_source_slug()).exclude(
+        quality_status=QualityStatus.SUPERSEDED
+    )
+    if date_from is not None:
+        queryset = queryset.filter(as_of_date__gte=date_from)
+    if date_to is not None:
+        queryset = queryset.filter(as_of_date__lte=date_to)
+
+    batches = list(
+        queryset.order_by("-as_of_date", "batch_kind").prefetch_related(
+            "size_movements", "departure_reasons"
+        )[:limit]
+    )
+    if not batches:
+        return ()
+
+    out: list[DecisionBatch] = []
+    for batch in batches:
+        sizes = {row.size_band_key: row for row in batch.size_movements.all()}
+        ordered_sizes = tuple(
+            {
+                "band": band,
+                "label": sizes[band].get_size_band_key_display(),
+                "count": sizes[band].member_count,
+            }
+            for band in SIZE_BAND_ORDER
+            if band in sizes and sizes[band].member_count is not None
+        )
+        reason_rows = [row for row in batch.departure_reasons.all() if row.member_count is not None]
+        total = sum(row.member_count for row in reason_rows) or 0
+        ordered_reasons = tuple(
+            {
+                "key": row.reason_key,
+                "label": row.get_reason_key_display(),
+                "count": row.member_count,
+                "share_pct": (
+                    (Decimal(row.member_count) / Decimal(total) * 100).quantize(Decimal("0.1"))
+                    if total
+                    else None
+                ),
+            }
+            for row in sorted(reason_rows, key=lambda r: (-r.member_count, r.reason_key))
+        )
+        out.append(
+            DecisionBatch(
+                id=batch.pk,
+                kind=batch.batch_kind,
+                kind_label=batch.get_batch_kind_display(),
+                as_of_date=batch.as_of_date,
+                as_of_precision=batch.as_of_date_precision,
+                decision_date=batch.decision_date,
+                reference=batch.decision_reference,
+                member_count=batch.member_count,
+                corroborated=batch.corroborating_document_id is not None,
+                quality_status=batch.quality_status,
+                sizes=ordered_sizes,
+                reasons=ordered_reasons,
+            )
+        )
+    return tuple(out)
+
+
+@dataclass(frozen=True)
+class NewMemberPeriod:
+    """New members over a span the board never broke into months."""
+
+    id: int
+    period_start: date
+    period_end: date
+    new_members: int | None
+    sizes: tuple[dict, ...]
+
+
+def get_new_member_periods(
+    date_from: date | None = None, date_to: date | None = None
+) -> tuple[NewMemberPeriod, ...]:
+    """Multi-month reporting periods, oldest first.
+
+    These are kept apart from the monthly series on purpose. A figure covering
+    June and July together cannot be placed on a month axis without inventing a
+    split the source never stated.
+    """
+    queryset = MembershipNewMemberPeriod.objects.filter(source__slug=_internal_source_slug())
+    if date_from is not None:
+        queryset = queryset.filter(period_end__gte=date_from)
+    if date_to is not None:
+        queryset = queryset.filter(period_start__lte=date_to)
+
+    return tuple(
+        NewMemberPeriod(
+            id=period.pk,
+            period_start=period.period_start,
+            period_end=period.period_end,
+            new_members=period.new_members,
+            sizes=tuple(
+                {
+                    "band": row.size_band_key,
+                    "label": row.get_size_band_key_display(),
+                    "count": row.member_count,
+                }
+                for row in sorted(
+                    period.size_distribution.all(),
+                    key=lambda r: (
+                        SIZE_BAND_ORDER.index(r.size_band_key)
+                        if r.size_band_key in SIZE_BAND_ORDER
+                        else 99
+                    ),
+                )
+                if row.member_count is not None
+            ),
+        )
+        for period in queryset.order_by("period_start").prefetch_related("size_distribution")
+    )
+
+
+def get_monthly_size_distribution(year: int, month: int) -> tuple[dict, ...]:
+    """New members by size band for one calendar month, in canonical order."""
+    rows = MembershipNewMemberSizeDistribution.objects.filter(
+        monthly_value__calendar_year=year,
+        monthly_value__calendar_month=month,
+        monthly_value__source__slug=_internal_source_slug(),
+        monthly_value__is_current_for_month=True,
+    )
+    by_band = {row.size_band_key: row for row in rows if row.member_count is not None}
+    return tuple(
+        {
+            "band": band,
+            "label": by_band[band].get_size_band_key_display(),
+            "count": by_band[band].member_count,
+        }
+        for band in SIZE_BAND_ORDER
+        if band in by_band
     )
 
 

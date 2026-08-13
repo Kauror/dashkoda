@@ -1522,6 +1522,166 @@ def removal_reasons_chart(rows: tuple[dict, ...], *, observation_date: date | No
     )
 
 
+# ---------------------------------------------------------------------------
+# F. Board-decision batches
+# ---------------------------------------------------------------------------
+
+
+def decision_batch_reasons_chart(batch) -> ChartPayload:
+    """Why did the members in *this board decision* leave?
+
+    Scoped to one decision, and labelled that way in every string. The reason
+    breakdown on an observation answers a different question — what the year has
+    done so far — and the two must never be read as one series. That is why this
+    chart names its decision in the title rather than only its date.
+    """
+    ordered = [row for row in batch.reasons if row["count"] is not None]
+
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {
+                "type": "value",
+                "name": "Liikmeid",
+                "nameLocation": "middle",
+                "nameGap": 28,
+            },
+            "yAxis": {
+                "type": "category",
+                "data": [row["label"] for row in ordered],
+                "inverse": True,
+            },
+            "tooltip": {"trigger": "item"},
+            "series": [
+                {
+                    "name": batch.kind_label,
+                    "type": "bar",
+                    "labelLayout": dict(LABEL_LAYOUT),
+                    "data": [
+                        {
+                            "value": _number(row["count"]),
+                            "tip": row["key"],
+                            "label": {
+                                **BAR_LABEL,
+                                "show": True,
+                                "position": "right",
+                                "formatter": (
+                                    f"{integer(row['count'])} · {percent(row['share_pct'])}"
+                                    if row["share_pct"] is not None
+                                    else integer(row["count"])
+                                ),
+                            },
+                        }
+                        for row in ordered
+                    ],
+                }
+            ],
+            "dashkoda": {
+                "tooltip": _reason_tooltips(ordered, batch.as_of_date),
+                "axisFormat": {"x": "integer"},
+            },
+        }
+    )
+
+    return ChartPayload(
+        payload_id=f"internal-membership-decision-reasons-{batch.id}",
+        title=f"{batch.kind_label} — põhjused",
+        option=option,
+        size="categorical",
+        observation_label=_batch_label(batch),
+        table_headers=("Põhjus", "Liikmeid", "Osakaal"),
+        table_rows=tuple(
+            (row["label"], row["count"], percentage(row["share_pct"], places=1))
+            for row in batch.reasons
+        ),
+        summary=(
+            f"Horisontaalne tulpgraafik {len(ordered)} lahkumise põhjusega ühes "
+            f"juhatuse otsuses, {_batch_label(batch).lower()}."
+        ),
+        empty_message="Selle otsuse kohta põhjuseid ei ole.",
+    )
+
+
+def decision_batch_sizes_chart(batch) -> ChartPayload:
+    """How large were the companies in this decision?
+
+    Canonical band order rather than largest-first: the bands are an ordinal
+    scale, and reordering them by count would destroy the only thing the axis
+    means.
+    """
+    rows = [row for row in batch.sizes if row["count"] is not None]
+
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {
+                "type": "value",
+                "name": "Liikmeid",
+                "nameLocation": "middle",
+                "nameGap": 28,
+            },
+            "yAxis": {
+                "type": "category",
+                "data": [row["label"] for row in rows],
+                "inverse": True,
+            },
+            "tooltip": {"trigger": "item"},
+            "series": [
+                {
+                    "name": batch.kind_label,
+                    "type": "bar",
+                    "labelLayout": dict(LABEL_LAYOUT),
+                    "data": [
+                        {
+                            "value": _number(row["count"]),
+                            "tip": row["band"],
+                            "label": {
+                                **BAR_LABEL,
+                                "show": True,
+                                "position": "right",
+                                "formatter": integer(row["count"]),
+                            },
+                        }
+                        for row in rows
+                    ],
+                }
+            ],
+            "dashkoda": {"axisFormat": {"x": "integer"}},
+        }
+    )
+
+    return ChartPayload(
+        payload_id=f"internal-membership-decision-sizes-{batch.id}",
+        title=f"{batch.kind_label} — suurusklassid",
+        option=option,
+        size="categorical",
+        observation_label=_batch_label(batch),
+        table_headers=("Suurusklass", "Liikmeid"),
+        table_rows=tuple((row["label"], row["count"]) for row in batch.sizes),
+        summary=(
+            f"Horisontaalne tulpgraafik {len(rows)} suurusklassiga ühes juhatuse "
+            f"otsuses, {_batch_label(batch).lower()}."
+        ),
+        empty_message="Selle otsuse kohta suurusjaotust ei ole.",
+    )
+
+
+def _batch_label(batch) -> str:
+    """Name the decision by both of its dates when they differ.
+
+    The appendix is compiled on one day and signed on another, and collapsing
+    them would lose which of the two a figure describes.
+    """
+    parts = []
+    if batch.as_of_date:
+        parts.append(f"seisuga {long_date(batch.as_of_date)}")
+    if batch.decision_date and batch.decision_date != batch.as_of_date:
+        parts.append(f"otsus {long_date(batch.decision_date)}")
+    if batch.reference:
+        parts.append(batch.reference)
+    return ", ".join(parts)
+
+
 def _reason_tooltips(rows: list[dict], observation_date: date | None) -> dict:
     tooltips = {}
     for row in rows:
