@@ -389,7 +389,20 @@ def test_no_year_to_date_wording_appears_anywhere(viewer, route):
 
 @pytest.mark.parametrize("route", ["home", "membership", "news", "events"])
 def test_teataja_appears_nowhere(viewer, route):
-    assert "teataja" not in visible_text(viewer.get(reverse(route)))
+    """Riigi Teataja is out of scope and must not reach a page.
+
+    `e-Teataja` is a different thing that happens to contain the word: one of
+    the Chamber's own three newsletters, named by `registry.py`, and on
+    `/uudised/` since the newsletter material moved there from Nähtavus. It is
+    removed before the check rather than the news route being dropped from the
+    list, which would take this guard off everything else on that page.
+
+    That is also why `visibility` was never in the list: the same newsletter
+    name has always been on that page.
+    """
+    text = visible_text(viewer.get(reverse(route))).replace("e-teataja", "")
+
+    assert "teataja" not in text
 
 
 def test_the_navigation_marks_the_new_routes_available():

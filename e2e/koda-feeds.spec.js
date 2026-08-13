@@ -76,7 +76,11 @@ test("no page advertises a year-to-date member figure or Teataja", async ({ page
     await page.goto(path);
     const text = (await page.locator("body").innerText()).toLowerCase();
 
-    expect(text).not.toContain("teataja");
+    // `e-Teataja` is one of the Chamber's own newsletters rather than Riigi
+    // Teataja, and it is on /uudised/ since the newsletter material moved
+    // there. It is removed rather than the news page being dropped from this
+    // loop, which would take the guard off everything else that page renders.
+    expect(text.replaceAll("e-teataja", "")).not.toContain("teataja");
     expect(text).not.toContain("uusi liikmeid");
     expect(text).not.toContain("sel aastal");
   }

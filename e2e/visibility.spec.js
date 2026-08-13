@@ -9,6 +9,11 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
  * about the *truthful empty state* and the layout. That is the state a fresh
  * deployment is in, and it is the one most likely to be got wrong: a band with
  * nothing in it must show no figure at all rather than a row of zeros.
+ *
+ * The newsletters are not on this page any more — see `news-newsletters.spec.js`
+ * for where they went. The overview's band below still names all six channels:
+ * Uudiskirjad is a communication channel on the executive summary whatever page
+ * carries its analytics.
  */
 
 const CHANNELS = [
@@ -61,16 +66,30 @@ test("the visibility page renders its sections and its empty states", async ({ p
 
   await openVisibility(page);
 
-  // Not "Uudiskirjad": that is the channel card's heading in the band above, and
-  // the section is named for what it lists so the two never collide.
-  for (const section of [
-    "Praegune seis",
-    "Uudiskirjade tulemused",
-  ]) {
-    await expect(page.getByRole("heading", { name: section, exact: true })).toBeVisible();
-  }
+  await expect(page.getByRole("heading", { name: "Praegune seis", exact: true })).toBeVisible();
   await expect(page.getByText("Google Analytics ei ole ühendatud.").first()).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test("the newsletters are no longer on this page", async ({ page }) => {
+  // They moved to Uudised. The band here keeps the website and the four social
+  // channels; the overview's own band still carries Uudiskirjad, which is why
+  // this asserts on Nähtavus rather than on the shell.
+  await openVisibility(page);
+
+  await expect(page.getByRole("heading", { name: "Uudiskirjad", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Uudiskirjade tulemused", exact: true }),
+  ).toHaveCount(0);
+  await expect(page.getByLabel("Otsi uudiskirja")).toHaveCount(0);
+
+  // And the half that stayed is still here.
+  await expect(
+    page.getByRole("heading", { name: "Kodulehe külastused", exact: true }).first(),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Facebooki jälgijad", exact: true }),
+  ).toBeVisible();
 });
 
 test("the visibility page shows no fabricated audience figure", async ({ page }) => {

@@ -211,9 +211,16 @@ drift towards whichever list is smallest.
 
 ## On the page
 
-**How many people are on each list is shown once, in the `Praegune seis` band**,
-under `Uudiskirjad` — three lists, each under its own name, never totalled.
-`_newsletter_slot` in `apps/visibility/page.py` builds it.
+The newsletter material is on **`/uudised/`**, below the news archive. It was on
+`/nahtavus/` until the two were separated: a reader asking what the Chamber
+published is already on the news page, and Nähtavus now keeps the website and
+the social channels. The data did not move — `apps/visibility` still owns every
+Smaily model, collector, selector and presenter, and `apps/news` imports them.
+
+**How many people are on each list is shown once, in the `Uudiskirjad` card** —
+three lists, each under its own name, never totalled. `build_newsletter_slot` in
+`apps/visibility/page.py` builds it, and the overall dashboard's channel band
+renders the same slot.
 
 The `Uudiskirjade tulemused` section below answers the other question: does
 anybody read what is sent. It holds the filter
@@ -228,9 +235,11 @@ The filter chips carry the term, so switching newsletter keeps the search rather
 than silently widening it, and `Vaata kõiki` opens the archive already holding
 both. Nothing here contacts Smaily.
 
-`/nahtavus/uudiskirjad/` is the archive behind it — every completed send, 50 to
+`/uudised/uudiskirjad/` is the archive behind it — every completed send, 50 to
 a page, filterable by type and searchable by subject. Fourteen years of
-campaigns is not a section, which is why it is its own page.
+campaigns is not a section, which is why it is its own page. The old
+`/nahtavus/uudiskirjad/` address still resolves and redirects there with its
+query string intact, so a saved bookmark keeps its newsletter, term and page.
 
 ### What the results section used to carry
 
