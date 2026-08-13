@@ -295,14 +295,19 @@ class MoverPresenter:
 
 @dataclass(frozen=True)
 class RankingBar:
-    """One row of the horizontal ranking, with its bar already proportioned."""
+    """One row of the ranking: which product, in which category, how many.
+
+    No `width` any more. It was a 0–100 geometry value for a bar under every
+    row, and the bar came off when the ranking went from three lines a product
+    to one — it encoded the quantity the count states exactly, on rows already
+    ordered by it. A field computed on every render and printed nowhere is the
+    thing that later gets read as though it were still on the page.
+    """
 
     source_product_id: int
     title: str
     category_name: str
     value: str
-    #: 0–100, a width on the chart's own viewBox. Geometry, never a style.
-    width: float
 
 
 @dataclass(frozen=True)
@@ -653,16 +658,17 @@ def build_overview(
         **filters,
     )
 
-    # Ranking: the products already loaded, largest first, bars proportioned here.
+    # Ranking: the products already loaded, largest first. The order is the
+    # comparison now that the bars are gone; `ranking_note` below carries the
+    # one thing the order does not say, which is what share of everything these
+    # ten are.
     ranked = sorted(rows, key=lambda r: (-r.units, r.title.casefold()))[:10]
-    largest = max((r.units for r in ranked), default=Decimal(0))
     ranking = tuple(
         RankingBar(
             source_product_id=r.source_product_id,
             title=r.title,
             category_name=r.category_name,
             value=group_thousands(int(r.units)),
-            width=float(r.units / largest * 100) if largest > 0 else 0.0,
         )
         for r in ranked
     )

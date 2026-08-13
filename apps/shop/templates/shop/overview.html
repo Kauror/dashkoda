@@ -189,25 +189,42 @@ Nothing here turns one into the other.
       {% include "dashboard/components/section_header.html" with title="Mida osteti?" heading_id="section-ranking" only %}
       <div class="dk-section-body flex flex-col gap-3">
         {% if overview.ranking %}
-          <ol class="flex flex-col gap-2">
-            {% for bar in overview.ranking %}
-              <li class="min-w-0">
-                <div class="flex min-w-0 items-baseline justify-between gap-3">
-                  <a class="min-w-0 break-words text-sm text-text hover:underline" href="{% url 'shop-product' bar.source_product_id %}">{{ bar.title }}</a>
-                  <span class="flex-none text-sm font-semibold tabular-nums text-text">{{ bar.value }}</span>
-                </div>
-                {% comment %}
-                Bar length is an SVG geometry attribute, never a width in a
-                style: the CSP is `style-src 'self'`.
-                {% endcomment %}
-                <svg viewBox="0 0 100 4" preserveAspectRatio="none" class="mt-1 h-1.5 w-full" aria-hidden="true">
-                  <rect x="0" y="0" width="100" height="4" rx="2" class="fill-elevated"/>
-                  <rect x="0" y="0" width="{{ bar.width|stringformat:'.2f' }}" height="4" rx="2" class="fill-brand"/>
-                </svg>
-                {% if bar.category_name %}<p class="dk-meta">{{ bar.category_name }}</p>{% endif %}
-              </li>
-            {% endfor %}
-          </ol>
+          {% comment %}
+          One line per product, which is what the ranking on Nähtavus already
+          does. It used to be three: the title and its count, a full-width bar
+          under them, and the category on a line of its own — 54 pixels a row,
+          so ten products filled a screen and a half to say ten numbers.
+
+          The bar is gone rather than shrunk. It encoded the same quantity the
+          count states exactly, ranked rows are already ordered by it, and the
+          note below gives the one comparison a bar could not: what share of all
+          purchases these ten are. The category moves onto the title's line as a
+          muted suffix, the way the content ranking marks a page's type.
+          {% endcomment %}
+          <div class="w-full min-w-0 overflow-x-auto">
+            <table class="w-full min-w-max border-collapse text-sm">
+              <caption class="sr-only">Enim ostetud tooted valitud perioodil</caption>
+              <thead>
+                <tr>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">#</th>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Toode</th>
+                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Ostud</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for bar in overview.ranking %}
+                  <tr>
+                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-muted">{{ forloop.counter }}</td>
+                    <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
+                      <a class="dk-link" href="{% url 'shop-product' bar.source_product_id %}">{{ bar.title }}</a>
+                      {% if bar.category_name %}<span class="dk-meta"> · {{ bar.category_name }}</span>{% endif %}
+                    </th>
+                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text">{{ bar.value }}</td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
           {% if overview.ranking_note %}<p class="dk-meta">{{ overview.ranking_note }}</p>{% endif %}
           <p><a class="dk-link" href="#tooted">Vaata kõiki tooteid</a></p>
         {% else %}

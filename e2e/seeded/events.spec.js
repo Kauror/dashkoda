@@ -280,6 +280,12 @@ test("filtering works with JavaScript disabled", async ({ browser }) => {
     await page.getByRole("button", { name: "Sisene" }).click();
     await page.goto(`${PAGE}?year=all`);
 
+    // `Avalik leht` is one of the six filters behind the `Täpsem valik`
+    // disclosure. `<details>` is native HTML and needs no script to open, which
+    // is why those filters could be folded away without costing a reader with
+    // JavaScript unavailable anything — so opening it here is part of what this
+    // test asserts rather than a workaround for it.
+    await page.locator("summary", { hasText: "Täpsem valik" }).click();
     await page.locator("#filter-link").selectOption("linked");
     await page.getByRole("button", { name: "Filtreeri" }).click();
 
@@ -288,6 +294,59 @@ test("filtering works with JavaScript disabled", async ({ browser }) => {
   } finally {
     await context.close();
   }
+});
+
+/* -- the compacted header ------------------------------------------- */
+
+test("the advanced filters stay folded until one of them is applied", async ({ page }) => {
+  oncePerRun();
+
+  await open_(page, "?year=all");
+  const disclosure = page.locator("details", { hasText: "Täpsem valik" });
+  await expect(disclosure).not.toHaveAttribute("open", /.*/);
+
+  // Applied from the URL rather than by clicking, because what matters is the
+  // server deciding to render it open: a folded control hiding a filter that is
+  // narrowing the table is how a reader ends up mistrusting the row count.
+  await open_(page, "?year=all&public_link=linked");
+  await expect(page.locator("details", { hasText: "Täpsem valik" })).toHaveAttribute("open", /.*/);
+  await expect(page.getByText("1 aktiivne")).toBeVisible();
+});
+
+test("a search does not unfold the advanced filters", async ({ page }) => {
+  oncePerRun();
+
+  // The search box is not behind the disclosure, so typing a name is not a
+  // question about quarters — and opening it on every keystroke would undo the
+  // compaction exactly when the reader is busiest.
+  await open_(page, "?year=all&q=a");
+
+  await expect(page.locator("details", { hasText: "Täpsem valik" })).not.toHaveAttribute(
+    "open",
+    /.*/,
+  );
+});
+
+test("the figures strip leaves no empty cell", async ({ page }) => {
+  oncePerRun();
+
+  // Three figures. The strip paints `bg-border` behind its cells, so a column
+  // count that does not divide three renders the remainder as a grey block the
+  // width of a card — which is what the default four columns did here.
+  await open_(page, "?year=all");
+
+  const strip = await page.evaluate(() => {
+    const node = document.querySelector(".dk-kpi-strip");
+    return {
+      cards: node.children.length,
+      columns: getComputedStyle(node).gridTemplateColumns.split(" ").length,
+    };
+  });
+
+  expect(
+    strip.cards % strip.columns,
+    `${strip.cards} figures in a ${strip.columns}-column grid leaves an empty cell`,
+  ).toBe(0);
 });
 
 /* -- nothing real ---------------------------------------------------- */
