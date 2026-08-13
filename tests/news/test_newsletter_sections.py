@@ -303,11 +303,11 @@ def test_both_sections_read_their_own_parameters(viewer_client):
     assert 'value="eksport"' in content
 
 
-#: The card's own section id, which is the first thing on the page belonging to
+#: The card's own wrapper id, which is the first thing on the page belonging to
 #: the newsletter half. Splitting on it is what makes these assertions mean
 #: something: "the state appears somewhere on the page" is true of both halves
 #: for free, because each section already emits its own parameters.
-SPLIT = "section-newsletter-audience"
+SPLIT = 'id="newsletter-audience"'
 
 
 def halves(content) -> tuple[str, str]:

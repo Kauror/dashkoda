@@ -180,17 +180,19 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
   so a sum would silently claim that overlap is zero. A list nobody has collected
   contributes no row rather than a zero.
   {% endcomment %}
-  <section aria-labelledby="section-newsletter-audience" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Uudiskirjad" heading_id="section-newsletter-audience" description="Kui suur on iga uudiskirja praegune tellijaskond." only %}
-    {% comment %}
-    One card, so the strip is pinned to a single column at every width. Left at
-    its default it would keep two to four cells, and the empty ones would show
-    the strip's own `bg-border` through as a grey block.
-    {% endcomment %}
-    <div class="dk-kpi-strip sm:grid-cols-1 xl:grid-cols-1">
-      {% include "dashboard/components/channel_card.html" with slot=newsletter_slot flush=True only %}
-    </div>
-  </section>
+  {% comment %}
+  The card on its own, with no section heading above it. It carries its own
+  `Uudiskirjad` heading — that is what `channel_card.html` renders from the
+  slot's label — and a section header saying the same word would print the
+  heading twice, one line apart.
+
+  Rendered unflushed, so it draws its own `dk-card` border rather than relying
+  on a strip. A single card in `dk-kpi-strip` would leave the grid's other cells
+  empty and show the strip's `bg-border` through them as a grey block.
+  {% endcomment %}
+  <div id="newsletter-audience">
+    {% include "dashboard/components/channel_card.html" with slot=newsletter_slot only %}
+  </div>
 
   {% include "visibility/_newsletters.html" with newsletters=newsletters only %}
 

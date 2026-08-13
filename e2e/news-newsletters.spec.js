@@ -75,36 +75,24 @@ test("a newsletter chip keeps the news archive's own state", async ({ page }) =>
   await expect(page).toHaveURL(/uudiskiri=newsletter_eteataja/);
 });
 
-test("the newsletter search filters in place and keeps the caret", async ({ page }) => {
-  const errors = watchConsole(page);
-
-  await openNews(page);
-
-  const box = page.getByLabel("Otsi uudiskirja");
-  await box.click();
-
-  const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/uudised/otsi/uudiskirjad/")),
-    box.pressSequentially("foorum", { delay: 60 }),
-  ]);
-
-  expect(response.status()).toBe(200);
-  await expect(box).toHaveValue("foorum");
-  await expect(box).toBeFocused();
-  expect(errors).toEqual([]);
-});
-
-test("the newsletter search pushes a Uudised address, never a Nähtavus one", async ({ page }) => {
-  // The single assertion the move exists for: the fragment used to push
-  // `/nahtavus/`, which would now name a page with no newsletter box on it.
-  await openNews(page);
-
-  await page.getByLabel("Otsi uudiskirja").pressSequentially("foorum", { delay: 60 });
-
-  await expect(page).toHaveURL(/otsi=foorum/);
-  await expect(page).toHaveURL(/\/uudised\//);
-  await expect(page).not.toHaveURL(/\/nahtavus\//);
-});
+/*
+ * The section's own subject search is deliberately not driven here.
+ *
+ * It is inside the `has_any_data` guard, so with no campaigns collected the
+ * section renders its empty state and the box does not exist — and
+ * `seed_e2e_data` creates no Smaily data in either suite. Adding some to make a
+ * browser assertion possible would change what the seeded suite means elsewhere,
+ * for a control whose behaviour is already pinned where it can be pinned
+ * honestly:
+ *
+ *   - `tests/news/test_newsletter_fragments.py` drives the fragment with real
+ *     campaigns, including that it pushes `/uudised/` and never `/nahtavus/`;
+ *   - `live-search.spec.js` drives the same live-search mechanics in a real
+ *     browser on the archive page, whose form renders unconditionally.
+ *
+ * What is browser-checked here is what only a browser can answer: the card and
+ * the section being on the page, the chips navigating, and the layout holding.
+ */
 
 test("the news search still works with the newsletters below it", async ({ page }) => {
   const errors = watchConsole(page);
