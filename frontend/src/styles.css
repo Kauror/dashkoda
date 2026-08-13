@@ -273,6 +273,24 @@
     @apply sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-6;
   }
 
+  /* The nine-slot board-report band. Three columns divide nine into three full
+     rows with no ragged tail, which four would not: the ninth figure would sit
+     alone on a line of its own and read as a separate, more important thing. */
+  .dk-kpi-strip-trio {
+    @apply sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3;
+  }
+
+  /* A figure inside a strip, when the strip is a description list rather than a
+     row of `kpi_card.html` articles.
+     Label and figure share a line and a baseline, which is what makes the block
+     dense: stacking them costs a second line of leading in every cell, and
+     these labels are short enough to sit beside a number even in one column.
+     The strip's own hairline separates one figure from the next, so the cell
+     does not also need a border, a background or the padding to clear one. */
+  .dk-metric-row {
+    @apply flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5;
+  }
+
   /* Tab control inside a card header. The active state is an underline plus
      aria-selected, never colour on its own. */
   .dk-tab {

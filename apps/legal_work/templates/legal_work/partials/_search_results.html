@@ -29,15 +29,16 @@ the only reason they sit in here rather than beside the box.
 </nav>
 
 {% comment %}
-What was searched, or what was found. Said here rather than above the form,
-because a line outside the swap cannot change while somebody types — and a
-reader narrowing a search must never be left under a caption claiming the whole
-register when they are looking at four matches.
+What was found. Said here rather than above the form, because a line outside the
+swap cannot change while somebody types — and a reader narrowing a search must
+never be left under a caption describing a different result set.
+
+Nothing is said before a search. The scope note that used to sit here — the
+register's whole size, in words — was a permanent line answering a question
+nobody had asked yet.
 {% endcomment %}
 {% if search.is_searching %}
   <p class="dk-meta">{{ search.summary }}</p>
-{% else %}
-  <p class="dk-meta">{{ search.scope_note }}</p>
 {% endif %}
 
 {% if search.is_searching %}

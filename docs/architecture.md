@@ -141,11 +141,11 @@ publication decision stays in its own app.
 
 Exact future app names and models are introduced only by their implementing pull
 requests. No pull request creates placeholder business apps or models. The
-overview, Liikmeskond, Õigusloome, Sündmused, Uudised and Nähtavus are routed;
-every still-planned module appears in the navigation as an inert entry marked
-`Lisamisel` and has no route. One nested entry remains — Fookusteemad under
-Õigusloome — which exists so the sidebar states the intended scope without a
-placeholder app behind it.
+overview, Liikmeskond, Õigusloome, Sündmused, Uudised, Nähtavus and E-pood are
+routed, and nothing else appears in the navigation. The inert-entry rule stays
+in the model — a module with no route would render as an entry marked
+`Lisamisel` rather than as a link — but no entry uses it, and there are no
+nested entries.
 
 The overview assembles its view-model in `apps/dashboard/overview.py`, which
 reads each module through that module's own `selectors.py` and decides what the
@@ -407,10 +407,11 @@ legislation attached to a consultation is still neither collected nor modelled.
 No opinion command is scheduled by this repository; the intended times are
 documented and the Unraid templates are examples, not installations.
 
-Fookusteemad is an inert navigation entry, because no source is connected for
-it. Arvamused, Finantsid and Projektid were inert entries too and were removed
-at the board's request: naming a module the sidebar cannot open earns its place
-only while somebody is waiting for it.
+Fookusteemad was an inert navigation entry and a `Lisamisel` section on the
+Õigusloome page, because no source is connected for it. It was removed at the
+board's request, as Arvamused, Finantsid and Projektid had been before it:
+naming a module the sidebar cannot open earns its place only while somebody is
+waiting for it.
 
 The four **social** audience figures are not collected. A staff user types them
 in and `apps/visibility` publishes them through the ordinary artifact and import

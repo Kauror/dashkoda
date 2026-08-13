@@ -438,10 +438,8 @@ def _mix_presenter(mix, previous) -> MixPresenter:
     free_share = float(mix.free_share)
     note = ""
     if previous is not None and previous.free_share is not None:
-        note = (
-            f"Eelmisel perioodil oli tasuta soetuste osakaal {previous.free_share:.0f}%.".replace(
-                ".", ","
-            )
+        note = f"Eelmisel perioodil oli tasuta ostude osakaal {previous.free_share:.0f}%.".replace(
+            ".", ","
         )
     return MixPresenter(
         is_known=True,
@@ -627,7 +625,7 @@ def build_overview(
     previous_mix = get_free_paid_split(previous_window, **filters) if pair.is_available else None
 
     kpis = (
-        _kpi("Soetatud", units_cmp, formatter=lambda v: group_thousands(int(v)), unit="ühikut"),
+        _kpi("Ostetud", units_cmp, formatter=lambda v: group_thousands(int(v)), unit="ühikut"),
         _kpi(
             "Tellimused" if orders_are_distinct else "Tellimusridu",
             orders_cmp,
@@ -640,7 +638,7 @@ def build_overview(
             formatter=euros,
             unit="KM-ta",
             secondary=(
-                f"{mix.free_share:.0f}% soetustest tasuta".replace(".", ",")
+                f"{mix.free_share:.0f}% ostudest tasuta".replace(".", ",")
                 if mix.free_share is not None
                 else ""
             ),
@@ -682,7 +680,7 @@ def build_overview(
             if pair.is_available
             else []
         ),
-        label="Soetatud",
+        label="Ostetud",
         previous_label=pair.previous_label,
         offset_days=pair.length_days,
     )
@@ -739,7 +737,7 @@ def build_overview(
                 ),
             ),
             _kpi(
-                "Soetusi / 100 vaatamist",
+                "Oste / 100 vaatamist",
                 MetricComparison.of(0, None),
                 formatter=lambda v: _rate(acquisitions_per_hundred(conversion_units, total_views)),
             ),
@@ -753,7 +751,7 @@ def build_overview(
         risers=tuple(MoverPresenter(row) for row in risers),
         fallers=tuple(MoverPresenter(row) for row in fallers),
         ranking=ranking,
-        ranking_note=(f"Top 10 moodustavad {share}% soetustest." if share is not None else ""),
+        ranking_note=(f"Top 10 moodustavad {share}% ostudest." if share is not None else ""),
         mix=_mix_presenter(mix, previous_mix),
         weak_acquisition=tuple(OpportunityPresenter(row) for row in weak),
         strong_acquisition=tuple(OpportunityPresenter(row) for row in strong),

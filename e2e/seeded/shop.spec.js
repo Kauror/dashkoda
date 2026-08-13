@@ -33,12 +33,24 @@ test("the product detail never scrolls sideways", async ({ page }) => {
   await expectNoHorizontalOverflow(page);
 });
 
-test("the export states its own date in one quiet line", async ({ page }) => {
+test("the export states its own date, in Andmete kohta", async ({ page }) => {
+  /*
+   * The coverage line that used to sit above the heading is gone — it put three
+   * date ranges between the reader and the first figure. The disclosure it
+   * carried is not gone: an extract months out of date, shown with nothing
+   * saying so, would be claiming to be live. The as-of date and the start of
+   * the order history moved to `Andmete kohta` at the foot, which is where a
+   * reader goes to ask what the numbers are made of.
+   */
   await signIn(page);
   await page.goto("/epood/");
 
-  await expect(page.getByText(/Andmed \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
-  await expect(page.getByText(/Tellimused \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
+  await expect(page.getByText(/Andmed \d{2}\.\d{2}\.\d{4}/)).toHaveCount(0);
+
+  await page.locator("#andmete-kohta summary").click();
+
+  await expect(page.getByText(/väljavõte seisuga \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
+  await expect(page.getByText(/Tellimuste ajalugu algab \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
   await expect(page.getByText("sünkroonitud")).toHaveCount(0);
   await expect(page.getByText("automaatselt uuendatud")).toHaveCount(0);
 });

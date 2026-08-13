@@ -12,15 +12,26 @@ Context:
   withheld – the set of field names this observation may not show
   field    – this figure's field name, matched against `withheld`
 {% endcomment %}
-<div class="flex flex-col gap-1 rounded-lg border border-border bg-surface px-4 py-3">
-  <dt class="text-micro font-semibold tracking-wide text-text-muted uppercase">{{ label }}</dt>
+{% comment %}
+A row in the strip, not a card of its own. Two things were spending height here:
+a border and background around every one of the nine figures, drawn inside a
+section that had already drawn one, and a label stacked above its own number.
+The strip's hairline replaces the first, and the label now shares a line with
+the figure. Together that is a little under half the block's height.
+
+The absent-figure states keep their sentences and simply sit where the number
+would. They are the reason the label may wrap rather than being truncated: a
+figure that is withheld must be able to say so in full.
+{% endcomment %}
+<div class="dk-metric-row">
+  <dt class="min-w-0 text-micro font-semibold tracking-wide text-text-muted uppercase">{{ label }}</dt>
   {% if field and field in withheld %}
-    <dd class="text-sm text-text-secondary">Vastuolu tõttu ei kuvata</dd>
+    <dd class="flex-none text-sm text-text-secondary">Vastuolu tõttu ei kuvata</dd>
   {% elif value is None %}
-    <dd class="text-sm text-text-secondary">Ei ole raporteeritud</dd>
+    <dd class="flex-none text-sm text-text-secondary">Ei ole raporteeritud</dd>
   {% else %}
-    <dd class="flex items-baseline gap-1">
-      <span class="text-lg font-semibold tracking-tight text-text">{{ value }}</span>
+    <dd class="flex flex-none items-baseline gap-1">
+      <span class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ value }}</span>
       {% if suffix %}<span class="text-sm text-text-secondary">{{ suffix }}</span>{% endif %}
     </dd>
   {% endif %}

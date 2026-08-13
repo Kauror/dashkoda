@@ -114,8 +114,6 @@ class LegalWorkSearch:
     total: int = 0
     page_number: int = 1
     total_pages: int = 1
-    #: How many records the search looked at, so "3 of 612" is sayable.
-    population: int = 0
 
     @property
     def is_searching(self) -> bool:
@@ -143,14 +141,6 @@ class LegalWorkSearch:
         if self.total == 1:
             return "1 kirje."
         return f"{self.total} kirjet."
-
-    @property
-    def scope_note(self) -> str:
-        """What was searched. The point of the feature is that it is everything,
-        and a reader cannot tell that from a result list."""
-        if not self.population:
-            return ""
-        return f"Otsitakse kõigist registri kirjetest ({self.population})."
 
     @property
     def clear_query(self) -> str:
@@ -201,7 +191,6 @@ def build_search(
     query: str = "",
     status: str = SEARCH_ALL,
     page: int = 1,
-    population: int = 0,
 ) -> LegalWorkSearch:
     """Resolve a search over the whole snapshot, or an empty section.
 
@@ -215,7 +204,6 @@ def build_search(
         query=query,
         status=status,
         statuses=_status_options(status, query),
-        population=population,
     )
     if not query:
         return section

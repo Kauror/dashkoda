@@ -108,7 +108,7 @@ would need an order-level dimension the aggregate deliberately does not carry.
 ### Acquisitions, not downloads
 
 A completed document order is a reasonable proxy for a template being acquired,
-and the interface says `Soetatud`. It is **not** a verified file download: no
+and the interface says `Ostetud`. It is **not** a verified file download: no
 download tracking exists anywhere in Koda.ee, and `file_download` is not among
 the events the GA4 property records.
 
@@ -202,7 +202,7 @@ interval the web figures actually cover.
 ### The rate
 
 ```text
-Soetusi 100 tootelehe vaatamise kohta
+Oste 100 tootelehe vaatamise kohta
   = 100 × units in the web window ÷ product-page views in the same window
 ```
 
@@ -225,7 +225,7 @@ explicit `0.0000` stays zero, and an empty `publicly_listed` stays unknown.
 
 Presets count back from **Commerce coverage end**, not from today. Anchoring on
 the wall clock would drift further past a frozen export every day and eventually
-select nothing at all — a product page reading "0 soetatud" for a month nobody
+select nothing at all — a product page reading "0 ostetud" for a month nobody
 has imported. When automation arrives and coverage end starts moving forward on
 its own, this needs no change.
 

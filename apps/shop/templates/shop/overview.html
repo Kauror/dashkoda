@@ -5,10 +5,10 @@
 The E-pood overview, arranged as a reading order rather than as a list of
 widgets:
 
-  status → headline → trend → what changed → what is used → free/paid →
+  headline → trend → what changed → what was bought → free/paid →
   web effectiveness → explorer → methodology
 
-Three things this layout is deliberately not:
+Four things this layout is deliberately not:
 
   * **not a wall of controls.** Product type is a segmented control, the period
     row carries five options rather than seven, and categories and custom dates
@@ -21,7 +21,10 @@ Three things this layout is deliberately not:
     and the two-page note beside the rate;
   * **not four equal KPIs.** Three Commerce measures carry the headline; the web
     pair has its own section, which is what removes the need to explain GA4
-    coverage beside the acquisition count.
+    coverage beside the acquisition count;
+  * **not a section header that restates its own section.** A heading carries no
+    subtitle where the subtitle only said in a sentence what the numbers below
+    it already say. The remaining notes are the ones that change a reading.
 
 A dash is still a dash. `—` means not measured; `0` means measured and zero.
 Nothing here turns one into the other.
@@ -32,20 +35,15 @@ Nothing here turns one into the other.
 {% block content %}
 <div class="flex min-w-0 flex-col gap-5">
 
+  {% comment %}
+  Heading only. The coverage line that used to sit here — as-of date, order
+  history, web interval — is gone from the top, not from the page: the as-of
+  date and the start of the order history are still stated in `Andmete kohta`
+  at the foot, which is where a reader goes to ask what the numbers are made
+  of. Nothing here lets the page imply the extract is live.
+  {% endcomment %}
   <header class="flex min-w-0 flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">E-pood</h1>
-    {% if overview.has_source %}
-      {% comment %}
-      One quiet line, generated from the imported state. Never hard-coded: a
-      literal date would keep claiming August after the next import.
-      {% endcomment %}
-      <p class="dk-meta">
-        Andmed {{ overview.as_of_label }} ·
-        Tellimused {{ overview.coverage_label }}
-        {% if overview.window.has_web %}· Veebistatistika {{ overview.web_interval_label }}{% endif %}
-        · <a class="dk-link-quiet" href="#andmete-kohta">Andmete kohta</a>
-      </p>
-    {% endif %}
   </header>
 
   {% if not overview.has_source %}
@@ -144,7 +142,7 @@ Nothing here turns one into the other.
                   {% if kpi.change_direction == "up" %}↑{% elif kpi.change_direction == "down" %}↓{% else %}→{% endif %}
                   {{ kpi.change_label }}
                 </span>
-                <span class="dk-meta">vs eelmine sama pikk periood</span>
+                <span class="dk-meta">vs eelmine sama periood</span>
               </p>
             {% elif overview.comparison_available %}
               <p class="dk-meta">Muutust ei saa arvutada.</p>
@@ -159,7 +157,7 @@ Nothing here turns one into the other.
 
     {# ---------------- 2. trend ---------------- #}
     <section aria-labelledby="section-trend" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Soetused ajas" heading_id="section-trend" description="Soetatud ühikud kuude kaupa." only %}
+      {% include "dashboard/components/section_header.html" with title="Ostud ajas" heading_id="section-trend" only %}
       <div class="dk-section-body">
         {% if overview.trend %}
           {% include "dashboard/components/trend_chart.html" with chart=overview.trend only %}
@@ -172,7 +170,7 @@ Nothing here turns one into the other.
     {# ---------------- 3. what changed ---------------- #}
     {% if overview.comparison_available %}
       <section aria-labelledby="section-movers" class="dk-section">
-        {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-movers" description="Võrdlus eelmise sama pika perioodiga." only %}
+        {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-movers" only %}
         <div class="dk-section-body grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div class="min-w-0">
             <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem kasvanud</h3>
@@ -188,7 +186,7 @@ Nothing here turns one into the other.
 
     {# ---------------- 4. what is used ---------------- #}
     <section aria-labelledby="section-ranking" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Mida kasutatakse?" heading_id="section-ranking" description="Enim soetatud tooted valitud perioodil." only %}
+      {% include "dashboard/components/section_header.html" with title="Mida osteti?" heading_id="section-ranking" only %}
       <div class="dk-section-body flex flex-col gap-3">
         {% if overview.ranking %}
           <ol class="flex flex-col gap-2">
@@ -213,7 +211,7 @@ Nothing here turns one into the other.
           {% if overview.ranking_note %}<p class="dk-meta">{{ overview.ranking_note }}</p>{% endif %}
           <p><a class="dk-link" href="#tooted">Vaata kõiki tooteid</a></p>
         {% else %}
-          {% include "dashboard/components/empty_state.html" with message="Selle perioodi kohta soetusi ei ole." only %}
+          {% include "dashboard/components/empty_state.html" with message="Selle perioodi kohta oste ei ole." only %}
         {% endif %}
       </div>
     </section>
@@ -221,7 +219,7 @@ Nothing here turns one into the other.
     {# ---------------- 5. free vs paid ---------------- #}
     {% if overview.mix.is_known %}
       <section aria-labelledby="section-mix" class="dk-section">
-        {% include "dashboard/components/section_header.html" with title="Tasuta ja tasulised soetused" heading_id="section-mix" description="Miks kasutus ja rahaline väärtus võivad liikuda erinevalt." only %}
+        {% include "dashboard/components/section_header.html" with title="Tasuta ja tasulised ostud" heading_id="section-mix" only %}
         <div class="dk-section-body flex flex-col gap-2">
           <svg viewBox="0 0 100 8" preserveAspectRatio="none" class="h-4 w-full" role="img"
                aria-label="Tasuta {{ overview.mix.free_units }} ühikut, tasuline {{ overview.mix.paid_units }} ühikut">
@@ -242,7 +240,7 @@ Nothing here turns one into the other.
 
     {# ---------------- 6. web effectiveness ---------------- #}
     <section aria-labelledby="section-web" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Nähtavus ja soetused" heading_id="section-web" description="Veebiliiklus ja selle seos soetustega." only %}
+      {% include "dashboard/components/section_header.html" with title="Nähtavus ja ostud" heading_id="section-web" only %}
       <div class="dk-section-body flex flex-col gap-4">
         {% if overview.window.has_web %}
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -251,7 +249,7 @@ Nothing here turns one into the other.
               <p class="text-metric font-semibold tabular-nums text-text">{{ overview.product_views }}</p>
             </div>
             <div>
-              <p class="text-sm text-text-secondary">Soetusi / 100 vaatamist</p>
+              <p class="text-sm text-text-secondary">Oste / 100 vaatamist</p>
               <p class="text-metric font-semibold tabular-nums text-text">{{ overview.rate }}</p>
             </div>
           </div>
@@ -262,15 +260,15 @@ Nothing here turns one into the other.
           {% if overview.weak_acquisition or overview.strong_acquisition %}
             <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
               <div class="min-w-0">
-                <h3 class="mb-2 text-sm font-semibold text-text">Palju vaatamisi, vähe soetusi</h3>
+                <h3 class="mb-2 text-sm font-semibold text-text">Palju vaatamisi, vähe oste</h3>
                 {% include "shop/_opportunities.html" with rows=overview.weak_acquisition only %}
               </div>
               <div class="min-w-0">
-                <h3 class="mb-2 text-sm font-semibold text-text">Vähe nähtavust, tugev soetus</h3>
+                <h3 class="mb-2 text-sm font-semibold text-text">Vähe nähtavust, tugev ost</h3>
                 {% include "shop/_opportunities.html" with rows=overview.strong_acquisition only %}
               </div>
             </div>
-            <p class="dk-meta">Arvestatud on ainult tooted, mille tootelehel on vähemalt {{ overview.opportunity_threshold }} mõõdetud vaatamist.</p>
+            <p class="dk-meta">Näidatud on tooted, millel on vähemalt {{ overview.opportunity_threshold }} vaatamist.</p>
           {% endif %}
         {% else %}
           {% include "dashboard/components/empty_state.html" with message="Veebivõrdlus ei ole selle perioodi kohta võimalik." detail="Valitud periood jääb väljapoole mõõdetud veebistatistikat või imporditud tellimusi." only %}
@@ -365,7 +363,7 @@ Nothing here turns one into the other.
             <p><strong class="text-text">Tellimused ja veebistatistika.</strong> Tellimuste ajalugu algab {{ overview.coverage_label }}, veebistatistika hiljem. Ühiseid näitajaid arvutatakse ainult kattuval perioodil, mitte kogu valitud vahemikus.</p>
             <p><strong class="text-text">Vaatamised.</strong> Lehevaatamine ei ole inimene: sama külastaja mitu külastust on mitu vaatamist.</p>
             <p><strong class="text-text">Lepingu kaks lehte.</strong> Lepingupõhjal on tutvustusleht ja tooteleht. Neid vaatamisi ei liideta, sest sama külastaja näeb sageli mõlemat. Määr arvutatakse tootelehe alusel, kus on ostunupp.</p>
-            <p><strong class="text-text">Soetusi / 100 vaatamist.</strong> 100 × soetatud ühikud ÷ tootelehe vaatamised, mõlemad sama kattuva akna sees.</p>
+            <p><strong class="text-text">Oste / 100 vaatamist.</strong> 100 × ostetud ühikud ÷ tootelehe vaatamised, mõlemad sama kattuva akna sees.</p>
             <p><strong class="text-text">Tellitud väärtus.</strong> Lõpetatud tellimuste summa käibemaksuta. See ei ole raamatupidamislik tulu: Koda.ee ei salvesta laekumist ega tagasimakseid.</p>
             {% if not overview.orders_are_distinct %}
               <p><strong class="text-text">Tellimusridu.</strong> Eri tellimuste arvu ei ole imporditud, seega loetakse tooteridu: kolme tootega tellimus on kolm rida.</p>

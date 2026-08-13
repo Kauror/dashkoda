@@ -60,7 +60,7 @@ The current price pair is shown as a current fact, dated.
   <section aria-labelledby="section-product-kpis" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Valitud periood" heading_id="section-product-kpis" description="Lõpetatud Commerce'i tellimused." only %}
     <div class="dk-kpi-strip">
-      {% include "dashboard/components/kpi_card.html" with label="Soetatud ühikud" value=detail.units flush=True only %}
+      {% include "dashboard/components/kpi_card.html" with label="Ostetud ühikud" value=detail.units flush=True only %}
       {% comment %}
       `Tellimused` is accurate here and only here: the sum runs over one
       product's cells, so an order that contained this product is counted once
@@ -69,13 +69,13 @@ The current price pair is shown as a current fact, dated.
       {% endcomment %}
       {% include "dashboard/components/kpi_card.html" with label="Tellimused" value=detail.orders secondary="tellimust, mis sisaldasid seda toodet" flush=True only %}
       {% include "dashboard/components/kpi_card.html" with label="Tellitud väärtus (KM-ta)" value=detail.value flush=True only %}
-      {% include "dashboard/components/kpi_card.html" with label="Soetusi / 100 tootelehe vaatamise kohta" value=detail.rate comparison_period=detail.web_interval_label flush=True only %}
+      {% include "dashboard/components/kpi_card.html" with label="Oste / 100 tootelehe vaatamise kohta" value=detail.rate comparison_period=detail.web_interval_label flush=True only %}
     </div>
   </section>
 
   {% if detail.has_funnel %}
     <section aria-labelledby="section-funnel" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Tutvustusest soetuseni" heading_id="section-funnel" description="Lehevaatamised ja soetused, mitte külastajad." only %}
+      {% include "dashboard/components/section_header.html" with title="Tutvustusest ostuni" heading_id="section-funnel" description="Lehevaatamised ja ostud, mitte külastajad." only %}
       <div class="dk-section-body">
         <dl class="flex flex-col gap-2">
           <div class="flex items-baseline justify-between gap-3">
@@ -87,7 +87,7 @@ The current price pair is shown as a current fact, dated.
             <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.product_views }}</dd>
           </div>
           <div class="flex items-baseline justify-between gap-3">
-            <dt class="min-w-0 text-sm text-text-secondary">Soetatud ühikud</dt>
+            <dt class="min-w-0 text-sm text-text-secondary">Ostetud ühikud</dt>
             <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.units }}</dd>
           </div>
         </dl>
@@ -124,11 +124,11 @@ The current price pair is shown as a current fact, dated.
       <div class="dk-section-body">
         <dl class="flex flex-col gap-2">
           <div class="flex items-baseline justify-between gap-3">
-            <dt class="min-w-0 text-sm text-text-secondary">Liikmete soetused</dt>
+            <dt class="min-w-0 text-sm text-text-secondary">Liikmete ostud</dt>
             <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.member_units }}</dd>
           </div>
           <div class="flex items-baseline justify-between gap-3">
-            <dt class="min-w-0 text-sm text-text-secondary">Mitteliikmete soetused</dt>
+            <dt class="min-w-0 text-sm text-text-secondary">Mitteliikmete ostud</dt>
             <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.non_member_units }}</dd>
           </div>
           <div class="flex items-baseline justify-between gap-3">
@@ -151,11 +151,11 @@ The current price pair is shown as a current fact, dated.
       <div class="dk-section-body">
         <div class="w-full min-w-0 overflow-x-auto">
           <table class="w-full border-collapse text-sm">
-            <caption class="sr-only">Selle toote soetused ja tellitud väärtus kuude kaupa</caption>
+            <caption class="sr-only">Selle toote ostud ja tellitud väärtus kuude kaupa</caption>
             <thead>
               <tr>
                 <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuu</th>
-                <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Soetatud</th>
+                <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Ostetud</th>
                 <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">Väärtus</th>
               </tr>
             </thead>

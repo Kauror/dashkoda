@@ -401,7 +401,7 @@ class ShopDailyFact(ImmutableWriteGuard, models.Model):
         max_digits=QUANTITY_DIGITS,
         decimal_places=QUANTITY_PLACES,
         validators=[MinValueValidator(0)],
-        verbose_name="Soetatud ühikuid",
+        verbose_name="Ostetud ühikuid",
     )
     ordered_value_net = models.DecimalField(
         max_digits=MONEY_DIGITS,

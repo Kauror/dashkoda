@@ -57,9 +57,9 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
     for item in entries:
         assert item.label in content
     assert 'aria-current="page"' in content
-    # The modules backed by a connected source are routed; every other one is
-    # still inert, marked, and never rendered as a link. Nested entries follow
-    # the same rule, so a planned child cannot become a route by accident.
+    # Every module in the sidebar is routed. The inert-item rule still exists —
+    # `is_available` decides it, and `test_components` covers the rendering —
+    # but nothing is waiting behind it any more.
     assert {item.key for item in routed} == {
         "overview",
         "membership",
@@ -69,24 +69,21 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
         "visibility",
         "shop",
     }
-    # Fookusteemad is the only planned module left: Arvamused, Projektid and
-    # Finantsid were removed at the board's request rather than left as names
-    # the sidebar cannot open.
-    assert {item.key for item in planned} == {"focus-topics"}
-    assert content.count('aria-disabled="true"') >= len(planned)
+    # Arvamused, Projektid, Finantsid and Fookusteemad were all removed at the
+    # board's request rather than left as names the sidebar cannot open.
+    assert planned == []
+    assert 'aria-disabled="true"' not in content
 
 
-def test_navigation_nests_planned_children_under_their_parent(client, authenticate_viewer):
+def test_the_sidebar_names_no_module_it_cannot_open(client, authenticate_viewer):
+    """No nesting and no `Lisamisel` chip: every entry is a working link."""
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
-    parents = [item for item in NAVIGATION if item.children]
 
-    assert {item.key for item in parents} == {"legislation"}
-    assert "dk-nav-sublist" in content
-    for parent in parents:
-        for child in parent.children:
-            assert child.label in content
+    assert [item for item in NAVIGATION if item.children] == []
+    assert "dk-nav-sublist" not in content
+    assert "Fookusteemad" not in content
 
 
 def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
