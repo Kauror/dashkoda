@@ -52,12 +52,24 @@ def test_the_page_is_behind_the_viewer_gate(client):
 
 
 def test_the_as_of_date_is_shown(client, authenticate_viewer, seeded):
-    """One quiet metadata line, not a paragraph of methodology."""
+    """The extract's date is disclosed in `Andmete kohta`, not above the heading.
+
+    The header line was removed from the top of the page; the disclosure itself
+    was not. A page that shows an eleven-month-old extract without saying so
+    would be claiming to be live.
+    """
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "Andmed 11.08.2026" in content
-    assert "Tellimused 22.10.2020" in content
     assert "Andmete kohta" in content
+    assert "11.08.2026" in content
+    assert "22.10.2020" in content
+
+
+def test_the_header_carries_no_coverage_line(client, authenticate_viewer, seeded):
+    content = _get(client, authenticate_viewer).content.decode()
+
+    assert "Andmed 11.08.2026" not in content
+    assert "Veebistatistika 12.08.2025" not in content
 
 
 def test_the_dataset_is_never_described_as_live(client, authenticate_viewer, seeded):
@@ -130,7 +142,7 @@ def test_the_member_split_is_withheld_until_verified(client, authenticate_viewer
     content = _get(client, authenticate_viewer).content.decode()
 
     assert "ei ole kinnitanud" in content
-    assert "Liikmete soetused" not in content
+    assert "Liikmete ostud" not in content
 
 
 # ---------------------------------------------------------------------------
@@ -230,7 +242,7 @@ def test_a_product_without_an_information_page_has_no_funnel(client, authenticat
     url = reverse("shop-product", args=[DOCUMENT_PRODUCT_PAGE_ONLY])
     content = client.get(url).content.decode()
 
-    assert "Tutvustusest soetuseni" not in content
+    assert "Tutvustusest ostuni" not in content
 
 
 # ---------------------------------------------------------------------------
@@ -297,7 +309,7 @@ def test_a_stale_export_does_not_show_a_rate_for_unimported_days(
     # number underneath it would pass a wording check and fail the reader.
     web = content.split('aria-labelledby="section-web"')[1].split("</section>")[0]
     assert "Veebivõrdlus ei ole selle perioodi kohta võimalik" in web
-    assert "Soetusi / 100" not in web
+    assert "Oste / 100" not in web
 
 
 def test_the_shop_appears_in_the_navigation(client, authenticate_viewer, seeded):

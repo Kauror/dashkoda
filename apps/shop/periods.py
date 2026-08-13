@@ -8,7 +8,7 @@ follows from the source being a manual export that stops on a stated day.
 export covers*, not the last thirty days of the reader's calendar. Anchoring on
 `timezone.localdate()` would select a window that drifts further past the data
 every day and eventually selects nothing at all — a product page reading
-"0 soetatud" for a month nobody has imported.
+"0 ostetud" for a month nobody has imported.
 
 The maximum selectable end is therefore Commerce coverage end. When automation
 arrives later and coverage end starts moving forward on its own, this needs no
@@ -226,7 +226,12 @@ def period_options(active: ResolvedShopPeriod, **state) -> tuple[PeriodOption, .
 
 
 #: How a product ranking may be ordered.
-SORT_UNITS = "soetatud"
+#:
+#: `SORT_UNITS` is also a query value. It is the default, so it is omitted from
+#: generated URLs, and `parse_sort` falls back to the default for anything it
+#: does not recognise — an old `?jarjesta=soetatud` link therefore still lands
+#: on this same ordering rather than erroring.
+SORT_UNITS = "ostetud"
 SORT_VALUE = "vaartus"
 SORT_VIEWS = "vaatamised"
 SORT_CONVERSION = "maar"
@@ -237,7 +242,7 @@ SORT_KEYS = (SORT_UNITS, SORT_VALUE, SORT_VIEWS, SORT_CONVERSION, SORT_TITLE)
 #: at 320 pixels. What each one means is in `Andmete kohta`.
 SORT_LABELS = {
     SORT_TITLE: "Toode",
-    SORT_UNITS: "Soetatud",
+    SORT_UNITS: "Ostetud",
     SORT_VALUE: "Väärtus",
     SORT_VIEWS: "Vaatamised",
     SORT_CONVERSION: "/ 100",

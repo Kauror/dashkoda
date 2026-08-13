@@ -136,13 +136,13 @@ def test_an_unmeasured_product_is_never_classified():
 
 def test_attention_without_acquisition_and_its_opposite_are_separated():
     busy_but_quiet = product(1, units="5", views=5000, title="Palju vaatamisi")
-    quiet_but_busy = product(2, units="60", views=MIN_VIEWS_FOR_OPPORTUNITY, title="Tugev soetus")
+    quiet_but_busy = product(2, units="60", views=MIN_VIEWS_FOR_OPPORTUNITY, title="Tugev ost")
     rows = [busy_but_quiet, quiet_but_busy]
 
     weak, strong = get_web_opportunities(rows)
 
     assert [r.title for r in weak][0] == "Palju vaatamisi"
-    assert [r.title for r in strong][0] == "Tugev soetus"
+    assert [r.title for r in strong][0] == "Tugev ost"
 
 
 def test_the_threshold_is_inclusive_at_its_boundary():
