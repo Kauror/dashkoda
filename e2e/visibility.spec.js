@@ -109,6 +109,37 @@ test("an ordinary viewer sees no data-entry control", async ({ page }) => {
   await expect(page.getByRole("link", { name: "Lisa andmed" })).toHaveCount(0);
 });
 
+test("the band leaves no empty cell at any width", async ({ page }) => {
+  /*
+   * The strip paints `bg-border` behind its cells and separates them with a
+   * one-pixel gap, so a grid track with no card in it is not blank — it is a
+   * grey block the width of a card. That is what appeared on the right of this
+   * band when the newsletter card moved to Uudised and left five cards in a
+   * six-column grid.
+   *
+   * The invariant is the one the stylesheet's own comments describe for every
+   * strip: the column count divides the card count into full rows. Asserted
+   * from the computed style rather than from the class name, because the class
+   * is only a promise about what the columns will be, and it runs at every
+   * configured viewport, so a breakpoint that divides ragged fails on its own.
+   */
+  await openVisibility(page);
+
+  const band = await page.evaluate(() => {
+    const strip = document.querySelector(".dk-kpi-strip");
+    return {
+      cards: strip.children.length,
+      columns: getComputedStyle(strip).gridTemplateColumns.split(" ").length,
+    };
+  });
+
+  expect(
+    band.cards % band.columns,
+    `${band.cards} cards in a ${band.columns}-column grid leaves ` +
+      `${band.columns - (band.cards % band.columns)} empty cell(s) showing the strip's background`,
+  ).toBe(0);
+});
+
 test("the visibility page never scrolls sideways", async ({ page }) => {
   await openVisibility(page);
 

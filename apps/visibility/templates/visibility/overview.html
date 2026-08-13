@@ -44,9 +44,27 @@ Three things are deliberate and should stay that way:
   </header>
 
   {# ---------------- 1. Praegune seis ---------------- #}
+  {% comment %}
+  Five slots here, not six: the newsletter card is on Uudised now.
+
+  So this band does **not** use `dk-kpi-strip-wide`, which exists for the
+  overview's six and whose column counts — two, three, six — were chosen because
+  each divides six into full rows. None of them divides five, and a grid track
+  with no card in it is not blank: the strip paints `bg-border` behind its cells
+  and shows the gap as a grey block. That is exactly what appeared on the right
+  of this band when the newsletter card left.
+
+  Five is prime, so the only counts that leave no ragged tail are one and five.
+  Stacked below `xl`, five across from `xl` up, where there is room for five
+  labels without them wrapping mid-word.
+
+  If a channel is ever added or removed here, this has to be revisited — which
+  is what `test_the_band_leaves_no_empty_cell` in `e2e/visibility.spec.js` is
+  for: it fails at whichever viewport the division stops being exact.
+  {% endcomment %}
   <section aria-labelledby="section-current" class="dk-section">
     <h2 id="section-current" class="sr-only">Praegune seis</h2>
-    <div class="dk-kpi-strip dk-kpi-strip-wide">
+    <div class="dk-kpi-strip sm:grid-cols-1 xl:grid-cols-5">
       {% for slot in page.channels %}
         {% include "dashboard/components/channel_card.html" with slot=slot flush=True only %}
       {% endfor %}
