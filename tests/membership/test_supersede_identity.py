@@ -191,9 +191,21 @@ def test_the_page_sees_one_generation_of_decisions_after_a_supersede(
         supersede_previous=True,
     )
 
+    from apps.membership.models import MembershipDecisionBatch
+
     drawn = get_decision_batches()
-    seen = [(b.as_of_date, b.kind) for b in drawn]
-    assert len(seen) == len(set(seen)), "a decision is drawn more than once"
+
+    # Not keyed on `(date, kind)`: an appendix can legitimately carry two
+    # termination sections, so one decision may hold two batches of the same
+    # kind on the same date. Production has eight such pairs, and asserting that
+    # key would fail on correct data. The invariant that does hold is that only
+    # one generation is live.
+    runs = {MembershipDecisionBatch.objects.get(pk=b.id).import_run_id for b in drawn}
+    assert len(runs) == 1, f"batches from {len(runs)} import runs are live at once"
+    assert (
+        len(drawn)
+        == MembershipDecisionBatch.objects.exclude(quality_status=QualityStatus.SUPERSEDED).count()
+    )
 
 
 def test_a_failed_supersede_leaves_the_history_whole(tmp_path, history_written_by_a_package):
