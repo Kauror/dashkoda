@@ -41,9 +41,17 @@ inspected in the read-only admin.
 
   {% if page.has_data %}
 
+    {% comment %}
+    Three figures, so three columns — not the strip's default four.
+
+    An empty grid track is not blank here: `dk-kpi-strip` paints `bg-border`
+    behind its cells and separates them by a pixel, so the fourth column showed
+    as a grey block the width of a card beside `Algas hiljuti`. Three divides
+    three; two does not, which is why `sm` is overridden as well.
+    {% endcomment %}
     <section aria-labelledby="section-figures" class="dk-section">
       <h2 id="section-figures" class="sr-only">Näitajad</h2>
-      <div class="dk-kpi-strip">
+      <div class="dk-kpi-strip sm:grid-cols-1 md:grid-cols-3 xl:grid-cols-3">
         {% for figure in page.figures %}
           {% include "dashboard/components/kpi_card.html" with label=figure.label value=figure.value comparison_period=figure.note as_of=summary.observed_at|date:"j.m.y" flush=True only %}
         {% endfor %}
@@ -90,9 +98,20 @@ inspected in the read-only admin.
           `Vaadatuimad`.
           {% endcomment %}
           <input type="hidden" name="sort" value="{{ page.filters.sort }}">
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
-            <div class="flex min-w-0 flex-col gap-1">
+          {% comment %}
+          The two controls that answer almost every visit stay on screen; the
+          six that are asked for rarely fold into the disclosure below.
+
+          Eight controls in a four-column grid was two full rows of label-plus-
+          field before the programme itself began, and the table is what the
+          page is for. Nothing is removed and nothing is renamed — a folded
+          `<details>` keeps its fields in the DOM, so they still submit, htmx
+          still includes them, and a reader without JavaScript can still open it.
+          {% endcomment %}
+          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+            <div class="flex min-w-0 flex-col gap-1 xl:col-span-2">
               <label for="filter-q" class="dk-meta">Otsi nimest või koodist</label>
               <input id="filter-q" type="search" name="q" value="{{ page.filters.q }}" class="dk-input" autocomplete="off">
             </div>
@@ -106,6 +125,18 @@ inspected in the read-only admin.
                 {% endfor %}
               </select>
             </div>
+          </div>
+
+          {% comment %}
+          Open whenever one of its own filters is set, and counted in the
+          summary either way. A collapsed control hiding an applied filter is
+          how a reader ends up mistrusting a row count they cannot explain.
+          {% endcomment %}
+          <details class="flex flex-col gap-3"{% if page.has_refinements %} open{% endif %}>
+            <summary class="dk-link w-fit cursor-pointer text-sm">
+              Täpsem valik{% if page.refinement_count %} <span class="dk-meta">· {{ page.refinement_count }} aktiivne</span>{% endif %}
+            </summary>
+            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
 
             <div class="flex min-w-0 flex-col gap-1">
               <label for="filter-month" class="dk-meta">Kuu</label>
@@ -165,7 +196,8 @@ inspected in the read-only admin.
               </select>
             </div>
 
-          </div>
+            </div>
+          </details>
 
           <div class="flex flex-wrap items-center gap-3">
             <button type="submit" class="dk-button dk-button-primary">Filtreeri</button>

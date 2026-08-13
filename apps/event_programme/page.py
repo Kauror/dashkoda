@@ -177,6 +177,46 @@ class ProgrammePage:
         return bool(self.filters.q)
 
     @property
+    def has_refinements(self) -> bool:
+        """Whether any filter behind the `Täpsem valik` disclosure is set.
+
+        Eight controls stacked two rows deep pushed the programme itself below
+        the fold, and six of them are asked for rarely: the search box and the
+        year answer almost every visit. Those two stay out; the rest fold away.
+
+        Deliberately not `filters.is_active`, which also counts the search. A
+        reader typing a name has not asked about quarters, and opening the
+        disclosure on every keystroke would undo the compaction exactly when
+        the reader is busiest.
+        """
+        return bool(
+            self.filters.month
+            or self.filters.quarter
+            or self.filters.tag
+            or self.filters.status
+            or self.filters.public_link != LINK_ALL
+            or self.filters.review != REVIEW_ALL
+        )
+
+    @property
+    def refinement_count(self) -> int:
+        """How many are set, so the closed disclosure can say so.
+
+        A collapsed control that hides an applied filter is how a reader ends up
+        mistrusting a count they cannot explain.
+        """
+        return sum(
+            (
+                bool(self.filters.month),
+                bool(self.filters.quarter),
+                bool(self.filters.tag),
+                bool(self.filters.status),
+                self.filters.public_link != LINK_ALL,
+                self.filters.review != REVIEW_ALL,
+            )
+        )
+
+    @property
     def search_is_year_bound(self) -> bool:
         """Whether a search is answering inside a year the reader did not type.
 
