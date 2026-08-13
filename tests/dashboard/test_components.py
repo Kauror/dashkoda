@@ -374,7 +374,11 @@ def test_trend_chart_makes_every_observation_hoverable_without_a_script():
     # The strip is what the pointer meets; everything drawn over it steps aside.
     assert html.count('pointer-events="none"') == 6
     assert html.count('pointer-events="all"') == 2
-    # No script, no inline style: the tooltip is the browser's own, from <title>.
+    # No script, no inline style: as served, the tooltip is the browser's own,
+    # from <title>. The marker is where the bundled enhancement picks the
+    # figure up and replaces that with an instant readout; the <title>s are
+    # what it reads, so they are part of the contract either way.
+    assert "data-trend-chart" in html
     assert "<script" not in html
     assert 'style="' not in html
     # Coordinates are written by `stringformat`, which is not localised. Django's

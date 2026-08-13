@@ -85,21 +85,35 @@ No individual member is listed anywhere, because neither dataset stores one.
       <div class="dk-section-body flex flex-col gap-8">
 
         {% comment %}
-        The windows come from `apps/membership/ranges.py`, which the overview
-        card reads too, so the same window is never named two ways on two pages.
-        Only windows this history can fill are offered; when it can fill just
-        one, no control is rendered at all.
+        The window comes from `apps/membership/ranges.py`, which the overview
+        card reads too, so the same window is never named two ways on two
+        pages. `min`/`max` advertise the observation span — advice only; the
+        server clamps whatever actually arrives — and the fields carry the
+        resolved window rather than the raw input, so what the control shows is
+        always what the charts drew. A history of a single date renders no
+        control at all.
         {% endcomment %}
         {% if has_range_choice %}
-          <form method="get" class="flex flex-wrap items-center gap-3 text-sm">
-            <span class="text-text-secondary">Vahemik:</span>
-            {% for option in trend_ranges %}
-              {% if option.key == trend_range.key %}
-                <span class="dk-badge dk-badge-brand" aria-current="true">{{ option.label }}</span>
-              {% else %}
-                <button type="submit" name="vahemik" value="{{ option.key }}" class="dk-button dk-button-secondary">{{ option.label }}</button>
-              {% endif %}
-            {% endfor %}
+          <form method="get" action="{% url 'membership' %}#section-trends" class="flex flex-wrap items-end gap-x-3 gap-y-2">
+            <label class="flex flex-col gap-1">
+              <span class="dk-meta">Alates</span>
+              <input type="date"
+                     name="alates"
+                     value="{{ trend_window.start|date:'Y-m-d' }}"
+                     min="{{ trend_earliest|date:'Y-m-d' }}"
+                     max="{{ trend_latest|date:'Y-m-d' }}"
+                     class="dk-input dk-input-date">
+            </label>
+            <label class="flex flex-col gap-1">
+              <span class="dk-meta">Kuni</span>
+              <input type="date"
+                     name="kuni"
+                     value="{{ trend_window.end|date:'Y-m-d' }}"
+                     min="{{ trend_earliest|date:'Y-m-d' }}"
+                     max="{{ trend_latest|date:'Y-m-d' }}"
+                     class="dk-input dk-input-date">
+            </label>
+            <button type="submit" class="dk-button dk-button-secondary">Rakenda</button>
           </form>
         {% endif %}
 

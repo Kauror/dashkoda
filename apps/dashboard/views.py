@@ -3,7 +3,7 @@ from django.views.decorators.http import require_GET
 
 from apps.event_programme.selectors import get_event_programme_summary
 from apps.legal_work.selectors import get_legal_work_summary
-from apps.membership.ranges import QUERY_PARAM as TREND_RANGE_PARAM
+from apps.membership.ranges import LEGACY_PARAM, PARAM_FROM, PARAM_TO
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
 
@@ -25,9 +25,10 @@ def overview(request):
     content uses, so each summary is read exactly once per request.
 
     The one thing a reader can ask this page for is how much membership history
-    the card draws. The parameter is passed on raw; `apps.membership.ranges`
-    decides what it means, and an unknown value falls back to the default rather
-    than erroring, so a stale bookmark still renders the page.
+    the card draws — two dates, plus the retired button control's key so a stale
+    bookmark keeps meaning what it meant. The parameters are passed on raw;
+    `apps.membership.ranges` decides what they mean, and anything unreadable
+    falls back to the default rather than erroring.
     """
     legal_work = get_legal_work_summary()
     membership = get_membership_summary()
@@ -49,7 +50,9 @@ def overview(request):
             membership=membership,
             news=news,
             events=events,
-            trend_range_key=request.GET.get(TREND_RANGE_PARAM),
+            trend_from=request.GET.get(PARAM_FROM),
+            trend_to=request.GET.get(PARAM_TO),
+            trend_range_key=request.GET.get(LEGACY_PARAM),
         ),
     }
     return render(request, "dashboard/overview.html", context)

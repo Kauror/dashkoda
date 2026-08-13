@@ -194,6 +194,24 @@
     @apply tracking-[0.4em];
   }
 
+  /* A date field inside the trend-window control. `dk-input` fills its
+     container because every other form on the site is a stacked column; these
+     two fields sit in a row and claim their own width instead. Declared after
+     `dk-input` so the width here wins. */
+  .dk-input-date {
+    @apply w-40;
+  }
+
+  /* The trend chart's instant readout, positioned by
+     `frontend/src/trend-tooltip.js`. Everything declarative lives here; the
+     script assigns only the two coordinates it cannot know in advance, through
+     the CSSOM, which the strict CSP permits. `pointer-events-none` keeps the
+     readout from stealing the hover that is showing it. */
+  .dk-chart-tip {
+    @apply pointer-events-none absolute z-10 rounded-md border border-border-strong
+      bg-elevated px-2.5 py-1.5 text-micro whitespace-nowrap text-text shadow-raised;
+  }
+
   /* Ordinary in-content link. Referenced by the news, events and overview
      templates; without it those links fall back to the browser default, which
      is unreadable on the dark surface. */

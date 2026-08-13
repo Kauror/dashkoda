@@ -196,7 +196,14 @@ def test_overview_does_not_show_two_competing_totals(
 
 
 def test_range_control_only_accepts_known_values(viewer_client, imported_package):
-    response = viewer_client.get(reverse("membership"), {"vahemik": "'; DROP TABLE"})
+    """Neither the date fields nor the legacy key echo or act on hostile input.
 
-    assert response.status_code == 200
-    assert "DROP TABLE" not in response.content.decode()
+    The fields render the resolved window, never the raw query string, so
+    whatever arrived is folded into a window the history can answer and the
+    text itself reaches no query and no attribute.
+    """
+    for hostile in ({"vahemik": "'; DROP TABLE"}, {"alates": "'; DROP TABLE", "kuni": "täna"}):
+        response = viewer_client.get(reverse("membership"), hostile)
+
+        assert response.status_code == 200
+        assert "DROP TABLE" not in response.content.decode()

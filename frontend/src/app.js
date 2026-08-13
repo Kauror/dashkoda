@@ -8,6 +8,8 @@
 import Alpine from "@alpinejs/csp";
 import htmx from "htmx.org";
 
+import { mountTrendTooltips } from "./trend-tooltip.js";
+
 /*
  * htmx normally injects a <style> element for `.htmx-indicator`. That would
  * need `style-src 'unsafe-inline'`, so it is disabled here and the equivalent
@@ -139,3 +141,15 @@ Alpine.data("tabTrio", () => ({
 }));
 
 Alpine.start();
+
+/*
+ * Progressive enhancement over the server-drawn trend chart: an instant
+ * readout in place of the native <title> tooltip's delay. A page without a
+ * `[data-trend-chart]` figure is left exactly as it was, and a page where this
+ * never runs keeps the native tooltips and the data table.
+ */
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", () => mountTrendTooltips());
+} else {
+  mountTrendTooltips();
+}
