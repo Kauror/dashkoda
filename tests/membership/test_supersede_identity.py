@@ -129,6 +129,44 @@ def test_warnings_and_conflicts_do_not_collide(tmp_path, history_written_by_a_pa
     assert len(conflicts) == len(set(conflicts))
 
 
+def test_no_unique_constraint_in_the_app_survives_a_supersede(
+    tmp_path, history_written_by_a_package
+):
+    """Every uniqueness rule at once, rather than one CI round each.
+
+    Six constraints were found one failure at a time — source documents,
+    observations, monthly values, warnings, conflicts, and then decision
+    batches. Each fix revealed the next, because nothing asserted the whole set.
+
+    This walks the app's models, imports a second package over the first, and
+    checks every `UniqueConstraint` still holds. A seventh constraint added
+    later is covered the day it is written, without anyone remembering to.
+    """
+    from django.apps import apps as django_apps
+    from django.db.models import UniqueConstraint
+
+    import_history_package(_rebuilt(tmp_path), dry_run=False, supersede_previous=True)
+
+    checked = 0
+    for model in django_apps.get_app_config("membership").get_models():
+        for constraint in model._meta.constraints:
+            if not isinstance(constraint, UniqueConstraint):
+                continue
+            if constraint.condition is not None:
+                # A partial constraint only binds the rows it selects, and the
+                # database is already enforcing it; re-deriving the predicate
+                # here would be a second, drifting copy of it.
+                continue
+            fields = list(constraint.fields)
+            rows = list(model.objects.values_list(*fields))
+            assert len(rows) == len(set(rows)), (
+                f"{model.__name__}.{constraint.name} has duplicates after a supersede"
+            )
+            checked += 1
+
+    assert checked >= 5, "expected to have checked the membership uniqueness rules"
+
+
 def test_a_failed_supersede_leaves_the_history_whole(tmp_path, history_written_by_a_package):
     """A rebuild that cannot be written must not retire what is already there."""
     from apps.membership.history_import import MembershipHistoryImportError

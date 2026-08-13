@@ -428,6 +428,7 @@ def _write_decision_batches(
     source,
     run: ImportRun,
     documents: dict[str, MembershipHistoricalSourceDocument],
+    suffix: str = "",
 ) -> tuple[int, int, int]:
     """Write the decision batches and their two distributions.
 
@@ -439,7 +440,7 @@ def _write_decision_batches(
         MembershipDecisionBatch(
             source=source,
             import_run=run,
-            external_batch_id=row.batch_id[:64],
+            external_batch_id=f"{row.batch_id}{suffix}"[:64],
             source_document=documents.get(row.source_id),
             batch_kind=row.batch_kind,
             as_of_date=row.as_of_date,
@@ -457,7 +458,11 @@ def _write_decision_batches(
         for row in parsed.decision_batches
     ]
     MembershipDecisionBatch.objects.bulk_create(batches, batch_size=BATCH_SIZE)
-    by_external = {batch.external_batch_id: batch for batch in batches}
+    # Keyed by the package's own batch id, not the stored one — the children
+    # below refer to it the way the package wrote it. See `_identity_suffix`.
+    by_external = {
+        row.batch_id: batch for row, batch in zip(parsed.decision_batches, batches, strict=True)
+    }
 
     sizes = [
         MembershipDecisionBatchSizeMovement(
@@ -492,13 +497,14 @@ def _write_new_member_periods(
     run: ImportRun,
     documents: dict[str, MembershipHistoricalSourceDocument],
     monthly: dict[tuple[int, int], MembershipMonthlyNewMemberValue],
+    suffix: str = "",
 ) -> tuple[int, int]:
     """Write multi-month spans and the size distribution shared with months."""
     periods = [
         MembershipNewMemberPeriod(
             source=source,
             import_run=run,
-            external_period_id=row.period_id[:64],
+            external_period_id=f"{row.period_id}{suffix}"[:64],
             source_document=documents.get(row.source_id),
             period_scope=row.period_scope,
             period_start=row.period_start,
@@ -510,7 +516,11 @@ def _write_new_member_periods(
         for row in parsed.new_member_periods
     ]
     MembershipNewMemberPeriod.objects.bulk_create(periods, batch_size=BATCH_SIZE)
-    by_external = {period.external_period_id: period for period in periods}
+    # As above: the size rows name the period by the package's identifier.
+    by_external = {
+        row.period_id: period
+        for row, period in zip(parsed.new_member_periods, periods, strict=True)
+    }
 
     distributions = []
     for row in parsed.new_member_sizes:
@@ -790,10 +800,15 @@ def import_history_package(
             )
             conflict_count = _write_conflicts(parsed, source=source, run=run)
             batch_count, batch_sizes, batch_reasons = _write_decision_batches(
-                parsed, source=source, run=run, documents=documents
+                parsed, source=source, run=run, documents=documents, suffix=suffix
             )
             period_count, distribution_count = _write_new_member_periods(
-                parsed, source=source, run=run, documents=documents, monthly=monthly
+                parsed,
+                source=source,
+                run=run,
+                documents=documents,
+                monthly=monthly,
+                suffix=suffix,
             )
 
             counts = {
