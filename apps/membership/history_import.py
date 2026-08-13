@@ -57,6 +57,7 @@ from .models import (
     MembershipNewMemberSizeDistribution,
     MembershipRemovalReason,
     MembershipSizeMovement,
+    MonthlyValueStatus,
     QualityStatus,
 )
 from .models.internal import MAX_MESSAGE_LENGTH, MAX_RAW_VALUE_LENGTH
@@ -174,6 +175,24 @@ def _facts(snapshot) -> MetricFacts:
 def _write_source_documents(
     parsed: ParsedPackage, *, source, run: ImportRun
 ) -> dict[str, MembershipHistoricalSourceDocument]:
+    """Register the package's source documents, reusing any already known.
+
+    A document is **provenance, not a reported fact**: the same file described
+    by two packages is one document, and `(source, external_source_id)` is
+    unique for exactly that reason. A rebuild does not rename the documents it
+    already had — their identifiers are derived from file content and are
+    deliberately stable — so a superseding import meets its own output here.
+
+    Writing them again is what broke the first production attempt. Reusing them
+    is also what keeps the old, superseded observations pointing at the same
+    document rows they always did.
+    """
+    existing = {
+        row.external_source_id: row
+        for row in MembershipHistoricalSourceDocument.objects.filter(
+            source=source, external_source_id__in=[r.source_id for r in parsed.source_documents]
+        )
+    }
     documents = [
         MembershipHistoricalSourceDocument(
             source=source,
@@ -199,9 +218,13 @@ def _write_source_documents(
             notes=row.notes[:300],
         )
         for row in parsed.source_documents
+        if row.source_id not in existing
     ]
     MembershipHistoricalSourceDocument.objects.bulk_create(documents, batch_size=BATCH_SIZE)
-    return {document.external_source_id: document for document in documents}
+    return {
+        **existing,
+        **{document.external_source_id: document for document in documents},
+    }
 
 
 def _write_observations(
@@ -211,6 +234,7 @@ def _write_observations(
     artifact: SourceArtifact,
     run: ImportRun,
     documents: dict[str, MembershipHistoricalSourceDocument],
+    suffix: str = "",
 ) -> dict[str, InternalMembershipObservation]:
     """Create every piece of evidence, then mark one preferred row per date.
 
@@ -234,7 +258,7 @@ def _write_observations(
                 source=source,
                 artifact=artifact,
                 import_run=run,
-                external_snapshot_id=row.snapshot_id,
+                external_snapshot_id=f"{row.snapshot_id}{suffix}"[:64],
                 observation_date=row.observation_date,
                 observation_date_precision=row.observation_date_precision,
                 source_kind=row.source_kind,
@@ -516,12 +540,13 @@ def _write_issues(
     source,
     run: ImportRun,
     documents: dict[str, MembershipHistoricalSourceDocument],
+    suffix: str = "",
 ) -> int:
     issues = [
         MembershipDataIssue(
             source=source,
             import_run=run,
-            external_warning_id=row.warning_id[:32],
+            external_warning_id=f"{row.warning_id}{suffix}"[:32],
             source_document=documents.get(row.source_id),
             dataset=row.dataset[:64],
             record_key=_bounded(row.record_key, 120),
@@ -538,6 +563,20 @@ def _write_issues(
 
 
 def _write_conflicts(parsed: ParsedPackage, *, source, run: ImportRun) -> int:
+    """Record each disputed metric once per date.
+
+    A conflict is keyed on the date and the metric rather than on a package
+    identifier, because it describes a disagreement in the sources rather than a
+    reported figure. Two packages that both find the 2017-11-08 member count
+    disputed have found the same conflict, so a repeat is skipped rather than
+    written again — and skipping preserves any resolution a staff user has
+    already recorded against it.
+    """
+    known = set(
+        MembershipMetricConflict.objects.filter(source=source).values_list(
+            "observation_date", "metric"
+        )
+    )
     conflicts = [
         MembershipMetricConflict(
             source=source,
@@ -550,9 +589,29 @@ def _write_conflicts(parsed: ParsedPackage, *, source, run: ImportRun) -> int:
             source_document_ids=row.source_ids,
         )
         for row in parsed.conflicts
+        if (row.observation_date, row.metric[:64]) not in known
     ]
     MembershipMetricConflict.objects.bulk_create(conflicts, batch_size=BATCH_SIZE)
     return len(conflicts)
+
+
+def _identity_suffix(run: ImportRun, superseding: bool) -> str:
+    """How a replacement run keeps its own external identifiers distinct.
+
+    A package's `snapshot_id` and `warning_id` identify a row **within that
+    package**. They are content-derived and stable, so a rebuild reproduces the
+    same ones — and the rows they belong to are facts, which are never rewritten
+    and never reused. The old rows keep their identifiers when they are
+    superseded, so the replacement's must be qualified or the two collide.
+
+    Provenance rows take the opposite route and are reused instead; see
+    `_write_source_documents`. The difference is deliberate: a document is the
+    same document, a reported figure is a new statement of the same fact.
+
+    An ordinary first import gets no suffix, so nothing about the existing
+    package contract changes.
+    """
+    return f"#r{run.pk}" if superseding else ""
 
 
 def _guard_against_a_second_history(source, *, supersede_previous: bool) -> int:
@@ -591,6 +650,13 @@ def _guard_against_a_second_history(source, *, supersede_previous: bool) -> int:
         observation.is_preferred_for_date = False
         observation.save(update_fields=["quality_status", "is_preferred_for_date"])
         superseded += 1
+
+    # A month may hold one current value, and the replacement is about to write
+    # its own. Retiring the old one is the same move as un-preferring an
+    # observation: a state field moves, the reported number does not.
+    MembershipMonthlyNewMemberValue.objects.filter(source=source, is_current_for_month=True).update(
+        is_current_for_month=False, value_status=MonthlyValueStatus.SUPERSEDED
+    )
     return superseded
 
 
@@ -696,14 +762,24 @@ def import_history_package(
             superseded = _guard_against_a_second_history(
                 source, supersede_previous=supersede_previous
             )
+            # A replacement run qualifies its own fact identifiers so they do
+            # not collide with the retired rows, which keep theirs.
+            suffix = _identity_suffix(run, superseding=superseded > 0)
             documents = _write_source_documents(parsed, source=source, run=run)
             observations = _write_observations(
-                parsed, source=source, artifact=artifact, run=run, documents=documents
+                parsed,
+                source=source,
+                artifact=artifact,
+                run=run,
+                documents=documents,
+                suffix=suffix,
             )
             direct = _direct_observations_by_source(parsed, observations)
             movement_count, reason_count = _write_children(parsed, direct=direct)
             monthly = _write_monthly(parsed, source=source, run=run, documents=documents)
-            issue_count = _write_issues(parsed, source=source, run=run, documents=documents)
+            issue_count = _write_issues(
+                parsed, source=source, run=run, documents=documents, suffix=suffix
+            )
             conflict_count = _write_conflicts(parsed, source=source, run=run)
             batch_count, batch_sizes, batch_reasons = _write_decision_batches(
                 parsed, source=source, run=run, documents=documents
