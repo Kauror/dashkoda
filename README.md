@@ -230,7 +230,10 @@ Sources, one document each:
   authoritative event programme and its workbook
 - [docs/internal-membership-history.md](docs/internal-membership-history.md) —
   the Chamber's own board-report membership history, why it is a separate source
-  from the public member count, the one-time import and the staff entry form
+  from the public member count, the one-time import and the staff entry form.
+  The board documents themselves are read by a separate offline project,
+  [membership-history-extractor](https://github.com/Kauror/membership-history-extractor);
+  this repository only ever sees the package it produces
 - [docs/website-analytics.md](docs/website-analytics.md) — the GA4 collector, the
   daily-revision model and the metric semantics
 - [docs/newsletter-audience.md](docs/newsletter-audience.md) — the Smaily list

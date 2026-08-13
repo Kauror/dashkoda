@@ -41,6 +41,43 @@ data wherever they appear.
 - no individual member: no name, no registration code, no per-member payment
   status. An absent column cannot leak.
 
+## Where the package comes from
+
+The board documents are read by a separate offline project:
+
+**[`Kauror/membership-history-extractor`](https://github.com/Kauror/membership-history-extractor)** (private)
+
+It is deliberately not part of this repository, and the boundary is the point:
+
+```text
+board documents  →  extractor  →  package  →  DashKoda importer  →  PostgreSQL
+   (confidential)    (offline)    (the contract)   (this repo)
+```
+
+DashKoda never opens a board document. It validates a package and loads it, so
+rendering membership analytics needs no LibreOffice, no legacy `.doc` parser and
+no OCR in the runtime image, and the confidential corpus never approaches a
+served path. The package is the only thing that crosses.
+
+What lives over there:
+
+- discovery and classification of the whole 2014–2026 corpus by content rather
+  than filename;
+- the **scope model**, which refuses to compare two numbers until it has
+  established they describe the same business fact — a decision ending 25
+  memberships is not the year-to-date 62 printed beside it in the same report;
+- the size-band and departure-reason vocabularies, derived from a full inventory
+  of the corpus rather than guessed;
+- the deterministic package writer, which produces a byte-identical archive from
+  the same sources.
+
+Neither repository holds a board document, an extract or a built package.
+
+**A rebuild is not something this application can do.** If the historical
+figures need to change, the package is rebuilt over there, reviewed, and
+imported through the sequence in *Deployment* below. Nothing in DashKoda edits
+an imported figure — that is what makes the provenance on every row meaningful.
+
 ## Package contract
 
 The one-time import accepts a ZIP with this structure, and refuses a directory
