@@ -1,5 +1,10 @@
 """The newsletter-analytics section: what it shows and what it refuses to.
 
+The section is rendered by `/uudised/` and its presenter belongs to
+`apps.visibility`, which is why these stayed here when the section moved: they
+are about the arithmetic and the wording, not about which page includes it.
+`tests/news/test_newsletter_sections.py` covers the placement itself.
+
 The numbers below are synthetic. What is pinned down is the arithmetic a board
 would act on, and in particular the three ways it could be quietly wrong:
 
@@ -301,7 +306,7 @@ def test_a_section_with_no_sends_has_nothing_to_show(viewer_client):
     section = build_newsletter_section()
     assert not section.has_any_data
 
-    page = viewer_client.get(reverse("visibility")).content.decode()
+    page = viewer_client.get(reverse("news")).content.decode()
     body = page[page.index("Uudiskirjade tulemused") :]
     assert "Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist." in body
 
@@ -316,7 +321,7 @@ def test_the_page_does_not_print_the_coverage_note(viewer_client):
     """
     read(DAY)
     issue(1)
-    page = viewer_client.get(reverse("visibility")).content.decode()
+    page = viewer_client.get(reverse("news")).content.decode()
 
     assert "Varasemat ajalugu ei ole võimalik koguda" not in page
 
@@ -328,7 +333,7 @@ def test_the_page_renders_the_section(viewer_client):
     read(DAY)
     issue(1)
 
-    page = viewer_client.get(reverse("visibility")).content.decode()
+    page = viewer_client.get(reverse("news")).content.decode()
     assert "Uudiskirjade tulemused" in page
     # The column is `Avatud`; `Avamismäär` was the struck-out explanatory
     # paragraph's wording, not the table's.
@@ -340,7 +345,7 @@ def test_the_page_carries_the_filter_through(viewer_client):
     issue(1, newsletter=ETEATAJA)
     issue(2, newsletter=ENEWS)
 
-    page = viewer_client.get(reverse("visibility"), {"uudiskiri": str(ENEWS)}).content.decode()
+    page = viewer_client.get(reverse("news"), {"uudiskiri": str(ENEWS)}).content.decode()
     assert "Number 2" in page
     assert "Number 1" not in page
 
@@ -353,9 +358,9 @@ def test_the_section_carries_no_audience_and_the_band_still_does(viewer_client):
 
     They arrived here as three sparklines, and when the charts came off — two
     readings a day apart drawn as a trend — the rows underneath were still the
-    same three numbers the `Praegune seis` band prints under `Uudiskirjad`. A
-    figure that appears twice on a page is a figure the reader checks against
-    itself, so this section dropped it.
+    same three numbers the `Uudiskirjad` card above prints. A figure that
+    appears twice on a page is a figure the reader checks against itself, so
+    this section dropped it.
 
     What must not happen is losing it altogether, which is why this asserts on
     both halves: absent below the section heading, present above it.
@@ -368,7 +373,7 @@ def test_the_section_carries_no_audience_and_the_band_still_does(viewer_client):
     assert not hasattr(section, "audience")
     assert not hasattr(section, "coverage_note")
 
-    page = viewer_client.get(reverse("visibility")).content.decode()
+    page = viewer_client.get(reverse("news")).content.decode()
     band, _, body = page.partition("Uudiskirjade tulemused")
 
     # `saajat` was the unit on the removed rows, and no other row on this page
@@ -426,7 +431,7 @@ def test_a_search_matching_nothing_keeps_the_section_on_the_page(viewer_client):
     assert not section.has_issues
     assert section.has_any_data
 
-    page = viewer_client.get(reverse("visibility"), {"otsi": "ei leidu midagi"}).content.decode()
+    page = viewer_client.get(reverse("news"), {"otsi": "ei leidu midagi"}).content.decode()
     assert "Otsi uudiskirja" in page
     assert "Tühjenda otsing" in page
     assert "Ühtegi saadetud uudiskirja ei leitud." in page
@@ -459,19 +464,21 @@ def test_the_archive_link_carries_both_rather_than_reopening_everything():
 def test_the_page_reads_otsi_and_not_the_page_search(viewer_client):
     """`otsi` and `otsing` are two boxes on one page and must never be one.
 
-    `otsi` matches campaign subjects, `otsing` matches website pages. Wiring the
+    `otsi` matches campaign subjects, `otsing` matches news articles. Wiring the
     section to `otsing` would have looked correct on this page — the parameter
-    exists and holds a string — and would have emptied the content ranking on
-    every newsletter search.
+    exists and holds a string — and would have emptied the news archive on every
+    newsletter search. The pair travelled together when the section moved: they
+    named two different searches on Nähtavus and they name two different
+    searches here.
     """
     read(DAY)
     issue(1, name="Kutse ärifoorumile")
     issue(2, name="Uudiskiri nr 400")
 
-    page = viewer_client.get(reverse("visibility"), {"otsi": "ärifoorum"}).content.decode()
+    page = viewer_client.get(reverse("news"), {"otsi": "ärifoorum"}).content.decode()
     assert "Kutse ärifoorumile" in page
     assert "Uudiskiri nr 400" not in page
 
     # The page search leaves the sends alone: both issues are still listed.
-    other = viewer_client.get(reverse("visibility"), {"otsing": "ärifoorum"}).content.decode()
+    other = viewer_client.get(reverse("news"), {"otsing": "ärifoorum"}).content.decode()
     assert "Uudiskiri nr 400" in other

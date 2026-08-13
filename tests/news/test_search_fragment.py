@@ -48,6 +48,28 @@ def test_the_fragment_resets_the_page_and_keeps_the_period(viewer_client):
     assert "lk=" not in pushed
 
 
+def test_the_fragment_keeps_the_newsletter_the_reader_chose(viewer_client):
+    """The newsletter section shares this page and is not in this form.
+
+    Its two parameters reach the pushed URL from `HX-Current-URL`, so typing an
+    article title must not silently clear the newsletter and the subject search
+    the reader set below.
+    """
+    response = viewer_client.get(
+        reverse(SEARCH),
+        {"otsing": "eelnõu"},
+        headers={
+            "HX-Current-URL": (
+                "https://dash.orgusaar.ee/uudised/?uudiskiri=newsletter_enews&otsi=aastakoosolek"
+            )
+        },
+    )
+
+    pushed = response.headers["HX-Push-Url"]
+    assert "uudiskiri=newsletter_enews" in pushed
+    assert "otsi=aastakoosolek" in pushed
+
+
 def test_the_fragment_is_behind_the_viewer_gate(client):
     response = client.get(reverse(SEARCH))
 

@@ -1,8 +1,9 @@
-"""Shape the visibility figures for the two pages that show them.
+"""Shape the visibility figures for the pages that show them.
 
 The selectors answer "what is stored". This module answers "what does the board
-see", once, so the overview band and the Nähtavus page cannot end up describing
-the same number differently. The templates lay out; neither holds a rule.
+see", once, so the overview band, the Nähtavus page and the newsletter card on
+Uudised cannot end up describing the same number differently. The templates lay
+out; neither holds a rule.
 
 Three things are decided here and nowhere else:
 
@@ -31,7 +32,6 @@ from apps.core.formatting import short_date, signed_integer
 
 from .ga4 import Ga4ConnectionStatus, get_connection_status
 from .models import CollectionMethod, VisibilityMetric
-from .newsletter_page import NewsletterSection, build_newsletter_section
 from .registry import SOCIAL_METRICS
 from .selectors import (
     MetricReading,
@@ -151,8 +151,13 @@ def _website_slot(status: Ga4ConnectionStatus, traffic: WebsiteTraffic) -> Chann
     )
 
 
-def _newsletter_slot(summary: NewsletterSummary, *, detail_url: str) -> ChannelSlot:
+def build_newsletter_slot(summary: NewsletterSummary, *, detail_url: str = "") -> ChannelSlot:
     """Each newsletter under its own name, with no total across them.
+
+    Public because two pages render this one card: the overall dashboard's
+    channel band, and the Uudised page, where the newsletter material moved from
+    Nähtavus. Both take the same `ChannelSlot` from here rather than growing a
+    second card under `apps/news` that would drift from this one.
 
     The three lists are separate audiences. Adding them would count a reader
     subscribed to two of them twice, and the number nobody has — how many
@@ -223,26 +228,43 @@ def build_channel_band(
     summary: VisibilitySummary | None = None,
     ga4_status: Ga4ConnectionStatus | None = None,
     detail_url: str = "",
+    include_newsletter: bool = True,
 ) -> tuple[ChannelSlot, ...]:
     """The six channel slots, in the order the board reads them.
 
     Website first because it is the widest audience and the one that is missing;
     then the newsletter, which the Chamber owns outright; then the four social
     channels in the order the registry fixes.
+
+    `include_newsletter` is what the Nähtavus page turns off. The newsletter
+    material is shown on Uudised now, so that page's own band would otherwise
+    repeat a card the reader is meant to find one section further on. The
+    overall dashboard leaves it on: there, Uudiskirjad is still one of the
+    Chamber's communication channels beside the website and the social accounts,
+    and dropping it globally would take it off a page this change is not about.
     """
     summary = summary if summary is not None else get_visibility_summary()
     ga4_status = ga4_status if ga4_status is not None else get_connection_status()
     traffic = get_website_traffic()
     return (
         _website_slot(ga4_status, traffic),
-        _newsletter_slot(summary.newsletter, detail_url=detail_url),
+        *(
+            (build_newsletter_slot(summary.newsletter, detail_url=detail_url),)
+            if include_newsletter
+            else ()
+        ),
         *(_social_slot(reading, detail_url=detail_url) for reading in summary.social),
     )
 
 
 @dataclass(frozen=True)
 class VisibilityPage:
-    """Everything the Nähtavus template renders."""
+    """Everything the Nähtavus template renders.
+
+    No `newsletters` section any more: `Uudiskirjade tulemused` is rendered by
+    the Uudised page, so building it here would run the campaign-performance
+    queries on every Nähtavus visit for a section that page no longer shows.
+    """
 
     summary: VisibilitySummary
     newsletter: NewsletterSummary
@@ -250,7 +272,6 @@ class VisibilityPage:
     channels: tuple[ChannelSlot, ...]
     ga4: Ga4ConnectionStatus
     traffic: TrafficSection
-    newsletters: NewsletterSection
     today: date
 
     @property
@@ -264,17 +285,15 @@ def build_visibility_page(
     today: date | None = None,
     period_key: str | None = None,
     section_key: str | None = None,
-    newsletter_key: str | None = None,
-    newsletter_search: str | None = None,
     search: str | None = None,
     page: str | int | None = None,
 ) -> VisibilityPage:
     """Read every metric once and shape it for the page.
 
-    The page carries two independent searches and they are named apart on
-    purpose: `newsletter_search` matches campaign subjects, `search` matches
-    website pages. A single `search` argument would have quietly fed a page term
-    to the subject query the first time either caller was edited.
+    `search` matches website pages, and it is the only search this page has now.
+    It used to sit beside a `newsletter_search` that matched campaign subjects,
+    named apart so neither could be fed the other's term; the subject search
+    moved to Uudised with the section it belongs to.
     """
     today = today or timezone.localdate()
     summary = get_visibility_summary(today=today)
@@ -284,7 +303,13 @@ def build_visibility_page(
         summary=summary,
         newsletter=summary.newsletter,
         social=summary.social,
-        channels=build_channel_band(summary=summary, ga4_status=ga4_status, detail_url=detail_url),
+        channels=build_channel_band(
+            summary=summary,
+            ga4_status=ga4_status,
+            detail_url=detail_url,
+            # Shown on Uudised now, one section below the news archive.
+            include_newsletter=False,
+        ),
         ga4=ga4_status,
         traffic=build_traffic_section(
             period_key=period_key,
@@ -292,10 +317,6 @@ def build_visibility_page(
             search=search,
             page=page,
             today=today,
-        ),
-        newsletters=build_newsletter_section(
-            newsletter_key=newsletter_key,
-            search=newsletter_search,
         ),
         today=today,
     )
@@ -310,5 +331,6 @@ __all__ = [
     "VisibilityMetric",
     "VisibilityPage",
     "build_channel_band",
+    "build_newsletter_slot",
     "build_visibility_page",
 ]

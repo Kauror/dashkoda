@@ -15,7 +15,9 @@ import { TEST_PIN, signIn, watchConsole } from "./helpers.js";
  * what it can hold is the mechanics rather than which rows come back.
  */
 
-const ARCHIVE = "/nahtavus/uudiskirjad/";
+const ARCHIVE = "/uudised/uudiskirjad/";
+const ARCHIVE_FRAGMENT = "/uudised/uudiskirjad/otsi/";
+const OLD_ARCHIVE = "/nahtavus/uudiskirjad/";
 
 test("typing filters without a navigation and without losing the caret", async ({ page }) => {
   const errors = watchConsole(page);
@@ -27,7 +29,7 @@ test("typing filters without a navigation and without losing the caret", async (
   await box.click();
 
   const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/nahtavus/uudiskirjad/otsi/")),
+    page.waitForResponse((r) => r.url().includes(ARCHIVE_FRAGMENT)),
     box.pressSequentially("foorum", { delay: 60 }),
   ]);
 
@@ -86,9 +88,21 @@ test("without JavaScript the same box is an ordinary form", async ({ browser }) 
 
   // A real navigation this time, to the page itself rather than the fragment,
   // and the term survives it. Live search is an enhancement; this is the floor.
-  await expect(page).toHaveURL(/\/nahtavus\/uudiskirjad\/\?/);
+  await expect(page).toHaveURL(/\/uudised\/uudiskirjad\/\?/);
   await expect(page).toHaveURL(/otsi=foorum/);
   await expect(page.getByLabel("Otsi uudiskirja")).toHaveValue("foorum");
 
   await context.close();
+});
+
+test("the archive's old address still opens it, keeping the question", async ({ page }) => {
+  // The archive moved under Uudised with the rest of the newsletter material. A
+  // board member who bookmarked it under Nähtavus must land on the same filtered
+  // view rather than on a 404 or on fourteen unfiltered years.
+  await signIn(page);
+  await page.goto(`${OLD_ARCHIVE}?uudiskiri=koik&otsi=foorum`);
+
+  await expect(page).toHaveURL(/\/uudised\/uudiskirjad\//);
+  await expect(page).toHaveURL(/otsi=foorum/);
+  await expect(page.getByLabel("Otsi uudiskirja")).toHaveValue("foorum");
 });

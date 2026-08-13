@@ -7,14 +7,18 @@ Everything here comes from `apps.visibility.page.build_visibility_page`, which
 reads PostgreSQL through the app's own selectors. The template lays out and holds
 no rule.
 
-Four things are deliberate and should stay that way:
+The newsletters are **not** here. The `Uudiskirjad` card and `Uudiskirjade
+tulemused` moved to the Uudised page, where a reader asking what the Chamber
+published is already standing. Nothing about them changed but the address; see
+`apps/news/templates/news/overview.html`. The website and the social channels
+stay, and this page is otherwise what it was.
 
-  - **every figure on this page was typed by a person.** Each one carries
-    "Käsitsi sisestatud" and the date it describes. Nothing says synchronised,
-    API-connected or automatically updated, because none of it is;
-  - the three newsletters are listed one by one and **never totalled**. They go
-    to three separate lists and nobody has counted how many people are on more
-    than one, so a sum would silently claim that overlap is zero;
+Three things are deliberate and should stay that way:
+
+  - **every figure in the band below was typed by a person**, apart from the
+    website card. Each typed one carries "Käsitsi sisestatud" and the date it
+    describes; nothing says synchronised, API-connected or automatically
+    updated, because none of it is;
   - a channel nobody has entered says "Andmed puuduvad". Never a zero;
   - trends are server-drawn sparklines and each one keeps its values as a table.
     The table is not a fallback: it stays in the document for every reader.
@@ -49,10 +53,7 @@ Four things are deliberate and should stay that way:
     </div>
   </section>
 
-  {# ---------------- 2. Uudiskiri ---------------- #}
-  {% include "visibility/_newsletters.html" with newsletters=page.newsletters only %}
-
-  {# ---------------- 3. Kodulehe külastused ---------------- #}
+  {# ---------------- 2. Kodulehe külastused ---------------- #}
   {% comment %}
   This section used to be a paragraph explaining that the connection did not
   exist, and then — after it did — a paragraph explaining that it did. Neither

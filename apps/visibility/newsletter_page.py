@@ -1,7 +1,12 @@
-"""The newsletter-analytics section of the Nähtavus page.
+"""The newsletter-analytics section of the Uudised page.
 
-The band above answers "how many people can the Chamber reach". This answers the
-one question a card cannot: does anybody read what is sent.
+The card above it answers "how many people can the Chamber reach". This answers
+the one question a card cannot: does anybody read what is sent.
+
+It lived under Nähtavus until the newsletter material moved to Uudised, where a
+reader already is when they are asking what the Chamber published. The module
+stays here because the data is Smaily's and Smaily belongs to `apps.visibility`;
+only where it is rendered changed.
 
 Two things it must never do, and each has a specific way of going wrong:
 
@@ -17,7 +22,7 @@ three sparklines and then as the rows underneath them. The band above already
 prints all three under `Uudiskirjad`, so this section was a second copy of the
 same figures, and the charts on top of them were two readings a day apart drawn
 as a trend. Nothing was lost: `get_all_subscriber_series` still answers, and
-`_newsletter_slot` in `page.py` still shows the counts.
+`build_newsletter_slot` in `page.py` still shows the counts.
 
 What went with them is `coverage_note` — the sentence about Smaily holding a
 list's present size and not its history. It was already computed-but-unprinted,
@@ -93,11 +98,32 @@ def parse_search(raw: str | None) -> str:
     return (raw or "").strip()[:MAX_SEARCH_LENGTH]
 
 
-def _query(newsletter: str, search: str = "") -> str:
+def _query(newsletter: str, search: str = "", carried: str = "") -> str:
     query = f"{PARAM_NEWSLETTER}={newsletter}"
     if search:
         query += f"&{PARAM_SEARCH}={quote(search)}"
-    return query
+    # The other section's state first, so the reader's news archive survives a
+    # newsletter click. It arrives already built and already validated by
+    # `apps.news.periods.build_query`; nothing here parses a raw query string or
+    # copies one through, because this value ends up in somebody's address bar.
+    return f"{carried}&{query}" if carried else query
+
+
+def newsletter_state(*, newsletter_key: str | None = None, search: str | None = None) -> str:
+    """This section's own state as a query fragment, validated and nothing else.
+
+    What the news archive on the same page carries through its links so that
+    choosing a period cannot clear the reader's newsletter. Empty when the
+    section is at its defaults, so an untouched page keeps an untouched URL.
+
+    The values are parsed by the same two functions the section itself uses, so
+    what is carried is what was applied — never the raw parameter.
+    """
+    active = parse_newsletter(newsletter_key)
+    term = parse_search(search)
+    if active == ALL_NEWSLETTERS and not term:
+        return ""
+    return _query(active, term)
 
 
 @dataclass(frozen=True)
@@ -109,14 +135,18 @@ class NewsletterOption:
     is_active: bool
     #: Whatever search is in force, so switching newsletter keeps the question.
     search: str = ""
+    #: The news archive's own state, carried through untouched. Since this
+    #: section moved onto `/uudised/`, a chip that dropped it would reset the
+    #: reader's period, category, ordering and news search on every click.
+    carried: str = ""
 
     @property
     def query(self) -> str:
-        return _query(self.key, self.search)
+        return _query(self.key, self.search, self.carried)
 
 
 def newsletter_options(
-    active: str, *, with_other: bool = False, search: str = ""
+    active: str, *, with_other: bool = False, search: str = "", carried: str = ""
 ) -> tuple[NewsletterOption, ...]:
     """`Kõik`, the three newsletters, and `Muu` when it leads somewhere.
 
@@ -135,6 +165,7 @@ def newsletter_options(
             label="Kõik",
             is_active=active == ALL_NEWSLETTERS,
             search=search,
+            carried=carried,
         )
     ]
     for spec in NEWSLETTERS:
@@ -145,6 +176,7 @@ def newsletter_options(
                 label=registry_spec.label if registry_spec else spec.metric,
                 is_active=active == spec.metric,
                 search=search,
+                carried=carried,
             )
         )
     if with_other:
@@ -154,6 +186,7 @@ def newsletter_options(
                 label=OTHER_LABEL,
                 is_active=active == OTHER_KEY,
                 search=search,
+                carried=carried,
             )
         )
     return tuple(options)
@@ -188,6 +221,10 @@ class NewsletterSection:
     #: total, which read as "3 194 more where these came from" beside a table
     #: showing e-Teataja alone.
     total_sends: int = 0
+    #: The news archive's state, carried through every link this section builds
+    #: that stays on `/uudised/`. Empty when the section is rendered anywhere
+    #: that has no news archive to preserve.
+    carried: str = ""
 
     @property
     def is_searching(self) -> bool:
@@ -233,9 +270,11 @@ class NewsletterSection:
         """Back to the recent sends, keeping the newsletter.
 
         Clearing a search is not starting again: the reader still wants
-        e-Teataja, they have simply finished looking for one issue.
+        e-Teataja, they have simply finished looking for one issue — and they
+        are still looking at whatever news archive they had narrowed to, which
+        is why this carries it and `archive_query` below does not.
         """
-        return _query(self.active)
+        return _query(self.active, carried=self.carried)
 
     @property
     def archive_query(self) -> str:
@@ -243,18 +282,26 @@ class NewsletterSection:
 
         Both pages read `uudiskiri` and `otsi`, so "see all" opens the same
         newsletter and the same term rather than fourteen unfiltered years.
+
+        Deliberately without `carried`: this link leaves the news archive for a
+        page that has none, and `periood` or `kategooria` in that URL would be
+        parameters the archive page does not understand.
         """
         return _query(self.active, self.search)
 
 
 def build_newsletter_section(
-    *, newsletter_key: str | None = None, search: str | None = None
+    *, newsletter_key: str | None = None, search: str | None = None, carried: str = ""
 ) -> NewsletterSection:
     """Read the stored campaign history once and shape it for the page.
 
     Three queries and no subscriber reading: this section is about sends now, so
     the three `get_all_subscriber_series` calls it used to make on every render
     are gone with the rows they fed.
+
+    `carried` is the news archive's own query string, already built and already
+    validated by the caller. It is threaded onto the links that stay on
+    `/uudised/` so this section cannot reset the archive above it.
     """
     active = parse_newsletter(newsletter_key)
     term = parse_search(search)
@@ -269,12 +316,15 @@ def build_newsletter_section(
 
     return NewsletterSection(
         active=active,
-        options=newsletter_options(active, with_other=has_unclassified_campaigns(), search=term),
+        options=newsletter_options(
+            active, with_other=has_unclassified_campaigns(), search=term, carried=carried
+        ),
         figures=_figures(aggregate) if aggregate is not None else (),
         issues=issues,
         aggregate=aggregate,
         search=term,
         total_sends=campaign_queryset(metric=metric, search=term).count(),
+        carried=carried,
     )
 
 
@@ -336,6 +386,7 @@ __all__ = [
     "audience_label",
     "build_newsletter_section",
     "newsletter_options",
+    "newsletter_state",
     "parse_newsletter",
     "parse_search",
 ]

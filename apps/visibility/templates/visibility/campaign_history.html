@@ -3,9 +3,9 @@
 {% comment %}
 Every completed Smaily send, filterable by type and searchable by subject.
 
-The archive behind the Nähtavus page's most-recent list. It exists as its own
+The archive behind the Uudised page's most-recent list. It exists as its own
 page because fourteen years of campaigns is not a section: rendering three
-thousand rows into Nähtavus would make every visit pay for history almost nobody
+thousand rows into Uudised would make every visit pay for history almost nobody
 wants on that visit.
 
 The search is a plain GET form. Without JavaScript it submits and reloads, which
@@ -21,7 +21,7 @@ is the whole interaction — there is nothing here that needs scripting.
       siia ei jõua.
     </p>
     <p>
-      <a class="dk-link text-sm" href="{% url 'visibility' %}">← Tagasi nähtavuse lehele</a>
+      <a class="dk-link text-sm" href="{% url 'news' %}">← Tagasi uudiste lehele</a>
     </p>
   </div>
 
@@ -63,7 +63,7 @@ is the whole interaction — there is nothing here that needs scripting.
                  placeholder="Pealkirja osa…"
                  autocomplete="off"
                  class="dk-input min-w-0"
-                 hx-get="{% url 'visibility-campaign-history-search' %}"
+                 hx-get="{% url 'news-newsletter-history-search' %}"
                  hx-trigger="input changed delay:250ms, search"
                  hx-target="#history-results"
                  hx-swap="innerHTML"

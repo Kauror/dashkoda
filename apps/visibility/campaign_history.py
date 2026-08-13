@@ -1,6 +1,6 @@
 """The complete record of what the Chamber has sent through Smaily.
 
-The Nähtavus page shows the most recent sends. This is the archive behind them:
+The Uudised page shows the most recent sends. This is the archive behind them:
 3 194 completed campaigns on this account, the oldest from August 2012, and
 every one of them reachable by type, by period and by subject.
 
@@ -9,10 +9,11 @@ every one of them reachable by type, by period and by subject.
 Two reasons, and the second is the one that decided it:
 
 - fourteen years of sends is not a section, it is a page. Rendering three
-  thousand rows into the Nähtavus page would make every visit pay for history
+  thousand rows into the Uudised page would make every visit pay for history
   almost nobody is asking for on that visit;
-- the Nähtavus page answers "how are we doing"; this answers "what did we send
-  and when". A reader arrives here already knowing which of the two they want.
+- the Uudised page answers "what have we published and how did it do"; this
+  answers "what did we send and when". A reader arrives here already knowing
+  which of the two they want.
 
 ## Every completed send, and only completed sends
 

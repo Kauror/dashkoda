@@ -3,21 +3,22 @@ from django.urls import path
 from .views import (
     campaign_history,
     campaign_history_search_fragment,
-    newsletter_search_fragment,
     traffic_search_fragment,
     visibility_overview,
 )
 
-# The `otsi/` routes answer a keystroke with the results region alone. They are
-# ordinary viewer-protected `GET`s, so a reader without JavaScript never reaches
-# them — the forms on the pages above submit to the pages themselves.
+# The `otsi/` route answers a keystroke with the results region alone. It is an
+# ordinary viewer-protected `GET`, so a reader without JavaScript never reaches
+# it — the form on the page above submits to the page itself.
+#
+# The two `uudiskirjad/` routes are kept as redirects rather than deleted. The
+# send archive is a news page now, and a board member who bookmarked it here
+# should arrive at it with their newsletter, their search term and their page
+# intact rather than at a 404. `/nahtavus/otsi/uudiskirjad/` is not kept: it was
+# an internal live-search fragment that nothing links to and nobody bookmarks,
+# and its whole purpose was to push a `/nahtavus/` URL that is now wrong.
 urlpatterns = [
     path("nahtavus/", visibility_overview, name="visibility"),
-    path(
-        "nahtavus/otsi/uudiskirjad/",
-        newsletter_search_fragment,
-        name="visibility-newsletter-search",
-    ),
     path(
         "nahtavus/otsi/sisu/",
         traffic_search_fragment,

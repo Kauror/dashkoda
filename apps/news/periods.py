@@ -245,6 +245,7 @@ def build_query(
     page: int | None = None,
     start: date | None = None,
     end: date | None = None,
+    carried: str = "",
 ) -> str:
     """One URL's worth of state, assembled from validated values only.
 
@@ -253,6 +254,12 @@ def build_query(
     paging keeps all three. The alternative — copying `request.GET` and editing
     one key — carries whatever else was in the URL, including keys this page
     does not understand and a `lk=7` that no longer exists.
+
+    `carried` is the newsletter section's own state, which shares this page but
+    not this vocabulary. It arrives already built from
+    `apps.visibility.newsletter_page`, is appended untouched, and is what stops a
+    period chip from clearing the newsletter the reader picked. It is still not
+    `request.GET`: only a section that owns its parameters may hand one over.
     """
     parts = [f"{PARAM_PERIOD}={quote(period_key)}"]
     if period_key == CUSTOM_KEY:
@@ -268,6 +275,8 @@ def build_query(
         parts.append(f"{PARAM_CATEGORY}={quote(category)}")
     if page and page > 1:
         parts.append(f"{PARAM_PAGE}={page}")
+    if carried:
+        parts.append(carried)
     return "&".join(parts)
 
 
@@ -281,7 +290,7 @@ class PeriodOption:
 
 
 def period_options(
-    active: ResolvedPeriod, *, sort: str, search: str, category: str = ""
+    active: ResolvedPeriod, *, sort: str, search: str, category: str = "", carried: str = ""
 ) -> tuple[PeriodOption, ...]:
     """Every period, each linking to itself with the rest of the state kept.
 
@@ -305,6 +314,7 @@ def period_options(
                     category=category,
                     start=active.start if carries_dates else None,
                     end=active.end if carries_dates else None,
+                    carried=carried,
                 ),
             )
         )

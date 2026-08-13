@@ -14,12 +14,16 @@ Three rules this markup exists to keep:
     still renders the form, because the control that clears the search is inside
     it — see the `has_issues or is_searching` guard below.
 
-**How many people are on each list is not here.** It is one card up, in
-`Praegune seis`, where `_newsletter_slot` lists all three under `Uudiskirjad`.
-This section had them a second time — first as sparklines, then as rows once the
-charts came off — and a figure printed twice on one page is a figure a reader
-has to check against itself. This section answers "does anybody read what we
-send"; the band above answers "how many could".
+**How many people are on each list is not here.** It is one card up, under
+`Uudiskirjad`, where `build_newsletter_slot` lists all three. This section had
+them a second time — first as sparklines, then as rows once the charts came off
+— and a figure printed twice on one page is a figure a reader has to check
+against itself. This section answers "does anybody read what we send"; the card
+above answers "how many could".
+
+This markup is included by the Uudised page. It was the Nähtavus page's until the
+newsletter material moved; nothing in here changed with it, and the presenter is
+still `apps.visibility.newsletter_page.build_newsletter_section`.
 {% endcomment %}
 <section aria-labelledby="section-newsletter-analytics" class="dk-section">
   {% include "dashboard/components/section_header.html" with title="Uudiskirjade tulemused" heading_id="section-newsletter-analytics" only %}
@@ -102,7 +106,7 @@ send"; the band above answers "how many could".
                    placeholder="Pealkirja osa…"
                    autocomplete="off"
                    class="dk-input w-full min-w-0"
-                   hx-get="{% url 'visibility-newsletter-search' %}"
+                   hx-get="{% url 'news-newsletter-search' %}"
                    hx-trigger="input changed delay:250ms, search"
                    hx-target="#newsletter-results"
                    hx-swap="innerHTML"

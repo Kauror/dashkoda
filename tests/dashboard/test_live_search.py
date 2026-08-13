@@ -20,7 +20,7 @@ ALLOWED = ("periood", "sisu", "otsi")
 
 def request_from(current_url=None):
     headers = {"HTTP_HX_CURRENT_URL": current_url} if current_url else {}
-    return RequestFactory().get("/nahtavus/otsi/uudiskirjad/", **headers)
+    return RequestFactory().get("/uudised/otsi/uudiskirjad/", **headers)
 
 
 def test_the_rest_of_the_page_survives_a_keystroke():

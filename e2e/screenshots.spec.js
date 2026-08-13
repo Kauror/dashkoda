@@ -25,6 +25,21 @@ test("capture the visibility page", async ({ page }, testInfo) => {
   await page.screenshot({ path: shot(testInfo, "visibility"), fullPage: true });
 });
 
+test("capture the news page", async ({ page }, testInfo) => {
+  // Added when the newsletter card and analytics moved here from Nähtavus. The
+  // two pages are reviewed as a pair now, because what changed is which of them
+  // carries the section rather than anything the section says.
+  await signIn(page);
+  await page.goto("/uudised/");
+  await page.screenshot({ path: shot(testInfo, "news"), fullPage: true });
+});
+
+test("capture the newsletter archive", async ({ page }, testInfo) => {
+  await signIn(page);
+  await page.goto("/uudised/uudiskirjad/");
+  await page.screenshot({ path: shot(testInfo, "newsletter-archive"), fullPage: true });
+});
+
 test("capture the open mobile drawer", async ({ page }, testInfo) => {
   test.skip(page.viewportSize().width >= 1024, "narrow layouts only");
 

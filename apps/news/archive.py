@@ -114,6 +114,10 @@ class NewsArchive:
     catalogue_is_empty: bool
     undated_count: int
     _unclassified: int = 0
+    #: The newsletter section's state, carried through every link this archive
+    #: builds. The two sections share `/uudised/` and neither may reset the
+    #: other; see `build_query` in `periods.py`.
+    carried: str = ""
 
     @property
     def has_rows(self) -> bool:
@@ -220,6 +224,7 @@ class NewsArchive:
             page=page,
             start=self.period.start,
             end=self.period.end,
+            carried=self.carried,
         )
 
     @property
@@ -232,7 +237,7 @@ class NewsArchive:
 
 
 def _sort_options(
-    active: str, period: ResolvedPeriod, search: str, category: str
+    active: str, period: ResolvedPeriod, search: str, category: str, carried: str = ""
 ) -> tuple[SortOption, ...]:
     return tuple(
         SortOption(
@@ -246,6 +251,7 @@ def _sort_options(
                 category=category,
                 start=period.start,
                 end=period.end,
+                carried=carried,
             ),
         )
         for key in SORT_KEYS
@@ -253,7 +259,7 @@ def _sort_options(
 
 
 def _category_options(
-    active: str, period: ResolvedPeriod, sort: str, search: str
+    active: str, period: ResolvedPeriod, sort: str, search: str, carried: str = ""
 ) -> tuple[CategoryOption, ...]:
     """`Kõik` first, then the two real categories.
 
@@ -274,6 +280,7 @@ def _category_options(
                 category=key,
                 start=period.start,
                 end=period.end,
+                carried=carried,
             ),
         )
         for key, label in choices
@@ -305,6 +312,7 @@ def build_news_archive(
     category: str = "",
     page: int = 1,
     today: date | None = None,
+    carried: str = "",
 ) -> NewsArchive:
     """Read the catalogue once and shape it for the page.
 
@@ -327,16 +335,19 @@ def build_news_archive(
     return NewsArchive(
         rows=tuple(_describe(resource) for resource in current.object_list),
         period=resolved,
-        periods=period_options(resolved, sort=sort, search=search, category=category),
+        periods=period_options(
+            resolved, sort=sort, search=search, category=category, carried=carried
+        ),
         sort=sort,
-        sorts=_sort_options(sort, resolved, search, category),
+        sorts=_sort_options(sort, resolved, search, category, carried),
         category=category,
-        categories=_category_options(category, resolved, sort, search),
+        categories=_category_options(category, resolved, sort, search, carried),
         search=search,
         total=paginator.count,
         page_number=current.number,
         total_pages=paginator.num_pages,
         coverage=get_coverage(),
+        carried=carried,
         **_catalogue_facts(),
     )
 

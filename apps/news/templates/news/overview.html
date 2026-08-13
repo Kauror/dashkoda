@@ -162,5 +162,37 @@ noreferrer"`, a visually hidden note naming the destination and the new tab, and
     {% endif %}
   </div>
 
+  {% comment %}
+  ---------------- The newsletters ----------------
+
+  Appended below the archive rather than woven into it. The archive above answers
+  "what did we publish"; these two blocks answer "whom did we reach, and did
+  anybody read it" — a related question, not the same one, so it keeps its own
+  heading and its own controls instead of adding chips beside the period filter.
+
+  Both come from `apps.visibility`, which still owns Smaily entirely. The card is
+  the same `ChannelSlot` the overall dashboard's band renders, built by
+  `build_newsletter_slot`; the section under it is the same `_newsletters.html`
+  the Nähtavus page used to include. Neither was copied into this app.
+
+  The three lists are shown one by one and **never totalled**: they are three
+  separate audiences and nobody has counted how many people are on more than one,
+  so a sum would silently claim that overlap is zero. A list nobody has collected
+  contributes no row rather than a zero.
+  {% endcomment %}
+  <section aria-labelledby="section-newsletter-audience" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Uudiskirjad" heading_id="section-newsletter-audience" description="Kui suur on iga uudiskirja praegune tellijaskond." only %}
+    {% comment %}
+    One card, so the strip is pinned to a single column at every width. Left at
+    its default it would keep two to four cells, and the empty ones would show
+    the strip's own `bg-border` through as a grey block.
+    {% endcomment %}
+    <div class="dk-kpi-strip sm:grid-cols-1 xl:grid-cols-1">
+      {% include "dashboard/components/channel_card.html" with slot=newsletter_slot flush=True only %}
+    </div>
+  </section>
+
+  {% include "visibility/_newsletters.html" with newsletters=newsletters only %}
+
 </div>
 {% endblock %}
