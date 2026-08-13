@@ -59,10 +59,35 @@ data/
   extraction_warnings.csv
   conflicts.csv
   coverage.csv
+  decision_batches.csv                 # 2.0 only
+  decision_batch_size_movements.csv    # 2.0 only
+  decision_batch_reasons.csv           # 2.0 only
+  new_member_periods.csv               # 2.0 only
+  new_member_size_distribution.csv     # 2.0 only
 review/
   final_report.json
   membership_history_review.xlsx
 ```
+
+### Schema versions
+
+`1.0` and `2.0` are both accepted. `2.0` adds the five files marked above and
+nothing in `1.0` changed meaning, so a `1.0` package is parsed exactly as it
+always was.
+
+The bump is **major** rather than minor because a `2.0` package answers a
+question `1.0` could not express at all: what one board decision did, as
+distinct from what a year had done so far.
+
+Which files are required depends on the declared version. A `1.0` package that
+nevertheless carries a `2.0` table is refused rather than read leniently — the
+manifest declares which contract is in force, and the two would otherwise
+disagree about it.
+
+`ParsedPackage.row_counts` reports **no key at all** for the `2.0` tables when
+reading a `1.0` package. `decision_batches: 0` would say the package looked and
+found none, when the truth is that it cannot describe batches. That is the same
+missing-is-not-zero rule the data itself is held to.
 
 Everything may sit inside a single top-level directory or at the archive root;
 two competing roots are refused because `manifest.json` would then be ambiguous.
@@ -75,7 +100,8 @@ without PostgreSQL:
 2. bounded member count, member size, total uncompressed size and compression
    ratio, checked against the declared *and* the extracted size;
 3. `IMPORT_README.md` and `manifest.json` are required;
-4. the manifest's `schema_version` must be one this importer knows (`1.0`);
+4. the manifest's `schema_version` must be one this importer knows (`1.0` or
+   `2.0`), and the files present must match the version it declares;
 5. every declared file is verified by server-computed SHA-256 and byte size;
 6. a member the manifest does not list is refused, not ignored;
 7. every CSV must present its exact expected header, in order;
@@ -114,6 +140,57 @@ All in `apps/membership/models/internal.py`.
 | `MembershipRemovalReason` | departures per reported reason |
 | `MembershipDataIssue` | one imported quality warning, and its resolution |
 | `MembershipMetricConflict` | two documents disagreeing about one metric on one date |
+| `MembershipDecisionBatch` | one board decision's own list of departures |
+| `MembershipDecisionBatchSizeMovement` | that batch by company-size band |
+| `MembershipDecisionBatchReason` | that batch by reason family |
+| `MembershipNewMemberPeriod` | new members over a span the board never split |
+| `MembershipNewMemberSizeDistribution` | new members by size, for a month or a period |
+
+### A decision batch is not a year-to-date figure
+
+`MembershipDecisionBatch` is the model most likely to be misread, so the rule is
+stated here as well as in the code: **a batch says what one decision did, and it
+is never added to, compared with, or drawn beside a year-to-date total.** The
+corpus contains a March 2021 decision ending 25 memberships beside a
+`removed_members_ytd` of 62 on the same report. Those are different questions.
+
+The model carries **two dates** because the sources do. The appendix states the
+date it was compiled on (`as_of_date`, "04.03 seisuga"); the board signs later
+(`decision_date`, "11.märts 2021"). Neither is derived from the other, and a
+batch whose decision date the source never gave keeps `None` rather than
+borrowing the as-of date. They are sometimes the same day — decision nr 6 of
+2026 is both — and the interface names both only when they differ.
+
+Nothing attaches a batch to an observation, however close the dates are.
+
+### Two reason vocabularies, deliberately
+
+`RemovalReasonKey` names the three aggregate categories the membership-overview
+document itself reports for a year to date. `BatchDepartureReasonKey` names the
+eight families the decision appendices' free text falls into. They describe
+different facts at different scopes and neither replaces the other.
+
+The batch families were derived from a full inventory of 2 258 reason rows
+across 2014–2026, of which 95.1 % map into a named family. The rest stay `other`
+or `unknown` rather than being forced into a neighbouring one. Mapping is
+literal and clause-by-clause with no edit-distance matching, so a new wording
+falls to `other` and appears in the review queue instead of being guessed at.
+
+**`MembershipDecisionBatchReason` has no field capable of holding raw text, and
+that is the guarantee.** The free reason written beside a member sometimes names
+another company, so an absent column is the only reliable protection; a test
+asserts the package header stays four columns wide.
+
+### Two more size bands
+
+`SizeBand` gained `group_company` and `unknown`. Both describe real rows: the
+Chamber's own new-member template carries a `grupi ettevõte` line, and `***` is
+how the source writes "size not known". 205 rows in the corpus cannot be
+represented without them. A malformed `-1000` is **not** read as `1000+`, and
+`50-90` is not read as `50-99`; both stay `unknown`.
+
+`EMPLOYEE_SIZE_BANDS` now derives from `NON_EMPLOYEE_SIZE_BANDS`, so the new
+keys cannot drift into a chart that means to show employee counts only.
 
 `MembershipMetricConflict` is separate from `MembershipDataIssue` because the key
 is different — a date and a metric rather than a warning identifier — and
@@ -206,7 +283,16 @@ get_removal_reasons(observation_id)
 get_internal_membership_quality_summary()
 get_manual_entry_defaults(reporting_year)
 get_observation_detail(observation_id)
+get_decision_batches(date_from, date_to, limit=60)
+get_new_member_periods(date_from, date_to)
+get_monthly_size_distribution(year, month)
 ```
+
+`get_decision_batches()` returns `()` for a window with no decision, never a
+zero: a period the board did not record that way is not a period in which nobody
+left. Sizes come back in canonical band order and reasons largest-first — bands
+are an ordinal scale whose order is the only thing the axis means, while reasons
+have no inherent order, so ranking them is most of the answer.
 
 `get_internal_membership_quality_summary()` returns counts only. No warning code,
 no filesystem path, no parser detail and no conflicting value leaves it, which is
@@ -365,6 +451,29 @@ month.
 A chart is not rendered at all when it has nothing to draw, and the chart bundle
 is loaded only on pages that draw one.
 
+### Board-decision charts
+
+Two more charts draw a decision batch: its reasons and its size bands, both
+horizontal bars. They live in their own `section-decisions`, deliberately **not**
+folded into the movement section. That section describes an observation's
+year-to-date position; a batch describes what a single decision did. Drawing
+them under one heading would invite exactly the addition this dataset exists to
+prevent, so the section states the caveat on the page rather than only in a
+comment:
+
+> Ühe juhatuse otsuse enda nimekiri. Ei ole aasta algusest kogunenud arv ega ole
+> sellega liidetav.
+
+The reason chart ranks largest-first; the size chart never does, because the
+bands are an ordinal scale. Each chart labels itself with both of the batch's
+dates when they differ, so a reader can tell the day the members were counted
+from the day the board signed.
+
+`seed_e2e_data` publishes two batches, which is what makes the section visible to
+the browser suite at all. Before that it drew nothing there, and a green suite
+would have proved only that the parts work rather than that anything reaches
+them — the same blind spot that hid the website-traffic section on `/nähtavus/`.
+
 ### How much history a trend draws
 
 The overview card and the Liikmeskond page both offer the same range control,
@@ -436,25 +545,54 @@ traces are never shown.
 
 ## Deployment: the one-time import
 
-Not yet performed. When it is, the package is copied to a temporary path on the
-server and the sequence is:
+**A schema 1.0 package was imported on 2026-07-31**, from 148 membership-overview
+documents: 296 observations, 234 monthly values, 2960 size movements, 435 removal
+reasons, 522 warnings and 27 conflicts.
+
+That extraction opened only the recurring overview documents — its candidate rule
+was `filename contains 'liikmeskond seisuga'` — so the monthly "Uued liikmed"
+spreadsheets, the "Otsuse nr N lisa" appendices, the formal decisions and the
+board protocols were never read. Recovering them is what schema 2.0 exists for.
+
+### Importing over an existing history
+
+The `unchanged` check keys on importer, schema version and package digest, so it
+recognises **the same package run twice and nothing else**. A rebuilt package has
+a different digest, and raising the importer's schema version changes the key
+even for an identical file. Neither is caught there, and each would write a
+complete second copy of the history beside the first.
+
+So a live import into a populated history stops before the transaction opens.
+`--supersede-previous` is the explicit way through: it marks the existing
+observations `superseded` and no longer preferred, which are the only two fields
+a published observation permits changing. Nothing is deleted, no value is
+rewritten, and the old rows keep their numbers, their children and their place in
+the audit trail.
+
+The sequence, with the package copied to a temporary path on the server:
 
 ```bash
-docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-import-package.zip --dry-run --json
+docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-2.0.zip --dry-run --json
 ```
 
 ```bash
-docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-import-package.zip --json
+docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-2.0.zip --supersede-previous --json
 ```
 
 ```bash
-docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-import-package.zip --json
+docker compose exec -T web python manage.py import_membership_history --package /run/imports/dashkoda-membership-history-2.0.zip --supersede-previous --json
 ```
 
-The dry run validates and publishes nothing; the second call imports; the third
-must report `unchanged`. The temporary copy can be removed afterwards — the
-registered artifact carries the content identity, and the application never needs
-the file again.
+The dry run validates and publishes nothing; the second call imports and
+supersedes; the third must report `unchanged`. A dry run is never blocked by an
+existing history, so the first call is safe to run at any time.
+
+A package that fails partway supersedes nothing — the guard runs inside the same
+atomic block as the writes, so a broken rebuild cannot leave the history half
+replaced.
+
+The temporary copy can be removed afterwards: the registered artifact carries the
+content identity, and the application never needs the file again.
 
 ## No automation yet
 
