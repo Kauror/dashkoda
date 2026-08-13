@@ -306,7 +306,15 @@ def _write_observations(
             indexed[winner.key].is_preferred_for_date = True
 
     InternalMembershipObservation.objects.bulk_create(observations, batch_size=BATCH_SIZE)
-    return {observation.external_snapshot_id: observation for observation in observations}
+    # Keyed by the package's own snapshot id, not the stored one. The suffix a
+    # replacement run adds is a storage detail that keeps retired rows distinct;
+    # every caller here — the size movements, the removal reasons — looks an
+    # observation up by the identifier the package used, and would otherwise
+    # miss every row the moment a supersede added one.
+    return {
+        row.snapshot_id: observation
+        for row, observation in zip(parsed.snapshots, observations, strict=True)
+    }
 
 
 def _direct_observations_by_source(
