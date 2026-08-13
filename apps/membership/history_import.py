@@ -675,6 +675,15 @@ def _guard_against_a_second_history(source, *, supersede_previous: bool) -> int:
     MembershipMonthlyNewMemberValue.objects.filter(source=source, is_current_for_month=True).update(
         is_current_for_month=False, value_status=MonthlyValueStatus.SUPERSEDED
     )
+
+    # Decision batches need the same retirement, and missing it put two copies of
+    # every board decision on the page after the second import: the run-qualified
+    # key let both generations exist, and the selector — which excludes only
+    # superseded rows — then drew both under one date. Superseding is a state
+    # change; the batch keeps its counts and both of its distributions.
+    MembershipDecisionBatch.objects.filter(source=source).exclude(
+        quality_status=QualityStatus.SUPERSEDED
+    ).update(quality_status=QualityStatus.SUPERSEDED)
     return superseded
 
 

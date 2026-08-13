@@ -172,6 +172,30 @@ def test_no_unique_constraint_in_the_app_survives_a_supersede(
     assert checked >= 5, "expected to have checked the membership uniqueness rules"
 
 
+def test_the_page_sees_one_generation_of_decisions_after_a_supersede(
+    tmp_path, history_written_by_a_package
+):
+    """What the reader gets, not just what the tables hold.
+
+    The uniqueness sweep passed while the page showed every board decision
+    twice: the run-qualified key let both generations exist legitimately, and
+    the selector excludes only superseded rows. Nothing asserted what a reader
+    would actually see, so nothing caught it.
+    """
+    from apps.membership.internal_selectors import get_decision_batches
+
+    import_history_package(_rebuilt(tmp_path), dry_run=False, supersede_previous=True)
+    import_history_package(
+        build_package(tmp_path / "third.zip", schema_version="2.0", readme=b"# third\n"),
+        dry_run=False,
+        supersede_previous=True,
+    )
+
+    drawn = get_decision_batches()
+    seen = [(b.as_of_date, b.kind) for b in drawn]
+    assert len(seen) == len(set(seen)), "a decision is drawn more than once"
+
+
 def test_a_failed_supersede_leaves_the_history_whole(tmp_path, history_written_by_a_package):
     """A rebuild that cannot be written must not retire what is already there."""
     from apps.membership.history_import import MembershipHistoryImportError
