@@ -684,6 +684,11 @@ def _guard_against_a_second_history(source, *, supersede_previous: bool) -> int:
     MembershipDecisionBatch.objects.filter(source=source).exclude(
         quality_status=QualityStatus.SUPERSEDED
     ).update(quality_status=QualityStatus.SUPERSEDED)
+
+    # New-member periods accumulate the same way and for the same reason.
+    MembershipNewMemberPeriod.objects.filter(source=source).exclude(
+        quality_status=QualityStatus.SUPERSEDED
+    ).update(quality_status=QualityStatus.SUPERSEDED)
     return superseded
 
 

@@ -208,6 +208,33 @@ def test_the_page_sees_one_generation_of_decisions_after_a_supersede(
     )
 
 
+def test_new_member_periods_do_not_accumulate_across_imports(
+    tmp_path, history_written_by_a_package
+):
+    """Periods were the last table without a status to move.
+
+    They were invisible rather than harmless: nothing drew them, so twelve
+    becoming twenty-four went unnoticed until the counts were read directly.
+    """
+    from apps.membership.internal_selectors import get_new_member_periods
+    from apps.membership.models import MembershipNewMemberPeriod
+
+    import_history_package(_rebuilt(tmp_path), dry_run=False, supersede_previous=True)
+    after_first = len(get_new_member_periods())
+
+    import_history_package(
+        build_package(tmp_path / "third.zip", schema_version="2.0", readme=b"# third\n"),
+        dry_run=False,
+        supersede_previous=True,
+    )
+
+    assert len(get_new_member_periods()) == after_first
+    # Retired, not deleted, and still carrying their reported figure.
+    retired = MembershipNewMemberPeriod.objects.filter(quality_status=QualityStatus.SUPERSEDED)
+    assert retired.exists()
+    assert retired.exclude(new_members=None).count() == retired.count()
+
+
 def test_a_failed_supersede_leaves_the_history_whole(tmp_path, history_written_by_a_package):
     """A rebuild that cannot be written must not retire what is already there."""
     from apps.membership.history_import import MembershipHistoryImportError

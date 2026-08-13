@@ -577,7 +577,9 @@ def get_new_member_periods(
     June and July together cannot be placed on a month axis without inventing a
     split the source never stated.
     """
-    queryset = MembershipNewMemberPeriod.objects.filter(source__slug=_internal_source_slug())
+    queryset = MembershipNewMemberPeriod.objects.filter(
+        source__slug=_internal_source_slug()
+    ).exclude(quality_status=QualityStatus.SUPERSEDED)
     if date_from is not None:
         queryset = queryset.filter(period_end__gte=date_from)
     if date_to is not None:

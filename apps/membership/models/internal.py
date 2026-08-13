@@ -1181,6 +1181,17 @@ class MembershipNewMemberPeriod(models.Model):
     period_start = models.DateField(verbose_name="Perioodi algus")
     period_end = models.DateField(verbose_name="Perioodi lõpp")
     new_members = models.PositiveIntegerField(null=True, blank=True, verbose_name="Uusi liikmeid")
+    # A replacement import retires the previous generation rather than deleting
+    # it, exactly as observations and decision batches do. Without a status to
+    # move, the rows simply accumulated: a second import turned twelve periods
+    # into twenty-four, and only the fact that nothing drew them yet kept that
+    # off the page.
+    quality_status = models.CharField(
+        max_length=20,
+        choices=QualityStatus,
+        default=QualityStatus.VERIFIED,
+        verbose_name="Kvaliteedi olek",
+    )
     extraction_confidence = models.CharField(
         max_length=16,
         choices=ExtractionConfidence,
