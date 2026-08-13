@@ -1,20 +1,20 @@
 """Presentation-only navigation model for the dashboard shell.
 
-The overview, Liikmeskond, Õigusloome, Sündmused and Uudised are routed. The
-remaining entries describe planned modules so that the shell communicates the
-intended scope honestly; they are rendered as disabled items marked `Lisamisel`
-and never as links, so no navigation can lead to a 404 and no premature business
-route or placeholder app is created.
+Every entry here is routed today. The model still distinguishes a routed entry
+from an unrouted one — an entry without a `url_name` renders as disabled text
+marked `Lisamisel` rather than as a link, so navigation can never lead to a 404
+and no premature business route or placeholder app is created — but nothing is
+currently waiting behind that rule.
 
 An entry may carry children. A child follows exactly the same rule as its
-parent: it is a link when it has a route and inert text when it does not.
-Nesting is how the sidebar shows that Fookusteemad belongs to Õigusloome,
-without inventing a route for it.
+parent: it is a link when it has a route and inert text when it does not. No
+entry nests today, but the shape is kept: it is how the sidebar would show that
+a view belongs to a section without inventing a route for it.
 
-Arvamused, Projektid and Finantsid were listed here as planned modules and were
-removed at the board's request. Naming a module the sidebar cannot open earns
-its place only while somebody is waiting for it; these three were reading as
-clutter instead.
+Arvamused, Projektid, Finantsid and Fookusteemad were listed here as planned
+modules and were removed at the board's request. Naming a module the sidebar
+cannot open earns its place only while somebody is waiting for it; these were
+reading as clutter instead.
 """
 
 from dataclasses import dataclass, field
@@ -35,12 +35,7 @@ class NavItem:
 NAVIGATION: tuple[NavItem, ...] = (
     NavItem(key="overview", label="Ülevaade", url_name="home"),
     NavItem(key="membership", label="Liikmeskond", url_name="membership"),
-    NavItem(
-        key="legislation",
-        label="Õigusloome",
-        url_name="legal-work",
-        children=(NavItem(key="focus-topics", label="Fookusteemad"),),
-    ),
+    NavItem(key="legislation", label="Õigusloome", url_name="legal-work"),
     NavItem(key="events", label="Sündmused", url_name="events"),
     NavItem(key="news", label="Uudised", url_name="news"),
     # Beside Uudised: both answer "who did we reach", one by what was published

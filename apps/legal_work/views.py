@@ -20,7 +20,6 @@ from django.urls import reverse
 from django.utils import timezone
 from django.views.decorators.http import require_GET
 
-from apps.dashboard.connections import planned
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
@@ -46,17 +45,6 @@ from .selectors import (
     get_upcoming_deadlines,
 )
 from .topic_links import present_deadlines, present_topics, resolve_links_for
-
-# Reserved by the design as a view under Õigusloome. Nothing selects or stores a
-# focus topic, so the page names it as unconnected rather than showing an empty
-# list a reader could mistake for "no focus topics this quarter".
-FOCUS_TOPICS = planned(
-    # "Juhatuse valitud prioriteetsed teemad" was removed with the section
-    # descriptions. What stays is why the section is empty, which is the only
-    # part a reader cannot infer from the heading.
-    "Fookusteemad",
-    promise="Allikat ei ole veel määratud.",
-)
 
 
 @require_GET
@@ -86,7 +74,6 @@ def legal_work_overview(request):
         query=parse_query(request.GET.get(PARAM_QUERY)),
         status=parse_status(request.GET.get(PARAM_STATUS)),
         page=parse_page(request.GET.get(PARAM_PAGE)),
-        population=summary.total_count if summary.has_data else 0,
     )
     links = resolve_links_for(open_items, sent_items, deadlines, search.results)
 
@@ -115,7 +102,6 @@ def legal_work_overview(request):
             "deadlines": present_deadlines(deadlines, links),
             "search": search.presented_with(links),
             "activity_window_days": ACTIVITY_WINDOW_DAYS,
-            "focus_topics": FOCUS_TOPICS,
         },
     )
 
@@ -146,7 +132,6 @@ def legal_work_search_fragment(request):
         snapshot,
         query=parse_query(request.GET.get(PARAM_QUERY)),
         status=parse_status(request.GET.get(PARAM_STATUS)),
-        population=get_legal_work_summary().total_count,
     )
     return search_fragment(
         request,

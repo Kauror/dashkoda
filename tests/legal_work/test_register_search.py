@@ -313,7 +313,8 @@ def test_the_page_searches_and_says_what_it_searched(viewer, make_workbook, regi
 
     body = viewer.get(reverse("legal-work"), {"otsing": "Leitav"}).content.decode()
 
-    assert "Otsi registrist" in body
+    # The heading itself, not the submit button, which also reads `Otsi`.
+    assert ">Otsi</h2>" in body
     assert "Leitav teema" in body
     assert "1 kirje." in body
 
@@ -332,8 +333,13 @@ def test_the_standing_lists_stay_while_searching(viewer, make_workbook, register
     assert "Viimati välja läinud" in body
 
 
-def test_the_page_states_the_population_before_a_search(viewer, make_workbook, register_workbook):
-    """A result list cannot tell a reader that the search covered everything."""
+def test_the_page_says_nothing_about_the_search_before_one_is_made(
+    viewer, make_workbook, register_workbook
+):
+    """The scope note was a permanent line answering an unasked question.
+
+    The box and the status chips stay; only the caption went.
+    """
     publish(
         [synthetic_row(record_id="SYN-1", topic="Teema", source_row=2)],
         make_workbook,
@@ -342,7 +348,9 @@ def test_the_page_states_the_population_before_a_search(viewer, make_workbook, r
 
     body = viewer.get(reverse("legal-work")).content.decode()
 
-    assert "Otsitakse kõigist registri kirjetest" in body
+    assert "Otsitakse kõigist registri kirjetest" not in body
+    assert 'id="otsing"' in body
+    assert "Välja läinud" in body
 
 
 def test_the_search_costs_no_extra_link_query(

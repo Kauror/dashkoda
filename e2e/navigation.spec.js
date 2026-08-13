@@ -2,12 +2,11 @@ import { expect, test } from "@playwright/test";
 
 import { signIn, watchConsole } from "./helpers.js";
 
-const PLANNED = ["Fookusteemad"];
 const ROUTED = ["Ülevaade", "Liikmeskond", "Õigusloome", "Sündmused", "Uudised", "Nähtavus"];
 
 const isDesktop = (page) => page.viewportSize().width >= 1024;
 
-test("navigation routes the implemented modules and marks the rest planned", async ({ page }) => {
+test("navigation routes every module it names", async ({ page }) => {
   await signIn(page);
 
   if (!isDesktop(page)) {
@@ -18,14 +17,10 @@ test("navigation routes the implemented modules and marks the rest planned", asy
   for (const label of ROUTED) {
     await expect(menu.getByRole("link", { name: label })).toBeVisible();
   }
-  for (const label of PLANNED) {
-    // A planned module is an inert item carrying its label and the Lisamisel
-    // badge, never a link.
-    const item = menu.locator('[aria-disabled="true"]', { hasText: label });
-    await expect(item).toBeVisible();
-    await expect(item).toContainText("Lisamisel");
-    await expect(menu.getByRole("link", { name: label })).toHaveCount(0);
-  }
+  // Fookusteemad was the last planned entry and is gone. Nothing in the sidebar
+  // is an inert item any more, so nothing carries the Lisamisel badge.
+  await expect(menu.locator('[aria-disabled="true"]')).toHaveCount(0);
+  await expect(menu.getByText("Lisamisel")).toHaveCount(0);
 });
 
 test("the desktop sidebar is persistent and the hamburger is absent", async ({ page }) => {

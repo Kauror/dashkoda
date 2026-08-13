@@ -79,8 +79,13 @@ current snapshot the page renders the documented empty states instead.
   list above — the view resolves them all in one query.
   {% endcomment %}
   <section aria-labelledby="section-search" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Otsi registrist" heading_id="section-search" only %}
-    <div class="dk-section-body flex min-w-0 flex-col gap-3">
+    {% include "dashboard/components/section_header.html" with title="Otsi" heading_id="section-search" only %}
+    {% comment %}
+    Tighter than the standard body on both axes. The section is one input, one
+    button and a row of chips — three controls, none of which reads better for
+    being spaced like a table.
+    {% endcomment %}
+    <div class="dk-section-body flex min-w-0 flex-col gap-2 py-3 sm:py-4">
       {% comment %}
       A plain GET form. Without the bundle it submits and reloads; with it, the
       input's `hx-*` attributes filter the rows below as somebody types and the
@@ -125,7 +130,7 @@ current snapshot the page renders the documented empty states instead.
       arrived without a page change, the same contract the Nähtavus searches
       follow.
       {% endcomment %}
-      <div id="legal-search-results" aria-live="polite" class="flex min-w-0 flex-col gap-3">
+      <div id="legal-search-results" aria-live="polite" class="flex min-w-0 flex-col gap-2">
         {% include "legal_work/partials/_search_results.html" with search=search only %}
       </div>
     </div>
@@ -219,15 +224,7 @@ current snapshot the page renders the documented empty states instead.
     {% endif %}
   </section>
 
-  {# ---------------- 4. Fookusteemad ---------------- #}
-  <section aria-labelledby="section-focus" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Fookusteemad" heading_id="section-focus" badge_label="Lisamisel" badge_variant="neutral" only %}
-    <div class="dk-section-body">
-      {% include "dashboard/components/planned_module.html" with connection=focus_topics only %}
-    </div>
-  </section>
-
-  {# ---------------- 5. Andmete seis ---------------- #}
+  {# ---------------- 4. Andmete seis ---------------- #}
   <section aria-labelledby="section-data-state" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="section-data-state" only %}
     <div class="dk-section-body flex flex-col gap-3">
