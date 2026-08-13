@@ -209,26 +209,14 @@ def test_a_dry_run_validates_the_rebuild_without_touching_the_history(
     assert MembershipDecisionBatch.objects.count() == 0
 
 
-#: The same unresolved conflict `test_history_import_v2.py` documents in full:
-#: `--supersede-previous` writes a second generation, and the external-id and
-#: `is_current` keys say there may only ever be one. Here it surfaces on
-#: `membershipmonthly_one_current_per_month`, because
-#: `_guard_against_a_second_history` marks only observations superseded and
-#: leaves monthly values, batches and periods current — which is part of why
-#: resolving it is a schema decision rather than a one-line repair.
-#:
-#: The four tests in this file that do not supersede all pass, so the fixture
-#: and the rebuild path itself are covered; only the second generation is not.
-SUPERSEDE_IS_UNRESOLVED = pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "supersede_previous conflicts with the external-id and is_current keys; "
-        "see the note in tests/membership/test_history_import_v2.py"
-    ),
-)
+#: `--supersede-previous` was unresolved when these tests were written: the
+#: external-id and `is_current` keys said there may only ever be one generation.
+#: It is resolved now — provenance rows are reused, fact rows carry a run-
+#: qualified identifier, and monthly values are retired alongside observations.
+#: `tests/membership/test_supersede_identity.py` covers the case these could
+#: not: a history written *by a package*, whose identifiers a rebuild reproduces.
 
 
-@SUPERSEDE_IS_UNRESOLVED
 def test_the_rebuild_supersedes_without_losing_a_single_old_row(
     tmp_path, production_shaped_history
 ):
@@ -268,7 +256,6 @@ def test_the_rebuild_supersedes_without_losing_a_single_old_row(
     )
 
 
-@SUPERSEDE_IS_UNRESOLVED
 def test_repeating_the_rebuild_is_a_no_op(tmp_path, production_shaped_history):
     package = build_package(tmp_path / "rebuild.zip", schema_version="2.0")
     import_history_package(package, dry_run=False, supersede_previous=True)
