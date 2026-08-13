@@ -308,7 +308,10 @@ test("the advanced filters stay folded until one of them is applied", async ({ p
   // Applied from the URL rather than by clicking, because what matters is the
   // server deciding to render it open: a folded control hiding a filter that is
   // narrowing the table is how a reader ends up mistrusting the row count.
-  await open_(page, "?year=all&public_link=linked");
+  //
+  // `page.goto` rather than a second `open_`: that helper signs in first, and
+  // signing in twice in one test lands on a dashboard with no PIN field to fill.
+  await page.goto(`${PAGE}?year=all&public_link=linked`);
   await expect(page.locator("details", { hasText: "Täpsem valik" })).toHaveAttribute("open", /.*/);
   await expect(page.getByText("1 aktiivne")).toBeVisible();
 });
