@@ -251,6 +251,43 @@ dashboard overview. They stay on the default focus and keep their ids;
     </section>
   {% endif %}
 
+  {# ---------------- Enim tagasisidet saanud teemad ---------------- #}
+  {% comment %}
+  Neutrally titled. A high count means broad engagement, not importance: a
+  technical amendment affecting one sector can matter enormously and draw three
+  replies, and nothing here ranks significance.
+
+  Topic names only. The source holds no member identity and this table adds none.
+  {% endcomment %}
+  {% if page.feedback_topics %}
+    <section aria-labelledby="section-feedback-topics" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Enim liikmete tagasisidet saanud teemad" heading_id="section-feedback-topics" only %}
+      <div class="w-full overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <caption class="sr-only">Teemad, millel liikmed andsid kõige rohkem tagasisidet</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Aasta</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tagasisidet andis</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Küsiti otse</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for topic in page.feedback_topics %}
+              <tr>
+                <th scope="row" class="max-w-xl border-b border-border px-4 py-2 text-left font-medium text-text">{{ topic.topic }}</th>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ topic.source_year }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ topic.feedback_member_count }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ topic.requested_member_count|default_if_none:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
   {# ---------------- Tagasiside kaetus aastate lõikes ---------------- #}
   {% comment %}
   The coverage table is what stops the feedback figures being misread. Tracking

@@ -1075,6 +1075,100 @@ def _category_breakdown(
     )
 
 
+@dataclass(frozen=True)
+class FeedbackCategoryRow:
+    """Member participation within one category.
+
+    `tracked` is the denominator that makes the other two readable: a category
+    with two feedback topics out of three measured is not the same as two out of
+    ninety, and without it the ranking would simply follow category size.
+    """
+
+    label: str
+    tracked: int
+    with_feedback: int
+    instances: int | None
+
+
+def feedback_breakdown(
+    snapshot: LegalWorkSnapshot | None,
+    field_name: str,
+    *,
+    limit: int = TOP_CATEGORY_LIMIT,
+) -> tuple[FeedbackCategoryRow, ...]:
+    """Where member participation is concentrated, by act type or recipient.
+
+    Descriptive only. That members engage more on one recipient's files does not
+    mean the recipient caused it — the subject matter, the deadline and the
+    Chamber's own outreach all sit between the two, and none of them is here.
+
+    Ordered by how many topics actually drew feedback rather than by category
+    size, and categories with nothing tracked are dropped instead of being drawn
+    as a row of zeroes.
+    """
+    if snapshot is None:
+        return ()
+    rows = (
+        _items(snapshot)
+        .exclude(**{field_name: ""})
+        .filter(feedback_member_count__isnull=False)
+        .values(field_name)
+        .annotate(
+            tracked=Count("id"),
+            with_feedback=Count("id", filter=Q(feedback_member_count__gt=0)),
+            instances=Sum("feedback_member_count"),
+        )
+        .order_by("-with_feedback", "-tracked", field_name)[:limit]
+    )
+    return tuple(
+        FeedbackCategoryRow(
+            label=row[field_name],
+            tracked=row["tracked"],
+            with_feedback=row["with_feedback"],
+            instances=row["instances"],
+        )
+        for row in rows
+    )
+
+
+@dataclass(frozen=True)
+class FeedbackTopic:
+    topic: str
+    feedback_member_count: int
+    requested_member_count: int | None
+    source_year: int
+
+
+def top_feedback_topics(
+    snapshot: LegalWorkSnapshot | None, *, limit: int = TOP_CATEGORY_LIMIT
+) -> tuple[FeedbackTopic, ...]:
+    """The matters that drew the most member responses.
+
+    Titled neutrally. A high count means broad engagement, not importance: a
+    technical amendment affecting one sector can matter enormously and draw
+    three replies, and nothing here ranks significance.
+    """
+    if snapshot is None:
+        return ()
+    rows = (
+        _items(snapshot)
+        .filter(feedback_member_count__gt=0)
+        .order_by("-feedback_member_count", "topic")
+        .values_list(
+            "topic", "feedback_member_count", "feedback_requested_member_count", "source_year"
+        )[:limit]
+    )
+    return tuple(
+        FeedbackTopic(
+            topic=topic,
+            feedback_member_count=given,
+            requested_member_count=asked,
+            source_year=year,
+        )
+        for topic, given, asked, year in rows
+    )
+
+
 def recipient_breakdown(
     snapshot: LegalWorkSnapshot | None, *, limit: int = TOP_CATEGORY_LIMIT
 ) -> tuple[CategoryRow, ...]:

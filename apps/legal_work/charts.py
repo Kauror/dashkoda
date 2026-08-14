@@ -32,6 +32,7 @@ from .analytics import (
     AnnualPoint,
     CategoryRow,
     DeadlinePressure,
+    FeedbackCategoryRow,
     MonthlyFlow,
     ResponseWindowDistribution,
     ResponseWindowYear,
@@ -612,6 +613,120 @@ def deadline_pressure_chart(pressure: DeadlinePressure) -> ChartPayload:
             f"{integer(pressure.without_deadline)} aktiivsel teemal ei ole tähtaega märgitud.",
         ),
         empty_message="Tähtaegadega teemasid ei ole.",
+    )
+
+
+def annual_topics_chart(points: tuple[AnnualPoint, ...]) -> ChartPayload:
+    """`Teemad aastate lõikes`, by the register's own annual grouping.
+
+    Context for the opinion series rather than a comparison with it: one
+    arriving matter does not produce one opinion, so the two are never drawn on
+    a shared axis or subtracted from each other.
+    """
+    labels: list[str] = []
+    data: list = []
+    for point in points:
+        labels.append(f"{point.year} (YTD)" if point.is_partial else str(point.year))
+        if point.is_partial:
+            data.append(
+                {"value": point.count, "itemStyle": {"color": "transparent", "borderWidth": 2}}
+            )
+        else:
+            data.append(point.count)
+
+    option = {
+        **_base_option(legend=False),
+        "xAxis": {"type": "category", "data": labels},
+        "yAxis": {"type": "value", "minInterval": 1},
+        "series": [
+            {
+                "type": "bar",
+                "name": "Teemasid",
+                "data": data,
+                "label": {"show": True, "position": "top", **BAR_LABEL},
+                "labelLayout": LABEL_LAYOUT,
+            }
+        ],
+    }
+
+    return ChartPayload(
+        payload_id="legal-annual-topics",
+        title="Teemad aastate lõikes",
+        question="Kui palju õigusloome tööd on Kojal aastate lõikes olnud?",
+        option=option,
+        table_headers=("Aasta", "Teemasid"),
+        table_rows=tuple(
+            (f"{point.year} (YTD)" if point.is_partial else str(point.year), integer(point.count))
+            for point in points
+        ),
+        summary=f"Teemade arv {len(points)} aasta lõikes; jooksev aasta on osaline.",
+        footnotes=(
+            "Aasta on registri enda jaotus (lähteaasta), mitte saabumise kuupäev, "
+            "nii et detsembris saabunud teema võib kuuluda järgmise aasta hulka.",
+        ),
+        empty_message="Teemasid ei ole.",
+        size="large",
+    )
+
+
+def feedback_category_chart(
+    rows: tuple[FeedbackCategoryRow, ...],
+    *,
+    payload_id: str,
+    title: str,
+    question: str,
+    category_header: str,
+) -> ChartPayload:
+    """Where member participation is concentrated.
+
+    The number of *measured* topics travels beside every bar, because a category
+    with two feedback topics out of three and one with two out of ninety would
+    otherwise draw identical bars.
+    """
+    labels = [row.label for row in rows]
+    counts = [row.with_feedback for row in rows]
+
+    option = {
+        **_base_option(legend=False),
+        "grid": {**GRID, "left": 8, "right": 48},
+        "tooltip": {"trigger": "item"},
+        "xAxis": {"type": "value", "axisLabel": {"show": False}, "splitLine": {"show": False}},
+        "yAxis": {"type": "category", "data": list(reversed(labels))},
+        "series": [
+            {
+                "type": "bar",
+                "name": "Tagasisidega teemasid",
+                "data": list(reversed(counts)),
+                "label": {"show": True, "position": "right", **BAR_LABEL},
+                "labelLayout": LABEL_LAYOUT,
+            }
+        ],
+    }
+
+    return ChartPayload(
+        payload_id=payload_id,
+        title=title,
+        question=question,
+        option=option,
+        table_headers=(category_header, "Tagasisidega teemasid", "Mõõdetud teemasid", "Juhtumeid"),
+        table_rows=tuple(
+            (
+                row.label,
+                integer(row.with_feedback),
+                integer(row.tracked),
+                integer(row.instances) if row.instances is not None else "–",
+            )
+            for row in rows
+        ),
+        summary=f"Liikmete tagasiside jaotus {len(rows)} kategooria lõikes.",
+        footnotes=(
+            "Kirjeldav jaotus. See, et mõne kategooria teemadel antakse rohkem "
+            "tagasisidet, ei tähenda, et kategooria selle põhjustas.",
+            "Kategooriad, kus tagasisidet ei ole üldse mõõdetud, jäetakse välja, "
+            "et neid ei loetaks nullideks.",
+        ),
+        empty_message="Tagasiside andmeid ei ole veel piisavalt.",
+        size="categorical",
     )
 
 

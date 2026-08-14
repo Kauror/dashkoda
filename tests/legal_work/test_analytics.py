@@ -854,6 +854,43 @@ def test_more_answers_than_direct_requests_is_representable(publish):
     assert summary.requested_instances == 2
 
 
+def test_a_category_with_nothing_tracked_is_dropped_rather_than_drawn_as_zero(publish):
+    """An untracked category is not a category where nobody responded."""
+    snapshot = publish(
+        [
+            row(3, 30, record_id="B-1", source_year=2026, source_row=2, act_type="seadus"),
+            row(0, 5, record_id="B-2", source_year=2026, source_row=3, act_type="seadus"),
+            # Tracked nowhere: it must not appear as a bar of zero.
+            row(None, None, record_id="B-3", source_year=2026, source_row=4, act_type="määrus"),
+        ]
+    )
+
+    breakdown = {entry.label: entry for entry in analytics.feedback_breakdown(snapshot, "act_type")}
+
+    assert "määrus" not in breakdown
+    assert breakdown["seadus"].tracked == 2
+    assert breakdown["seadus"].with_feedback == 1
+    assert breakdown["seadus"].instances == 3
+
+
+def test_the_most_engaged_topics_are_ranked_without_claiming_importance(publish):
+    snapshot = publish(
+        [
+            row(12, 40, record_id="T-1", source_year=2026, source_row=2, topic="Sünteetiline suur"),
+            row(2, 40, record_id="T-2", source_year=2026, source_row=3, topic="Sünteetiline väike"),
+            # A measured zero is not "most engaged" and must not be listed.
+            row(0, 40, record_id="T-3", source_year=2026, source_row=4, topic="Sünteetiline null"),
+        ]
+    )
+
+    topics = analytics.top_feedback_topics(snapshot)
+
+    assert [topic.topic for topic in topics] == ["Sünteetiline suur", "Sünteetiline väike"]
+    assert topics[0].feedback_member_count == 12
+    # Counts per topic, never a member identity: there is no such field to leak.
+    assert not any("member_name" in vars(topic) for topic in topics)
+
+
 # --------------------------------------------------------------------------
 # Category breakdowns and data quality
 # --------------------------------------------------------------------------

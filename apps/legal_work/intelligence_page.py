@@ -33,6 +33,7 @@ from .analytics import (
     count_topics_for_year,
     data_quality,
     deadline_pressure,
+    feedback_breakdown,
     feedback_coverage_by_year,
     feedback_summary,
     first_tracked_feedback_year,
@@ -44,6 +45,7 @@ from .analytics import (
     sent_by_deadline,
     sent_year_on_year,
     stage_breakdown,
+    top_feedback_topics,
     topics_year_on_year,
     warning_code_counts,
 )
@@ -79,6 +81,12 @@ FOCUS_KEYS = frozenset(key for key, _label in FOCUS_CHOICES)
 #: How many approaching deadlines the overview lists before linking onward. The
 #: front page answers "what has to leave next", not "everything with a date".
 OVERVIEW_DEADLINE_LIMIT = 5
+
+#: Below this many measured topics the feedback breakdowns are not drawn at all.
+#: A ranking built from two measured matters describes the measurement rather
+#: than the participation, and an empty chart beside a "measurement is still
+#: starting" note contradicts the note.
+MIN_FEEDBACK_TOPICS_FOR_BREAKDOWN = 10
 
 
 def parse_focus(raw: str | None) -> str:
@@ -166,6 +174,7 @@ class IntelligencePage:
     pressure: DeadlinePressure | None = None
     feedback: FeedbackSummary | None = None
     feedback_coverage: tuple = ()
+    feedback_topics: tuple = ()
     feedback_start_year: int | None = None
     quality: DataQuality | None = None
     warning_codes: tuple = ()
@@ -439,6 +448,7 @@ def _workflow(snapshot, year, focus, label, links) -> IntelligencePage:
                 previous=previous_sent,
                 series_label="Välja saadetud arvamused",
             ),
+            charts.annual_topics_chart(annual_topics(snapshot)),
             charts.category_chart(
                 act_type_breakdown(snapshot),
                 payload_id="legal-act-types",
@@ -538,6 +548,34 @@ def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
             "Varasemaid aastaid ei kuvata nullina.",
         )
 
+    # Only drawn once there is something to describe. A breakdown built from two
+    # measured topics would rank noise, and an empty bar chart beside a
+    # "measurement is still starting" note contradicts the note.
+    breakdown_charts: list = []
+    if summary.tracked_topics >= MIN_FEEDBACK_TOPICS_FOR_BREAKDOWN:
+        by_act_type = feedback_breakdown(snapshot, "act_type")
+        by_recipient = feedback_breakdown(snapshot, "recipient")
+        if by_act_type:
+            breakdown_charts.append(
+                charts.feedback_category_chart(
+                    by_act_type,
+                    payload_id="legal-feedback-act-types",
+                    title="Milliste õigusaktide teemadel liikmed tagasisidet annavad",
+                    question="Kus liikmete osalus koondub?",
+                    category_header="Õigusakti liik",
+                )
+            )
+        if by_recipient:
+            breakdown_charts.append(
+                charts.feedback_category_chart(
+                    by_recipient,
+                    payload_id="legal-feedback-recipients",
+                    title="Tagasisidega teemad saaja järgi",
+                    question="Milliste asutuste teemadel liikmed osalevad?",
+                    category_header="Saaja",
+                )
+            )
+
     return IntelligencePage(
         focus=focus,
         focus_label=label,
@@ -546,6 +584,8 @@ def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
         feedback=summary,
         feedback_coverage=feedback_coverage_by_year(snapshot),
         feedback_start_year=start_year,
+        feedback_topics=top_feedback_topics(snapshot),
+        charts=tuple(breakdown_charts),
         footnotes=tuple(footnotes),
     )
 
