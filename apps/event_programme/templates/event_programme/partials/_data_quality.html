@@ -24,16 +24,19 @@ Context:
   <div class="dk-section-body">
     <details class="text-sm">
       <summary class="cursor-pointer text-text-secondary">
-        {% if quality.review_required %}
+        {% if not quality.export_refreshed_at %}
+          Sündmuseprogrammi ei ole veel imporditud
+        {% elif quality.review_required %}
           {{ quality.review_required }} sündmust vajavad ülevaatust
         {% else %}
           Andmed korras
         {% endif %}
-        · allikas seisuga {{ quality.export_refreshed_at|date:"j.m.Y" }}
+        {% if quality.export_refreshed_at %}· allikas seisuga {{ quality.export_refreshed_at|date:"j.m.Y" }}{% endif %}
       </summary>
 
       <div class="mt-4 flex flex-col gap-5">
 
+        {% if quality.export_refreshed_at %}
         <div class="flex flex-col gap-2">
           <h3 class="text-sm font-medium text-text">Programmi eksport</h3>
           <dl class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
@@ -87,6 +90,8 @@ Context:
               </p>
             {% endif %}
           </div>
+        {% endif %}
+
         {% endif %}
 
         <div class="flex flex-col gap-2">

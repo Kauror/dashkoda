@@ -70,13 +70,24 @@ def test_first_run_publishes_a_snapshot(make_workbook, event_programme_source):
     assert state.last_error_summary == ""
 
 
-def test_no_price_field_exists_on_the_model(make_workbook):
-    """The workbook carries pricing; the model must have nowhere to put it."""
+def test_only_the_normalised_price_fields_reach_the_model(make_workbook):
+    """The workbook carries far more about money than the model has room for.
+
+    The current price pair and the generator's own status are stored; the raw
+    echoes, the discount pair and the later prices have nowhere to go, so a
+    generator that started writing something sensitive into one of them could
+    not leak it through this app.
+    """
     synchronize_public_workbook(downloader=FakeDownloader(make_workbook()))
 
     field_names = {field.name for field in EventProgrammeItem._meta.get_fields()}
-    assert not any("price" in name for name in field_names)
+    assert {name for name in field_names if "price" in name} == {
+        "member_price_eur",
+        "nonmember_price_eur",
+    }
     assert not any("discount" in name for name in field_names)
+    assert not any("later" in name for name in field_names)
+    assert not any(name.endswith("_raw") for name in field_names)
 
 
 def test_identical_bytes_are_reported_unchanged(make_workbook):

@@ -99,8 +99,6 @@ attendees.
       {% include "event_programme/partials/_focus_register.html" with page=page only %}
     {% endif %}
 
-    {% include "event_programme/partials/_data_quality.html" with quality=intelligence.quality public_calendar=public_calendar public_upcoming_count=public_upcoming_count only %}
-
   {% else %}
 
     <section aria-labelledby="section-programme" class="dk-section">
@@ -111,6 +109,15 @@ attendees.
     </section>
 
   {% endif %}
+
+  {% comment %}
+  Outside the branch on purpose. The public Koda.ee calendar is a connection of
+  its own with its own schedule, so it keeps being named and keeps stating its
+  own count even on a day the programme has never imported — the two feeds fail
+  independently and a page that hid one because the other was empty would be
+  reporting a connection state it had not checked.
+  {% endcomment %}
+  {% include "event_programme/partials/_data_quality.html" with quality=intelligence.quality public_calendar=public_calendar public_upcoming_count=public_upcoming_count only %}
 
 </div>
 {% endblock %}

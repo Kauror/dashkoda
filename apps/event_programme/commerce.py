@@ -407,12 +407,19 @@ def join_report(items) -> JoinReport:
             programme_paths[path] = programme_paths.get(path, 0) + 1
 
     matched = set(programme_paths) & set(pages)
+    # `order_by()` with no arguments is load-bearing rather than tidiness.
+    # `ShopProductPage` orders by product, role and path; a `DISTINCT` query
+    # inheriting that ordering has those columns appended to its select list —
+    # Django does it silently — and would count distinct *(product, role, path)*
+    # triples instead of distinct products. The unique constraint happens to
+    # make the two agree today, which is exactly why the mistake would survive.
     products = (
         ShopProductPage.objects.filter(
             is_current=True,
             page_role=PageRole.EVENT,
             product__product_type=ProductType.EVENT_REGISTRATION,
         )
+        .order_by()
         .values("product_id")
         .distinct()
         .count()

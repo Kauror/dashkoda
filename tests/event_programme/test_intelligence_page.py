@@ -164,10 +164,57 @@ def test_the_headline_names_the_grain(viewer_client, programme):
     assert "mitte toimumiskord" in html
 
 
-def test_an_upcoming_event_without_a_page_is_surfaced(viewer_client, programme):
+def test_an_upcoming_event_without_a_page_is_surfaced(viewer_client, publish_programme):
+    """The actionable signal: something starts soon and nothing links to it.
+
+    Published here rather than taken from the shared fixture, whose upcoming
+    event does carry a link — the notice has to be provoked to be tested.
+    """
+    from django.utils import timezone
+
+    from .workbook_factory import synthetic_row
+
+    today = timezone.localdate()
+    publish_programme(
+        rows=[
+            synthetic_row(
+                event_id="E-1",
+                service_code="1",
+                event_name="Sünteetiline lingita tulev sündmus",
+                start_date=dt.datetime.combine(today + dt.timedelta(days=6), dt.time()),
+                event_status="upcoming",
+                source_row=2,
+            )
+        ]
+    )
     overview = _get(viewer_client, fookus=FOCUS_OVERVIEW).context["intelligence"].overview
     texts = " ".join(notice.text for notice in overview.notices)
     assert "avaliku koda.ee lehega" in texts
+
+
+def test_a_linked_upcoming_event_raises_no_notice(viewer_client, publish_programme):
+    from django.utils import timezone
+
+    from .conftest import SYNTHETIC_URL
+    from .workbook_factory import synthetic_row
+
+    today = timezone.localdate()
+    publish_programme(
+        rows=[
+            synthetic_row(
+                event_id="E-1",
+                service_code="1",
+                start_date=dt.datetime.combine(today + dt.timedelta(days=6), dt.time()),
+                event_status="upcoming",
+                public_url=SYNTHETIC_URL,
+                public_link_status="linked_embedded_latest",
+                source_row=2,
+            )
+        ]
+    )
+    overview = _get(viewer_client, fookus=FOCUS_OVERVIEW).context["intelligence"].overview
+    texts = " ".join(notice.text for notice in overview.notices)
+    assert "avaliku koda.ee lehega" not in texts
 
 
 def test_undated_events_are_disclosed_on_the_overview(viewer_client, programme):
