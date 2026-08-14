@@ -84,6 +84,7 @@ def test_only_the_normalised_price_fields_reach_the_model(make_workbook):
     assert {name for name in field_names if "price" in name} == {
         "member_price_eur",
         "nonmember_price_eur",
+        "price_status",
     }
     assert not any("discount" in name for name in field_names)
     assert not any("later" in name for name in field_names)

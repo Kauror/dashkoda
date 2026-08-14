@@ -310,15 +310,20 @@ def test_the_page_no_longer_carries_the_export_connection_strip(viewer, programm
     assert "Viimane edukas sünkroonimine" not in page
 
 
-def test_the_figure_strip_no_longer_counts_events_with_a_public_page(viewer, programme):
-    """It described the workbook's link column rather than the programme, and
-    the Avalik leht filter is where a reader acts on it."""
-    page = body(viewer.get(PAGE_URL))
-    figures = page.split('id="section-figures"', 1)[1].split("</section>", 1)[0]
+def test_the_register_carries_no_figure_strip_of_its_own(viewer, programme):
+    """Headline counts belong to Ülevaade; the register lists rows.
 
-    assert "Avaliku lehega" not in figures
-    assert "Sündmusi perioodil" in figures
-    assert 'name="public_link"' in page, "the filter it duplicated is still offered"
+    The strip used to sit above this table and now would repeat, on every
+    register render, three counts the overview already states — including one
+    the table states for itself two lines below. What the register keeps is the
+    filter a reader acts on.
+    """
+    page = body(viewer.get(PAGE_URL))
+
+    assert 'id="section-figures"' not in page
+    assert "Sündmusi perioodil" not in strip_tags(page)
+    assert 'name="public_link"' in page, "the link filter is still offered"
+    assert "Vastavaid sündmusi" in strip_tags(page), "the table states its own count"
 
 
 def test_the_month_filter_narrows_the_table(viewer, programme):

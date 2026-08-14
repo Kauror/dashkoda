@@ -1,8 +1,14 @@
-"""Everything the Sündmused page renders, assembled in one readable place.
+"""The Sündmused register: the exact lookup surface of the dashboard.
 
-The view renders. What the reader sees — which period is the default, which
-figures lead, how a filter state becomes a URL, how the table paginates — is
-decided here, so the template holds layout and no business rule.
+`/sundmused/?fookus=programm`. The view renders; what the reader sees — which
+period is the default, how a filter state becomes a URL, how the table
+paginates and orders — is decided here, so the template holds layout and no
+business rule.
+
+The headline figures are **not** here. They belong to `Ülevaade`, which is the
+page that answers questions; the register lists rows and states its own count
+under the filters. Computing the same three counts again above the table would
+put one number on screen twice and cost three queries per render to do it.
 
 Two properties are deliberate:
 
@@ -38,7 +44,6 @@ from .selectors import (
     LINK_LINKED,
     LINK_UNLINKED,
     LINK_VALUES,
-    NEAR_TERM_DAYS,
     PAGE_SIZE,
     REVIEW_ALL,
     REVIEW_CLEAR,
@@ -53,9 +58,6 @@ from .selectors import (
     FilterOptions,
     Option,
     ProgrammeFilters,
-    count_events_for_year,
-    count_events_started_within,
-    count_events_starting_within,
     count_review_required_events,
     count_unknown_date_events,
     get_event_programme_filter_options,
@@ -85,15 +87,6 @@ REVIEW_OPTIONS = (
     Option(value=REVIEW_REQUIRED, label="Vajab ülevaatust"),
     Option(value=REVIEW_CLEAR, label="Ülevaadatud"),
 )
-
-
-@dataclass(frozen=True)
-class Figure:
-    """One compact figure above the table."""
-
-    label: str
-    value: int | None
-    note: str = ""
 
 
 @dataclass(frozen=True)
@@ -150,7 +143,6 @@ class ProgrammePage:
     filters: ProgrammeFilters
     options: FilterOptions
     period_label: str
-    figures: tuple[Figure, ...]
     items: tuple = ()
     pagination: Pagination = Pagination()
     result_count: int = 0
@@ -326,7 +318,6 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
             filters=filters,
             options=options,
             period_label=ALL_YEARS_LABEL,
-            figures=(),
             clear_url=reverse("events"),
         )
 
@@ -355,7 +346,6 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
         filters=filters,
         options=options,
         period_label=str(filters.year) if filters.year is not None else ALL_YEARS_LABEL,
-        figures=_figures(snapshot, filters),
         items=tuple(items),
         pagination=_pagination(page, filters),
         result_count=paginator.count,
@@ -439,37 +429,6 @@ def _ranked_by_views(rows) -> list:
     # renders and pagination stays stable.
     measured.sort(key=lambda pair: (-pair[0].total, pair[1].event_id))
     return [item for _, item in measured] + [item for _, item in unmeasured]
-
-
-def _figures(snapshot, filters: ProgrammeFilters) -> tuple[Figure, ...]:
-    """Three figures, each stating the period it measures.
-
-    The filtered result count is not among them: the table states its own count,
-    and repeating it as a fourth card would put the same number on screen twice.
-
-    Nor is the count of events carrying a confirmed public link. That is a
-    property of the workbook's link column rather than of the programme, the
-    "Avalik leht" filter is where a reader acts on it, and the board asked for it
-    off the figure strip.
-    """
-    period = str(filters.year) if filters.year is not None else "kogu ajaloos"
-    return (
-        Figure(
-            label="Sündmusi perioodil",
-            value=count_events_for_year(snapshot, filters.year),
-            note=period,
-        ),
-        Figure(
-            label="Algab lähiajal",
-            value=count_events_starting_within(snapshot),
-            note=f"järgmise {NEAR_TERM_DAYS} päeva jooksul",
-        ),
-        Figure(
-            label="Algas hiljuti",
-            value=count_events_started_within(snapshot),
-            note=f"eelmise {NEAR_TERM_DAYS} päeva jooksul",
-        ),
-    )
 
 
 def _quality_links(snapshot) -> tuple[QualityLink, ...]:
