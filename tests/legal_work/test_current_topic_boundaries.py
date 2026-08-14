@@ -201,27 +201,34 @@ def test_the_overview_renders_without_any_enrichment(
     assert response.status_code == 200
 
 
-def test_the_overview_card_still_carries_the_legal_records(published):
-    from apps.dashboard.overview import build_overview
+def test_the_overview_still_reaches_the_legal_records(published):
+    """The main page no longer lists topics, and still depends on them.
+
+    The overview's Õigusloome preview list moved to the Õigusloome page when the
+    front page became an executive overview. What the main page keeps is the
+    figure and the deadlines, so this asserts the path that survived: the
+    workbook's open records still reach `Koja töölaud`, now through the pillar's
+    count and the shared thirty-day timeline rather than through a card of rows.
+    """
+    from apps.dashboard.executive import build_executive_overview
     from apps.event_programme.selectors import get_event_programme_summary
     from apps.legal_work.selectors import get_legal_work_summary
     from apps.membership.selectors import get_membership_summary
     from apps.news.selectors import get_news_summary
 
-    page = build_overview(
+    page = build_executive_overview(
         legal_work=get_legal_work_summary(),
         membership=get_membership_summary(),
         news=get_news_summary(),
         events=get_event_programme_summary(),
     )
 
-    assert page.legal_work_open
-    # Presentation objects, not model instances: the imported row is reached
-    # through `.item` and is never modified to carry an address.
-    first = page.legal_work_open[0]
-    assert isinstance(first.item, LegalWorkItem)
-    assert hasattr(first, "public_url")
-    assert not hasattr(first.item, "public_url")
+    pillar = next(one for one in page.pillars if one.key == "legal_work")
+    assert pillar.is_available
+    # The imported rows are read, never modified: nothing in the executive path
+    # assigns a resolved address onto a `LegalWorkItem`.
+    assert LegalWorkItem.objects.exists()
+    assert not any(hasattr(item, "public_url") for item in LegalWorkItem.objects.all())
 
 
 # -- imported data is still untouched --------------------------------------

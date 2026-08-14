@@ -3,32 +3,46 @@ from django.views.decorators.http import require_GET
 
 from apps.event_programme.selectors import get_event_programme_summary
 from apps.legal_work.selectors import get_legal_work_summary
-from apps.membership.ranges import LEGACY_PARAM, PARAM_FROM, PARAM_TO
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
 
+from .executive import build_executive_overview
 from .freshness import current_freshness
 from .navigation import NAVIGATION
-from .overview import build_overview
 
 
 @require_GET
 def overview(request):
-    """The board's landing page.
+    """`Koja töölaud` — the executive overview.
 
-    Reads each module's summary, hands them to `build_overview` and renders. All
-    four wired feeds plus the internal board report contribute where they have
-    data; every other part of the page says plainly that it has no source yet.
-    Nothing here reaches outside PostgreSQL.
+    The board's landing page, and deliberately the only page in DashKoda that
+    spans every domain. It answers where the Chamber stands, what needs
+    attention, what is coming in the next thirty days, what audiences are using
+    and whether the data can be trusted — then links to the dashboard that
+    explains each of those.
 
-    The shell freshness row is derived from the same four summaries the page
-    content uses, so each summary is read exactly once per request.
+    It is an orientation layer, not an analytical one. Nothing here paginates,
+    filters, sorts or exports, and no section reproduces a domain dashboard: the
+    question this page answers is "which one should I open".
 
-    The one thing a reader can ask this page for is how much membership history
-    the card draws — two dates, plus the retired button control's key so a stale
-    bookmark keeps meaning what it meant. The parameters are passed on raw;
-    `apps.membership.ranges` decides what they mean, and anything unreadable
-    falls back to the default rather than erroring.
+    ## No period control, on purpose
+
+    The four summaries below are read once and handed both to the shell
+    freshness row and to `build_executive_overview`, so each costs its two
+    indexed queries once per request rather than three times.
+
+    There is no query parameter. The previous overview accepted a membership
+    trend range, and that control moved to the Liikmeskond page with the chart it
+    governed. A single period control across this page would be worse than no
+    control: the domains have genuinely different time semantics — a latest
+    observation, a year-to-date cutoff, thirty measured days, a Commerce export's
+    own window — and one selector over them would imply a comparability that does
+    not exist. Every figure states its own period instead.
+
+    Nothing here reaches outside PostgreSQL. No page render contacts Koda.ee,
+    GA4, Smaily, OneDrive or Commerce; those are scheduled commands, and a
+    request that waited on one of them would be a page that fails when a remote
+    system does.
     """
     legal_work = get_legal_work_summary()
     membership = get_membership_summary()
@@ -41,18 +55,11 @@ def overview(request):
         "navigation": NAVIGATION,
         "active_nav": "overview",
         "freshness": current_freshness(legal_work, membership, news, events),
-        "legal_work": legal_work,
-        "membership": membership,
-        "news": news,
-        "events": events,
-        "page": build_overview(
+        "page": build_executive_overview(
             legal_work=legal_work,
             membership=membership,
             news=news,
             events=events,
-            trend_from=request.GET.get(PARAM_FROM),
-            trend_to=request.GET.get(PARAM_TO),
-            trend_range_key=request.GET.get(LEGACY_PARAM),
         ),
     }
     return render(request, "dashboard/overview.html", context)

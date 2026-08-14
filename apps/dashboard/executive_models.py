@@ -1,0 +1,398 @@
+"""How the executive overview shows a figure. Never what the figure means.
+
+Every type here describes **presentation**: a label, a formatted value, a period
+to print beside it, a link to follow. None of them computes a membership total,
+an opinion count, a session or an acquisition, and none of them decides whether
+a change is large. Those are domain judgements and they arrive already made,
+from the six `executive.py` modules in the domain apps.
+
+The split matters because the overview is the one page that touches every
+domain. If it were allowed to define a KPI, DashKoda would have two definitions
+of that KPI — the domain's and the front page's — and they would drift within a
+month. So the rule is absolute: a number reaches this module already computed,
+already compared and already worded by whoever owns it.
+
+## Why every metric carries its own period
+
+There is deliberately no global period control on this page, because the domains
+do not share a period and cannot be made to. Membership is a latest observation
+against a year-ago one; legal work is year-to-date against the same calendar day;
+the website is thirty measured days; Commerce is thirty days anchored to a manual
+export's own end date. A single `30 p` control across those would manufacture the
+appearance of comparability.
+
+The consequence is that **the period travels with the number**, in the metric
+rather than in the section heading, and `ExecutiveMetric` cannot be constructed
+without one. A figure whose period is unknown is a figure nobody can check.
+
+## Availability is three states, not two
+
+`is_available` false with an `unavailable_note` is a source that has nothing to
+say. It is not zero, and the templates render an em dash and the note. A metric
+that measured zero is available and carries `"0"`, which reads quite differently
+and must.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime
+
+from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
+
+from .sparkline import Sparkline
+
+
+@dataclass(frozen=True)
+class ExecutiveLink:
+    """One drill-through. The label says where it goes, not "read more"."""
+
+    label: str
+    url: str
+    #: Set for a link leaving DashKoda, so the template can mark it.
+    is_external: bool = False
+
+
+@dataclass(frozen=True)
+class ExecutiveComparison:
+    """One figure set against one earlier figure, already worded.
+
+    `text` is the delta as it will be printed — `+8,4%`, `−124` — and carries
+    its own sign, so direction is never conveyed by colour alone. `basis` names
+    what it was compared with, in the domain's own words.
+
+    `unavailable_note` is how a domain declines to compare. The website's
+    coverage rules are the worked example: two windows measured to different
+    completeness are not subtractable, and the page prints the reason where the
+    delta would have been rather than a delta nobody should trust.
+    """
+
+    text: str = ""
+    basis: str = ""
+    direction: str = SignalDirection.NONE
+    unavailable_note: str = ""
+
+    @property
+    def is_available(self) -> bool:
+        return bool(self.text) and not self.unavailable_note
+
+    @property
+    def has_note(self) -> bool:
+        return bool(self.unavailable_note)
+
+
+@dataclass(frozen=True)
+class ExecutiveMetric:
+    """One figure, with everything needed to check it.
+
+    `value` is a string because it is already formatted by
+    `apps.core.formatting` — grouped thousands, an Estonian decimal comma, a
+    real minus sign. Handing the template a number would let one page format a
+    thousand differently from another.
+
+    `value` of `None` means unavailable. `"0"` means measured zero.
+    """
+
+    label: str
+    period: str
+    source: str
+    value: str | None = None
+    unit: str = ""
+    as_of: date | datetime | None = None
+    comparison: ExecutiveComparison | None = None
+
+    @property
+    def is_available(self) -> bool:
+        return self.value is not None
+
+    @property
+    def has_comparison(self) -> bool:
+        return self.comparison is not None and self.comparison.is_available
+
+
+@dataclass(frozen=True)
+class ExecutiveFact:
+    """One supporting figure under a headline. Smaller, and still sourced.
+
+    A fact carries its own source and date because a pillar may mix them: the
+    Liikmeskond pillar's headline is the public directory and its paid share is
+    the internal board report, and a reader must be able to tell which is which
+    without being told twice.
+    """
+
+    label: str
+    value: str | None = None
+    source: str = ""
+    as_of: date | datetime | None = None
+    #: Where exactly these rows are listed, when such a page exists.
+    url: str = ""
+
+    @property
+    def is_available(self) -> bool:
+        return self.value is not None
+
+    @property
+    def has_link(self) -> bool:
+        return bool(self.url)
+
+
+@dataclass(frozen=True)
+class ExecutivePillar:
+    """One strategic area, answering one question.
+
+    Ordered as the reader asks: what the question is, the one figure that
+    answers it, what that figure means, and then the supporting detail. A pillar
+    holds at most one visual, never a table, and never a filter.
+    """
+
+    key: str
+    label: str
+    question: str
+    headline: ExecutiveMetric | None = None
+    #: One sentence, composed by the domain from its own explicit metrics.
+    meaning: str = ""
+    facts: tuple[ExecutiveFact, ...] = ()
+    trend: Sparkline | None = None
+    #: What the trend's line is, so it is never read as the headline's history
+    #: when it is not.
+    trend_label: str = ""
+    links: tuple[ExecutiveLink, ...] = ()
+    #: Why this pillar has nothing to show. Empty when it does.
+    unavailable_note: str = ""
+
+    @property
+    def is_available(self) -> bool:
+        return self.headline is not None and self.headline.is_available
+
+    @property
+    def available_facts(self) -> tuple[ExecutiveFact, ...]:
+        return tuple(fact for fact in self.facts if fact.is_available)
+
+
+@dataclass(frozen=True)
+class ExecutiveSignal:
+    """One domain's signal, placed on the page.
+
+    The domain supplied everything except `domain_label` and `position`: what it
+    says, how urgent it is and where it links. This adds only which pillar it
+    belongs to and where it ended up in the order, because those are facts about
+    the page rather than about legislation or Commerce.
+    """
+
+    signal: DomainSignal
+    domain_label: str
+    domain_key: str
+
+    @property
+    def key(self) -> str:
+        return self.signal.key
+
+    @property
+    def headline(self) -> str:
+        return self.signal.headline
+
+    @property
+    def evidence(self) -> str:
+        return self.signal.evidence
+
+    @property
+    def priority(self) -> str:
+        return self.signal.priority
+
+    @property
+    def direction(self) -> str:
+        return self.signal.direction
+
+    @property
+    def href(self) -> str:
+        return self.signal.href
+
+    @property
+    def as_of(self):
+        return self.signal.as_of
+
+    @property
+    def has_link(self) -> bool:
+        return self.signal.has_link
+
+    @property
+    def priority_label(self) -> str:
+        """The urgency in words, because colour is never the only signal."""
+        return _PRIORITY_LABELS[self.signal.priority]
+
+
+_PRIORITY_LABELS: dict[str, str] = {
+    SignalPriority.CRITICAL: "Kiireloomuline",
+    SignalPriority.ATTENTION: "Tähelepanu",
+    SignalPriority.NOTABLE: "Tähelepanuväärne",
+}
+
+
+@dataclass(frozen=True)
+class ExecutiveUpcomingItem:
+    """One dated thing coming up, in the shared timeline.
+
+    `url` is empty unless the destination identifies **this record**. A row
+    pointing at a page that merely mentions the same domain is worse than a row
+    that does not link at all, because it promises a detail view and delivers a
+    list.
+    """
+
+    when: date
+    domain_label: str
+    domain_key: str
+    title: str
+    context: str = ""
+    url: str = ""
+    #: An address outside DashKoda — a public event page.
+    is_external: bool = False
+
+    @property
+    def has_link(self) -> bool:
+        return bool(self.url)
+
+
+@dataclass(frozen=True)
+class ExecutiveInterestItem:
+    """One panel of `Praegu huvi pakkuv`.
+
+    Four of these appear side by side and their metrics are **not comparable**:
+    page views, article views, event-page views and acquired units. Each states
+    its own metric name and its own period for exactly that reason, and nothing
+    ranks them against one another or puts them on a shared axis.
+    """
+
+    domain_label: str
+    domain_key: str
+    title: str
+    metric_value: str | None = None
+    metric_label: str = ""
+    period: str = ""
+    #: Secondary context — a publication date, an event date, a product type.
+    context: str = ""
+    url: str = ""
+    is_external: bool = False
+    unavailable_note: str = ""
+
+    @property
+    def is_available(self) -> bool:
+        return self.metric_value is not None and bool(self.title)
+
+    @property
+    def has_link(self) -> bool:
+        return bool(self.url)
+
+
+@dataclass(frozen=True)
+class ExecutiveDataStatus:
+    """What one business domain's source is doing, in that source's own terms.
+
+    Not one freshness rule applied six times. A monthly board report is not
+    stale because it is older than yesterday, and a dated Commerce export is not
+    a failed feed. `state_label` is the domain's own vocabulary and `limitation`
+    is what a reader should know before trusting the figures above.
+    """
+
+    domain_label: str
+    domain_key: str
+    source_label: str
+    state: str
+    state_label: str
+    state_variant: str = "neutral"
+    as_of: date | datetime | None = None
+    coverage: str = ""
+    limitation: str = ""
+
+    @property
+    def has_limitation(self) -> bool:
+        return bool(self.limitation)
+
+
+@dataclass(frozen=True)
+class ExecutiveOverviewPage:
+    """Everything the executive template renders.
+
+    Assembled once per request by `executive.build_executive_overview`. The
+    template reads it and nothing else: there is no second data path, no
+    template tag reaching into a selector, and no JavaScript fetching a figure.
+    """
+
+    pillars: tuple[ExecutivePillar, ...] = ()
+    signals: tuple[ExecutiveSignal, ...] = ()
+    upcoming: tuple[ExecutiveUpcomingItem, ...] = ()
+    interest: tuple[ExecutiveInterestItem, ...] = ()
+    #: The channel audience strip, built by `apps.visibility` as it always was.
+    channels: tuple = ()
+    data_status: tuple[ExecutiveDataStatus, ...] = ()
+
+    @property
+    def has_signals(self) -> bool:
+        return bool(self.signals)
+
+    @property
+    def has_upcoming(self) -> bool:
+        return bool(self.upcoming)
+
+    @property
+    def available_interest(self) -> tuple[ExecutiveInterestItem, ...]:
+        return tuple(item for item in self.interest if item.is_available)
+
+    @property
+    def warning_count(self) -> int:
+        """Domains whose source state is worth disclosing in the header chip.
+
+        Counts data status rows carrying a limitation or a non-available state,
+        which is a fact about sources. It is deliberately **not** a business
+        KPI, and the header never prints a connected-source ratio.
+        """
+        return sum(
+            1 for row in self.data_status if row.has_limitation or row.state != STATE_AVAILABLE
+        )
+
+
+#: Source states, in the vocabulary the brief names. Kept here rather than in
+#: `connections.py` because that module describes a *collected feed* and half of
+#: these are not one: a manual snapshot and a monthly report are neither
+#: connected nor broken.
+STATE_AVAILABLE = "available"
+STATE_STALE = "stale"
+STATE_MANUAL = "manual"
+STATE_PARTIAL = "partial"
+STATE_NOT_CONNECTED = "not_connected"
+
+STATE_LABELS: dict[str, str] = {
+    STATE_AVAILABLE: "Andmed olemas",
+    STATE_STALE: "Vananenud pärast ebaõnnestunud uuendust",
+    STATE_MANUAL: "Käsitsi lisatud seis",
+    STATE_PARTIAL: "Osaliselt mõõdetud",
+    STATE_NOT_CONNECTED: "Ühendamata",
+}
+
+STATE_VARIANTS: dict[str, str] = {
+    STATE_AVAILABLE: "success",
+    STATE_STALE: "warning",
+    STATE_MANUAL: "neutral",
+    STATE_PARTIAL: "neutral",
+    STATE_NOT_CONNECTED: "neutral",
+}
+
+
+__all__ = [
+    "STATE_AVAILABLE",
+    "STATE_LABELS",
+    "STATE_MANUAL",
+    "STATE_NOT_CONNECTED",
+    "STATE_PARTIAL",
+    "STATE_STALE",
+    "STATE_VARIANTS",
+    "ExecutiveComparison",
+    "ExecutiveDataStatus",
+    "ExecutiveFact",
+    "ExecutiveInterestItem",
+    "ExecutiveLink",
+    "ExecutiveMetric",
+    "ExecutiveOverviewPage",
+    "ExecutivePillar",
+    "ExecutiveSignal",
+    "ExecutiveUpcomingItem",
+]
