@@ -92,6 +92,10 @@ class Command(BaseCommand):
             # same page, and seeding it separately is what makes it visible to
             # the browser suite at all.
             membership_seed.seed_decision_batches(today),
+            # Aggregate composition, so the Koosseis focus is offered at
+            # all in a seeded environment. It is a separate source from the
+            # two above and is never added to either.
+            membership_seed.seed_composition(today),
             visibility_seed.seed_manual(today),
             # After the news and the events: the page rows resolve their titles
             # from those catalogues, and a ranking seeded first would show paths

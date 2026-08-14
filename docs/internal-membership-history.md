@@ -441,6 +441,86 @@ actor. They never carry CSV bodies, source prose, user-entered notes, session
 data or tracebacks. The note a user types is stored on the observation, where it
 belongs, and is deliberately not copied into the audit summary.
 
+## The page: five focuses behind one URL
+
+`/liikmeskond/` answers five different management questions and `fookus` names
+which one is drawn:
+
+```text
+fookus=ulevaade    Ülevaade               (default)
+fookus=kasv        Kasv ja püsimine
+fookus=koosseis    Koosseis
+fookus=liikmemaks  Liikmemaks
+fookus=liikumine   Liikumine ja põhjused
+```
+
+It is an ordinary GET parameter, every control is a link, and an unknown value
+renders the overview rather than raising — the same rule `ranges.py` applies to
+a malformed date. A focus with nothing to draw is not offered at all, because a
+navigation item leading to an empty page reads as a fault.
+
+`fookus` is deliberately a new key rather than a reuse of `vaade`, which already
+governs monthly-versus-cumulative inside the recruitment chart. One word
+governing two unrelated things would make a bookmarked cumulative chart start
+changing which page section existed.
+
+A focus link carries the resolved window forward and nothing else. The chart
+toggles are not carried, because a recruitment-chart choice means nothing on the
+fee view, and landing a reader on a control state that does not apply is how a
+control comes to look broken.
+
+The overview is built to be read without interaction: four headline answers, the
+membership trend, `Mis muutus?`, `Sel aastal`, and — once a roster has been
+imported — a four-fact composition preview. `apps/membership/intelligence.py`
+assembles all of it and reads no database, taking the points the view already
+fetched.
+
+Two rules there are load-bearing:
+
+- **the headline comparisons read their own bounded lookback**, not the drawn
+  window. A reader who narrows the chart to six months has not asked for the
+  year-ago readout to disappear;
+- **the difference between `new_members_ytd` and `removed_members_ytd` is never
+  called a net change.** They are two reported counts; subtracting them gives
+  the gap between two reports, not the movement of the stock. The words `neto`,
+  `netokasv` and `liikmeskonna muutus` appear nowhere near it, and a browser
+  test asserts as much against the rendered page.
+
+`Mis muutus?` is computed from the same numbers the charts draw, in a fixed
+priority order rather than ranked by magnitude — a strip that reordered itself
+would lose the reader's ability to look at the same place twice. No generated
+prose, no model inference and no composite health score.
+
+## Reconciliation
+
+`apps/membership/reconciliation.py` checks whether a period's flows explain its
+stock:
+
+```text
+expected end = start total + joined - removed
+residual     = reported end - expected end
+```
+
+A residual is **evidence, never a correction**. Nothing overwrites a source or
+decides which of the four figures is the one that is off. It lives under
+`Andmete kohta` rather than beside a headline.
+
+The preconditions are the substance. `new_members_ytd` counts from 1 January, so
+the opening stock must be measured within `YEAR_BOUNDARY_TOLERANCE_DAYS` of the
+year boundary: an October reading anchoring a year would leave November and
+December in neither the opening total nor the flow counters, and the identity
+would describe a period nobody measured while looking like a real finding. The
+flows must also come from the same report as the closing total. A period failing
+any precondition is unavailable with its reason, never a residual of zero.
+
+## Composition is a third source
+
+Aggregate composition of the member roster — size classes, counties, sectors,
+tenure bands, joining years — lives in
+[`docs/membership-composition.md`](membership-composition.md). It is a third
+source and is never merged with either membership total: it answers what kinds
+of organisations these are, not how many there are.
+
 ## Chart semantics
 
 Payloads are built on the server in `apps/membership/charts.py` and read from a
