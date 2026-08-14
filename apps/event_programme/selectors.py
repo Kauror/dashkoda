@@ -53,7 +53,11 @@ LINK_VALUES = (LINK_ALL, LINK_LINKED, LINK_UNLINKED)
 
 SORT_DATE = "date"
 SORT_VIEWS = "views"
-SORT_CHOICES = (SORT_DATE, SORT_VIEWS)
+#: Offered only where the Commerce export carries event-registration products.
+#: `page.py` decides whether to show it; the value is validated here either way,
+#: so a bookmarked URL cannot reach the query layer with an unknown ordering.
+SORT_REGISTRATIONS = "registrations"
+SORT_CHOICES = (SORT_DATE, SORT_VIEWS, SORT_REGISTRATIONS)
 
 REVIEW_ALL = "all"
 REVIEW_REQUIRED = "required"

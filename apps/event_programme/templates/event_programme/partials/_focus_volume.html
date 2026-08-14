@@ -1,0 +1,90 @@
+{% comment %}
+Maht ja kalender — how much does the Chamber run, and when?
+
+Every chart here counts **canonical programme events**. An undated event is in
+none of them, because it belongs to no month and no year, and each chart's own
+footnote says how many it left out rather than quietly describing a smaller
+programme than the one that exists.
+
+Context:
+  view – a VolumeView
+  page – the IntelligencePage it belongs to
+{% endcomment %}
+
+<section aria-labelledby="section-volume" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Maht ja kalender" heading_id="section-volume" description="Sündmuste arv ajas. Üks kirje on üks programmi sündmus, mitte toimumiskord ega kalendripäev." only %}
+  <div class="dk-section-body flex flex-col gap-3">
+    <dl class="flex flex-wrap gap-x-8 gap-y-3">
+      <div>
+        <dt class="text-sm text-text-secondary">Sündmusi programmis</dt>
+        <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ view.volume.total_count }}</dd>
+      </div>
+      <div>
+        <dt class="text-sm text-text-secondary">Kuupäevaga</dt>
+        <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ view.volume.dated_count }}</dd>
+      </div>
+      <div>
+        <dt class="text-sm text-text-secondary">Kuupäev teadmata</dt>
+        <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ view.volume.undated_count }}</dd>
+      </div>
+      {% if view.volume.earliest_start %}
+        <div>
+          <dt class="text-sm text-text-secondary">Ajalugu</dt>
+          <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ view.volume.earliest_start|date:"n.Y" }}–{{ view.volume.latest_start|date:"n.Y" }}</dd>
+        </div>
+      {% endif %}
+    </dl>
+    <p class="dk-meta">
+      Kuupäevaga ja kuupäevata sündmuste summa on programmi kogumaht. Kuupäevata kirjed on päris
+      sündmused, mille lähterea kuupäeva ei õnnestunud lugeda — neid ei ole ühelgi allpool oleval
+      graafikul ja neile ei ole kuupäeva juurde mõeldud.
+    </p>
+  </div>
+</section>
+
+<section aria-labelledby="section-by-year" class="dk-section">
+  <h2 id="section-by-year" class="sr-only">Sündmused aastate lõikes</h2>
+  <div class="dk-section-body">
+    {% include "dashboard/components/chart_figure.html" with chart=view.year_chart only %}
+  </div>
+</section>
+
+{% if view.month_chart %}
+  <section aria-labelledby="section-by-month" class="dk-section">
+    <h2 id="section-by-month" class="sr-only">Sündmused kuude lõikes</h2>
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=view.month_chart only %}
+    </div>
+  </section>
+{% endif %}
+
+{% if view.quarters %}
+  <section aria-labelledby="section-quarters" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kvartalid" heading_id="section-quarters" description="Valitud perioodi jaotus kvartalite kaupa." only %}
+    <div class="dk-section-body">
+      <div class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {% for quarter in view.quarters %}
+          <div class="flex flex-col gap-0.5">
+            <span class="dk-meta">{{ quarter.label }}</span>
+            <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ quarter.count }}</span>
+            <span class="dk-meta tabular-nums">{{ quarter.share_pct }}%</span>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
+{% endif %}
+
+<section aria-labelledby="section-seasonality" class="dk-section">
+  <h2 id="section-seasonality" class="sr-only">Hooajalisus</h2>
+  <div class="dk-section-body">
+    {% include "dashboard/components/chart_figure.html" with chart=view.seasonality_chart only %}
+  </div>
+</section>
+
+<section aria-labelledby="section-duration" class="dk-section">
+  <h2 id="section-duration" class="sr-only">Sündmuste kestus</h2>
+  <div class="dk-section-body">
+    {% include "dashboard/components/chart_figure.html" with chart=view.duration_chart only %}
+  </div>
+</section>

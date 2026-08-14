@@ -30,6 +30,7 @@ from apps.visibility.ga4_paths import canonical_path
 from apps.visibility.ga4_selectors import get_coverage, get_page_view_totals
 from apps.visibility.item_analytics import attach_page_views, event_url
 
+from . import commerce
 from .models import EventStatus
 from .public_links import attach_public_links
 from .selectors import (
@@ -45,6 +46,7 @@ from .selectors import (
     REVIEW_VALUES,
     SORT_CHOICES,
     SORT_DATE,
+    SORT_REGISTRATIONS,
     SORT_VIEWS,
     YEAR_ALL,
     EventProgrammeSummary,
@@ -61,6 +63,12 @@ from .selectors import (
 )
 
 ALL_YEARS_LABEL = "Kõik aastad"
+
+#: Which focus of `/sundmused/` the register is. It lives here rather than in
+#: `intelligence.py` because this module owns every link the register emits and
+#: is the lighter of the two: `intelligence` reaches into the shop and GA4, and
+#: the search fragment has no business importing either.
+REGISTER_FOCUS = "programm"
 
 # How many numbered page links surround the current one. Enough to move a few
 # pages at a time without turning a long history into a wall of numbers.
@@ -158,6 +166,9 @@ class ProgrammePage:
     all_years_label: str = ALL_YEARS_LABEL
     public_link_options: tuple[Option, ...] = PUBLIC_LINK_OPTIONS
     review_options: tuple[Option, ...] = REVIEW_OPTIONS
+    #: Whether the Commerce export carries any event-registration product at
+    #: all. False hides the whole column rather than filling it with dashes.
+    shows_registrations: bool = False
 
     @property
     def has_data(self) -> bool:
@@ -193,6 +204,8 @@ class ProgrammePage:
             self.filters.month
             or self.filters.quarter
             or self.filters.tag
+            or self.filters.event_type
+            or self.filters.delivery_mode
             or self.filters.status
             or self.filters.public_link != LINK_ALL
             or self.filters.review != REVIEW_ALL
@@ -210,6 +223,8 @@ class ProgrammePage:
                 bool(self.filters.month),
                 bool(self.filters.quarter),
                 bool(self.filters.tag),
+                bool(self.filters.event_type),
+                bool(self.filters.delivery_mode),
                 bool(self.filters.status),
                 self.filters.public_link != LINK_ALL,
                 self.filters.review != REVIEW_ALL,
@@ -247,12 +262,13 @@ def parse_filters(params, options: FilterOptions) -> ProgrammeFilters:
     does not contain falls back to the default rather than emptying the table
     without explanation.
 
-    `event_type` and `delivery_mode` are deliberately not read. The page has no
-    control for either any more, and a filter that can still be switched on from
-    a query string but has nowhere on screen to say it is on would shrink the
-    table with no visible reason. `ProgrammeFilters` still carries the fields and
-    the selector still honours them, so the capability is intact for whatever
-    asks for it explicitly — this page simply never asks.
+    `event_type` and `delivery_mode` are read again. They were dropped when the
+    page had no control for either — a filter switchable from a query string
+    with nowhere on screen to say it is on shrinks the table for no visible
+    reason. The intelligence dashboard gives both a legitimate visible use: a
+    reader who has just seen that a third of the programme is a seminar wants
+    the register to show exactly those, and `Täpsem valik` now carries and counts
+    both.
     """
     return ProgrammeFilters(
         q=params.get("q", "").strip()[:100],
@@ -260,6 +276,8 @@ def parse_filters(params, options: FilterOptions) -> ProgrammeFilters:
         month=_allowed(params.get("month"), options.months),
         quarter=_allowed(params.get("quarter"), options.quarters),
         tag=_allowed(params.get("tag"), options.tags),
+        event_type=_allowed(params.get("event_type"), options.event_types),
+        delivery_mode=_allowed(params.get("delivery_mode"), options.delivery_modes),
         status=_allowed(params.get("status"), options.statuses),
         public_link=_one_of(params.get("public_link"), LINK_VALUES, LINK_ALL),
         review=_one_of(params.get("review"), REVIEW_VALUES, REVIEW_ALL),
@@ -312,11 +330,25 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
             clear_url=reverse("events"),
         )
 
+    # Registration columns exist only where the Commerce export actually carries
+    # event-registration products. On the Chamber's current dataset it carries
+    # none, so the column is absent rather than a wall of dashes claiming to be
+    # a measurement.
+    registration_pages = commerce.registration_pages()
+
     rows = get_filtered_event_programme_items(snapshot, filters=filters)
     if filters.sort == SORT_VIEWS:
         rows = _ranked_by_views(rows)
+    elif filters.sort == SORT_REGISTRATIONS and registration_pages:
+        rows = _ranked_by_registrations(rows, registration_pages)
     paginator = Paginator(rows, PAGE_SIZE)
     page = paginator.get_page(params.get("page"))
+
+    items = attach_page_views(attach_public_links(page.object_list), url_of=event_url)
+    if registration_pages:
+        registrations = commerce.attach_registrations(items, pages=registration_pages)
+        for item in items:
+            item.registrations = registrations.get(item.event_id)
 
     return ProgrammePage(
         summary=summary,
@@ -324,27 +356,58 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
         options=options,
         period_label=str(filters.year) if filters.year is not None else ALL_YEARS_LABEL,
         figures=_figures(snapshot, filters),
-        items=tuple(attach_page_views(attach_public_links(page.object_list), url_of=event_url)),
+        items=tuple(items),
         pagination=_pagination(page, filters),
         result_count=paginator.count,
-        sort_options=_sort_options(filters),
+        sort_options=_sort_options(filters, offer_registrations=bool(registration_pages)),
         coverage_start=get_coverage().earliest,
         quality=_quality_links(snapshot),
-        clear_url=reverse("events"),
+        clear_url=f"{reverse('events')}?{urlencode({'fookus': REGISTER_FOCUS})}",
         all_years_url=_url(replace(filters, year=None)),
+        shows_registrations=bool(registration_pages),
     )
 
 
-def _sort_options(filters: ProgrammeFilters) -> tuple[SortOption, ...]:
-    """`Kuupäev` and `Enim vaadatud`, each carrying the current filters."""
+def _sort_options(
+    filters: ProgrammeFilters, *, offer_registrations: bool = False
+) -> tuple[SortOption, ...]:
+    """The orderings, each carrying the current filters.
+
+    A choice is only offered when it can change the picture: ranking by
+    registrations on a dataset with no registration products would be a control
+    that does nothing, which is how a reader learns to mistrust the page.
+    """
+    modes = [(SORT_DATE, "Kuupäev"), (SORT_VIEWS, "Enim vaadatud")]
+    if offer_registrations:
+        modes.append((SORT_REGISTRATIONS, "Enim registreerimisühikuid"))
     return tuple(
         SortOption(
             label=label,
             url=_url(replace(filters, sort=mode)),
             is_active=filters.sort == mode,
         )
-        for mode, label in ((SORT_DATE, "Kuupäev"), (SORT_VIEWS, "Enim vaadatud"))
+        for mode, label in modes
     )
+
+
+def _ranked_by_registrations(rows, pages) -> list:
+    """The whole filtered set ordered by Commerce registration units.
+
+    The same rule the traffic ranking follows, for the same reason: ranking a
+    page of results ranks whichever fifty rows happened to be on it, which is
+    not a ranking. And **an event with no Commerce product is not an event with
+    zero registrations** — those rows keep their chronological order behind the
+    measured ones rather than being sorted as though they had sold nothing.
+    """
+    population = list(rows)
+    registrations = commerce.attach_registrations(population, pages=pages)
+
+    measured, unmeasured = [], []
+    for item in population:
+        row = registrations.get(item.event_id)
+        (measured if row is not None else unmeasured).append((row, item))
+    measured.sort(key=lambda pair: (-pair[0].units, pair[1].event_id))
+    return [item for _row, item in measured] + [item for _row, item in unmeasured]
 
 
 def _ranked_by_views(rows) -> list:
@@ -474,14 +537,21 @@ def _url(filters: ProgrammeFilters, *, page: int | None = None) -> str:
     depends on the reader's calendar year to mean what it meant when it was
     built.
     """
+    # The focus travels in every link this page emits, so a pagination click, a
+    # sort chip or a data-quality link lands the reader back on the register
+    # rather than dropping them on the overview with their filters intact and
+    # nothing visibly filtered.
     query: list[tuple[str, str]] = [
-        ("year", str(filters.year) if filters.year is not None else YEAR_ALL)
+        ("fookus", REGISTER_FOCUS),
+        ("year", str(filters.year) if filters.year is not None else YEAR_ALL),
     ]
     for name, value in (
         ("q", filters.q),
         ("month", filters.month),
         ("quarter", filters.quarter),
         ("tag", filters.tag),
+        ("event_type", filters.event_type),
+        ("delivery_mode", filters.delivery_mode),
         ("status", filters.status),
     ):
         if value:

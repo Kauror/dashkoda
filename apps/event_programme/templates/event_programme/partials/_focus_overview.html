@@ -1,0 +1,152 @@
+{% comment %}
+Ülevaade — what does the programme look like right now?
+
+Built for two readings at once. In five seconds a manager should have the four
+headline answers; in fifteen they should also know what changed, what dominates,
+what is coming and what is being looked at.
+
+`Mis muutus?` is deterministic throughout: every line compares two figures the
+reader can find elsewhere on this page. Nothing here is written by a model,
+nothing scores the programme, and nothing explains *why* a number moved — the
+data cannot establish a cause and a sentence that implies one is an invention.
+
+Context:
+  view – an OverviewView
+  page – the IntelligencePage it belongs to
+{% endcomment %}
+
+{% comment %}
+The primary answers. Four when planning data supports the fourth, three when it
+does not — a card filled for symmetry is a card with nothing in it.
+{% endcomment %}
+<section aria-labelledby="section-headline" class="dk-section">
+  <h2 id="section-headline" class="sr-only">Peamised näitajad</h2>
+  {% comment %}
+  The column count is written out rather than interpolated. `dk-kpi-strip`
+  paints `bg-border` behind its cells, so an empty grid track is not blank — it
+  is a grey block the width of a card — and a class name built from a variable
+  is invisible to the stylesheet build anyway.
+  {% endcomment %}
+  <div class="dk-kpi-strip sm:grid-cols-1 md:grid-cols-3 {% if view.headline|length == 4 %}xl:grid-cols-4{% else %}xl:grid-cols-3{% endif %}">
+    {% for figure in view.headline %}
+      {% include "dashboard/components/kpi_card.html" with label=figure.label value=figure.value comparison_period=figure.note secondary=figure.detail flush=True only %}
+    {% endfor %}
+  </div>
+</section>
+
+{% if view.changes %}
+  <section aria-labelledby="section-changes" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-changes" description="Võrdlus eelmise aastaga. Iga rida on kahe arvu vahe, mitte selgitus." only %}
+    <div class="dk-section-body">
+      <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
+        {% for change in view.changes %}
+          <div class="min-w-0">
+            <dt class="text-sm text-text-secondary">{{ change.label }}</dt>
+            <dd class="flex flex-wrap items-baseline gap-x-2">
+              <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ change.value }}</span>
+              {% comment %}
+              A glyph as well as a hue: a change distinguished only by colour
+              does not exist for a reader who cannot separate the colours.
+              {% endcomment %}
+              {% if change.change %}
+                <span class="dk-meta tabular-nums{% if change.direction == 'up' %} text-success{% elif change.direction == 'down' %} text-danger{% endif %}">
+                  {% if change.direction == "up" %}↑{% elif change.direction == "down" %}↓{% else %}→{% endif %}
+                  {{ change.change }}
+                </span>
+              {% endif %}
+            </dd>
+            <p class="dk-meta">{{ change.note }}</p>
+          </div>
+        {% endfor %}
+      </dl>
+    </div>
+  </section>
+{% endif %}
+
+{% if view.notices %}
+  <section aria-labelledby="section-notices" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Tähelepanu" heading_id="section-notices" description="Allikapõhised tähelepanekud, mille kohta saab midagi ette võtta." only %}
+    <div class="dk-section-body flex flex-col gap-2">
+      {% for notice in view.notices %}
+        <p class="flex flex-wrap items-baseline gap-x-2 text-sm text-text-secondary">
+          {{ notice.text }}
+          {% if notice.url %}<a class="dk-link" href="{{ notice.url }}">{{ notice.link_label }}</a>{% endif %}
+        </p>
+      {% endfor %}
+    </div>
+  </section>
+{% endif %}
+
+<section aria-labelledby="section-mix" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Mida korraldame?" heading_id="section-mix" description="Suurimad kategooriad valitud perioodil. Täispildi jaoks vaata „Formaadid ja teemad“." only %}
+  <div class="dk-section-body grid grid-cols-1 gap-6 lg:grid-cols-3">
+    {% include "event_programme/partials/_mix_preview.html" with title="Tüüp" distribution=view.types only %}
+    {% include "event_programme/partials/_mix_preview.html" with title="Teema" distribution=view.tags only %}
+    {% include "event_programme/partials/_mix_preview.html" with title="Toimumisviis" distribution=view.delivery only %}
+  </div>
+  <div class="border-t border-border px-4 py-3 sm:px-5">
+    <a class="dk-link text-sm" href="{% url 'events' %}?fookus=formaadid&amp;year={{ page.year|default:'all' }}">Kõik formaadid ja teemad</a>
+  </div>
+</section>
+
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+
+  <section aria-labelledby="section-upcoming" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Järgmised sündmused" heading_id="section-upcoming" only %}
+    <div class="dk-section-body">
+      {% if view.upcoming %}
+        <ul class="flex flex-col divide-y divide-border">
+          {% for event in view.upcoming %}
+            <li class="flex flex-col gap-0.5 py-2 first:pt-0 last:pb-0">
+              <span class="flex flex-wrap items-baseline gap-x-2">
+                <span class="dk-meta tabular-nums">{{ event.date_label }}</span>
+                {% if event.url %}
+                  <a class="dk-link relative min-w-0" href="{{ event.url }}" target="_blank" rel="noopener noreferrer">
+                    {{ event.name }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
+                  </a>
+                {% else %}
+                  <span class="min-w-0 text-text">{{ event.name }}</span>
+                {% endif %}
+              </span>
+              <span class="dk-meta">
+                {{ event.type_label|default:"" }}{% if event.type_label and event.tag_label %} · {% endif %}{{ event.tag_label|default:"" }}{% if event.delivery_label %} · {{ event.delivery_label }}{% endif %}
+              </span>
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Ühtegi eelseisvat sündmust ei ole programmis." only %}
+      {% endif %}
+    </div>
+  </section>
+
+  <section aria-labelledby="section-watched" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Praegu enim vaadatud tulevased sündmused" heading_id="section-watched" description="Viimase 30 mõõdetud päeva lehevaatamised. See ei ole sündmuse kogupopulaarsus." only %}
+    <div class="dk-section-body">
+      {% if view.watched %}
+        <ul class="flex flex-col divide-y divide-border">
+          {% for event in view.watched %}
+            <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 py-2 first:pt-0 last:pb-0">
+              {% if event.url %}
+                <a class="dk-link relative min-w-0" href="{{ event.url }}" target="_blank" rel="noopener noreferrer">
+                  {{ event.name }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
+                </a>
+              {% else %}
+                <span class="min-w-0 text-text">{{ event.name }}</span>
+              {% endif %}
+              <span class="dk-meta tabular-nums">{{ event.metric }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+        {% comment %}
+        Said here rather than left to a reader's assumption: a page view is not
+        a person, and the word "vaatamist" is doing real work.
+        {% endcomment %}
+        <p class="dk-meta mt-3">Lehevaatamised, mitte inimesed: üks lugeja kahel korral on kaks vaatamist.</p>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Ühelgi tulevasel sündmusel ei ole mõõdetud avalikku lehte." detail="Veebihuvi saab näidata ainult siis, kui sündmus on seotud koda.ee lehega, mida Google Analytics mõõdab." only %}
+      {% endif %}
+    </div>
+  </section>
+
+</div>

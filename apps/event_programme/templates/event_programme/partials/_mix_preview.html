@@ -1,0 +1,38 @@
+{% comment %}
+One dimension's largest categories, as a compact proportion list.
+
+Bars drawn as SVG **attributes**, not inline styles: the Content Security Policy
+is `style-src 'self'` and `tests/dashboard/test_overview.py` asserts that no
+`style="` reaches the page, so a bar length may never be an inline width.
+
+`Määramata` is a row like any other. Folding it into the largest category, or
+dropping it from the denominator, would leave shares that look complete and are
+not.
+
+Context:
+  title        – the dimension's name
+  distribution – a Distribution from `apps.event_programme.analytics`
+{% endcomment %}
+
+<div class="flex min-w-0 flex-col gap-2">
+  <h3 class="text-sm font-medium text-text">{{ title }}</h3>
+  {% if distribution.has_data %}
+    <dl class="flex flex-col gap-1.5">
+      {% for row in distribution.all_rows %}
+        <div class="flex min-w-0 flex-col gap-0.5">
+          <div class="flex items-baseline justify-between gap-x-3">
+            <dt class="min-w-0 truncate text-sm {% if row.is_unknown %}text-text-muted{% else %}text-text-secondary{% endif %}">{{ row.label }}</dt>
+            <dd class="dk-meta shrink-0 tabular-nums">{{ row.count }} · {{ row.share_pct }}%</dd>
+          </div>
+          <svg viewBox="0 0 100 3" preserveAspectRatio="none" class="h-[3px] w-full" role="presentation" aria-hidden="true">
+            <rect x="0" y="0" width="100" height="3" class="fill-border"></rect>
+            <rect x="0" y="0" width="{{ row.share_pct|stringformat:'d' }}" height="3" class="{% if row.is_unknown %}fill-text-muted{% else %}fill-brand{% endif %}"></rect>
+          </svg>
+        </div>
+      {% endfor %}
+    </dl>
+    <p class="dk-meta">{{ distribution.total }} sündmust kokku</p>
+  {% else %}
+    <p class="dk-meta">Andmed puuduvad.</p>
+  {% endif %}
+</div>
