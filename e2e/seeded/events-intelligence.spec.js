@@ -150,9 +150,14 @@ test("the provenance block is present on every focus and folded", async ({ page 
     // hide them either.
     await expect(details).not.toHaveAttribute("open", /.*/);
 
-    // Folded, but the denominators are one click away.
+    /* Folded, but the denominators and the limits are one click away. By role
+       rather than by text: `getByText` matches an ancestor whose content merely
+       contains the string as well as the heading itself, which is two elements
+       and a strict-mode error. */
     await details.locator("summary").click();
-    await expect(page.getByText("Mida need andmed ei tõesta")).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: "Mida need andmed ei tõesta", exact: true }),
+    ).toBeVisible();
   }
 });
 
