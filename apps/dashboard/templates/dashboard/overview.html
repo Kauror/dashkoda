@@ -112,7 +112,14 @@ prioritising this page exists to do for them.
                 {{ item.when|date:"d.m" }}
               </time>
               <span class="dk-badge dk-badge-neutral shrink-0">{{ item.domain_label }}</span>
-              <span class="min-w-0 flex-1 text-sm text-text">
+              {% comment %}
+              `break-words` is load-bearing: at 320px the date and badge leave
+              this span little over 100px, and one long Estonian token painted
+              past its own box is enough to scroll the whole page sideways —
+              the row itself never leaves the viewport, so nothing else shows
+              it. `min-w-0` alone does not stop it.
+              {% endcomment %}
+              <span class="min-w-0 flex-1 break-words text-sm text-text">
                 {% if item.has_link %}
                   <a class="dk-link" href="{{ item.url }}"{% if item.is_external %} rel="noopener noreferrer" target="_blank"{% endif %}>
                     {{ item.title }}{% if item.is_external %}<span class="sr-only"> (avaneb uuel vahelehel)</span>{% endif %}
