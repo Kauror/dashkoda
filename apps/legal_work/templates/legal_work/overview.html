@@ -163,9 +163,23 @@ dashboard overview. They stay on the default focus and keep their ids;
         {% for chart in page.charts %}
           {% include "dashboard/components/chart_figure.html" with chart=chart only %}
         {% endfor %}
-        {% for note in page.footnotes %}
-          <p class="text-sm text-text-secondary">{{ note }}</p>
-        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% comment %}
+  The focus's own caveats, rendered independently of whether it drew a chart.
+  These are the statements that stop a figure being over-read — what a feedback
+  count is not, why two flows are not one net number — so a surface without a
+  chart must not lose them.
+  {% endcomment %}
+  {% if page.footnotes %}
+    <section aria-labelledby="section-notes" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Kuidas neid arve lugeda" heading_id="section-notes" only %}
+      <div class="dk-section-body">
+        <ul class="flex flex-col gap-2 text-sm text-text-secondary">
+          {% for note in page.footnotes %}<li>{{ note }}</li>{% endfor %}
+        </ul>
       </div>
     </section>
   {% endif %}
