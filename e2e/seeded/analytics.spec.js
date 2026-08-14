@@ -332,7 +332,9 @@ test("one page opens its own analysis with both of its figures", async ({ page }
   await signIn(page);
   await page.goto("/koduleht/?fookus=lehed&periood=koik&otsing=pealkiri%2012");
 
-  await page.locator(SEARCH).getByRole("link").first().click();
+  // Scoped to the results region, not to the section: the section's first link
+  // is `Tühjenda` inside the form above the results.
+  await page.locator("#koduleht-otsingutulemused").getByRole("link").first().click();
 
   const detail = page.locator('section[aria-labelledby="section-leht"]');
   await expect(detail).toBeVisible();
