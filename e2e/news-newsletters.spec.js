@@ -3,29 +3,87 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
 /*
- * The newsletter material on the Uudised page, and the archive behind it.
+ * The Uudised intelligence dashboard: its five focus views, and the newsletter
+ * material that lives on the fourth of them.
  *
- * It was under Nähtavus until the two were separated: a reader asking what the
- * Chamber published is already here, and Nähtavus keeps the website and the
- * social channels. `visibility.spec.js` holds the other half of that — that
- * none of this is still over there.
+ * The newsletters were under Nähtavus until the two were separated — a reader
+ * asking what the Chamber published is already here, and Nähtavus keeps the
+ * website and the social channels. `visibility.spec.js` holds the other half of
+ * that: that none of this is still over there.
+ *
+ * The page used to be one scroll: an archive table with the newsletter material
+ * beneath it. It is now five focus views over one address, so what these assert
+ * is which view holds what, that the focus links navigate, and that state
+ * survives moving between them.
  *
  * CI runs against a container with an empty database, so what these assert is
  * the layout, the controls and the *truthful empty state*. A newsletter nobody
  * has collected must read as missing, never as zero.
  */
 
-/** Sign in, then open Uudised. `signIn` always lands on the overview. */
-async function openNews(page) {
+/** The five focus views, by the parameter that selects each. */
+const OVERVIEW = "/uudised/";
+const IMPACT = "/uudised/?fookus=moju";
+const PUBLISHING = "/uudised/?fookus=avaldamine";
+const NEWSLETTERS = "/uudised/?fookus=uudiskirjad";
+const ARCHIVE = "/uudised/?fookus=arhiiv";
+
+/** Sign in, then open one focus of Uudised. */
+async function openNews(page, url = OVERVIEW) {
   await signIn(page);
-  await page.goto("/uudised/");
+  await page.goto(url);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Uudised");
 }
+
+test("the five focus views are all reachable as links", async ({ page }) => {
+  const errors = watchConsole(page);
+
+  await openNews(page);
+
+  const nav = page.getByRole("navigation", { name: "Vaade" });
+  await expect(nav).toBeVisible();
+  for (const label of ["Ülevaade", "Uudiste mõju", "Avaldamine", "Uudiskirjad", "Arhiiv"]) {
+    await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+
+  // Ordinary navigation: a real URL, so back returns to the overview.
+  await nav.getByRole("link", { name: "Arhiiv", exact: true }).click();
+  await expect(page).toHaveURL(/fookus=arhiiv/);
+  await page.goBack();
+  await expect(page).not.toHaveURL(/fookus=arhiiv/);
+  expect(errors).toEqual([]);
+});
+
+test("an unreadable focus renders the overview rather than an error", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/uudised/?fookus=zzz");
+
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Uudised");
+  await expect(page.getByRole("navigation", { name: "Vaade" })).toBeVisible();
+});
+
+test("the overview leads with the dashboard, not with the archive", async ({ page }) => {
+  // The regression this redesign is for. The archive answers "find me the
+  // article about excise duty" and answered "how are we doing" somewhere in the
+  // middle of itself, so it is no longer the first thing on the page.
+  await openNews(page);
+
+  await expect(page.getByLabel("Otsi uudist")).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Vaade" })).toBeVisible();
+});
+
+test("the archive keeps every control it had", async ({ page }) => {
+  await openNews(page, ARCHIVE);
+
+  await expect(page.getByRole("navigation", { name: "Avaldamisperiood" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Uudise liik" })).toBeVisible();
+  await expect(page.getByLabel("Otsi uudist")).toBeVisible();
+});
 
 test("the newsletters are on the news page", async ({ page }) => {
   const errors = watchConsole(page);
 
-  await openNews(page);
+  await openNews(page, NEWSLETTERS);
 
   // The audience card, then the analytics section under it.
   await expect(page.getByRole("heading", { name: "Uudiskirjad", exact: true })).toBeVisible();
@@ -35,36 +93,25 @@ test("the newsletters are on the news page", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("the news archive is still here and still first", async ({ page }) => {
-  await openNews(page);
-
-  // The archive's own controls, unchanged by the arrival of the newsletters.
-  await expect(page.getByRole("navigation", { name: "Avaldamisperiood" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Uudise liik" })).toBeVisible();
-  await expect(page.getByLabel("Otsi uudist")).toBeVisible();
-
-  // And it comes before the newsletter material rather than being wrapped in it.
-  const main = await page.evaluate(() => document.querySelector("main").innerText);
-  expect(main.indexOf("Uudiste arhiiv")).toBeLessThan(main.indexOf("Uudiskirjade tulemused"));
-});
-
 test("the newsletter filter chips work", async ({ page }) => {
-  await openNews(page);
+  await openNews(page, NEWSLETTERS);
 
   const chips = page.getByRole("navigation", { name: "Uudiskiri" });
   await expect(chips).toBeVisible();
   await chips.getByRole("link", { name: "e-Teataja", exact: true }).click();
 
   await expect(page).toHaveURL(/uudiskiri=newsletter_eteataja/);
-  // The archive above is still on the page it was.
+  // Still on the newsletter focus rather than back at the overview.
+  await expect(page).toHaveURL(/fookus=uudiskirjad/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Uudised");
 });
 
 test("a newsletter chip keeps the news archive's own state", async ({ page }) => {
-  // The two sections share one page and one address bar. Choosing a newsletter
-  // must not silently reset the period the reader had picked.
+  // The two sections no longer share a screen and still share an address bar.
+  // Choosing a newsletter must not silently reset the period the reader picked
+  // in the archive, which they will be returned to when they switch back.
   await signIn(page);
-  await page.goto("/uudised/?periood=1a");
+  await page.goto("/uudised/?fookus=uudiskirjad&periood=1a");
 
   await page
     .getByRole("navigation", { name: "Uudiskiri" })
@@ -75,8 +122,21 @@ test("a newsletter chip keeps the news archive's own state", async ({ page }) =>
   await expect(page).toHaveURL(/uudiskiri=newsletter_eteataja/);
 });
 
+test("switching focus keeps the archive's period", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/uudised/?fookus=arhiiv&periood=1a");
+
+  await page
+    .getByRole("navigation", { name: "Vaade" })
+    .getByRole("link", { name: "Avaldamine", exact: true })
+    .click();
+
+  await expect(page).toHaveURL(/fookus=avaldamine/);
+  await expect(page).toHaveURL(/periood=1a/);
+});
+
 /*
- * The section's own subject search is deliberately not driven here.
+ * The newsletter section's own subject search is deliberately not driven here.
  *
  * It is inside the `has_any_data` guard, so with no campaigns collected the
  * section renders its empty state and the box does not exist — and
@@ -90,14 +150,14 @@ test("a newsletter chip keeps the news archive's own state", async ({ page }) =>
  *   - `live-search.spec.js` drives the same live-search mechanics in a real
  *     browser on the archive page, whose form renders unconditionally.
  *
- * What is browser-checked here is what only a browser can answer: the card and
- * the section being on the page, the chips navigating, and the layout holding.
+ * What is browser-checked here is what only a browser can answer: the views
+ * being reachable, the chips navigating, and the layout holding.
  */
 
-test("the news search still works with the newsletters below it", async ({ page }) => {
+test("the news search still works inside the archive focus", async ({ page }) => {
   const errors = watchConsole(page);
 
-  await openNews(page);
+  await openNews(page, ARCHIVE);
 
   const box = page.getByLabel("Otsi uudist");
   await box.click();
@@ -113,8 +173,23 @@ test("the news search still works with the newsletters below it", async ({ page 
   expect(errors).toEqual([]);
 });
 
+test("a search inside the archive stays inside the archive", async ({ page }) => {
+  // The pushed URL has to keep the focus, or reloading after a search would
+  // land the reader on the overview with their search gone.
+  await openNews(page, ARCHIVE);
+
+  const box = page.getByLabel("Otsi uudist");
+  await box.click();
+  await Promise.all([
+    page.waitForResponse((r) => r.url().includes("/uudised/otsi/")),
+    box.pressSequentially("eeln", { delay: 60 }),
+  ]);
+
+  await expect(page).toHaveURL(/fookus=arhiiv/);
+});
+
 test("the news page shows no fabricated newsletter figure", async ({ page }) => {
-  await openNews(page);
+  await openNews(page, NEWSLETTERS);
 
   await expect(page.getByText("Andmed puuduvad.").first()).toBeVisible();
   await expect(
@@ -122,10 +197,16 @@ test("the news page shows no fabricated newsletter figure", async ({ page }) => 
   ).toBeVisible();
 });
 
-test("the news page never scrolls sideways", async ({ page }) => {
-  await openNews(page);
-
-  await expectNoHorizontalOverflow(page);
+test("no focus view scrolls sideways", async ({ page }) => {
+  // Every view, at every width the suite runs. Long article titles, a wide
+  // category table and the focus navigation itself are each capable of widening
+  // the page, and only one of them is on screen at a time.
+  await signIn(page);
+  for (const url of [OVERVIEW, IMPACT, PUBLISHING, NEWSLETTERS, ARCHIVE]) {
+    await page.goto(url);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Uudised");
+    await expectNoHorizontalOverflow(page);
+  }
 });
 
 test("the newsletter archive is a news page and returns to Uudised", async ({ page }) => {
