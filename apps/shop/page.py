@@ -1140,7 +1140,7 @@ def build_overview(
     matrix = build_attention_matrix(rows, minimum_views=MIN_VIEWS_FOR_OPPORTUNITY)
 
     signals = build_signals(
-        units_change=units_cmp.change if units_cmp.is_available else None,
+        units_change=units_cmp.absolute_change if units_cmp.is_available else None,
         units_percentage=units_cmp.percentage_change if units_cmp.is_available else None,
         weak_acquisition=weak,
         strong_acquisition=strong,
