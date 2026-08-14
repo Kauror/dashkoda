@@ -121,7 +121,7 @@ The future monolith will separate shared infrastructure from business modules:
   on its own and never summed — collected from Smaily by `sync_smaily` and
   `sync_smaily_campaigns`, and the Google Analytics daily history collected by
   `sync_ga4`. With them come the metric registry, the selectors, the staff entry
-  workflow, the Nähtavus page and the overview's channel band. It stores no
+  workflow, the Koduleht page and the overview's channel band. It stores no
   platform credential and no individual subscriber, follower or visitor. Its GA4
   path canonicalisation and page-view selectors are read by `news`,
   `event_programme` and `shop`, which makes them a shared internal interface
@@ -141,7 +141,7 @@ publication decision stays in its own app.
 
 Exact future app names and models are introduced only by their implementing pull
 requests. No pull request creates placeholder business apps or models. The
-overview, Liikmeskond, Õigusloome, Sündmused, Uudised, Nähtavus and E-pood are
+overview, Liikmeskond, Õigusloome, Sündmused, Uudised, Koduleht and E-pood are
 routed, and nothing else appears in the navigation. The inert-entry rule stays
 in the model — a module with no route would render as an entry marked
 `Lisamisel` rather than as a link — but no entry uses it, and there are no
@@ -351,8 +351,8 @@ and the internal board-report history count different things; see
 - server-rendered SVG sparklines and proportion meters, so the overview draws
   trends without loading the chart bundle
 - `visibility` app: manually observed newsletter and social audience sizes, a
-  fixed metric registry, the staff entry and correction workflow, the Nähtavus
-  page and the six-slot channel band
+  fixed metric registry, the staff entry and correction workflow, the Koduleht
+  website-intelligence page and the six-slot channel band
 - `/admin/data-entry/`, one staff-only index of every manual-entry workflow
 - Unraid script templates for 07:00 and 05:40 `Europe/Tallinn` schedules
 - the Koda.ee `Hetkel käsil` current-topic catalogue, a deterministic matcher
@@ -377,7 +377,7 @@ and the internal board-report history count different things; see
   the Liikmeskond analytics with its server-rendered trend
 - the **GA4 website-traffic history**: one immutable revision per reporting day
   with page and acquisition rows, the reconciliation window that respects GA4's
-  own late revisions, the traffic section on Nähtavus, page search, the content
+  own late revisions, the traffic section on Koduleht, page search, the content
   ranking, and the measured view counts shown beside news and events
 - the **Smaily newsletter audiences**: daily list sizes per segment against a
   pinned segment registry, the completed-campaign catalogue with aggregate
