@@ -24,8 +24,19 @@ Context: headlines
 
       <p class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ headline.value }}</p>
 
+      {% comment %}
+      `relative` on the paragraph, and it is load-bearing rather than decorative.
+
+      `sr-only` is absolutely positioned, and an absolutely positioned box is
+      clipped by an ancestor's `overflow` only when that ancestor is in its
+      containing-block chain. `dk-kpi-strip` is `overflow-hidden` but `static`,
+      so without a positioned parent this note settles at the full width of the
+      spoken change label and pushes the document out with it — while the strip
+      looks perfectly correct. It is the same defect that once widened Nähtavus
+      by 324 pixels; `e2e/seeded/layout.spec.js` asserts the invariant directly.
+      {% endcomment %}
       {% if headline.has_change %}
-        <p class="dk-meta tabular-nums{% if headline.direction == 'up' %} text-success{% elif headline.direction == 'down' %} text-danger{% endif %}">
+        <p class="dk-meta relative tabular-nums{% if headline.direction == 'up' %} text-success{% elif headline.direction == 'down' %} text-danger{% endif %}">
           {% if headline.direction == "up" %}↑{% elif headline.direction == "down" %}↓{% else %}→{% endif %}
           {{ headline.change }}<span class="sr-only"> ({{ headline.change_label }})</span>
         </p>
