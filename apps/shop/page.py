@@ -23,12 +23,21 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import Decimal
 
-from apps.core.formatting import euros, group_thousands, long_date
+from apps.core.formatting import euros, group_thousands, long_date, month_and_year
 from apps.dashboard.sparkline import TrendSource, build_trend_chart
 
 from .comparison import FLAT, MetricComparison, derive_period_pair
+from .intelligence import (
+    build_attention_matrix,
+    build_order_structure,
+    build_signals,
+)
 from .models import MemberStatus, PageRole, PaymentClass, ProductType
 from .periods import (
+    FOCUSES,
+    METRIC_ORDERS,
+    METRIC_UNITS,
+    METRIC_VALUE,
     PARAM_CATEGORY,
     PARAM_MEMBER,
     PARAM_SEARCH,
@@ -54,13 +63,19 @@ from .selectors import (
     ComparisonWindow,
     ProductRow,
     acquisitions_per_hundred,
+    aggregate_web,
     build_category_rows,
     build_product_rows,
-    concentration_share,
+    distinct_orders_supported,
+    get_catalogue_summary,
     get_categories,
+    get_category_movers,
+    get_concentration,
     get_distinct_orders,
+    get_free_paid_series,
     get_free_paid_split,
     get_member_split,
+    get_monthly_distinct_orders,
     get_monthly_series,
     get_payment_split,
     get_product,
@@ -68,10 +83,12 @@ from .selectors import (
     get_shop_coverage,
     get_totals,
     get_web_opportunities,
+    get_yearly_series,
     latest_snapshot_for,
     paths_by_product,
     resolve_comparison,
 )
+from .vocabulary import vocabulary_for
 
 #: How many products a ranking page shows. Deliberately a page rather than a
 #: Top 20: the shop question "which of our products are ignored" needs the
@@ -93,6 +110,44 @@ def _rate(value: Decimal | None) -> str:
     if value is None:
         return DASH
     return f"{value}".replace(".", ",")
+
+
+def _payment_value(payments: dict, key: str) -> str:
+    """One payment class's ordered value.
+
+    Zero is a real answer here — the class exists and carried nothing — so this
+    formats zero rather than dashing it. What it must never do is imply
+    settlement: an invoice figure is value that was *ordered* on an invoice, not
+    money received, and no caller may label it otherwise.
+    """
+    totals = payments.get(key)
+    return euros(totals.ordered_value_net if totals else Decimal(0))
+
+
+def _width(value, largest) -> float:
+    """A bar's width as a percentage of the largest row in its group.
+
+    Zero when there is nothing to compare against, so an empty group draws no
+    bars rather than a row of full-width ones.
+    """
+    if not largest or largest <= 0:
+        return 0.0
+    return round(float(value) / float(largest) * 100, 1)
+
+
+def _bars(items, *, largest=None) -> tuple:
+    """`(label, value_text, width_basis, note)` tuples as `BarRow`s."""
+    rows = list(items)
+    basis = largest if largest is not None else max((row[2] for row in rows), default=0)
+    return tuple(
+        BarRow(
+            label=row[0],
+            value=row[1],
+            width=_width(row[2], basis),
+            note=row[3] if len(row) > 3 else "",
+        )
+        for row in rows
+    )
 
 
 @dataclass(frozen=True)
@@ -286,11 +341,24 @@ class MoverPresenter:
 
     @property
     def context(self) -> str:
-        """`Uus` where there is no percentage, otherwise a quiet one."""
+        """The percentage, or a statement about the *comparison* being empty.
+
+        `uus perioodil` rather than `uus toode`, and the difference is not
+        pedantry: a product with no acquisitions in the previous window may have
+        been in the catalogue for five years. Purchase activity does not
+        establish when a product launched, and only catalogue history could.
+        `title` spells the same thing out for a reader who hovers.
+        """
         if self.row.is_new:
-            return "uus"
+            return "uus perioodil"
         percentage = self.row.percentage_change
         return "" if percentage is None else f"{int(percentage):+d}%".replace("-", "−")
+
+    @property
+    def context_title(self) -> str:
+        if self.row.is_new:
+            return "Eelmisel perioodil soetusi ei olnud."
+        return ""
 
 
 @dataclass(frozen=True)
@@ -349,6 +417,123 @@ class MixPresenter:
     paid_label: str = ""
     previous_note: str = ""
     has_unknown: bool = False
+
+
+@dataclass(frozen=True)
+class FocusOption:
+    """One entry in the focus navigation."""
+
+    key: str
+    label: str
+    question: str
+    is_active: bool
+    query: str
+
+
+@dataclass(frozen=True)
+class MetricOption:
+    key: str
+    label: str
+    is_active: bool
+    query: str
+
+
+@dataclass(frozen=True)
+class BarRow:
+    """One row of a compact horizontal comparison.
+
+    `width` is a percentage of the largest row, used for a bar the reader can
+    scan. The exact figure is always printed beside it, so the bar is a visual
+    aid rather than the only carrier of the quantity.
+    """
+
+    label: str
+    value: str
+    width: float = 0.0
+    note: str = ""
+    href: str = ""
+
+    @property
+    def has_note(self) -> bool:
+        return bool(self.note)
+
+
+@dataclass(frozen=True)
+class YearPresenter:
+    """One calendar year, with its incompleteness stated rather than implied."""
+
+    year: str
+    units: str
+    value: str
+    orders: str
+    width: float
+    is_partial: bool
+    covered_label: str = ""
+
+    @property
+    def partial_note(self) -> str:
+        """What a partial year actually covers, in words a chart cannot show."""
+        if not self.is_partial:
+            return ""
+        return f"osaline aasta · {self.covered_label}"
+
+
+@dataclass(frozen=True)
+class PaymentMixPresenter:
+    """Ordered value by payment mode. Never a statement about settlement."""
+
+    is_known: bool = False
+    rows: tuple[BarRow, ...] = ()
+    invoice_value: str = DASH
+    settled_value: str = DASH
+    unknown_value: str = DASH
+
+
+@dataclass(frozen=True)
+class OrderStructurePresenter:
+    is_distinct: bool = False
+    units_per_order: str = DASH
+    value_per_order: str = DASH
+    value_per_unit: str = DASH
+    has_per_order: bool = False
+    withheld_note: str = ""
+
+
+@dataclass(frozen=True)
+class WebCoveragePresenter:
+    """How much of the selected population the web figures cover."""
+
+    measured: int = 0
+    without_path: int = 0
+    without_measurement: int = 0
+    total: int = 0
+    summary: str = ""
+    has_population: bool = False
+
+
+@dataclass(frozen=True)
+class CataloguePresenter:
+    """The current catalogue snapshot, as present-tense facts."""
+
+    has_products: bool = False
+    products: str = DASH
+    by_type: tuple[BarRow, ...] = ()
+    with_list_price: str = DASH
+    with_member_price: str = DASH
+    free_listed: str = DASH
+    published: str = DASH
+    publicly_listed: str = DASH
+    listing_gate_open: bool = False
+    with_acquisition_path: str = DASH
+
+
+@dataclass(frozen=True)
+class MemberSplitPresenter:
+    """The member dimension, shown only when the gate is open."""
+
+    is_open: bool = False
+    rows: tuple[BarRow, ...] = ()
+    value_rows: tuple[BarRow, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -418,6 +603,71 @@ class ShopOverview:
     period_options_primary: tuple = ()
     period_options_secondary: tuple = ()
 
+    # --- the intelligence layer ------------------------------------------
+    #: Which analytical view is on screen, and the links to the others.
+    focus: str = ""
+    focus_label: str = ""
+    focus_question: str = ""
+    focus_options: tuple[FocusOption, ...] = ()
+    #: Type-aware wording for every acquisition figure on the page.
+    units_label: str = "Soetatud"
+    units_noun: str = "ühikut"
+    views_label: str = "Ostulehe vaatamised"
+    rate_label: str = "Soetamisi / 100 vaatamist"
+    #: Deterministic things worth a second look.
+    signals: tuple = ()
+    #: Long-term history.
+    years: tuple[YearPresenter, ...] = ()
+    months_bars: tuple[BarRow, ...] = ()
+    free_paid_series: tuple[BarRow, ...] = ()
+    free_paid_series_known: bool = False
+    #: Structure and composition.
+    payment_mix: PaymentMixPresenter = field(default_factory=PaymentMixPresenter)
+    order_structure: OrderStructurePresenter = field(default_factory=OrderStructurePresenter)
+    member_split: MemberSplitPresenter = field(default_factory=MemberSplitPresenter)
+    concentration: object = None
+    concentration_note: str = ""
+    long_tail_note: str = ""
+    value_concentration_note: str = ""
+    #: Rankings for the deeper views.
+    category_bars: tuple[BarRow, ...] = ()
+    value_bars: tuple[BarRow, ...] = ()
+    value_category_bars: tuple[BarRow, ...] = ()
+    value_type_bars: tuple[BarRow, ...] = ()
+    type_bars: tuple[BarRow, ...] = ()
+    category_risers: tuple = ()
+    category_fallers: tuple = ()
+    #: Web.
+    web_coverage: WebCoveragePresenter = field(default_factory=WebCoveragePresenter)
+    matrix: object = None
+    #: Catalogue, present tense.
+    catalogue: CataloguePresenter = field(default_factory=CataloguePresenter)
+    #: Data quality.
+    schema_version: str = ""
+    distinct_orders_available: bool = False
+    free_paid_available: bool = False
+    page_detail_complete: bool = False
+
+    @property
+    def is_overview(self) -> bool:
+        return self.focus == "ulevaade"
+
+    @property
+    def is_purchases(self) -> bool:
+        return self.focus == "ostud"
+
+    @property
+    def is_products(self) -> bool:
+        return self.focus == "tooted"
+
+    @property
+    def is_visibility(self) -> bool:
+        return self.focus == "nahtavus"
+
+    @property
+    def is_value(self) -> bool:
+        return self.focus == "vaartus"
+
     @property
     def has_rows(self) -> bool:
         return bool(self.products)
@@ -470,7 +720,9 @@ def _change_label(comparison: MetricComparison, *, money: bool = False) -> str:
     if not comparison.is_available:
         return ""
     if comparison.is_new:
-        return "uus"
+        # The previous window measured nothing, so there is no percentage. This
+        # says the comparison is empty, never that the product is new.
+        return "uus perioodil"
     percentage = comparison.percentage_change
     if percentage is None:
         return ""
@@ -534,8 +786,11 @@ def build_overview(
     search: str,
     sort: str,
     page: int,
+    focus=None,
+    metric: str = METRIC_UNITS,
 ) -> ShopOverview:
     coverage = get_shop_coverage()
+    focus = focus if focus is not None else FOCUSES[0]
     if not coverage.has_data:
         return ShopOverview(
             has_source=False,
@@ -544,6 +799,9 @@ def build_overview(
             window=ComparisonWindow(None, None, None, None),
             web_interval_label="",
             web_is_partial=False,
+            focus=focus.key,
+            focus_label=focus.label,
+            focus_question=focus.question,
         )
 
     resolved = resolve_period(period_key, date_from, date_to, anchor=coverage.coverage_end)
@@ -578,15 +836,13 @@ def build_overview(
     months = get_monthly_series(window, **filters)
     max_units = max((int(point.units) for point in months), default=0)
 
-    # The period total's own product-page views, summed from the rows already
-    # loaded rather than re-queried, so the headline and the table agree.
-    known_views = [
-        row.product_page_views.views
-        for row in rows
-        if row.product_page_views is not None and row.product_page_views.views is not None
-    ]
-    total_views = sum(known_views) if known_views else None
-    conversion_units = sum((row.conversion_units for row in rows), Decimal(0))
+    # The period's own acquisition-page views, from the rows already loaded
+    # rather than re-queried, so the headline and the table agree — and over
+    # **unique** paths, so two event products sharing one event page contribute
+    # that page's traffic once rather than twice.
+    web = aggregate_web(rows)
+    total_views = web.views
+    conversion_units = web.units
 
     # --- the comparison, and everything derived from it -------------------
     pair = derive_period_pair(
@@ -601,9 +857,23 @@ def build_overview(
     )
     previous_totals = get_totals(previous_window, **filters) if pair.is_available else None
 
-    # Distinct orders where the source can answer, order lines where it cannot.
-    current_orders = get_distinct_orders(
-        start=window.commerce_start, end=window.commerce_end, product_type=product_type
+    # Distinct orders where the source can answer the population **now on
+    # screen**, order lines where it cannot.
+    #
+    # `ShopDailySummary` is keyed by day and product type only. A category,
+    # member or search filter narrows past that grain, and reusing the stored
+    # total would put the whole type's order count beside one category's units
+    # and value — two populations, one row, nothing saying so. So the guard is
+    # checked before the query, not after it, and the label follows the metric.
+    supports_distinct = distinct_orders_supported(
+        category_term_ids=categories, member_status=effective_member, search=search
+    )
+    current_orders = (
+        get_distinct_orders(
+            start=window.commerce_start, end=window.commerce_end, product_type=product_type
+        )
+        if supports_distinct
+        else None
     )
     orders_are_distinct = current_orders is not None
     previous_orders = (
@@ -629,13 +899,34 @@ def build_overview(
     mix = get_free_paid_split(window, **filters)
     previous_mix = get_free_paid_split(previous_window, **filters) if pair.is_available else None
 
+    words = vocabulary_for(product_type)
+
+    # Why the order label moves: `Tellimused` is only true when the stored
+    # distinct-order summary answers this exact population. Otherwise the figure
+    # counts order *lines*, is a different and larger number, and says so.
+    if orders_are_distinct:
+        orders_label = "Tellimused"
+        orders_note = ""
+    else:
+        orders_label = "Tellimusridu"
+        orders_note = (
+            "kitsendatud valikul loetakse tooteridu"
+            if supports_distinct is False
+            else "eri tellimuste arv ei ole imporditud"
+        )
+
     kpis = (
-        _kpi("Ostetud", units_cmp, formatter=lambda v: group_thousands(int(v)), unit="ühikut"),
         _kpi(
-            "Tellimused" if orders_are_distinct else "Tellimusridu",
+            words.units_label,
+            units_cmp,
+            formatter=lambda v: group_thousands(int(v)),
+            unit=words.units_noun,
+        ),
+        _kpi(
+            orders_label,
             orders_cmp,
             formatter=lambda v: group_thousands(int(v)),
-            secondary=("" if orders_are_distinct else "eri tellimuste arv ei ole imporditud"),
+            secondary=orders_note,
         ),
         _kpi(
             "Tellitud väärtus",
@@ -643,7 +934,7 @@ def build_overview(
             formatter=euros,
             unit="KM-ta",
             secondary=(
-                f"{mix.free_share:.0f}% ostudest tasuta".replace(".", ",")
+                f"{mix.free_share:.0f}% soetustest tasuta".replace(".", ",")
                 if mix.free_share is not None
                 else ""
             ),
@@ -672,21 +963,69 @@ def build_overview(
         )
         for r in ranked
     )
-    share = concentration_share(rows, top=10)
+    concentration = get_concentration(rows, top=10)
+    value_concentration = get_concentration(rows, top=10, by_value=True)
+    share = concentration.top_share
 
     weak, strong = get_web_opportunities(rows)
+    category_risers, category_fallers = get_category_movers(
+        current_start=window.commerce_start,
+        current_end=window.commerce_end,
+        previous_start=pair.previous_start,
+        previous_end=pair.previous_end,
+        **filters,
+    )
+
+    # --- the trend, on whichever metric was asked for ---------------------
+    #
+    # The order series draws distinct orders when the summary can answer this
+    # population and order lines when it cannot, matching the KPI above it. Two
+    # series on one page that disagree about what an order is would be worse
+    # than offering only one.
+    monthly_orders = (
+        dict(
+            get_monthly_distinct_orders(
+                start=window.commerce_start,
+                end=window.commerce_end,
+                product_type=product_type,
+            )
+        )
+        if orders_are_distinct
+        else {}
+    )
+    previous_months = get_monthly_series(previous_window, **filters) if pair.is_available else ()
+    previous_monthly_orders = (
+        dict(
+            get_monthly_distinct_orders(
+                start=pair.previous_start,
+                end=pair.previous_end,
+                product_type=product_type,
+            )
+        )
+        if orders_are_distinct and pair.is_available
+        else {}
+    )
+
+    def _series(points, distinct_by_month):
+        if metric == METRIC_VALUE:
+            return [(point.month, float(point.ordered_value_net)) for point in points]
+        if metric == METRIC_ORDERS:
+            if distinct_by_month:
+                return [
+                    (point.month, float(distinct_by_month.get(point.month, 0))) for point in points
+                ]
+            return [(point.month, float(point.orders)) for point in points]
+        return [(point.month, float(point.units)) for point in points]
+
+    trend_label = {
+        METRIC_VALUE: "Tellitud väärtus",
+        METRIC_ORDERS: orders_label,
+    }.get(metric, words.trend_label)
 
     trend = _trend_chart(
-        [(point.month, float(point.units)) for point in months],
-        (
-            [
-                (point.month, float(point.units))
-                for point in get_monthly_series(previous_window, **filters)
-            ]
-            if pair.is_available
-            else []
-        ),
-        label="Ostetud",
+        _series(months, monthly_orders),
+        _series(previous_months, previous_monthly_orders) if pair.is_available else [],
+        label=trend_label,
         previous_label=pair.previous_label,
         offset_days=pair.length_days,
     )
@@ -698,6 +1037,243 @@ def build_overview(
         "sort": sort if sort != SORT_UNITS else "",
         "member_status": effective_member,
     }
+
+    def _focus_query(key: str) -> str:
+        """A link to another view, carrying everything already chosen."""
+        query = build_query(
+            period_key=resolved.key,
+            start=resolved.start,
+            end=resolved.end,
+            focus=key,
+            metric=metric,
+            **state,
+        )
+        return f"?{query}"
+
+    # --- long-term history, structure and composition ---------------------
+    years = get_yearly_series(window, **filters)
+    max_year_units = max((int(point.units) for point in years), default=0)
+    year_rows = tuple(
+        YearPresenter(
+            year=str(point.year),
+            units=group_thousands(int(point.units)),
+            value=euros(point.ordered_value_net),
+            orders=group_thousands(point.orders),
+            width=_width(int(point.units), max_year_units),
+            is_partial=point.is_partial,
+            covered_label=(
+                f"{long_date(point.covered_from)}–{long_date(point.covered_to)}"
+                if point.is_partial
+                else ""
+            ),
+        )
+        for point in years
+    )
+
+    mix_series = get_free_paid_series(window, **filters)
+    free_paid_bars = tuple(
+        BarRow(
+            label=month_and_year(point.month),
+            value=f"{point.free_share:.0f}%".replace(".", ","),
+            width=float(point.free_share),
+            note=f"{group_thousands(int(point.free or 0))} tasuta, "
+            f"{group_thousands(int(point.paid or 0))} tasulist",
+        )
+        for point in mix_series
+        if point.free_share is not None
+    )
+
+    order_structure = build_order_structure(
+        units=totals.units,
+        ordered_value_net=totals.ordered_value_net,
+        distinct_orders=current_orders if orders_are_distinct else None,
+        supports_distinct=orders_are_distinct,
+    )
+
+    matrix = build_attention_matrix(rows, minimum_views=MIN_VIEWS_FOR_OPPORTUNITY)
+
+    signals = build_signals(
+        units_change=units_cmp.change if units_cmp.is_available else None,
+        units_percentage=units_cmp.percentage_change if units_cmp.is_available else None,
+        weak_acquisition=weak,
+        strong_acquisition=strong,
+        product_fallers=fallers,
+        category_fallers=category_fallers,
+        free_share=mix.free_share,
+        previous_free_share=previous_mix.free_share if previous_mix else None,
+        concentration=concentration,
+        focus_query=_focus_query,
+        minimum_views=MIN_VIEWS_FOR_OPPORTUNITY,
+    )
+
+    # --- composition breakdowns ------------------------------------------
+    #
+    # Units and ordered value only. Distinct orders are deliberately absent from
+    # every per-type breakdown: one Commerce order may carry a document and a
+    # physical product, so it belongs to two type rows and adding them would
+    # count it twice — the exact error `ShopDailySummary`'s blank-type row
+    # exists to avoid.
+    type_totals: dict[str, list] = {}
+    for row in rows:
+        bucket = type_totals.setdefault(row.product_type, [Decimal(0), Decimal(0)])
+        bucket[0] += row.units
+        bucket[1] += row.ordered_value_net
+    type_bars = _bars(
+        sorted(
+            (
+                (
+                    ProductType(key).label,
+                    group_thousands(int(amounts[0])),
+                    int(amounts[0]),
+                    euros(amounts[1]),
+                )
+                for key, amounts in type_totals.items()
+            ),
+            key=lambda item: -item[2],
+        )
+    )
+    value_type_bars = _bars(
+        sorted(
+            (
+                (
+                    ProductType(key).label,
+                    euros(amounts[1]),
+                    int(amounts[1]),
+                    f"{group_thousands(int(amounts[0]))} {words.units_noun}",
+                )
+                for key, amounts in type_totals.items()
+            ),
+            key=lambda item: -item[2],
+        )
+    )
+
+    category_bars = _bars(
+        (
+            row.category_name or "Kategooriata",
+            group_thousands(int(row.units)),
+            int(row.units),
+            f"{row.product_count} toodet",
+        )
+        for row in category_rows[:12]
+    )
+    value_category_bars = _bars(
+        sorted(
+            (
+                (
+                    row.category_name or "Kategooriata",
+                    euros(row.ordered_value_net),
+                    int(row.ordered_value_net),
+                    f"{group_thousands(int(row.units))} {words.units_noun}",
+                )
+                for row in category_rows
+            ),
+            key=lambda item: -item[2],
+        )[:12]
+    )
+    value_ranked = sorted(rows, key=lambda r: (-r.ordered_value_net, r.title.casefold()))[:10]
+    value_bars = _bars(
+        (
+            row.title,
+            euros(row.ordered_value_net),
+            int(row.ordered_value_net),
+            f"{group_thousands(int(row.units))} {words.units_noun}",
+        )
+        for row in value_ranked
+    )
+
+    payment_rows = [
+        (PaymentClass.INVOICE, "Arve"),
+        (PaymentClass.BANK_OR_CARD, "Pangalink või kaart"),
+        (PaymentClass.UNKNOWN, "Teadmata"),
+    ]
+    payment_present = [
+        (label, payments[key].ordered_value_net)
+        for key, label in payment_rows
+        if payments.get(key) and payments[key].ordered_value_net > 0
+    ]
+    payment_mix = PaymentMixPresenter(
+        is_known=bool(payment_present),
+        rows=_bars(((label, euros(amount), int(amount), "") for label, amount in payment_present)),
+        invoice_value=_payment_value(payments, PaymentClass.INVOICE),
+        settled_value=_payment_value(payments, PaymentClass.BANK_OR_CARD),
+        unknown_value=_payment_value(payments, PaymentClass.UNKNOWN),
+    )
+
+    member_totals = get_member_split(window, **filters) if member_gate_open else {}
+    member_labels = [
+        (MemberStatus.MEMBER, "Liige"),
+        (MemberStatus.NON_MEMBER, "Mitteliige"),
+        (MemberStatus.UNKNOWN, "Teadmata"),
+    ]
+    member_presenter = MemberSplitPresenter(
+        is_open=member_gate_open,
+        rows=_bars(
+            (
+                (
+                    label,
+                    group_thousands(int(member_totals[key].units)),
+                    int(member_totals[key].units),
+                    "",
+                )
+                for key, label in member_labels
+                if member_totals.get(key)
+            )
+        ),
+        value_rows=_bars(
+            (
+                (
+                    label,
+                    euros(member_totals[key].ordered_value_net),
+                    int(member_totals[key].ordered_value_net),
+                    "",
+                )
+                for key, label in member_labels
+                if member_totals.get(key)
+            )
+        ),
+    )
+
+    coverage_summary = web.coverage
+    web_coverage = WebCoveragePresenter(
+        measured=coverage_summary.measured,
+        without_path=coverage_summary.without_path,
+        without_measurement=coverage_summary.without_measurement,
+        total=coverage_summary.total,
+        has_population=coverage_summary.has_population,
+        summary=(
+            f"{group_thousands(coverage_summary.measured)} / "
+            f"{group_thousands(coverage_summary.total)} valitud tootest on "
+            "sellel vahemikul mõõdetud ostuleht."
+            if coverage_summary.has_population
+            else ""
+        ),
+    )
+
+    catalogue = get_catalogue_summary(listing_gate_open=coverage.public_listing_semantics_verified)
+    catalogue_presenter = CataloguePresenter(
+        has_products=catalogue.has_products,
+        products=group_thousands(catalogue.products),
+        by_type=_bars(
+            sorted(
+                (
+                    (ProductType(key).label, group_thousands(count), count, "")
+                    for key, count in catalogue.by_type.items()
+                ),
+                key=lambda item: -item[2],
+            )
+        ),
+        with_list_price=group_thousands(catalogue.with_list_price),
+        with_member_price=group_thousands(catalogue.with_member_price),
+        free_listed=group_thousands(catalogue.free_listed),
+        published=group_thousands(catalogue.published),
+        publicly_listed=(
+            group_thousands(catalogue.publicly_listed)
+            if catalogue.publicly_listed is not None
+            else DASH
+        ),
+        listing_gate_open=coverage.public_listing_semantics_verified,
+        with_acquisition_path=group_thousands(catalogue.with_acquisition_path),
+    )
 
     return ShopOverview(
         has_source=True,
@@ -733,7 +1309,7 @@ def build_overview(
         kpis=kpis,
         web_kpis=(
             _kpi(
-                "Tootelehe vaatamised",
+                words.views_label,
                 MetricComparison.of(total_views or 0, None),
                 formatter=lambda v: _figure(total_views),
                 comparison_label=(
@@ -743,7 +1319,7 @@ def build_overview(
                 ),
             ),
             _kpi(
-                "Oste / 100 vaatamist",
+                words.rate_label,
                 MetricComparison.of(0, None),
                 formatter=lambda v: _rate(acquisitions_per_hundred(conversion_units, total_views)),
             ),
@@ -757,7 +1333,68 @@ def build_overview(
         risers=tuple(MoverPresenter(row) for row in risers),
         fallers=tuple(MoverPresenter(row) for row in fallers),
         ranking=ranking,
-        ranking_note=(f"Top 10 moodustavad {share}% ostudest." if share is not None else ""),
+        ranking_note=(f"Top 10 moodustavad {share}% soetustest." if share is not None else ""),
+        focus=focus.key,
+        focus_label=focus.label,
+        focus_question=focus.question,
+        focus_options=_focus_options(focus.key, resolved, state, metric),
+        units_label=words.units_label,
+        units_noun=words.units_noun,
+        views_label=words.views_label,
+        rate_label=words.rate_label,
+        trend_metric=metric,
+        trend_options=_metric_options(metric, resolved, state, focus.key, orders_label),
+        signals=signals,
+        years=year_rows,
+        free_paid_series=free_paid_bars,
+        free_paid_series_known=bool(free_paid_bars),
+        payment_mix=payment_mix,
+        order_structure=OrderStructurePresenter(
+            is_distinct=order_structure.is_distinct,
+            units_per_order=_decimal(order_structure.units_per_order),
+            value_per_order=euros(order_structure.value_per_order)
+            if order_structure.value_per_order is not None
+            else DASH,
+            value_per_unit=euros(order_structure.value_per_unit)
+            if order_structure.value_per_unit is not None
+            else DASH,
+            has_per_order=order_structure.has_per_order,
+            withheld_note=(
+                ""
+                if order_structure.is_distinct
+                else "Tellimuse kohta arvutatavad näitajad vajavad eri tellimuste arvu, "
+                "mida see valik ei toeta."
+            ),
+        ),
+        member_split=member_presenter,
+        concentration=concentration,
+        concentration_note=(
+            f"Top 10 toodet moodustavad {share}% soetatud ühikutest." if share is not None else ""
+        ),
+        long_tail_note=(
+            f"80% soetustest tuleb {concentration.long_tail_count} tootest "
+            f"({concentration.population} seast)."
+            if concentration.long_tail_count is not None
+            else ""
+        ),
+        value_concentration_note=(
+            f"Top 10 toodet moodustavad {value_concentration.top_share}% tellitud väärtusest."
+            if value_concentration.top_share is not None
+            else ""
+        ),
+        category_bars=category_bars,
+        value_bars=value_bars,
+        value_category_bars=value_category_bars,
+        value_type_bars=value_type_bars,
+        type_bars=type_bars,
+        category_risers=category_risers,
+        category_fallers=category_fallers,
+        web_coverage=web_coverage,
+        matrix=matrix,
+        catalogue=catalogue_presenter,
+        distinct_orders_available=orders_are_distinct,
+        free_paid_available=mix.is_known,
+        page_detail_complete=window.page_detail_complete,
         mix=_mix_presenter(mix, previous_mix),
         weak_acquisition=tuple(OpportunityPresenter(row) for row in weak),
         strong_acquisition=tuple(OpportunityPresenter(row) for row in strong),
@@ -803,6 +1440,72 @@ def _result_summary(total: int, search: str) -> str:
             else f"Otsing „{search}“: vasteid ei ole."
         )
     return f"{total} toodet valitud perioodil." if total else "Valitud perioodil tooteid ei ole."
+
+
+def _decimal(value: Decimal | None) -> str:
+    """A derived average, to two places, in Estonian decimal notation."""
+    if value is None:
+        return DASH
+    return f"{value:.2f}".replace(".", ",")
+
+
+def _focus_options(active: str, resolved, state: dict, metric: str) -> tuple[FocusOption, ...]:
+    """The five views, each carrying the period and filters already chosen.
+
+    Every link goes through `build_query`, so moving between views preserves the
+    reader's whole state — and the URL stays bookmarkable, shareable and
+    reload-safe because the state lives in it rather than in a session.
+    """
+    return tuple(
+        FocusOption(
+            key=focus.key,
+            label=focus.label,
+            question=focus.question,
+            is_active=focus.key == active,
+            query=build_query(
+                period_key=resolved.key,
+                start=resolved.start,
+                end=resolved.end,
+                focus=focus.key,
+                metric=metric,
+                **state,
+            ),
+        )
+        for focus in FOCUSES
+    )
+
+
+def _metric_options(
+    active: str, resolved, state: dict, focus_key: str, orders_label: str
+) -> tuple[MetricOption, ...]:
+    """Which series the trend may draw.
+
+    The order option is labelled with whatever the order figure actually is for
+    this population — `Tellimused` where the summary answers it, `Tellimusridu`
+    where it does not — so the switch cannot promise a metric the page will not
+    deliver.
+    """
+    labels = (
+        (METRIC_UNITS, "Soetatud"),
+        (METRIC_ORDERS, orders_label),
+        (METRIC_VALUE, "Tellitud väärtus"),
+    )
+    return tuple(
+        MetricOption(
+            key=key,
+            label=label,
+            is_active=key == active,
+            query=build_query(
+                period_key=resolved.key,
+                start=resolved.start,
+                end=resolved.end,
+                focus=focus_key,
+                metric=key,
+                **state,
+            ),
+        )
+        for key, label in labels
+    )
 
 
 def _type_options(active: str, resolved, state: dict) -> tuple[TypeOption, ...]:
