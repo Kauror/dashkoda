@@ -66,6 +66,7 @@ class Command(BaseCommand):
         # Imported here rather than at module scope: each builder pulls in its
         # own domain's models and services, and a management command should not
         # drag all twelve apps into every `manage.py` invocation.
+        from apps.dashboard import e2e_seed as dashboard_seed
         from apps.event_programme import e2e_seed as event_programme_seed
         from apps.events import e2e_seed as events_seed
         from apps.legal_work import e2e_seed as legal_work_seed
@@ -101,10 +102,17 @@ class Command(BaseCommand):
             # from those catalogues, and a ranking seeded first would show paths
             # where the finished page shows titles.
             visibility_seed.seed_website_analytics(today),
-            # Last, and after the analytics on purpose: the E-pood page divides
+            # After the analytics on purpose: the E-pood page divides
             # acquisitions by page views, and seeding it against an empty GA4
             # history would exercise only the "no web comparison" branch.
             shop_seed.seed(today),
+            # Genuinely last, and the only builder that publishes no content.
+            # It marks one already-published feed as having failed its most
+            # recent check, so the suite meets a source showing older data after
+            # a failed refresh — a state the main page has to draw in two places
+            # at once and that no happy-path seed can produce. It must run after
+            # everything it marks, or a later successful sync would clear it.
+            dashboard_seed.seed_failed_refresh(),
         ]
 
         self.stdout.write(self.style.SUCCESS(f"Sünteetiline seeme ({module}):"))

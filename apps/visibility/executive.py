@@ -163,7 +163,7 @@ def get_website_executive() -> WebsiteExecutive:
         page_views=current.page_views,
         previous_sessions=previous.sessions if previous else None,
         can_compare=can_compare,
-        comparison_note=comparison.unavailable_reason,
+        comparison_note=_comparison_note(comparison, can_compare=can_compare),
         start=period.start,
         end=period.end,
         days=period.days,
@@ -172,6 +172,27 @@ def get_website_executive() -> WebsiteExecutive:
         newsletter_issues=NEWSLETTER_ISSUES,
     )
     return _with_signals(executive)
+
+
+def _comparison_note(comparison, *, can_compare: bool) -> str:
+    """Why no delta is shown, whenever there is no delta to show.
+
+    `build_comparison` fills `unavailable_reason` only for the cases it can name
+    up front — no window at all, the whole history, a previous period reaching
+    before collection began. It leaves that field **empty** for the other
+    refusal: two windows that both exist but are measured to different
+    completeness, which `can_compare_site` rejects on the coverage ratios.
+
+    Without this, that case rendered as a pillar with no comparison and a data
+    status reading `Andmed olemas` — the page silently declining to compare and
+    then reporting nothing wrong. The reason a figure is missing is exactly what
+    the reader needs, so the unnamed refusal gets named here.
+    """
+    if can_compare:
+        return ""
+    if comparison.unavailable_reason:
+        return comparison.unavailable_reason
+    return "Kahe perioodi mõõdetus erineb liiga palju, et neid võrrelda."
 
 
 def _top_ordinary_page(start: date, end: date) -> ContentPerformanceRow | None:
