@@ -63,7 +63,7 @@ test("a long linked title with a hidden suffix does not widen the page", async (
 test("a hidden note inside a scrolling table cannot escape it", async ({ page }) => {
   /*
    * The invariant behind the 324-pixel overflow the seeded analytics exposed on
-   * Nähtavus, asserted directly rather than only through its symptom.
+   * the website page, asserted directly rather than only through its symptom.
    *
    * `sr-only` is absolutely positioned, and an absolutely positioned box is
    * clipped by an ancestor's `overflow` only when that ancestor is in its

@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
+from django.urls import reverse
 from django.utils import timezone
 
 from apps.core.formatting import short_date, signed_integer
@@ -117,8 +118,12 @@ def _website_slot(status: Ga4ConnectionStatus, traffic: WebsiteTraffic) -> Chann
     traffic was collected, stored and audited, and the card went on saying the
     source was not connected.
 
-    It deliberately links nowhere either way. A link to Google Analytics would
-    send a board member to a login screen.
+    It used to link nowhere, and the reason given was that a link to Google
+    Analytics would send a board member to a login screen. That is still true and
+    is no longer the only option: **Koduleht** answers this card's question in
+    DashKoda, so the heading goes there. `channel_card` links a heading only when
+    the slot is not planned, so the unconnected branch still links nowhere on its
+    own — which is right, because there would be nothing at the other end.
     """
     if not (status.is_connected and traffic.has_data):
         return ChannelSlot(
@@ -130,8 +135,8 @@ def _website_slot(status: Ga4ConnectionStatus, traffic: WebsiteTraffic) -> Chann
         )
 
     # Sessions, because the card is labelled `Kodulehe külastused` — visits, not
-    # people. Users and page views are a different question and are kept for the
-    # Nähtavus page rather than crowded into one cell.
+    # people. Users and page views are a different question and are kept for
+    # Koduleht rather than crowded into one cell.
     secondary = ""
     if traffic.change is not None:
         secondary = (
@@ -148,6 +153,7 @@ def _website_slot(status: Ga4ConnectionStatus, traffic: WebsiteTraffic) -> Chann
         # direction from the four social cards.
         state_label=CollectionMethod.AUTOMATIC.label,
         state_variant="neutral",
+        detail_url=reverse("visibility"),
     )
 
 
@@ -200,7 +206,21 @@ def build_newsletter_slot(summary: NewsletterSummary, *, detail_url: str = "") -
     )
 
 
-def _social_slot(reading: MetricReading, *, detail_url: str) -> ChannelSlot:
+def _social_slot(reading: MetricReading) -> ChannelSlot:
+    """One hand-entered channel. Its heading is text, not a link.
+
+    There is nowhere in DashKoda for it to go. The four social figures used to
+    have a page — the old Nähtavus — and Koduleht deliberately does not show
+    them, because a page named after the website should not open with four
+    figures about something else.
+
+    The remaining place they can be read whole is
+    `/admin/data-entry/visibility/`, and that is staff-only. An ordinary viewer
+    holds the shared PIN and no Django account, so linking there would advertise
+    a door they cannot open — the same rule that keeps `Lisa andmed` off a
+    viewer's page. A heading that is plain text is the honest state, and the
+    figure, its date and `Käsitsi sisestatud` are all on the card already.
+    """
     secondary = ""
     if reading.has_data and reading.change is not None:
         secondary = f"{reading.change_label} {reading.comparison_period}"
@@ -219,7 +239,6 @@ def _social_slot(reading: MetricReading, *, detail_url: str) -> ChannelSlot:
         state_label=reading.state_label,
         state_variant=reading.state_variant,
         profile_url=reading.profile_url,
-        detail_url=detail_url,
     )
 
 
@@ -227,21 +246,29 @@ def build_channel_band(
     *,
     summary: VisibilitySummary | None = None,
     ga4_status: Ga4ConnectionStatus | None = None,
-    detail_url: str = "",
     include_newsletter: bool = True,
 ) -> tuple[ChannelSlot, ...]:
     """The six channel slots, in the order the board reads them.
 
-    Website first because it is the widest audience and the one that is missing;
-    then the newsletter, which the Chamber owns outright; then the four social
-    channels in the order the registry fixes.
+    Website first because it is the widest audience; then the newsletter, which
+    the Chamber owns outright; then the four social channels in the order the
+    registry fixes.
 
-    `include_newsletter` is what the Nähtavus page turns off. The newsletter
-    material is shown on Uudised now, so that page's own band would otherwise
-    repeat a card the reader is meant to find one section further on. The
-    overall dashboard leaves it on: there, Uudiskirjad is still one of the
-    Chamber's communication channels beside the website and the social accounts,
-    and dropping it globally would take it off a page this change is not about.
+    **Each slot's destination is decided here**, because this is the only place
+    that knows which slot is which. It used to take one `detail_url` and hand the
+    same address to all six — which meant that address had to be wrong for five
+    of them, and quietly became wrong for all six as material moved: the
+    newsletter card pointed at a page whose newsletters had gone to Uudised, and
+    after the website page became Koduleht the four social cards pointed at a
+    page that deliberately shows no social figures at all.
+
+    So: the website card goes to Koduleht, the newsletter card to Uudised where
+    `Uudiskirjade tulemused` lives, and the social cards nowhere — see
+    `_social_slot` for why nowhere is the honest answer rather than a gap.
+
+    `include_newsletter` is turned off by a page that shows the newsletter
+    material itself one section further on, so its band does not repeat a card
+    the reader is about to reach.
     """
     summary = summary if summary is not None else get_visibility_summary()
     ga4_status = ga4_status if ga4_status is not None else get_connection_status()
@@ -249,11 +276,11 @@ def build_channel_band(
     return (
         _website_slot(ga4_status, traffic),
         *(
-            (build_newsletter_slot(summary.newsletter, detail_url=detail_url),)
+            (build_newsletter_slot(summary.newsletter, detail_url=reverse("news")),)
             if include_newsletter
             else ()
         ),
-        *(_social_slot(reading, detail_url=detail_url) for reading in summary.social),
+        *(_social_slot(reading) for reading in summary.social),
     )
 
 
@@ -281,7 +308,6 @@ class VisibilityPage:
 
 def build_visibility_page(
     *,
-    detail_url: str = "",
     today: date | None = None,
     period_key: str | None = None,
     section_key: str | None = None,
@@ -306,7 +332,6 @@ def build_visibility_page(
         channels=build_channel_band(
             summary=summary,
             ga4_status=ga4_status,
-            detail_url=detail_url,
             # Shown on Uudised now, one section below the news archive.
             include_newsletter=False,
         ),

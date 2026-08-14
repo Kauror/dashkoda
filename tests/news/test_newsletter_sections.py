@@ -36,7 +36,18 @@ ENEWS = VisibilityMetric.NEWSLETTER_ENEWS
 DAY = dt.date(2026, 7, 1)
 
 NEWS_URL = "/uudised/"
-VISIBILITY_URL = "/nahtavus/"
+# The website page is Koduleht at `/koduleht/` now. `/nahtavus/` still resolves
+# and would answer these assertions after a redirect, but a test that follows one
+# is a test that cannot tell the two apart.
+VISIBILITY_URL = "/koduleht/"
+
+#: Uudised now carries five focus views over one address. The newsletter
+#: material is the `uudiskirjad` focus and the archive is `arhiiv` — both still
+#: on Uudised, both still absent from Nähtavus, which is the move this suite
+#: exists to pin. The focus travels as an ordinary parameter because Django's
+#: test client discards a path's own query string as soon as `data` is passed.
+NEWSLETTERS = {"fookus": "uudiskirjad"}
+ARCHIVE = {"fookus": "arhiiv"}
 
 #: The section headings each page is asserted to hold or not hold.
 CARD_HEADING = "Uudiskirjad"
@@ -106,16 +117,20 @@ def test_the_visibility_page_has_no_newsletter_section_or_sends(viewer_client):
     assert "Otsi uudiskirja" not in content
 
 
-def test_the_visibility_page_keeps_the_website_and_the_social_channels(viewer_client):
-    """The half of the page that did not move.
+def test_the_overview_band_keeps_the_website_and_the_social_channels(viewer_client):
+    """The half that did not move, asserted where it now lives.
 
-    Asserted explicitly because "remove the newsletter slot" and "remove a slot
-    from the band" are one line apart, and the second would take the website and
-    four social cards with it.
+    "Remove the newsletter slot" and "remove a slot from the band" are one line
+    apart, and the second would take the website and four social cards with it.
+
+    The band left the website page when it became Koduleht — a page named after
+    the website does not open with four figures about something else — so this
+    asserts on the overall dashboard, which is where a board member reads all
+    six channels together.
     """
     read()
 
-    content = page(viewer_client.get(VISIBILITY_URL))
+    content = page(viewer_client.get(reverse("home")))
 
     assert "Kodulehe külastused" in content
     for label in (
@@ -127,14 +142,14 @@ def test_the_visibility_page_keeps_the_website_and_the_social_channels(viewer_cl
         assert label in content, f"{label} left the band with the newsletters"
 
 
-def test_the_visibility_page_renders_without_ga4(viewer_client):
+def test_the_website_page_renders_without_ga4(viewer_client):
     response = viewer_client.get(VISIBILITY_URL)
 
     assert response.status_code == 200
-    assert "Kodulehe külastused" in page(response)
+    assert "Koduleht" in page(response)
 
 
-def test_the_visibility_page_renders_with_newsletter_data_present(viewer_client):
+def test_the_website_page_renders_with_newsletter_data_present(viewer_client):
     """Collected newsletter data must not put the section back.
 
     The queries still run for the overall dashboard's band, so the failure this
@@ -156,7 +171,7 @@ def test_the_visibility_page_renders_with_newsletter_data_present(viewer_client)
 
 def test_the_news_archive_is_unchanged(viewer_client):
     """Every control the archive had before the newsletters arrived below it."""
-    content = page(viewer_client.get(NEWS_URL))
+    content = page(viewer_client.get(NEWS_URL, ARCHIVE))
 
     for control in (
         "Avaldamisperiood",
@@ -171,7 +186,7 @@ def test_the_news_archive_is_unchanged(viewer_client):
 def test_the_news_page_shows_the_newsletter_card(viewer_client):
     read()
 
-    content = page(viewer_client.get(NEWS_URL))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS))
 
     assert CARD_HEADING in content
     # e-Teataja is 100 members + 200 others, counted once.
@@ -187,7 +202,7 @@ def test_the_card_lists_each_newsletter_and_totals_none_of_them(viewer_client):
     """
     read()
 
-    content = page(viewer_client.get(NEWS_URL))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS))
 
     assert "300" in content
     assert "30" in content
@@ -199,7 +214,7 @@ def test_a_newsletter_nobody_collected_stays_missing_rather_than_zero(viewer_cli
     """Missing is not zero, on this page as on every other."""
     read(drop=(2711,))
 
-    content = page(viewer_client.get(NEWS_URL))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS))
 
     assert "Sisestamata" in content
     assert "eNews" in content
@@ -209,7 +224,7 @@ def test_the_news_page_shows_the_analytics_section_and_recent_sends(viewer_clien
     read()
     send(1, "Kutse ärifoorumile")
 
-    content = page(viewer_client.get(NEWS_URL))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS))
 
     assert SECTION_HEADING in content
     assert SENDS_HEADING in content
@@ -221,7 +236,7 @@ def test_the_news_page_filters_by_newsletter(viewer_client):
     send(1, "Ainult eTeatajas", newsletter=ETEATAJA)
     send(2, "Ainult eNewsis", newsletter=ENEWS)
 
-    content = page(viewer_client.get(NEWS_URL, {"uudiskiri": str(ENEWS)}))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS | {"uudiskiri": str(ENEWS)}))
 
     assert "Ainult eNewsis" in content
     assert "Ainult eTeatajas" not in content
@@ -232,7 +247,7 @@ def test_the_news_page_searches_newsletter_subjects(viewer_client):
     send(1, "Kutse ärifoorumile")
     send(2, "Midagi muud")
 
-    content = page(viewer_client.get(NEWS_URL, {"otsi": "ärifoorum"}))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS | {"otsi": "ärifoorum"}))
 
     assert "Kutse ärifoorumile" in content
     assert "Midagi muud" not in content
@@ -243,7 +258,7 @@ def test_a_newsletter_search_matching_nothing_keeps_the_box(viewer_client):
     read()
     send(1, "Kutse ärifoorumile")
 
-    content = page(viewer_client.get(NEWS_URL, {"otsi": "ei leidu midagi"}))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS | {"otsi": "ei leidu midagi"}))
 
     assert "Otsi uudiskirja" in content
     assert "Tühjenda otsing" in content
@@ -251,7 +266,7 @@ def test_a_newsletter_search_matching_nothing_keeps_the_box(viewer_client):
 
 
 def test_the_section_says_so_when_nothing_has_been_collected(viewer_client):
-    content = page(viewer_client.get(NEWS_URL))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS))
 
     assert SECTION_HEADING in content
     assert "Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist." in content
@@ -267,7 +282,7 @@ def test_the_news_page_does_not_build_the_visibility_analytics(viewer_client):
     """
     read()
 
-    content = page(viewer_client.get(NEWS_URL))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS))
 
     assert "Kodulehe külastused" not in content
     assert "Facebooki jälgijad" not in content
@@ -287,61 +302,54 @@ COMBINED = {
 }
 
 
-def test_both_sections_read_their_own_parameters(viewer_client):
+def test_each_focus_reads_its_own_parameters(viewer_client):
+    """The two sections no longer share a screen, and still share a URL.
+
+    One query string carrying both sets: the newsletter focus answers
+    `uudiskiri` and `otsi`, the archive focus answers `otsing`, and neither
+    reaches for the other's.
+    """
     read()
     send(1, "Aastakoosolek", newsletter=ENEWS)
     send(2, "Muu saadetis", newsletter=ENEWS)
 
-    response = viewer_client.get(NEWS_URL, COMBINED)
+    newsletters = page(viewer_client.get(NEWS_URL, NEWSLETTERS | COMBINED))
+    archive = page(viewer_client.get(NEWS_URL, ARCHIVE | COMBINED))
 
-    assert response.status_code == 200
-    content = page(response)
-    # The newsletter half answered `uudiskiri` and `otsi`.
-    assert "Aastakoosolek" in content
-    assert "Muu saadetis" not in content
-    # And the news half kept the term it was given, in its own box.
-    assert 'value="eksport"' in content
-
-
-#: The card's own wrapper id, which is the first thing on the page belonging to
-#: the newsletter half. Splitting on it is what makes these assertions mean
-#: something: "the state appears somewhere on the page" is true of both halves
-#: for free, because each section already emits its own parameters.
-SPLIT = 'id="newsletter-audience"'
-
-
-def halves(content) -> tuple[str, str]:
-    news, marker, newsletters = content.partition(SPLIT)
-    assert marker, "the newsletter card is missing, so there is nothing to split on"
-    return news, newsletters
+    assert "Aastakoosolek" in newsletters
+    assert "Muu saadetis" not in newsletters
+    assert 'value="eksport"' in archive
 
 
 def test_a_newsletter_chip_keeps_the_news_archive(viewer_client):
-    """Asserted on the newsletter half alone.
+    """A control in one focus carries the other focus's state.
 
-    The news chips emit `periood=1a` themselves, so looking for it anywhere on
-    the page would pass whether or not the newsletter chips carry anything.
+    Stronger than when the two shared a page: the archive is not rendered here
+    at all, so a match can only have come from the newsletter section's own
+    links. Before the split this had to be asserted on half of the markup,
+    because both halves emitted their own parameters and "somewhere on the page"
+    was true for free.
     """
     read()
     send(1, "Aastakoosolek", newsletter=ENEWS)
 
-    _, newsletter_half = halves(page(viewer_client.get(NEWS_URL, COMBINED)))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS | COMBINED))
 
-    assert "periood=1a" in newsletter_half
-    assert "kategooria=meie_uudised" in newsletter_half
-    assert "sort=vaadatud" in newsletter_half
-    assert "otsing=eksport" in newsletter_half
+    assert "periood=1a" in content
+    assert "kategooria=meie_uudised" in content
+    assert "sort=vaadatud" in content
+    assert "otsing=eksport" in content
 
 
 def test_a_news_chip_keeps_the_newsletter(viewer_client):
-    """And the same in the other direction, on the news half alone."""
+    """And the same in the other direction, from the archive focus."""
     read()
     send(1, "Aastakoosolek", newsletter=ENEWS)
 
-    news_half, _ = halves(page(viewer_client.get(NEWS_URL, COMBINED)))
+    content = page(viewer_client.get(NEWS_URL, ARCHIVE | COMBINED))
 
-    assert f"uudiskiri={ENEWS}" in news_half
-    assert "otsi=aastakoosolek" in news_half
+    assert f"uudiskiri={ENEWS}" in content
+    assert "otsi=aastakoosolek" in content
 
 
 def test_an_untouched_newsletter_section_adds_nothing_to_the_news_links(viewer_client):
@@ -349,12 +357,21 @@ def test_an_untouched_newsletter_section_adds_nothing_to_the_news_links(viewer_c
 
     Otherwise every period chip on an ordinary visit would grow a
     `uudiskiri=koik` that says only "the reader has not chosen a newsletter".
-    The newsletter half still emits its own `uudiskiri=koik` — that is the
-    `Kõik` chip pointing at itself — so this looks at the news half only.
     """
-    news_half, _ = halves(page(viewer_client.get(NEWS_URL)))
+    content = page(viewer_client.get(NEWS_URL, ARCHIVE))
 
-    assert "uudiskiri=" not in news_half
+    assert "uudiskiri=" not in content
+
+
+def test_the_focus_survives_every_archive_control(viewer_client):
+    """A period chip must not quietly return the reader to the overview.
+
+    Every archive control rebuilds its URL from validated values, so the focus
+    has to be among them — otherwise narrowing the archive navigates out of it.
+    """
+    content = page(viewer_client.get(NEWS_URL, ARCHIVE | {"periood": "1a"}))
+
+    assert content.count("fookus=arhiiv") >= 5
 
 
 def test_the_two_searches_are_never_the_same_box(viewer_client):
@@ -367,7 +384,7 @@ def test_the_two_searches_are_never_the_same_box(viewer_client):
     send(1, "Kutse ärifoorumile")
 
     # The news search must leave the sends alone.
-    content = page(viewer_client.get(NEWS_URL, {"otsing": "ärifoorum"}))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS | {"otsing": "ärifoorum"}))
 
     assert "Kutse ärifoorumile" in content
 
@@ -441,6 +458,6 @@ def test_the_recent_sends_link_to_the_news_archive(viewer_client):
     for campaign_id in range(1, 20):
         send(campaign_id, f"Saadetis {campaign_id}")
 
-    content = page(viewer_client.get(NEWS_URL))
+    content = page(viewer_client.get(NEWS_URL, NEWSLETTERS))
 
     assert reverse("news-newsletter-history") in content

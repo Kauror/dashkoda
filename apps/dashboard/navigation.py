@@ -40,7 +40,7 @@ NAVIGATION: tuple[NavItem, ...] = (
     NavItem(key="news", label="Uudised", url_name="news"),
     # Beside Uudised: both answer "who did we reach", one by what was published
     # and one by how many people are listening.
-    NavItem(key="visibility", label="Nähtavus", url_name="visibility"),
+    NavItem(key="visibility", label="Koduleht", url_name="visibility"),
     # After Nähtavus, because the shop's question builds on that one: page views
     # are the denominator of everything E-pood adds.
     NavItem(key="shop", label="E-pood", url_name="shop"),

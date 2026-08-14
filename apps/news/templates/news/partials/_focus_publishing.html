@@ -1,0 +1,103 @@
+{% load membership_format %}
+{% comment %}
+`Avaldamine` — what and how much the Chamber publishes.
+
+Everything here is a **publication** question, so the control above it is the
+publication window and the reading window has no effect on any of it. The label
+says `Avaldatud:` rather than a bare period, because the same three lengths mean
+something different one focus away.
+
+Context: page
+{% endcomment %}
+
+<section aria-labelledby="section-cadence" class="dk-section dk-section-body">
+  <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+    <h2 id="section-cadence" class="text-sm font-medium text-text">Avaldamismaht</h2>
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="dk-meta">Avaldatud:</span>
+      {% for option in page.periods %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="?{{ option.query }}"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
+      {% endfor %}
+    </div>
+  </div>
+
+  {% if page.counted %}
+    <dl class="mt-3 flex flex-wrap gap-x-8 gap-y-3">
+      <div>
+        <dt class="text-sm text-text-secondary">Avaldatud uudiseid</dt>
+        <dd class="text-xl font-semibold tabular-nums text-text">{{ page.counted.total|integer }}</dd>
+      </div>
+      <div>
+        <dt class="text-sm text-text-secondary">Koja uudised</dt>
+        <dd class="text-xl font-semibold tabular-nums text-text">{{ page.counted.chamber|integer }}</dd>
+      </div>
+      <div>
+        <dt class="text-sm text-text-secondary">Sõprade uudised</dt>
+        <dd class="text-xl font-semibold tabular-nums text-text">{{ page.counted.partner|integer }}</dd>
+      </div>
+      {% if page.counted.unknown %}
+        <div>
+          <dt class="text-sm text-text-secondary">Liik teadmata</dt>
+          <dd class="text-xl font-semibold tabular-nums text-text">{{ page.counted.unknown|integer }}</dd>
+        </div>
+      {% endif %}
+    </dl>
+  {% endif %}
+
+  {% comment %}
+  One stacked chart rather than a volume chart and a mix chart drawn from the
+  same counts: the stack's height is the output and its division is the mix, so
+  the reader never has to check one picture against another.
+  {% endcomment %}
+  {% if page.cadence %}
+    <div class="mt-4">
+      {% include "dashboard/components/chart_figure.html" with chart=page.cadence only %}
+    </div>
+  {% else %}
+    <p class="mt-3 text-sm text-text-secondary">Valitud perioodil ei ole avaldatud uudiseid.</p>
+  {% endif %}
+</section>
+
+<section aria-labelledby="section-catalogue" class="dk-section dk-section-body">
+  <h2 id="section-catalogue" class="text-sm font-medium text-text">Mida kataloog sisaldab</h2>
+  {% comment %}
+  The limits of the catalogue, stated where somebody asking about publishing
+  volume will meet them. `Kõik` means every article DashKoda knows about, which
+  is not the same as every article the Chamber has ever published.
+  {% endcomment %}
+  <dl class="mt-3 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
+    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
+      <dt class="text-sm text-text-secondary">Teadaolevaid uudiseid</dt>
+      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.total|integer }}</dd>
+    </div>
+    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
+      <dt class="text-sm text-text-secondary">Avaldamiskuupäevaga</dt>
+      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.dated|integer }}</dd>
+    </div>
+    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
+      <dt class="text-sm text-text-secondary">Koja uudiseid</dt>
+      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.chamber|integer }}</dd>
+    </div>
+    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
+      <dt class="text-sm text-text-secondary">Sõprade uudiseid</dt>
+      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.partner|integer }}</dd>
+    </div>
+    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
+      <dt class="text-sm text-text-secondary">Liik teadmata</dt>
+      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.unclassified|integer }}</dd>
+    </div>
+    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
+      <dt class="text-sm text-text-secondary">Kuupäevata</dt>
+      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.undated|integer }}</dd>
+    </div>
+  </dl>
+  {% if page.facts.earliest %}
+    <p class="dk-meta mt-3">
+      Varaseim teadaolev uudis {{ page.facts.earliest|date:"d.m.Y" }},
+      viimane {{ page.facts.latest|date:"d.m.Y" }}.
+      „Kõik“ tähendab kõiki DashKodale teadaolevaid uudiseid, mitte kogu Koja arhiivi.
+    </p>
+  {% endif %}
+</section>

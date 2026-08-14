@@ -102,7 +102,9 @@ def test_an_unreadable_category_shows_everything(viewer_client):
     article("koja", category=NewsCategory.CHAMBER)
     article("teadmata")
 
-    response = viewer_client.get(reverse("news"), {"periood": "koik", "kategooria": "arhiiv"})
+    response = viewer_client.get(
+        reverse("news"), {"periood": "koik", "kategooria": "arhiiv", "fookus": "arhiiv"}
+    )
 
     assert response.status_code == 200
     assert response.context["archive"].total == 2
@@ -228,7 +230,9 @@ def test_the_import_does_not_touch_identity():
 def test_the_page_offers_all_three_chips(viewer_client):
     article("koja", category=NewsCategory.CHAMBER)
 
-    page = viewer_client.get(reverse("news"), {"periood": "koik"}).content.decode()
+    page = viewer_client.get(
+        reverse("news"), {"periood": "koik", "fookus": "arhiiv"}
+    ).content.decode()
 
     assert "Koja uudised" in page
     assert "Sõprade uudised" in page
@@ -242,7 +246,9 @@ def test_the_page_says_how_many_are_unclassified(viewer_client):
     article("teadmata-1")
     article("teadmata-2")
 
-    archive = viewer_client.get(reverse("news"), {"periood": "koik"}).context["archive"]
+    archive = viewer_client.get(reverse("news"), {"periood": "koik", "fookus": "arhiiv"}).context[
+        "archive"
+    ]
 
     assert archive.unclassified_count == 2
 

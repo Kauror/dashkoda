@@ -1,200 +1,106 @@
 {% extends "dashboard/shell.html" %}
-{% load membership_format %}
+{% load static %}
 
 {% comment %}
-The news archive.
+The news intelligence dashboard.
 
-One line per article: when it was published, what it was called, how much of it
-was measured. Everything that used to sit between the page title and the first
-article — a source-status panel, two KPI cards repeating the feed's length, and
-a summary paragraph under every headline — is gone, and the list starts within a
-screen of the heading.
+Five focus views over one address. The shell here is the part every focus
+shares — the heading, the source freshness, the focus navigation and the
+methodology disclosure — and each focus contributes its own partial.
+
+The page used to open on the archive table, which answered "find me the article
+about excise duty" and answered "how are we doing" somewhere in the middle of
+it. The archive has not gone anywhere; it is now the fifth focus, where an exact
+lookup belongs, and the first screen answers the questions somebody opens a
+communications dashboard with.
 
 Three presentational rules carry the density:
 
-  * the unit is named once, in the column heading. `4 lehevaatamist` under every
-    article is the same fact spelled a hundred times, and it cost a line each;
-  * the GA4 coverage caveat is stated once beneath the list rather than under
-    every article older than the measurement;
-  * no summary, and no category *badge*. The summary is still stored and the
-    article is one click away. The category is a filter above the list rather
-    than a mark on every row: it takes two values, so a badge would repeat one
-    of two words a thousand times down the page while answering a question the
-    chips already answer in one click.
+  * a unit is named once, in a column heading or a label, never on every row;
+  * a caveat is stated once, under the thing it qualifies or in `Andmete kohta`,
+    never under every figure;
+  * a measure with no value is absent. A card reading `0` because a cohort was
+    too small looks exactly like a measurement, which is the one thing it is not.
 
-External links keep the whole contract: `target="_blank"`, `rel="noopener
-noreferrer"`, a visually hidden note naming the destination and the new tab, and
-`relative` on the anchor so that note stays inside the scrolling wrapper.
+No inline script and no inline style: chart payloads travel as
+`application/json` blocks and every proportion is drawn as SVG geometry, because
+the Content Security Policy is `script-src 'self'` / `style-src 'self'` and
+should stay that way.
 {% endcomment %}
 
 {% block title %}Uudised – DashKoda{% endblock %}
 
+{% block extra_head %}
+  {% comment %}
+  The chart bundle loads only for the two focus views that draw something. The
+  overview, the newsletter comparison and the archive ship no chart JavaScript
+  at all — it is over a megabyte and none of them has a canvas.
+  {% endcomment %}
+  {% if page.cadence or page.distribution or page.newsletter_sends %}
+    <script type="module" src="{% static 'build/charts.js' %}"></script>
+  {% endif %}
+{% endblock %}
+
 {% block content %}
-<div class="flex min-w-0 flex-col gap-4">
+<div class="flex min-w-0 flex-col gap-5">
 
-  <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Uudised</h1>
-
-  {% comment %}
-  The controls, in one band above the list. Each link carries the whole state,
-  so choosing a period keeps the ordering and the search, and paging keeps all
-  three — `build_query` in `periods.py` is the only thing that builds them.
-  {% endcomment %}
-  <div class="flex min-w-0 flex-col gap-3">
-    <nav aria-label="Avaldamisperiood" class="flex flex-wrap gap-2">
-      {% for option in archive.periods %}
-        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-           href="?{{ option.query }}"
-           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
-      {% endfor %}
-    </nav>
+  <header class="flex min-w-0 flex-col gap-2">
+    <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Uudised</h1>
 
     {% comment %}
-    Whose news, beside when. `Kõik` is the absence of the filter rather than a
-    third category, and it is the only chip that includes articles DashKoda has
-    not been able to classify — nothing public on Koda.ee exposes the field, so
-    a category is known only for an article that has been read from the site.
+    One quiet metadata row. Each source states its own freshness because they
+    genuinely differ — the catalogue is read hourly, GA4 lags by a day and
+    Smaily campaign figures settle over a fortnight — and one combined date
+    would be wrong for at least two of them.
     {% endcomment %}
-    <nav aria-label="Uudise liik" class="flex flex-wrap gap-2">
-      {% for option in archive.categories %}
-        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-           href="?{{ option.query }}"
-           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
-      {% endfor %}
-    </nav>
+    <p class="dk-meta flex flex-wrap items-center gap-x-2 gap-y-1">
+      {% if page.facts.latest %}
+        <span>Uudised kuni {{ page.facts.latest|date:"d.m.Y" }}</span>
+      {% endif %}
+      {% if page.coverage.latest %}
+        <span aria-hidden="true">·</span>
+        <span>GA4 kuni {{ page.coverage.latest|date:"d.m.Y" }}</span>
+      {% endif %}
+      <span aria-hidden="true">·</span>
+      <a class="dk-link-quiet" href="#andmete-kohta">Andmete kohta</a>
+    </p>
+  </header>
 
-    {% if archive.period.period.is_custom %}
-      {% comment %}
-      Native date fields, submitted by an ordinary GET form. The server resolves
-      whatever arrives — reversed, half-filled or unreadable — and the fields
-      then show the window that was actually applied, so the control never
-      disagrees with the list under it.
-      {% endcomment %}
-      <form method="get" class="flex min-w-0 flex-wrap items-end gap-2">
-        <input type="hidden" name="periood" value="{{ archive.period.key }}">
-        {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
-        {% if archive.search %}<input type="hidden" name="otsing" value="{{ archive.search }}">{% endif %}
-        {% if archive.category %}<input type="hidden" name="kategooria" value="{{ archive.category }}">{% endif %}
-        <div class="flex flex-col gap-1">
-          <label for="alates" class="text-sm text-text-secondary">Alates</label>
-          <input type="date" id="alates" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}" class="dk-input dk-input-date">
-        </div>
-        <div class="flex flex-col gap-1">
-          <label for="kuni" class="text-sm text-text-secondary">Kuni</label>
-          <input type="date" id="kuni" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}" class="dk-input dk-input-date">
-        </div>
-        <button type="submit" class="dk-button dk-button-secondary">Näita</button>
-      </form>
-    {% endif %}
-
-    <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <span class="dk-meta">Järjestus:</span>
-        {% for option in archive.sorts %}
+  {% comment %}
+  The focus navigation. Ordinary links, each a real URL carrying the whole page
+  state, so back and forward work and a colleague can be sent the exact view.
+  It scrolls rather than wraps on a narrow screen, so the five stay on one line
+  and the reader can see there are five.
+  {% endcomment %}
+  <nav aria-label="Vaade" class="-mx-4 min-w-0 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+    <ul class="flex w-max gap-2 sm:w-auto sm:flex-wrap">
+      {% for option in page.focuses %}
+        <li>
           <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-             href="?{{ option.query }}"
-             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
-        {% endfor %}
-      </div>
+             href="{% if option.query %}?{{ option.query }}{% else %}?{% endif %}"
+             {% if option.is_active %}aria-current="page"{% endif %}>{{ option.label }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </nav>
 
-      {% comment %}
-      The period and the sort travel as hidden fields, so a search inside one
-      quarter's newest-first list stays inside it — which is why `hx-include`
-      names the whole form and not the input alone.
+  {% if page.focus.question %}
+    <p class="text-sm text-text-secondary">{{ page.focus.question }}</p>
+  {% endif %}
 
-      `lk` is deliberately absent. A reader on page 7 who types a new term is
-      asking a new question, and carrying the page number into it answers
-      "nothing found" for anything matching fewer results than that page. The
-      fragment always builds page one and drops `lk` from the pushed URL.
-      {% endcomment %}
-      <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
-        <input type="hidden" name="periood" value="{{ archive.period.key }}">
-        {% if archive.period.period.is_custom %}
-          <input type="hidden" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}">
-          <input type="hidden" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}">
-        {% endif %}
-        {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
-        {% if archive.category %}<input type="hidden" name="kategooria" value="{{ archive.category }}">{% endif %}
-        <label for="otsing" class="sr-only">Otsi uudist</label>
-        <input type="search" id="otsing" name="otsing" value="{{ archive.search }}"
-               maxlength="120" placeholder="Otsi uudist…" autocomplete="off"
-               class="dk-input w-full min-w-0 sm:w-56"
-               hx-get="{% url 'news-search' %}"
-               hx-trigger="input changed delay:250ms, search"
-               hx-target="#news-results"
-               hx-swap="innerHTML"
-               hx-include="closest form"
-               hx-sync="this:replace"
-               hx-indicator="#news-searching">
-        <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
-        <p id="news-searching" class="dk-indicator dk-meta" aria-hidden="true">Otsin…</p>
-      </form>
-    </div>
+  {% if page.is_overview %}
+    {% include "news/partials/_focus_overview.html" with page=page reading_state=reading_state only %}
+  {% elif page.is_impact %}
+    {% include "news/partials/_focus_impact.html" with page=page reading_state=reading_state only %}
+  {% elif page.is_publishing %}
+    {% include "news/partials/_focus_publishing.html" with page=page only %}
+  {% elif page.is_newsletters %}
+    {% include "news/partials/_focus_newsletters.html" with page=page newsletters=newsletters newsletter_slot=newsletter_slot only %}
+  {% elif page.is_archive %}
+    {% include "news/partials/_focus_archive.html" with archive=archive only %}
+  {% endif %}
 
-    {% comment %}
-    Updated by an out-of-band swap, not by the main one: the rows it counts are
-    inside the card below, and this sits above it beside the controls. See
-    `partials/_news_search_response.html`.
-    {% endcomment %}
-    <p id="news-summary" class="dk-meta">{{ archive.result_summary }}</p>
-  </div>
-
-  <section aria-labelledby="section-news" class="dk-section">
-    <h2 id="section-news" class="sr-only">Uudiste arhiiv</h2>
-
-    {% comment %}
-    The swapped region. `aria-live="polite"` tells a screen reader that rows
-    arrived without a page change.
-    {% endcomment %}
-    <div id="news-results" aria-live="polite">
-      {% include "news/partials/_news_results.html" with archive=archive only %}
-    </div>
-  </section>
-
-  {% comment %}
-  The two caveats, once each, at the bottom where they belong: what the numbers
-  measure, and what "Kõik" does not claim.
-  {% endcomment %}
-  <div class="flex flex-col gap-1">
-    {% if archive.coverage_note %}<p class="dk-meta">{{ archive.coverage_note }}</p>{% endif %}
-    {% if archive.coverage_caveat %}<p class="dk-meta">{{ archive.coverage_caveat }}</p>{% endif %}
-    {% if archive.unclassified_count %}
-      <p class="dk-meta">{{ archive.unclassified_count }} uudise liik ei ole teada; need on nähtavad ainult „Kõik“ all.</p>
-    {% endif %}
-  </div>
-
-  {% comment %}
-  ---------------- The newsletters ----------------
-
-  Appended below the archive rather than woven into it. The archive above answers
-  "what did we publish"; these two blocks answer "whom did we reach, and did
-  anybody read it" — a related question, not the same one, so it keeps its own
-  heading and its own controls instead of adding chips beside the period filter.
-
-  Both come from `apps.visibility`, which still owns Smaily entirely. The card is
-  the same `ChannelSlot` the overall dashboard's band renders, built by
-  `build_newsletter_slot`; the section under it is the same `_newsletters.html`
-  the Nähtavus page used to include. Neither was copied into this app.
-
-  The three lists are shown one by one and **never totalled**: they are three
-  separate audiences and nobody has counted how many people are on more than one,
-  so a sum would silently claim that overlap is zero. A list nobody has collected
-  contributes no row rather than a zero.
-  {% endcomment %}
-  {% comment %}
-  The card on its own, with no section heading above it. It carries its own
-  `Uudiskirjad` heading — that is what `channel_card.html` renders from the
-  slot's label — and a section header saying the same word would print the
-  heading twice, one line apart.
-
-  Rendered unflushed, so it draws its own `dk-card` border rather than relying
-  on a strip. A single card in `dk-kpi-strip` would leave the grid's other cells
-  empty and show the strip's `bg-border` through them as a grey block.
-  {% endcomment %}
-  <div id="newsletter-audience">
-    {% include "dashboard/components/channel_card.html" with slot=newsletter_slot only %}
-  </div>
-
-  {% include "visibility/_newsletters.html" with newsletters=newsletters only %}
+  {% include "news/partials/_methodology.html" with page=page only %}
 
 </div>
 {% endblock %}

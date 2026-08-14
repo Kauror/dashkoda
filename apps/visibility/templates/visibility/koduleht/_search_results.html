@@ -1,0 +1,33 @@
+{% comment %}
+The explorer's results region, on its own.
+
+Rendered in two places and deliberately so: the full page includes it, and
+`koduleht_search_fragment` answers a keystroke with it. What a reader sees while
+typing and what they see after a reload are produced by one template rather than
+two that have to be kept in step.
+
+The status role is what announces the count to a screen reader when the region
+is swapped in — a result that only sighted readers are told about is a result a
+screen-reader user has to go looking for.
+
+Context:
+  page – the WebsiteIntelligencePage
+{% endcomment %}
+<div id="koduleht-otsingutulemused" class="flex flex-col gap-4">
+  {% if page.search %}
+    <p class="dk-meta" role="status">{{ page.search.summary }}</p>
+    {% include "visibility/koduleht/_table.html" with table=page.search_table only %}
+
+    {% if page.search.total_pages > 1 %}
+      <nav aria-label="Tulemuste lehed" class="flex flex-wrap items-center gap-3">
+        {% if page.search.has_previous %}
+          <a class="dk-button dk-button-secondary" href="?{{ page.search_previous_query }}">Eelmine</a>
+        {% endif %}
+        <span class="dk-meta">Lehekülg {{ page.search.page_number }} / {{ page.search.total_pages }}</span>
+        {% if page.search.has_next %}
+          <a class="dk-button dk-button-secondary" href="?{{ page.search_next_query }}">Järgmine</a>
+        {% endif %}
+      </nav>
+    {% endif %}
+  {% endif %}
+</div>
