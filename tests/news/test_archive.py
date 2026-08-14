@@ -157,7 +157,9 @@ def test_the_archive_reaches_articles_the_feed_no_longer_lists(viewer_client, me
     assert len(seen) == 30, "the archive is still bounded by the feed"
 
     # And through the real view, so the reachability is not only a selector fact.
-    response = viewer_client.get(reverse("news"), {"periood": "koik"})
+    # The archive is the `arhiiv` focus now — the page no longer opens on it —
+    # but it is the same builder answering the same question.
+    response = viewer_client.get(reverse("news"), {"periood": "koik", "fookus": "arhiiv"})
     assert response.status_code == 200
     assert response.context["archive"].total == 30
 
@@ -185,7 +187,7 @@ def test_the_default_is_thirty_days_newest_first(viewer_client):
     article("hiljutine", days_ago=10)
     article("vana", days_ago=200)
 
-    response = viewer_client.get(reverse("news"))
+    response = viewer_client.get(reverse("news"), {"fookus": "arhiiv"})
     archive = response.context["archive"]
 
     assert archive.period.key == "30"
@@ -198,7 +200,7 @@ def test_the_default_does_not_depend_on_whether_analytics_exist(viewer_client, m
     article("mõõdetud", days_ago=5)
     measured({"/et/uudised/mõõdetud": 500})
 
-    archive = viewer_client.get(reverse("news")).context["archive"]
+    archive = viewer_client.get(reverse("news"), {"fookus": "arhiiv"}).context["archive"]
 
     assert archive.period.key == "30"
     assert archive.sort == SORT_NEWEST
@@ -478,7 +480,9 @@ def test_search_matches_the_title_and_the_path():
 def test_an_oversized_search_term_is_bounded(viewer_client):
     article("uudis", days_ago=1)
 
-    response = viewer_client.get(reverse("news"), {"otsing": "x" * 5000, "periood": "koik"})
+    response = viewer_client.get(
+        reverse("news"), {"otsing": "x" * 5000, "periood": "koik", "fookus": "arhiiv"}
+    )
 
     assert response.status_code == 200
     assert len(response.context["archive"].search) <= 120
@@ -530,7 +534,9 @@ def test_the_rendered_page_is_a_compact_list_without_summaries(viewer_client, me
     article("uudis", title="Pealkiri", days_ago=2)
     measured({"/et/uudised/uudis": 42})
 
-    page = viewer_client.get(reverse("news"), {"periood": "koik"}).content.decode()
+    page = viewer_client.get(
+        reverse("news"), {"periood": "koik", "fookus": "arhiiv"}
+    ).content.decode()
 
     # The archive's own furniture.
     assert "Lehevaatamised" in page
@@ -542,7 +548,12 @@ def test_the_rendered_page_is_a_compact_list_without_summaries(viewer_client, me
     assert "Viimane edukas sünkroonimine" not in page
     assert "Muud kanalid" not in page
     assert "Meediakajastused" not in page
-    assert "lehevaatamist" not in page, "the unit belongs in the column heading, not every row"
+
+    # The unit belongs in the column heading, not on every row. Asserted over
+    # the rows themselves rather than the whole document: `Andmete kohta` spells
+    # the word once, deliberately, to say that a page view is not a reader.
+    rows = page.partition('id="news-results"')[2].partition("</section>")[0]
+    assert "lehevaatamist" not in rows, "the unit belongs in the column heading, not every row"
 
 
 def test_the_resolved_period_round_trips_through_its_own_query():

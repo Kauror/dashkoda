@@ -301,7 +301,7 @@ def test_the_news_page_lists_items(viewer):
     """
     synchronize_news(collector=collector_returning(news_collection(3)))
 
-    body = viewer.get(reverse("news"), {"periood": "koik"}).content.decode()
+    body = viewer.get(reverse("news"), {"periood": "koik", "fookus": "arhiiv"}).content.decode()
 
     assert "Sünteetiline uudis 0" in body
     assert "https://www.koda.ee/et/uudised/synthetic-0" in body
@@ -423,7 +423,7 @@ def test_external_links_are_safe(viewer):
     """
     synchronize_news(collector=collector_returning(news_collection(2)))
 
-    body = viewer.get(reverse("news")).content.decode()
+    body = viewer.get(reverse("news"), {"fookus": "arhiiv"}).content.decode()
 
     assert 'target="_blank" rel="noopener noreferrer"' in body
     assert "uuel vahelehel" in body

@@ -39,6 +39,11 @@ from apps.visibility.smaily_sync import synchronize_smaily
 
 pytestmark = pytest.mark.django_db
 
+#: The newsletter material is the `uudiskirjad` focus of `/uudised/` now. Still
+#: on Uudised, still owned by `apps.visibility`; only the address gained a
+#: parameter naming which of the five views is on screen.
+NEWSLETTERS = {"fookus": "uudiskirjad"}
+
 ETEATAJA = VisibilityMetric.NEWSLETTER_ETEATAJA
 ENEWS = VisibilityMetric.NEWSLETTER_ENEWS
 
@@ -306,7 +311,7 @@ def test_a_section_with_no_sends_has_nothing_to_show(viewer_client):
     section = build_newsletter_section()
     assert not section.has_any_data
 
-    page = viewer_client.get(reverse("news")).content.decode()
+    page = viewer_client.get(reverse("news"), NEWSLETTERS).content.decode()
     body = page[page.index("Uudiskirjade tulemused") :]
     assert "Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist." in body
 
@@ -321,7 +326,7 @@ def test_the_page_does_not_print_the_coverage_note(viewer_client):
     """
     read(DAY)
     issue(1)
-    page = viewer_client.get(reverse("news")).content.decode()
+    page = viewer_client.get(reverse("news"), NEWSLETTERS).content.decode()
 
     assert "Varasemat ajalugu ei ole võimalik koguda" not in page
 
@@ -333,7 +338,7 @@ def test_the_page_renders_the_section(viewer_client):
     read(DAY)
     issue(1)
 
-    page = viewer_client.get(reverse("news")).content.decode()
+    page = viewer_client.get(reverse("news"), NEWSLETTERS).content.decode()
     assert "Uudiskirjade tulemused" in page
     # The column is `Avatud`; `Avamismäär` was the struck-out explanatory
     # paragraph's wording, not the table's.
@@ -345,7 +350,9 @@ def test_the_page_carries_the_filter_through(viewer_client):
     issue(1, newsletter=ETEATAJA)
     issue(2, newsletter=ENEWS)
 
-    page = viewer_client.get(reverse("news"), {"uudiskiri": str(ENEWS)}).content.decode()
+    page = viewer_client.get(
+        reverse("news"), NEWSLETTERS | {"uudiskiri": str(ENEWS)}
+    ).content.decode()
     assert "Number 2" in page
     assert "Number 1" not in page
 
@@ -373,7 +380,7 @@ def test_the_section_carries_no_audience_and_the_band_still_does(viewer_client):
     assert not hasattr(section, "audience")
     assert not hasattr(section, "coverage_note")
 
-    page = viewer_client.get(reverse("news")).content.decode()
+    page = viewer_client.get(reverse("news"), NEWSLETTERS).content.decode()
     band, _, body = page.partition("Uudiskirjade tulemused")
 
     # `saajat` was the unit on the removed rows, and no other row on this page
@@ -431,7 +438,9 @@ def test_a_search_matching_nothing_keeps_the_section_on_the_page(viewer_client):
     assert not section.has_issues
     assert section.has_any_data
 
-    page = viewer_client.get(reverse("news"), {"otsi": "ei leidu midagi"}).content.decode()
+    page = viewer_client.get(
+        reverse("news"), NEWSLETTERS | {"otsi": "ei leidu midagi"}
+    ).content.decode()
     assert "Otsi uudiskirja" in page
     assert "Tühjenda otsing" in page
     assert "Ühtegi saadetud uudiskirja ei leitud." in page
@@ -475,10 +484,12 @@ def test_the_page_reads_otsi_and_not_the_page_search(viewer_client):
     issue(1, name="Kutse ärifoorumile")
     issue(2, name="Uudiskiri nr 400")
 
-    page = viewer_client.get(reverse("news"), {"otsi": "ärifoorum"}).content.decode()
+    page = viewer_client.get(reverse("news"), NEWSLETTERS | {"otsi": "ärifoorum"}).content.decode()
     assert "Kutse ärifoorumile" in page
     assert "Uudiskiri nr 400" not in page
 
     # The page search leaves the sends alone: both issues are still listed.
-    other = viewer_client.get(reverse("news"), {"otsing": "ärifoorum"}).content.decode()
+    other = viewer_client.get(
+        reverse("news"), NEWSLETTERS | {"otsing": "ärifoorum"}
+    ).content.decode()
     assert "Uudiskiri nr 400" in other
