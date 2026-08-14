@@ -108,6 +108,7 @@ from .ranges import (
     range_presets,
     resolve_window,
 )
+from .reconciliation import reconcile_history
 from .selectors import get_membership_summary
 
 
@@ -156,6 +157,19 @@ def membership_overview(request):
         )
     else:
         baseline_history = ()
+
+    # A longer, still bounded run for the stock-and-flow check. Seven years
+    # is enough to fill the six periods the diagnostic lists and is a few
+    # dozen rows, not a scan that grows every month.
+    if latest is not None:
+        reconciliation_history = get_internal_membership_observations(
+            date_from=latest.observation_date.replace(
+                year=latest.observation_date.year - RECONCILIATION_LOOKBACK_YEARS
+            ),
+            date_to=latest.observation_date,
+        )
+    else:
+        reconciliation_history = ()
 
     monthly_years = _monthly_years(quality.latest_observation_date)
     monthly = get_monthly_new_members(monthly_years) if monthly_years else {}
@@ -281,6 +295,10 @@ def membership_overview(request):
             # whole view describes before any chart is reached.
             "composition_snapshot": composition if focus == FOCUS_COMPOSITION else None,
             "quality_badge": build_quality_badge(quality),
+            # Evidence for the methodology disclosure, never a headline: a
+            # residual is a question about four reported figures, not a
+            # correction to any of them.
+            "reconciliations": reconcile_history(reconciliation_history),
             "source_stamps": build_source_stamps(
                 latest=latest,
                 quality=quality,
@@ -671,6 +689,9 @@ def _one_of(raw: str | None, allowed, fallback: str) -> str:
     """
     return raw if raw in allowed else fallback
 
+
+#: How far back the stock-and-flow diagnostic looks for periods to check.
+RECONCILIATION_LOOKBACK_YEARS = 7
 
 #: Which board decision the decision section describes.
 PARAM_DECISION = "otsus"
