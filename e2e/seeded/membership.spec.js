@@ -19,6 +19,17 @@ import {
 const PAGE = "/liikmeskond/";
 
 /*
+ * The page is five focused views behind one URL, so a test has to say which
+ * one it is asserting about. `fookus` is an ordinary GET parameter and every
+ * control is a link, which is what lets these navigate by URL rather than by
+ * clicking through a client-side router.
+ */
+const GROWTH = "?fookus=kasv";
+const FEES = "?fookus=liikmemaks";
+const MOVEMENT = "?fookus=liikumine";
+const COMPOSITION = "?fookus=koosseis";
+
+/*
  * Chart behaviour does not depend on the viewport, so the interaction tests run
  * once rather than six times. The overflow and mobile tests are the ones that
  * need every width.
@@ -69,23 +80,31 @@ test("every chart mounts with real dimensions and no console error", async ({
   expect(errors).toEqual([]);
 });
 
-test("the four analytical sections are separate and named", async ({
-  page,
-}) => {
+test("each focus draws its own analysis and names itself", async ({ page }) => {
   oncePerRun();
   await open_(page);
 
-  // `Liikmeskonna areng` is deliberately absent from this list: its heading was
-  // struck out on the board's print-out and is now `sr-only`, so it names the
-  // landmark without being drawn. The other three are still visible headings.
-  for (const title of [
-    "Liikmemaksu laekumine",
-    "Uute liikmete dünaamika",
-    "Liikmete liikumine",
+  // The overview leads with the four headline answers and the trend, and does
+  // not carry the deeper sections at all.
+  await expect(
+    page.getByRole("heading", { name: "Peamised näitajad" }),
+  ).toHaveCount(1);
+  await expect(
+    page.getByRole("heading", { name: "Uute liikmete dünaamika" }),
+  ).toHaveCount(0);
+
+  // Each named focus carries its own section, and only when navigated to.
+  for (const [query, title] of [
+    [GROWTH, "Uute liikmete dünaamika"],
+    [FEES, "Liikmemaksu laekumine"],
+    [MOVEMENT, "Liikmete liikumine"],
   ]) {
+    await page.goto(`${PAGE}${query}`);
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
   }
+
   // Still a heading, still the section's accessible name, just not painted.
+  await page.goto(PAGE);
   await expect(
     page.getByRole("heading", { name: "Liikmeskonna areng" }),
   ).toHaveCount(1);
@@ -93,6 +112,92 @@ test("the four analytical sections are separate and named", async ({
   await expect(
     page.getByRole("heading", { name: "Ajaloolised trendid" }),
   ).toHaveCount(0);
+});
+
+test("an unknown focus renders the overview rather than an error", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * A stale bookmark or a typed URL must render the page. A 404 for a mistyped
+   * query value would punish a reader for a link somebody else wrote.
+   */
+  const response = await page.goto(`${PAGE}?fookus=koosseiss`);
+
+  expect(response.status()).toBe(200);
+  await expect(
+    page.getByRole("heading", { name: "Peamised näitajad" }),
+  ).toBeVisible();
+});
+
+test("the headline strip answers four questions, not nine", async ({
+  page,
+}) => {
+  oncePerRun();
+  await open_(page);
+
+  const strip = page.locator(
+    'section[aria-labelledby="section-headlines"] dl > div',
+  );
+
+  await expect(strip).toHaveCount(4);
+  // The suspended count moved out of the headline strip and into the
+  // current-year block, beside the movement it describes.
+  await expect(strip.filter({ hasText: "Peatatud" })).toHaveCount(0);
+  await expect(
+    page
+      .locator('section[aria-labelledby="section-this-year"]')
+      .getByText("Peatatud liikmeid"),
+  ).toBeVisible();
+});
+
+test("the difference between joins and removals is never called a net change", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * `new_members_ytd` and `removed_members_ytd` are two reported counts.
+   * Subtracting them gives the gap between two reports, not the movement of the
+   * membership stock, and the page must not claim otherwise anywhere a reader
+   * can see.
+   */
+  await open_(page);
+
+  const body = await page.locator("main").innerText();
+
+  expect(body).not.toMatch(/netokasv/i);
+  expect(body).not.toMatch(/liikmeskonna muutus/i);
+  expect(body).toMatch(/vahe/i);
+});
+
+test("the composition view states the date it describes", async ({ page }) => {
+  oncePerRun();
+  /*
+   * A roster export is a reading taken on one day. Saying so before any chart
+   * is reached is what stops the whole view being read as "the membership right
+   * now", and stops its row count being mistaken for a membership total.
+   */
+  await open_(page, COMPOSITION);
+
+  await expect(page.getByText(/Koosseis seisuga/i)).toBeVisible();
+  await expect(
+    page.getByText(/ei ole sama mis juhatuse aruande liikmete arv/i),
+  ).toBeVisible();
+  await expect(canvases(page).first()).toBeVisible();
+});
+
+test("the joining-year chart refuses to be read as retention", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * The roster holds only members who are still here, so every cohort is seen
+   * through its survivors. Nothing records who left, and the footnote has to
+   * say so on the page rather than only in the code.
+   */
+  await open_(page, COMPOSITION);
+
+  await expect(page.getByText(/ei ole püsimamäär/i)).toBeVisible();
 });
 
 test("a tooltip appears and states formatted Estonian figures", async ({
@@ -119,7 +224,7 @@ test("the size-movement tooltip never states a departure as a negative", async (
    * the server value being right is only half of it — the browser must show
    * that value and not the one it drew.
    */
-  await open_(page);
+  await open_(page, MOVEMENT);
 
   const heading = page.getByRole("heading", { name: "Liikmete liikumine" });
   await expect(heading).toBeVisible();
@@ -144,13 +249,18 @@ test("the size-movement tooltip never states a departure as a negative", async (
   expect(text).not.toMatch(/Lahkunud[\s\S]{0,12}[-−]\d/);
 });
 
-test("a range preset redraws the growth chart and marks itself active", async ({
+test("a range preset redraws the trend and keeps the reader on its focus", async ({
   page,
 }) => {
   oncePerRun();
-  await open_(page);
+  /*
+   * The preset has to carry `fookus` forward. Without it a preset clicked on
+   * any focus but the first drops the reader back to the overview, so the
+   * control appears to navigate away from the chart it governs.
+   */
+  await open_(page, GROWTH);
 
-  const section = page.locator('section[aria-labelledby="section-growth"]');
+  const section = page.locator('section[aria-labelledby="section-stock"]');
   const presets = section.getByRole("link").filter({ hasText: /aasta|Kõik/ });
   expect(await presets.count()).toBeGreaterThan(0);
 
@@ -160,9 +270,13 @@ test("a range preset redraws the growth chart and marks itself active", async ({
   await expect(page).toHaveURL(
     /alates=\d{4}-\d{2}-\d{2}&kuni=\d{4}-\d{2}-\d{2}/,
   );
+  await expect(page).toHaveURL(/fookus=kasv/);
+  await expect(
+    page.getByRole("heading", { name: "Uute liikmete dünaamika" }),
+  ).toBeVisible();
   await expect(
     page.locator(
-      'section[aria-labelledby="section-growth"] [aria-current="true"]',
+      'section[aria-labelledby="section-stock"] [aria-current="true"]',
     ),
   ).toHaveText("Kõik");
 });
@@ -171,7 +285,7 @@ test("the monthly and cumulative views draw different data", async ({
   page,
 }) => {
   oncePerRun();
-  await open_(page);
+  await open_(page, GROWTH);
 
   const section = page.locator(
     'section[aria-labelledby="section-recruitment"]',
@@ -204,7 +318,7 @@ test("a control link carries only resolved parameters", async ({ page }) => {
    * The links are built from values the view has already validated, so a stale
    * key handed to the page is not carried forward into them.
    */
-  await open_(page, "?vahemik=99&vaade=onbekend");
+  await open_(page, "?fookus=kasv&vahemik=99&vaade=onbekend");
 
   const href = await page
     .locator('section[aria-labelledby="section-recruitment"] a[href*="vaade="]')
@@ -292,7 +406,7 @@ test("the decision section is drawn and keeps itself apart from year-to-date", a
 }) => {
   oncePerRun();
 
-  await open_(page);
+  await open_(page, MOVEMENT);
 
   const section = page
     .locator("#section-decisions")
@@ -320,7 +434,7 @@ test("the decision section is drawn and keeps itself apart from year-to-date", a
 test("a decision chart names both of its dates", async ({ page }) => {
   oncePerRun();
 
-  await open_(page);
+  await open_(page, MOVEMENT);
 
   const section = page
     .locator("#section-decisions")
@@ -334,7 +448,7 @@ test("a decision chart names both of its dates", async ({ page }) => {
 test("the decision section does not make the page scroll sideways", async ({
   page,
 }) => {
-  await open_(page);
+  await open_(page, MOVEMENT);
 
   await expect(page.locator("#section-decisions")).toBeAttached();
   await expectNoHorizontalOverflow(page);

@@ -224,10 +224,17 @@ by a rule written for this one.
               a shortcut, not a second vocabulary. Only windows the history can
               actually fill are offered — two buttons drawing the identical line
               invite a reader to believe the second one failed.
+
+              `fookus` is prepended here rather than inside `RangePreset.query`,
+              because that property is shared with the dashboard overview card,
+              which has no focus and must not start emitting one. Without it a
+              preset clicked on any focus but the first would drop the reader
+              back to the overview — the control would appear to navigate away
+              from the chart it governs.
               {% endcomment %}
               <div class="flex flex-wrap items-center gap-2" role="group" aria-label="Periood">
                 {% for preset in section.presets %}
-                  <a href="?{{ preset.query }}#{{ section.section_id }}"
+                  <a href="?fookus={{ focus }}&amp;{{ preset.query }}#{{ section.section_id }}"
                      class="dk-chip{% if preset.is_active %} dk-chip-active{% endif %}"
                      {% if preset.is_active %}aria-current="true"{% endif %}>{{ preset.label }}</a>
                 {% endfor %}
