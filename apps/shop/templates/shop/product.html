@@ -57,21 +57,84 @@ The current price pair is shown as a current fact, dated.
     {% endfor %}
   </nav>
 
+  {% comment %}
+  `Tellimused` is accurate here and only here: the sum runs over one product's
+  own cells, so an order that contained this product is counted once however
+  many other products it also contained. The overview says `Tellimusridu` for
+  exactly the opposite reason.
+
+  These figures now carry period-over-period movement. The page used to be
+  almost entirely absolute, which answered "how much" and never "compared with
+  what" — and a product's own page is where that second question is asked.
+  {% endcomment %}
   <section aria-labelledby="section-product-kpis" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Valitud periood" heading_id="section-product-kpis" description="Lõpetatud Commerce'i tellimused." only %}
-    <div class="dk-kpi-strip">
-      {% include "dashboard/components/kpi_card.html" with label="Ostetud ühikud" value=detail.units flush=True only %}
-      {% comment %}
-      `Tellimused` is accurate here and only here: the sum runs over one
-      product's cells, so an order that contained this product is counted once
-      however many other products it also contained. The overview says
-      `Tellimusridu` for exactly the opposite reason.
-      {% endcomment %}
-      {% include "dashboard/components/kpi_card.html" with label="Tellimused" value=detail.orders secondary="tellimust, mis sisaldasid seda toodet" flush=True only %}
-      {% include "dashboard/components/kpi_card.html" with label="Tellitud väärtus (KM-ta)" value=detail.value flush=True only %}
-      {% include "dashboard/components/kpi_card.html" with label="Oste / 100 tootelehe vaatamise kohta" value=detail.rate comparison_period=detail.web_interval_label flush=True only %}
+    {% include "shop/_kpi_strip.html" with kpis=detail.kpis comparison_available=detail.comparison_available only %}
+  </section>
+
+  {# --- the web pair, worded for this product's family --- #}
+  <section aria-labelledby="section-product-web" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Nähtavus" heading_id="section-product-web" only %}
+    <div class="dk-section-body flex flex-col gap-3">
+      <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <dt class="text-sm text-text-secondary">{{ detail.views_label }}</dt>
+          <dd class="text-metric font-semibold tabular-nums text-text">{{ detail.denominator_views }}</dd>
+        </div>
+        <div>
+          <dt class="text-sm text-text-secondary">{{ detail.rate_label }}</dt>
+          <dd class="text-metric font-semibold tabular-nums text-text">{{ detail.rate }}</dd>
+        </div>
+      </dl>
+      {% if detail.web_is_partial and detail.web_interval_label %}
+        <p class="dk-meta">Veebivõrdlus {{ detail.web_interval_label }} — lühem kui tellimuste periood. Määr arvutatakse mõlemal pool sama akna sees.</p>
+      {% endif %}
+      <p class="dk-meta">Määr jagatakse selle tooteliigi ostulehe vaatamistega. Kui ostulehte ei ole määratud, jääb määr näitamata — teist liiki lehte asemele ei panda.</p>
+      {% if detail.is_event %}
+        <p class="dk-meta">Registreerimine ei ole osaleja: kohalkäimist e-poe andmestik ei sisalda.</p>
+      {% endif %}
     </div>
   </section>
+
+  {# --- a real trend, not only a table --- #}
+  {% if detail.trend %}
+    <section aria-labelledby="section-product-line" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Soetamine ajas" heading_id="section-product-line" only %}
+      <div class="dk-section-body">
+        {% include "dashboard/components/trend_chart.html" with chart=detail.trend only %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# --- free vs paid, from transaction facts rather than today's price --- #}
+  {% if detail.mix.is_known %}
+    <section aria-labelledby="section-product-mix" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Tasuta ja tasulised soetused" heading_id="section-product-mix" only %}
+      <div class="dk-section-body flex flex-col gap-2">
+        <svg viewBox="0 0 100 8" preserveAspectRatio="none" class="h-4 w-full" role="img"
+             aria-label="Tasuta {{ detail.mix.free_units }} ühikut, tasuline {{ detail.mix.paid_units }} ühikut">
+          <rect x="0" y="0" width="100" height="8" rx="2" class="fill-elevated"/>
+          <rect x="0" y="0" width="{{ detail.mix.free_percent|stringformat:'.2f' }}" height="8" rx="2" class="fill-brand"/>
+        </svg>
+        <p class="flex flex-wrap items-baseline justify-between gap-x-4 text-sm">
+          <span class="text-text">{{ detail.mix.free_label }} <span class="dk-meta">({{ detail.mix.free_units }} ühikut)</span></span>
+          <span class="text-text-secondary">{{ detail.mix.paid_label }} <span class="dk-meta">({{ detail.mix.paid_units }} ühikut)</span></span>
+        </p>
+        <p class="dk-meta">Jaotus tuleb tehingutest, mitte praegusest hinnast: toode võib olla perioodide vahel tasuta ja tasulise vahel muutunud.</p>
+      </div>
+    </section>
+  {% endif %}
+
+  {# --- payment composition --- #}
+  {% if detail.payment_mix.is_known %}
+    <section aria-labelledby="section-product-payment" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Tellitud väärtus makseviisi järgi" heading_id="section-product-payment" only %}
+      <div class="dk-section-body flex flex-col gap-3">
+        {% include "shop/_bars.html" with rows=detail.payment_mix.rows only %}
+        <p class="dk-meta">Ei ütle, kas arve on tasutud — Koda.ee ei salvesta laekumist.</p>
+      </div>
+    </section>
+  {% endif %}
 
   {% if detail.has_funnel %}
     <section aria-labelledby="section-funnel" class="dk-section">
@@ -87,12 +150,15 @@ The current price pair is shown as a current fact, dated.
             <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.product_views }}</dd>
           </div>
           <div class="flex items-baseline justify-between gap-3">
-            <dt class="min-w-0 text-sm text-text-secondary">Ostetud ühikud</dt>
+            <dt class="min-w-0 text-sm text-text-secondary">{{ detail.units_label }}</dt>
             <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.units }}</dd>
           </div>
         </dl>
         <p class="dk-meta mt-3">
-          Neid kahte vaatamiste arvu ei liideta: sama külastaja näeb sageli mõlemat lehte.
+          Neid kahte vaatamiste arvu ei liideta: sama külastaja näeb sageli mõlemat lehte,
+          seega nende summa ei ole jõudlus. Need on kolm eraldi mõõdetud arvu, mitte
+          külastajapõhine teekond — ükski allikas ei seo siin sama inimest kahel lehel.
+          Määr arvutatakse tootelehe alusel, kus on ostunupp.
         </p>
       </div>
     </section>
@@ -149,13 +215,15 @@ The current price pair is shown as a current fact, dated.
     <section aria-labelledby="section-product-trend" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="Kuude kaupa" heading_id="section-product-trend" only %}
       <div class="dk-section-body">
+        <details>
+          <summary class="cursor-pointer text-sm text-text">Vaata andmeid</summary>
         <div class="w-full min-w-0 overflow-x-auto">
           <table class="w-full border-collapse text-sm">
             <caption class="sr-only">Selle toote ostud ja tellitud väärtus kuude kaupa</caption>
             <thead>
               <tr>
                 <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuu</th>
-                <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Ostetud</th>
+                <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">{{ detail.units_label }}</th>
                 <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">Väärtus</th>
               </tr>
             </thead>
@@ -182,6 +250,7 @@ The current price pair is shown as a current fact, dated.
             </tbody>
           </table>
         </div>
+        </details>
       </div>
     </section>
   {% endif %}

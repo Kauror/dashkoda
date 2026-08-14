@@ -37,12 +37,12 @@ the two it is so a template never has to guess.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 
 from django.db.models import Count, Sum
-from django.db.models.functions import TruncMonth
+from django.db.models.functions import TruncMonth, TruncYear
 
 from apps.visibility.ga4_selectors import Coverage as Ga4Coverage
 from apps.visibility.ga4_selectors import current_days, current_pages, get_coverage
@@ -59,6 +59,7 @@ from .models import (
     ShopProductSnapshot,
     ShopSourceState,
 )
+from .web_effectiveness import WebAggregate, aggregate_web, denominator_path
 
 ZERO = Decimal("0")
 
@@ -82,6 +83,10 @@ class ShopCoverage:
     coverage_end: date | None = None
     member_semantics_verified: bool = False
     public_listing_semantics_verified: bool = False
+    #: Which package contract published this dataset. Shown in the methodology
+    #: because it decides which dimensions exist at all: a 1.0 package carries
+    #: no distinct-order summaries and no free/paid classification.
+    schema_version: str = ""
 
     @property
     def has_data(self) -> bool:
@@ -98,6 +103,7 @@ def get_shop_coverage() -> ShopCoverage:
             "coverage_end",
             "member_semantics_verified",
             "public_listing_semantics_verified",
+            "schema_version",
         )
         .first()
     )
@@ -109,6 +115,7 @@ def get_shop_coverage() -> ShopCoverage:
         coverage_end=state.coverage_end,
         member_semantics_verified=state.member_semantics_verified,
         public_listing_semantics_verified=state.public_listing_semantics_verified,
+        schema_version=state.schema_version,
     )
 
 
@@ -539,6 +546,7 @@ class ProductRow:
     ordered_value_net: Decimal = ZERO
     product_page_views: PageViewFigure | None = None
     information_page_views: PageViewFigure | None = None
+    event_page_views: PageViewFigure | None = None
     conversion_units: Decimal = ZERO
 
     @property
@@ -546,11 +554,48 @@ class ProductRow:
         return ProductType(self.product_type).label
 
     @property
-    def acquisitions_per_hundred(self) -> Decimal | None:
-        """The rate, using the product page and the web window on both sides."""
-        if self.product_page_views is None:
+    def denominator_path(self) -> str:
+        """The page whose views may divide this product's acquisitions.
+
+        Decided by `web_effectiveness`, which is the only module that knows a
+        template is sold from its product page and a registration from its event
+        page. Empty when this product has no such page — never another role's.
+        """
+        return denominator_path(
+            self.product_type,
+            {
+                PageRole.PRODUCT: self.product_path,
+                PageRole.INFORMATION: self.information_path,
+                PageRole.EVENT: self.event_path,
+            },
+        )
+
+    @property
+    def denominator_page_views(self) -> PageViewFigure | None:
+        """Views for the acquisition page, whichever page that is for this type."""
+        path = self.denominator_path
+        if not path:
             return None
-        return acquisitions_per_hundred(self.conversion_units, self.product_page_views.views)
+        if path == self.product_path:
+            return self.product_page_views
+        if path == self.event_path:
+            return self.event_page_views
+        if path == self.information_path:
+            return self.information_page_views
+        return None
+
+    @property
+    def acquisitions_per_hundred(self) -> Decimal | None:
+        """The rate, over the acquisition page and the web window on both sides.
+
+        An event registration divides by its event page, a template by its
+        product page. A product with no acquisition page has no rate at all —
+        `None`, never zero, and never the information page as a stand-in.
+        """
+        figure = self.denominator_page_views
+        if figure is None:
+            return None
+        return acquisitions_per_hundred(self.conversion_units, figure.views)
 
     @property
     def has_information_page(self) -> bool:
@@ -688,6 +733,7 @@ def build_product_rows(
                 information_page_views=(
                     figures.get(information_path) if information_path else None
                 ),
+                event_page_views=figures.get(event_path) if event_path else None,
                 conversion_units=(conversion.get(pk, {}).get("units") or ZERO),
             )
         )
@@ -700,6 +746,12 @@ def build_category_rows(rows: Sequence[ProductRow]) -> tuple[CategoryRow, ...]:
     Deliberately derived from the product rows rather than re-queried: two
     aggregations of the same facts are two chances to disagree, and the category
     table and the product table sitting on one page must add up.
+
+    Views are aggregated over **unique acquisition paths** through
+    `web_effectiveness.aggregate_web`, not summed per product. Two products
+    sharing one event page contribute that page's traffic once; adding each
+    row's own figure would count it twice, and would do so precisely for the
+    products most likely to share a page.
     """
     buckets: dict[tuple[int | None, str], dict] = {}
     for row in rows:
@@ -711,18 +763,19 @@ def build_category_rows(rows: Sequence[ProductRow]) -> tuple[CategoryRow, ...]:
                 "orders": 0,
                 "units": ZERO,
                 "value": ZERO,
-                "views": None,
-                "conversion_units": ZERO,
+                "rows": [],
             },
         )
         bucket["product_count"] += 1
         bucket["orders"] += row.orders
         bucket["units"] += row.units
         bucket["value"] += row.ordered_value_net
-        bucket["conversion_units"] += row.conversion_units
-        figure = row.product_page_views
-        if figure is not None and figure.views is not None:
-            bucket["views"] = (bucket["views"] or 0) + figure.views
+        bucket["rows"].append(row)
+
+    for bucket in buckets.values():
+        web = aggregate_web(bucket["rows"])
+        bucket["views"] = web.views
+        bucket["conversion_units"] = web.units
 
     return tuple(
         CategoryRow(
@@ -742,6 +795,30 @@ def build_category_rows(rows: Sequence[ProductRow]) -> tuple[CategoryRow, ...]:
 # ---------------------------------------------------------------------------
 # Distinct orders, and the free/paid mix
 # ---------------------------------------------------------------------------
+
+
+def distinct_orders_supported(
+    *, category_term_ids: Sequence[int] = (), member_status: str = "", search: str = ""
+) -> bool:
+    """Whether `ShopDailySummary` can answer the population now on screen.
+
+    The summary grain is **day × product type**, and nothing else. It carries no
+    category, no member status and no product identity, because an order
+    routinely spans categories and a per-category distinct count could not be
+    summed into anything.
+
+    So the moment a reader narrows past that grain, the stored distinct-order
+    total stops describing what the other figures describe. Showing it anyway is
+    the specific error this guard exists to prevent: a category-filtered page
+    would put the whole type's order count beside that category's units and
+    value, and nothing on screen would say the two came from different
+    populations.
+
+    When this returns false the caller counts order **lines** instead and
+    relabels the figure, which is a smaller number that is actually about the
+    selected products.
+    """
+    return not (category_term_ids or member_status or search)
 
 
 def get_distinct_orders(
@@ -772,6 +849,36 @@ def get_distinct_orders(
     # Nothing for this window: distinguish "no summaries exist at all" from
     # "this window genuinely had none".
     return 0 if ShopDailySummary.objects.filter(is_current=True).exists() else None
+
+
+def get_monthly_distinct_orders(
+    *, start: date | None, end: date | None, product_type: str = ""
+) -> tuple[tuple[date, int], ...]:
+    """Distinct orders per month, for the trend's order series.
+
+    Reads the same `ShopDailySummary` rows `get_distinct_orders` totals, bucketed
+    in PostgreSQL. Summing across days is safe because an order belongs to one
+    day; summing across product types is not, which is why this reads exactly one
+    type row — the blank one when no type is selected.
+
+    Empty when the source published no summaries, which the caller reads as "draw
+    order lines instead" rather than as a flat zero line.
+    """
+    if start is None or end is None:
+        return ()
+    rows = (
+        ShopDailySummary.objects.filter(
+            is_current=True,
+            report_date__gte=start,
+            report_date__lte=end,
+            product_type=product_type or ShopDailySummary.ALL_TYPES,
+        )
+        .annotate(bucket=TruncMonth("report_date"))
+        .values("bucket")
+        .annotate(total=Sum("distinct_order_count"))
+        .order_by("bucket")
+    )
+    return tuple((row["bucket"], row["total"] or 0) for row in rows)
 
 
 @dataclass(frozen=True)
@@ -919,6 +1026,81 @@ def get_product_movers(
     return tuple(risers[:limit]), tuple(fallers[:limit])
 
 
+@dataclass(frozen=True)
+class CategoryMoverRow:
+    """One category's change in acquired units between two equal windows."""
+
+    category_name: str
+    current_units: Decimal
+    previous_units: Decimal
+
+    @property
+    def name(self) -> str:
+        return self.category_name or "Kategooriata"
+
+    @property
+    def change(self) -> Decimal:
+        return self.current_units - self.previous_units
+
+    @property
+    def is_new(self) -> bool:
+        return self.previous_units == 0 and self.current_units > 0
+
+    @property
+    def percentage_change(self) -> Decimal | None:
+        if self.previous_units == 0:
+            return None
+        return (self.change / self.previous_units * 100).quantize(Decimal("1"))
+
+
+def get_category_movers(
+    *,
+    current_start: date | None,
+    current_end: date | None,
+    previous_start: date | None,
+    previous_end: date | None,
+    limit: int = 5,
+    **filters,
+) -> tuple[tuple[CategoryMoverRow, ...], tuple[CategoryMoverRow, ...]]:
+    """The categories that rose and fell most, by absolute unit change.
+
+    Built from the same two grouped queries the product movers use, rolled up
+    through each product's current category. Ranked on absolute movement for the
+    same reason: a category that went from one unit to four has grown 300% and
+    is not the story of the period.
+
+    Uncategorised products are kept as their own bucket rather than dropped, so
+    the movers reconcile with the totals.
+    """
+    if previous_start is None or previous_end is None:
+        return (), ()
+
+    current = _units_by_product(current_start, current_end, **filters)
+    previous = _units_by_product(previous_start, previous_end, **filters)
+    if not current and not previous:
+        return (), ()
+
+    names = {
+        snapshot.product_id: snapshot.category_name
+        for snapshot in latest_snapshots().only("product_id", "category_name")
+    }
+    buckets: dict[str, list[Decimal]] = {}
+    for pk in set(current) | set(previous):
+        if pk not in names:
+            continue
+        bucket = buckets.setdefault(names[pk] or "", [ZERO, ZERO])
+        bucket[0] += current.get(pk, ZERO)
+        bucket[1] += previous.get(pk, ZERO)
+
+    rows = [
+        CategoryMoverRow(category_name=name, current_units=now, previous_units=before)
+        for name, (now, before) in buckets.items()
+    ]
+    risers = sorted([r for r in rows if r.change > 0], key=lambda r: (-r.change, r.name))
+    fallers = sorted([r for r in rows if r.change < 0], key=lambda r: (r.change, r.name))
+    return tuple(risers[:limit]), tuple(fallers[:limit])
+
+
 # ---------------------------------------------------------------------------
 # Web effectiveness
 # ---------------------------------------------------------------------------
@@ -952,7 +1134,10 @@ def get_web_opportunities(
     """
     eligible: list[OpportunityRow] = []
     for row in rows:
-        figure = row.product_page_views
+        # The acquisition page, whichever it is for this family — so an event
+        # registration is judged on its event page rather than excluded for
+        # having no product page.
+        figure = row.denominator_page_views
         if figure is None or figure.views is None or figure.views < minimum_views:
             continue
         rate = row.acquisitions_per_hundred
@@ -980,17 +1165,280 @@ def get_web_opportunities(
     return tuple(weak), tuple(strong)
 
 
-def concentration_share(rows: Sequence[ProductRow], *, top: int = 10) -> Decimal | None:
+#: The share of demand the long-tail statistic is measured against. A round
+#: number chosen for being conventional and legible rather than derived: the
+#: statement is "how few products carry most of the shop", and eighty per cent
+#: is what a reader already understands that to mean.
+LONG_TAIL_SHARE = Decimal("80")
+
+
+@dataclass(frozen=True)
+class Concentration:
+    """How few products account for most of a population.
+
+    Two statistics rather than one because they answer different questions. The
+    top-ten share says how top-heavy the shop is; the long-tail count says how
+    many products a reader would have to care about to cover most of it.
+
+    Neither is good or bad. A catalogue of contract templates is *expected* to
+    be concentrated, and the figure is offered as a description rather than as a
+    verdict.
+    """
+
+    top_share: Decimal | None = None
+    top_n: int = 10
+    long_tail_count: int | None = None
+    long_tail_share: Decimal = LONG_TAIL_SHARE
+    population: int = 0
+
+    @property
+    def has_top_share(self) -> bool:
+        return self.top_share is not None
+
+    @property
+    def has_long_tail(self) -> bool:
+        return self.long_tail_count is not None
+
+
+def _amounts(rows: Sequence[ProductRow], *, by_value: bool) -> list[Decimal]:
+    return sorted(
+        ((row.ordered_value_net if by_value else row.units) for row in rows), reverse=True
+    )
+
+
+def long_tail_count(rows: Sequence[ProductRow], *, by_value: bool = False) -> int | None:
+    """How many products it takes to reach `LONG_TAIL_SHARE` of the total.
+
+    `None` when the total is zero — there is no such thing as 80% of nothing —
+    and counted from the largest product down, so the answer is the smallest
+    number of products that together cross the threshold.
+    """
+    amounts = [amount for amount in _amounts(rows, by_value=by_value) if amount > 0]
+    total = sum(amounts, ZERO)
+    if total <= 0:
+        return None
+    target = total * LONG_TAIL_SHARE / 100
+    running = ZERO
+    for index, amount in enumerate(amounts, start=1):
+        running += amount
+        if running >= target:
+            return index
+    return len(amounts)
+
+
+def get_concentration(
+    rows: Sequence[ProductRow], *, top: int = 10, by_value: bool = False
+) -> Concentration:
+    """Both concentration statistics for one population, computed once."""
+    return Concentration(
+        top_share=concentration_share(rows, top=top, by_value=by_value),
+        top_n=top,
+        long_tail_count=long_tail_count(rows, by_value=by_value),
+        population=len(rows),
+    )
+
+
+def concentration_share(
+    rows: Sequence[ProductRow], *, top: int = 10, by_value: bool = False
+) -> Decimal | None:
     """What share of acquired units the largest `top` products account for.
 
     `None` when the population is too small for the statement to mean anything:
     "the top 10 of 9 products are 100%" is arithmetic, not insight.
     """
-    units = sorted((row.units for row in rows), reverse=True)
-    total = sum(units, ZERO)
-    if len(units) <= top or total <= 0:
+    amounts = _amounts(rows, by_value=by_value)
+    total = sum(amounts, ZERO)
+    if len(amounts) <= top or total <= 0:
         return None
-    return (sum(units[:top], ZERO) / total * 100).quantize(Decimal("1"))
+    return (sum(amounts[:top], ZERO) / total * 100).quantize(Decimal("1"))
+
+
+@dataclass(frozen=True)
+class YearPoint:
+    """One calendar year of Commerce activity, and whether it is a whole one."""
+
+    year: int
+    orders: int
+    units: Decimal
+    ordered_value_net: Decimal
+    #: Whether the selected window covers less than the whole calendar year.
+    #: True for the first year of a history that begins in October and for the
+    #: last year of an export that stops in August — and a bar drawn without
+    #: saying so reads as a collapse rather than as a year still in progress.
+    is_partial: bool = False
+    covered_from: date | None = None
+    covered_to: date | None = None
+
+
+def get_yearly_series(window: ComparisonWindow, **filters) -> tuple[YearPoint, ...]:
+    """Acquisitions and value per calendar year, marking the incomplete ones.
+
+    Partial is decided against the window the figures were actually read from,
+    not against the wall clock: a year is whole here when the selected window
+    contains all of it. That makes the first year of the Commerce history
+    (beginning 22 October 2020) and the year the manual export stops in both
+    honest without either needing a special case.
+    """
+    if not window.has_commerce:
+        return ()
+    rows = (
+        _facts_in_window(window, **filters)
+        .annotate(bucket=TruncYear("report_date"))
+        .values("bucket")
+        .annotate(orders=Sum("order_count"), units=Sum("units"), value=Sum("ordered_value_net"))
+        .order_by("bucket")
+    )
+    points: list[YearPoint] = []
+    for row in rows:
+        year = row["bucket"].year
+        first, last = date(year, 1, 1), date(year, 12, 31)
+        covered_from = max(first, window.commerce_start)
+        covered_to = min(last, window.commerce_end)
+        points.append(
+            YearPoint(
+                year=year,
+                orders=row["orders"] or 0,
+                units=row["units"] or ZERO,
+                ordered_value_net=row["value"] or ZERO,
+                is_partial=covered_from > first or covered_to < last,
+                covered_from=covered_from,
+                covered_to=covered_to,
+            )
+        )
+    return tuple(points)
+
+
+@dataclass(frozen=True)
+class MixPoint:
+    """One month's free/paid split, or an unclassified one."""
+
+    month: date
+    free: Decimal | None
+    paid: Decimal | None
+    unknown: Decimal | None
+
+    @property
+    def is_known(self) -> bool:
+        return self.free is not None and self.paid is not None
+
+    @property
+    def free_share(self) -> Decimal | None:
+        """Free units over the units that were **classified**, as a percentage."""
+        if not self.is_known:
+            return None
+        classified = (self.free or ZERO) + (self.paid or ZERO)
+        if classified <= 0:
+            return None
+        return (self.free / classified * 100).quantize(Decimal("0.1"))
+
+
+def get_free_paid_series(window: ComparisonWindow, **filters) -> tuple[MixPoint, ...]:
+    """The free/paid mix month by month.
+
+    A month the source never classified yields `None` on both sides rather than
+    zeros, so a schema 1.0 stretch of history stays visibly unclassified instead
+    of reading as a period when nothing was free.
+    """
+    if not window.has_commerce:
+        return ()
+    rows = (
+        _facts_in_window(window, **filters)
+        .annotate(bucket=TruncMonth("report_date"))
+        .values("bucket")
+        .annotate(free=Sum("free_units"), paid=Sum("paid_units"), unknown=Sum("unknown_units"))
+        .order_by("bucket")
+    )
+    return tuple(
+        MixPoint(
+            month=row["bucket"],
+            free=row["free"],
+            paid=row["paid"],
+            unknown=row["unknown"],
+        )
+        for row in rows
+    )
+
+
+@dataclass(frozen=True)
+class CatalogueSummary:
+    """What the current catalogue snapshot holds. A present-tense fact.
+
+    Deliberately separate from every historical series on the page: this counts
+    what the last import observed in the shop today, and says nothing about what
+    was on sale in 2021.
+    """
+
+    products: int = 0
+    by_type: dict[str, int] = field(default_factory=dict)
+    with_list_price: int = 0
+    with_member_price: int = 0
+    free_listed: int = 0
+    published: int = 0
+    publicly_listed: int | None = None
+    with_acquisition_path: int = 0
+
+    @property
+    def has_products(self) -> bool:
+        return self.products > 0
+
+
+def get_catalogue_summary(*, listing_gate_open: bool) -> CatalogueSummary:
+    """Counts over the latest current snapshot of every product. Two queries.
+
+    `publicly_listed` is `None` unless the listing gate is open. "Published in
+    Drupal" and "listed in the public shop" are two different facts and the
+    audit found 273 of the first against 144 of the second; presenting the
+    second before anybody has explained that gap would be a claim this
+    application cannot support.
+    """
+    rows = latest_snapshots().values_list(
+        "product_id",
+        "product__product_type",
+        "list_price_net",
+        "member_price_net",
+        "published",
+        "publicly_listed",
+    )
+    by_type: dict[str, int] = {}
+    products = 0
+    with_list_price = 0
+    with_member_price = 0
+    free_listed = 0
+    published = 0
+    listed = 0
+    product_pks: list[int] = []
+
+    for pk, product_type, list_price, member_price, is_published, is_listed in rows:
+        products += 1
+        product_pks.append(pk)
+        by_type[product_type] = by_type.get(product_type, 0) + 1
+        if list_price is not None:
+            with_list_price += 1
+            if list_price == 0:
+                free_listed += 1
+        if member_price is not None:
+            with_member_price += 1
+        if is_published:
+            published += 1
+        if is_listed:
+            listed += 1
+
+    pages = paths_by_product(tuple(product_pks))
+    snapshot_types = dict(latest_snapshots().values_list("product_id", "product__product_type"))
+    with_path = sum(
+        1 for pk, roles in pages.items() if denominator_path(snapshot_types.get(pk, ""), roles)
+    )
+
+    return CatalogueSummary(
+        products=products,
+        by_type=by_type,
+        with_list_price=with_list_price,
+        with_member_price=with_member_price,
+        free_listed=free_listed,
+        published=published,
+        publicly_listed=listed if listing_gate_open else None,
+        with_acquisition_path=with_path,
+    )
 
 
 def get_product(source_product_id: int) -> ShopProduct | None:
@@ -1013,15 +1461,32 @@ def catalogue_counts() -> dict[str, int]:
 
 __all__ = [
     "CONVERSION_BASE",
+    "LONG_TAIL_SHARE",
     "MIN_VIEWS_FOR_OPPORTUNITY",
+    "CatalogueSummary",
     "CategoryRow",
     "CommerceTotals",
     "ComparisonWindow",
+    "Concentration",
     "MixBreakdown",
+    "MixPoint",
     "MoverRow",
     "OpportunityRow",
+    "WebAggregate",
+    "YearPoint",
+    "aggregate_web",
     "concentration_share",
+    "denominator_path",
+    "distinct_orders_supported",
+    "get_catalogue_summary",
+    "get_concentration",
     "get_distinct_orders",
+    "get_free_paid_series",
+    "get_monthly_distinct_orders",
+    "get_yearly_series",
+    "CategoryMoverRow",
+    "get_category_movers",
+    "long_tail_count",
     "get_free_paid_split",
     "get_product_movers",
     "get_web_opportunities",

@@ -151,8 +151,12 @@ def test_the_member_split_is_withheld_until_verified(client, authenticate_viewer
 
 
 def test_the_explorer_drops_the_information_column(client, authenticate_viewer, seeded):
-    """Information-page traffic is depth; it lives on the product's own page."""
-    content = _get(client, authenticate_viewer).content.decode()
+    """Information-page traffic is depth; it lives on the product's own page.
+
+    The explorer now lives on the `Tooted` focus rather than under the overview,
+    so the whole-population table is fetched where it belongs.
+    """
+    content = _get(client, authenticate_viewer, url="/epood/?fookus=tooted").content.decode()
     explorer = content.split('id="tooted"')[1]
 
     assert "Tutvustus" not in explorer
@@ -264,7 +268,7 @@ def test_the_product_table_lets_long_titles_wrap(client, authenticate_viewer, se
     carries its own accompanying table, and that one *is* a row of figures with
     a natural width, so `min-w-max` is right there and wrong here.
     """
-    content = _get(client, authenticate_viewer).content.decode()
+    content = _get(client, authenticate_viewer, url="/epood/?fookus=tooted").content.decode()
     explorer = content.split('id="tooted"')[1]
 
     assert "min-w-max" not in explorer
@@ -309,7 +313,7 @@ def test_a_stale_export_does_not_show_a_rate_for_unimported_days(
     # number underneath it would pass a wording check and fail the reader.
     web = content.split('aria-labelledby="section-web"')[1].split("</section>")[0]
     assert "Veebivõrdlus ei ole selle perioodi kohta võimalik" in web
-    assert "Oste / 100" not in web
+    assert "/ 100 vaatamist" not in web
 
 
 def test_the_shop_appears_in_the_navigation(client, authenticate_viewer, seeded):

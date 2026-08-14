@@ -1,0 +1,45 @@
+{% comment %}
+The headline figures and how they moved.
+
+Context:
+  kpis                 – a tuple of page.KpiCard
+  comparison_available – whether a previous equal-length window exists at all
+
+Direction is an arrow **and** a sign as well as a colour, so the change survives
+greyscale, a monochrome print and colour blindness.
+
+The three states below are deliberately distinct, and none of them is a zero:
+
+  * a change, where a previous window exists and both figures are real;
+  * `Muutust ei saa arvutada`, where the window exists but the arithmetic has no
+    answer — a previous value of zero has no percentage;
+  * `Võrdlusperiood ei mahu ajalukku`, where a full equal-length previous window
+    would reach behind the imported history. Comparing a year against the 83
+    days that happen to precede it is worse than showing nothing, because the
+    reader cannot see that the denominator was short.
+{% endcomment %}
+<div class="dk-kpi-strip">
+  {% for kpi in kpis %}
+    <article class="flex flex-col gap-2 px-4 py-4">
+      <h3 class="text-sm font-medium text-text-secondary">{{ kpi.label }}</h3>
+      <p class="flex items-baseline gap-1.5">
+        <span class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ kpi.value }}</span>
+        {% if kpi.unit %}<span class="text-sm text-text-secondary">{{ kpi.unit }}</span>{% endif %}
+      </p>
+      {% if kpi.has_change %}
+        <p class="text-sm">
+          <span class="font-medium tabular-nums {% if kpi.change_direction == 'up' %}text-text{% elif kpi.change_direction == 'down' %}text-text{% else %}text-text-secondary{% endif %}">
+            {% if kpi.change_direction == "up" %}↑{% elif kpi.change_direction == "down" %}↓{% else %}→{% endif %}
+            {{ kpi.change_label }}
+          </span>
+          <span class="dk-meta">vs eelmine sama periood</span>
+        </p>
+      {% elif comparison_available %}
+        <p class="dk-meta">Muutust ei saa arvutada.</p>
+      {% else %}
+        <p class="dk-meta">Võrdlusperiood ei mahu ajalukku.</p>
+      {% endif %}
+      {% if kpi.secondary %}<p class="dk-meta">{{ kpi.secondary }}</p>{% endif %}
+    </article>
+  {% endfor %}
+</div>

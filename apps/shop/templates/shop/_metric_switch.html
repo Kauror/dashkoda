@@ -1,0 +1,16 @@
+{% comment %}
+Which series the trend draws. URL state, so a shared link opens on the metric
+the sharer was looking at.
+
+The order option carries whatever the order figure actually is for this
+population — `Tellimused` where the daily summary answers it, `Tellimusridu`
+where a filter has narrowed past its grain. The switch never offers a metric
+the page would then have to deliver as something else.
+{% endcomment %}
+<nav aria-label="Näitaja" class="flex flex-wrap gap-1.5">
+  {% for option in overview.trend_options %}
+    <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+       href="?{{ option.query }}"
+       {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+  {% endfor %}
+</nav>
