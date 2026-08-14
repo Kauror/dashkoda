@@ -53,15 +53,16 @@ LABEL_LEGAL = "Õigusloome"
 LABEL_EVENTS = "Sündmused"
 
 
-def build_timeline(*, legal_summary, events_summary) -> tuple[ExecutiveUpcomingItem, ...]:
+def build_timeline(*, legal_summary, events_executive) -> tuple[ExecutiveUpcomingItem, ...]:
     """Merge the two dated lanes into one chronological list.
 
-    Both summaries are passed in already read. This is the third consumer of
-    each and the first that would otherwise fetch them again.
+    Both inputs arrive already read: the legal summary the page loaded for its
+    freshness row, and the events executive whose bounded upcoming list this
+    lane clips — so the timeline adds one deadline query and no event query.
     """
     rows = [
         *_deadline_rows(legal_summary),
-        *_event_rows(events_summary),
+        *_event_rows(events_executive),
     ]
     rows.sort(key=lambda item: (item.when, item.domain_key, item.title))
     return tuple(rows[:TIMELINE_LIMIT])
@@ -95,7 +96,7 @@ def _deadline_rows(summary) -> list[ExecutiveUpcomingItem]:
     return rows
 
 
-def _event_rows(summary) -> list[ExecutiveUpcomingItem]:
+def _event_rows(executive) -> list[ExecutiveUpcomingItem]:
     """Scheduled events beginning inside the horizon.
 
     The public link is used when the matcher resolved one, and the row stays
@@ -103,7 +104,7 @@ def _event_rows(summary) -> list[ExecutiveUpcomingItem]:
     knowing is coming.
     """
     rows = []
-    for item in get_timeline_events(summary, within_days=HORIZON_DAYS):
+    for item in get_timeline_events(executive, within_days=HORIZON_DAYS):
         link = getattr(item, "public_link", None)
         url = link.url if link else ""
         rows.append(

@@ -27,7 +27,6 @@ from dataclasses import dataclass
 from datetime import date
 
 from django.urls import reverse
-from django.utils import timezone
 
 from apps.core.formatting import short_date, signed_integer
 
@@ -42,7 +41,6 @@ from .selectors import (
     get_visibility_summary,
     get_website_traffic,
 )
-from .traffic_page import TrafficSection, build_traffic_section
 
 WEBSITE_LABEL = "Kodulehe külastused"
 NEWSLETTER_LABEL = "Uudiskirjad"
@@ -284,69 +282,6 @@ def build_channel_band(
     )
 
 
-@dataclass(frozen=True)
-class VisibilityPage:
-    """Everything the Nähtavus template renders.
-
-    No `newsletters` section any more: `Uudiskirjade tulemused` is rendered by
-    the Uudised page, so building it here would run the campaign-performance
-    queries on every Nähtavus visit for a section that page no longer shows.
-    """
-
-    summary: VisibilitySummary
-    newsletter: NewsletterSummary
-    social: tuple[MetricReading, ...]
-    channels: tuple[ChannelSlot, ...]
-    ga4: Ga4ConnectionStatus
-    traffic: TrafficSection
-    today: date
-
-    @property
-    def has_any_data(self) -> bool:
-        return self.summary.has_any_data
-
-
-def build_visibility_page(
-    *,
-    today: date | None = None,
-    period_key: str | None = None,
-    section_key: str | None = None,
-    search: str | None = None,
-    page: str | int | None = None,
-) -> VisibilityPage:
-    """Read every metric once and shape it for the page.
-
-    `search` matches website pages, and it is the only search this page has now.
-    It used to sit beside a `newsletter_search` that matched campaign subjects,
-    named apart so neither could be fed the other's term; the subject search
-    moved to Uudised with the section it belongs to.
-    """
-    today = today or timezone.localdate()
-    summary = get_visibility_summary(today=today)
-    ga4_status = get_connection_status()
-
-    return VisibilityPage(
-        summary=summary,
-        newsletter=summary.newsletter,
-        social=summary.social,
-        channels=build_channel_band(
-            summary=summary,
-            ga4_status=ga4_status,
-            # Shown on Uudised now, one section below the news archive.
-            include_newsletter=False,
-        ),
-        ga4=ga4_status,
-        traffic=build_traffic_section(
-            period_key=period_key,
-            section_key=section_key,
-            search=search,
-            page=page,
-            today=today,
-        ),
-        today=today,
-    )
-
-
 __all__ = [
     "EXTERNAL_LINK_NOTE",
     "NEWSLETTER_LABEL",
@@ -354,8 +289,6 @@ __all__ = [
     "WEBSITE_LABEL",
     "ChannelSlot",
     "VisibilityMetric",
-    "VisibilityPage",
     "build_channel_band",
     "build_newsletter_slot",
-    "build_visibility_page",
 ]

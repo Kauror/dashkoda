@@ -50,7 +50,7 @@ from .content_sections import (
 )
 from .ga4_selectors import get_coverage, get_top_pages
 from .registry import VisibilityMetric
-from .smaily_selectors import get_newsletter_aggregate
+from .smaily_selectors import DEFAULT_AGGREGATE_ISSUES, get_newsletter_aggregate
 from .website_analytics import WebsiteTrafficSummary, get_traffic_summary
 from .website_period import build_comparison, get_period_coverage, parse_period
 
@@ -59,10 +59,10 @@ from .website_period import build_comparison, get_period_coverage, parse_period
 #: property sits well inside it; a fortnight of campaign traffic does not.
 SESSION_CHANGE_PCT = 15.0
 
-#: How many issues the newsletter engagement figure is weighted over. The same
-#: default the Uudiskirjad page uses, so the two cannot state different rates
-#: for the same letter.
-NEWSLETTER_ISSUES = 12
+#: How many issues the newsletter engagement figure is weighted over — the
+#: selector's own default, so this figure and the Uudiskirjad page cannot
+#: state different rates for the same letter.
+NEWSLETTER_ISSUES = DEFAULT_AGGREGATE_ISSUES
 
 #: How many top pages to read before picking one that is neither news nor an
 #: event. Bounded, and generous enough that a week where the news dominates

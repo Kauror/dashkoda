@@ -74,10 +74,10 @@ class EventsExecutive:
     #: The delivery mode the current year's programme used most, and its share.
     top_delivery_mode: str = ""
     top_delivery_share_pct: int | None = None
-    #: The soonest scheduled event, with its public link already attached. The
-    #: overview's "coming interest" panel shows this rather than a most-viewed
-    #: event, because a completed event cannot be what is coming next.
-    next_event: object = None
+    #: The next scheduled events, public links already attached, soonest first.
+    #: One bounded read serving four consumers: the pillar fact, the unlinked
+    #: signal, the "coming interest" panel and the shared timeline.
+    upcoming: tuple = ()
     #: The workbook export's own refresh moment.
     observed_at: object = None
 
@@ -86,6 +86,13 @@ class EventsExecutive:
     @property
     def has_headline(self) -> bool:
         return self.events_ytd is not None
+
+    @property
+    def next_event(self):
+        """The soonest scheduled event. The overview's panel shows this rather
+        than a most-viewed event, because a completed event cannot be what is
+        coming next."""
+        return self.upcoming[0] if self.upcoming else None
 
     @property
     def change(self) -> int | None:
@@ -134,10 +141,9 @@ def get_events_executive(summary: EventProgrammeSummary) -> EventsExecutive:
         completed_ytd=count_completed_in_year(snapshot, year=today.year, today=today),
         top_delivery_mode=mode,
         top_delivery_share_pct=share,
-        # `get_upcoming_programme_events` orders by start date, so the first row
-        # is the soonest. Taken from the list already read rather than queried
-        # again.
-        next_event=upcoming[0] if upcoming else None,
+        # `get_upcoming_programme_events` orders by start date, so the first
+        # row is the soonest and the timeline can clip without re-sorting.
+        upcoming=tuple(upcoming),
         observed_at=summary.observed_at,
         signals=_signals(upcoming, observed_at=summary.observed_at),
     )
@@ -195,19 +201,16 @@ def _signals(upcoming, *, observed_at) -> tuple[DomainSignal, ...]:
     )
 
 
-def get_timeline_events(summary: EventProgrammeSummary, *, within_days: int):
+def get_timeline_events(executive: EventsExecutive, *, within_days: int):
     """Dated upcoming events for the shared 30-day timeline.
 
-    Bounded twice: by `TIMELINE_LIMIT` at the query, and by the horizon here.
-    The public link is attached, so a row links to the event's own page where
-    one exists and stays plain text where it does not.
+    Reads the bounded, link-attached list the executive summary already holds
+    — the same rows the pillar and the unlinked-event signal were computed
+    over, so the timeline cannot describe a different set of events — and
+    clips it to the horizon here. No query of its own.
     """
-    snapshot = summary.snapshot
-    if snapshot is None:
-        return []
     horizon = timezone.localdate() + timedelta(days=within_days)
-    rows = attach_public_links(list(get_upcoming_programme_events(snapshot, limit=TIMELINE_LIMIT)))
-    return [item for item in rows if item.start_date and item.start_date <= horizon]
+    return [item for item in executive.upcoming if item.start_date and item.start_date <= horizon]
 
 
 __all__ = [
