@@ -399,7 +399,7 @@ def build_overview(
                 get_latest_news(news.snapshot, limit=NEWS_PREVIEW_LIMIT), url_of=news_url
             )
         ),
-        channels=build_channel_band(detail_url=reverse("visibility")),
+        channels=build_channel_band(),
     )
 
 

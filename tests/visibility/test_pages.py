@@ -18,6 +18,28 @@ def body(response) -> str:
     return response.content.decode()
 
 
+def _card_heading(page: str, label: str) -> str:
+    """The `<h3>` of one channel card, so a link assertion is about *that* card.
+
+    Searching the whole page for an href proves only that some element somewhere
+    carries it, which is how a test for "this card links here" passes because a
+    different card does.
+
+    Walks the label's occurrences rather than taking the first: a channel name
+    appears in more than one place on the overview, and the first hit is not
+    reliably the heading.
+    """
+    start = 0
+    while True:
+        marker = page.find(label, start)
+        assert marker != -1, f"no <h3> on the page carries {label!r}"
+        opening = page.rfind("<h3", 0, marker)
+        closing = page.find("</h3>", opening) if opening != -1 else -1
+        if opening != -1 and closing > marker:
+            return page[opening:closing]
+        start = marker + 1
+
+
 def visible_text(response) -> str:
     """Rendered text with entities decoded, for assertions about digits.
 
@@ -267,10 +289,93 @@ def test_the_band_names_the_newsletters_nobody_has_entered(submit, viewer_client
     assert "eNews" in page
 
 
-def test_the_newsletter_slot_links_to_the_visibility_page(submit, viewer_client):
+# ----------------------------------------------------------------------
+# Where each card's heading goes
+# ----------------------------------------------------------------------
+#
+# The band used to be handed one URL for all six cards, which meant that
+# address had to be wrong for five of them — and quietly became wrong for all
+# six as material moved. Each destination is decided per slot now, and these
+# are the three answers.
+
+
+def test_the_newsletter_card_links_to_the_page_that_shows_newsletters(submit, viewer_client):
+    """`Uudiskirjade tulemused` is on Uudised.
+
+    This card pointed at the website page for as long as it took anybody to
+    notice — a link to a page whose newsletters had already moved.
+    """
     submit(newsletter_eteataja=1200)
 
-    assert f'href="{PAGE_URL}"' in body(viewer_client.get(reverse("home")))
+    page = body(viewer_client.get(reverse("home")))
+    heading = _card_heading(page, "Uudiskirjad")
+
+    assert f'href="{reverse("news")}"' in heading
+
+
+def test_the_website_card_links_to_koduleht(submit, viewer_client, ga4_day, today, days_ago):
+    """The one card whose subject is a page DashKoda actually has.
+
+    It linked nowhere for a good reason — a link to Google Analytics would land
+    a board member on a login screen — and that reason stopped being the only
+    option when Koduleht arrived.
+    """
+    ga4_day(days_ago(1), sessions=120, page_views=300)
+
+    page = body(viewer_client.get(reverse("home")))
+    heading = _card_heading(page, "Kodulehe külastused")
+
+    assert f'href="{PAGE_URL}"' in heading
+
+
+def test_the_social_cards_link_nowhere(submit, viewer_client):
+    """There is no viewer-readable page of social history to point at.
+
+    Koduleht deliberately shows none, and the admin entry list is staff-only —
+    linking a viewer there would advertise a door they cannot open, which is the
+    same rule that keeps `Lisa andmed` off their page. A plain heading is the
+    honest state, not an oversight.
+    """
+    submit(
+        facebook_followers=4200,
+        linkedin_followers=2500,
+        instagram_followers=700,
+        youtube_subscribers=60,
+    )
+
+    page = body(viewer_client.get(reverse("home")))
+
+    for label in (
+        "Facebooki jälgijad",
+        "LinkedIni jälgijad",
+        "Instagrami jälgijad",
+        "YouTube’i tellijad",
+    ):
+        heading = _card_heading(page, label)
+        assert "<a" not in heading, f"{label} links its heading somewhere"
+
+    # The figures themselves are still there, and the outbound profile links —
+    # which are a different thing — are untouched.
+    assert "4200" in page
+    assert "https://www.facebook.com/" in page
+
+
+def test_no_card_points_at_a_page_that_does_not_show_it(submit, viewer_client):
+    """The defect the three tests above exist to prevent, stated once.
+
+    A heading link is a promise that the thing named is at the other end. The
+    band broke that promise for five of six cards by construction, because one
+    address was shared by slots describing different subjects.
+    """
+    submit(facebook_followers=4200, newsletter_eteataja=1200)
+
+    page = body(viewer_client.get(reverse("home")))
+
+    # No social card points at Koduleht, which shows no social figures.
+    for label in ("Facebooki jälgijad", "LinkedIni jälgijad"):
+        assert PAGE_URL not in _card_heading(page, label)
+    # And the newsletter card does not either.
+    assert PAGE_URL not in _card_heading(page, "Uudiskirjad")
 
 
 # ======================================================================
