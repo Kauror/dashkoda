@@ -1,0 +1,58 @@
+{% comment %}
+The primary figures, and the secondary readouts that support them without
+competing.
+
+Three or four cards, never a wall: `build_headlines` drops the engagement-time
+card when the source did not measure it, and the grid tolerates both counts.
+
+A change carries a **glyph as well as a colour**, because a change distinguished
+only by hue does not exist for a reader who cannot separate the hues, and
+`change_label` is what a screen reader gets instead of an arrow it cannot
+describe. Direction is not judgement: a fall in traffic is not an error and a
+rise is not a success, so the glyph says which way and nothing calls it good.
+
+A headline with **no** change is a headline whose comparison was refused. The
+reason is printed in its place rather than left as an absence.
+
+Context:
+  headlines – tuple of WebsiteHeadline
+  secondary – tuple of SecondaryReadout
+{% endcomment %}
+<div class="flex flex-col gap-4">
+  <dl class="dk-kpi-strip {% if headlines|length == 3 %}dk-kpi-strip-trio{% endif %}">
+    {% for headline in headlines %}
+      <div class="dk-card flex min-w-0 flex-col gap-1">
+        <dt class="text-sm text-text-secondary">{{ headline.label }}</dt>
+        {% if headline.has_value %}
+          <dd class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ headline.value }}</dd>
+          {% if headline.has_change %}
+            <dd class="dk-meta tabular-nums{% if headline.direction == 'up' %} text-success{% elif headline.direction == 'down' %} text-danger{% endif %}">
+              <span aria-hidden="true">{% if headline.direction == "up" %}↑{% elif headline.direction == "down" %}↓{% else %}→{% endif %}</span>
+              {{ headline.change }}
+              <span class="sr-only">({{ headline.change_label }})</span>
+              {% if headline.comparison_period %}
+                <span class="text-text-muted">vs {{ headline.comparison_period }}</span>
+              {% endif %}
+            </dd>
+          {% elif headline.note %}
+            <dd class="dk-meta">{{ headline.note }}</dd>
+          {% endif %}
+        {% else %}
+          <dd class="dk-meta">{{ headline.note|default:"Ei ole mõõdetud." }}</dd>
+        {% endif %}
+      </div>
+    {% endfor %}
+  </dl>
+
+  {% if secondary %}
+    <dl class="flex flex-wrap gap-x-8 gap-y-3">
+      {% for readout in secondary %}
+        <div class="flex min-w-0 flex-col gap-0.5">
+          <dt class="text-sm text-text-secondary">{{ readout.label }}</dt>
+          <dd class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ readout.value }}</dd>
+          {% if readout.note %}<dd class="dk-meta">{{ readout.note }}</dd>{% endif %}
+        </div>
+      {% endfor %}
+    </dl>
+  {% endif %}
+</div>

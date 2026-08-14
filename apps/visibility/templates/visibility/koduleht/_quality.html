@@ -1,0 +1,25 @@
+{% comment %}
+A quiet guardrail, not an engineering monitor.
+
+Only the two path families the exclusion registry names explicitly: error
+documents and internal search. Not every excluded route is a fault — the cart,
+Drupal's node aliases and taxonomy listings are ordinary working pages that
+simply are not content — so counting them here would report a problem the site
+does not have.
+
+Internal search is a **count of page views**, never a list of search terms. GA4
+drops the query string when it canonicalises a path, so what people searched for
+is not something this data can say.
+{% endcomment %}
+{% if page.quality_table.has_rows %}
+  <section aria-labelledby="section-tehniline" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Tehnilised signaalid" heading_id="section-tehniline" description="Osakaal on kõigist mõõdetud lehevaatamistest." only %}
+    <div class="dk-section-body">
+      {% include "visibility/koduleht/_table.html" with table=page.quality_table only %}
+      <p class="dk-meta mt-3">
+        Siseotsingu näitaja on vaatamiste arv, mitte otsingusõnad: GA4 eemaldab lehe aadressist
+        päringustringi, nii et otsitud sõnu need andmed ei sisalda.
+      </p>
+    </div>
+  </section>
+{% endif %}

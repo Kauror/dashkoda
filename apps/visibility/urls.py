@@ -3,27 +3,30 @@ from django.urls import path
 from .views import (
     campaign_history,
     campaign_history_search_fragment,
-    traffic_search_fragment,
-    visibility_overview,
+    koduleht,
+    legacy_visibility,
 )
 
-# The `otsi/` route answers a keystroke with the results region alone. It is an
-# ordinary viewer-protected `GET`, so a reader without JavaScript never reaches
-# it — the form on the page above submits to the page itself.
+# The website surface is `Koduleht` at `/koduleht/` now. The route keeps the name
+# `visibility`, so every `reverse("visibility")` in the application — the
+# navigation, the overview's channel cards, the tests — resolves to the new
+# canonical address without a single caller changing. Product naming and
+# internal module naming do not have to match, and renaming the Django app,
+# its migration namespace and its model labels to follow a page title would be a
+# large change bought with nothing.
 #
-# The two `uudiskirjad/` routes are kept as redirects rather than deleted. The
-# send archive is a news page now, and a board member who bookmarked it here
-# should arrive at it with their newsletter, their search term and their page
-# intact rather than at a 404. `/nahtavus/otsi/uudiskirjad/` is not kept: it was
-# an internal live-search fragment that nothing links to and nobody bookmarks,
-# and its whole purpose was to push a `/nahtavus/` URL that is now wrong.
+# `/nahtavus/` is kept as a redirect rather than deleted. A board member who
+# bookmarked the website page should arrive at it with their period and their
+# section intact rather than at a 404.
+#
+# The two `uudiskirjad/` routes are kept for the same reason: the send archive
+# is a news page now. `/nahtavus/otsi/sisu/` and `/nahtavus/otsi/uudiskirjad/`
+# are **not** kept — both were internal live-search fragments that nothing links
+# to and nobody bookmarks, and whose whole purpose was to push a `/nahtavus/`
+# URL that is now wrong.
 urlpatterns = [
-    path("nahtavus/", visibility_overview, name="visibility"),
-    path(
-        "nahtavus/otsi/sisu/",
-        traffic_search_fragment,
-        name="visibility-traffic-search",
-    ),
+    path("koduleht/", koduleht, name="visibility"),
+    path("nahtavus/", legacy_visibility, name="visibility-legacy"),
     path(
         "nahtavus/uudiskirjad/",
         campaign_history,

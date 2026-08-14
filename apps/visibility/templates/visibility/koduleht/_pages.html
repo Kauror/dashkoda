@@ -1,0 +1,86 @@
+{% comment %}
+Lehed — the deep page explorer.
+
+Search runs over the **whole measured population**, not over the ranking. A page
+sitting at #347 is exactly the kind of page somebody looks up, and searching a
+Top 20 would answer only for pages already on screen.
+
+It matches the canonical path however it was typed — `liikmemaks`,
+`/et/liikmed/liikmemaks` and a pasted `https://www.koda.ee/et/liikmed/liikmemaks`
+all find the same page — and titles DashKoda holds on authority, which is what
+lets "islandi" find an event whose slug contains it. Nothing is ever derived from
+a slug, so a page DashKoda cannot name shows its path.
+
+The form is an ordinary GET and works with no JavaScript.
+{% endcomment %}
+
+<section aria-labelledby="section-otsing" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Otsi lehte" heading_id="section-otsing" description="Otsi nime, aadressi või kleebitud Koda.ee lingi järgi. Otsing käib üle kõigi mõõdetud lehtede." only %}
+  <div class="dk-section-body flex flex-col gap-4">
+    <form method="get" action="" class="flex flex-wrap items-end gap-3">
+      <input type="hidden" name="fookus" value="{{ page.focus.key }}">
+      <input type="hidden" name="periood" value="{{ page.query.period }}">
+      {% if page.query.date_from %}<input type="hidden" name="alates" value="{{ page.query.date_from }}">{% endif %}
+      {% if page.query.date_to %}<input type="hidden" name="kuni" value="{{ page.query.date_to }}">{% endif %}
+      {% if page.query.section %}<input type="hidden" name="sisu" value="{{ page.query.section }}">{% endif %}
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <label class="dk-meta" for="koduleht-otsing">Lehe nimi või aadress</label>
+        <input class="dk-input" type="search" id="koduleht-otsing" name="otsing"
+               value="{{ page.query.search }}" maxlength="120" autocomplete="off">
+      </div>
+      <button class="dk-button dk-button-primary" type="submit">Otsi</button>
+      {% if page.query.search %}
+        <a class="dk-button dk-button-secondary" href="?{{ page.clear_search_query }}">Tühjenda</a>
+      {% endif %}
+    </form>
+
+    {% if page.search %}
+      <p class="dk-meta" role="status">{{ page.search.summary }}</p>
+      {% include "visibility/koduleht/_table.html" with table=page.search_table only %}
+
+      {% if page.search.total_pages > 1 %}
+        <nav aria-label="Tulemuste lehed" class="flex flex-wrap items-center gap-3">
+          {% if page.search.has_previous %}
+            <a class="dk-button dk-button-secondary" href="?{{ page.search_previous_query }}">Eelmine</a>
+          {% endif %}
+          <span class="dk-meta">Lehekülg {{ page.search.page_number }} / {{ page.search.total_pages }}</span>
+          {% if page.search.has_next %}
+            <a class="dk-button dk-button-secondary" href="?{{ page.search_next_query }}">Järgmine</a>
+          {% endif %}
+        </nav>
+      {% endif %}
+    {% endif %}
+  </div>
+</section>
+
+{% if page.query.detail %}
+  <section aria-labelledby="section-leht" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Ühe lehe analüüs" heading_id="section-leht" only %}
+    <div class="dk-section-body flex flex-col gap-4">
+      {% if page.detail %}
+        <div class="flex flex-col gap-1">
+          <h3 class="text-lg font-semibold text-text">{{ page.detail_title }}</h3>
+          <p class="dk-meta break-all">{{ page.detail.path }}</p>
+        </div>
+
+        <dl class="flex flex-wrap gap-x-8 gap-y-3">
+          {% for readout in page.detail_readouts %}
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <dt class="text-sm text-text-secondary">{{ readout.label }}</dt>
+              <dd class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ readout.value }}</dd>
+              {% if readout.note %}<dd class="dk-meta">{{ readout.note }}</dd>{% endif %}
+            </div>
+          {% endfor %}
+        </dl>
+
+        {% if page.detail_chart %}
+          {% include "dashboard/components/chart_figure.html" with chart=page.detail_chart only %}
+        {% endif %}
+
+        <p><a class="dk-link" href="?{{ page.clear_detail_query }}">← Tagasi tulemuste juurde</a></p>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Sellele aadressile ei ole mõõtmisandmeid." detail="Leht võib olla olemas, kuid GA4 ei ole selle kohta ridu kogunud. Mõõtmata ei ole sama mis null vaatamist." only %}
+      {% endif %}
+    </div>
+  </section>
+{% endif %}
