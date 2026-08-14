@@ -1,0 +1,126 @@
+{% comment %}
+One strategic pillar of `Koja seis`.
+
+Context:
+  pillar – an `ExecutivePillar`
+
+Reading order inside the card: what the question is, the figure that answers it,
+what that figure means, then the supporting detail. A pillar holds at most one
+visual, never a table, and never a control.
+
+Every figure prints its own period and its own source, because the five pillars
+do not share one. The Liikmeskond card is the reason this is not negotiable: its
+headline is the public Koda.ee directory and its supporting facts are the
+internal board report, and a reader must be able to tell which is which without
+being told twice.
+
+Direction is never colour alone. The comparison text carries its own sign, the
+arrow has a text alternative, and the meaning sentence states the direction in
+words.
+{% endcomment %}
+<article class="dk-card flex min-w-0 flex-col gap-3 p-4"
+         aria-labelledby="pillar-{{ pillar.key }}">
+
+  <header class="flex flex-col gap-0.5">
+    <h3 id="pillar-{{ pillar.key }}" class="text-sm font-semibold text-text">{{ pillar.label }}</h3>
+    <p class="dk-meta">{{ pillar.question }}</p>
+  </header>
+
+  {% if pillar.is_available %}
+    {# ---- Headline ---- #}
+    <div class="flex flex-col gap-1">
+      <p class="flex flex-wrap items-baseline gap-x-2">
+        <span class="text-2xl font-semibold tabular-nums tracking-tight text-text">{{ pillar.headline.value }}</span>
+        {% if pillar.headline.unit %}
+          <span class="text-sm text-text-secondary">{{ pillar.headline.unit }}</span>
+        {% endif %}
+      </p>
+      <p class="text-sm text-text-secondary">{{ pillar.headline.label }}</p>
+
+      {% if pillar.has_comparison %}
+        <p class="flex flex-wrap items-baseline gap-x-2 text-sm">
+          <span class="font-medium tabular-nums {% if pillar.headline.comparison.direction == 'up' %}text-success{% elif pillar.headline.comparison.direction == 'down' %}text-danger{% else %}text-text-secondary{% endif %}">
+            {{ pillar.headline.comparison.text }}
+          </span>
+          <span class="dk-meta">{{ pillar.headline.comparison.basis }}</span>
+        </p>
+      {% elif pillar.headline.comparison.has_note %}
+        {% comment %}
+        A refused comparison says why, where the delta would have been. The
+        website's coverage rules are the case this exists for: two windows
+        measured to different completeness are not subtractable, and printing a
+        delta anyway would be reporting the collector's gaps as the Chamber's
+        audience.
+        {% endcomment %}
+        <p class="dk-meta">{{ pillar.headline.comparison.unavailable_note }}</p>
+      {% endif %}
+
+      <p class="dk-meta">
+        {{ pillar.headline.period }} · {{ pillar.headline.source }}{% if pillar.headline.as_of %} · seis {{ pillar.headline.as_of|date:"d.m.Y" }}{% endif %}
+      </p>
+    </div>
+
+    {# ---- Meaning ---- #}
+    {% if pillar.meaning %}
+      <p class="text-sm text-text">{{ pillar.meaning }}</p>
+    {% endif %}
+
+    {# ---- Trend ---- #}
+    {% if pillar.trend %}
+      <figure class="flex flex-col gap-1">
+        {% comment %}
+        A sparkline is decoration unless it can be read without seeing it, so
+        the figure carries its range in text and the caption names the series.
+        `aria-hidden` on the drawing keeps a screen reader from announcing a
+        path of coordinates.
+        {% endcomment %}
+        <svg viewBox="0 0 100 32" preserveAspectRatio="none" role="img"
+             aria-hidden="true" focusable="false" class="h-8 w-full text-brand">
+          <polyline points="{{ pillar.trend.points }}" fill="none"
+                    stroke="currentColor" stroke-width="1.5"
+                    vector-effect="non-scaling-stroke"
+                    stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <figcaption class="dk-meta">
+          {{ pillar.trend_label }} · vahemik {{ pillar.trend.minimum|floatformat:"0" }}–{{ pillar.trend.maximum|floatformat:"0" }}
+        </figcaption>
+      </figure>
+    {% endif %}
+
+    {# ---- Supporting facts ---- #}
+    {% if pillar.available_facts %}
+      <dl class="flex flex-col gap-1.5 border-t border-border pt-3">
+        {% for fact in pillar.available_facts %}
+          <div class="flex flex-wrap items-baseline justify-between gap-x-3">
+            <dt class="min-w-0 text-sm text-text-secondary">
+              {% if fact.has_link %}
+                <a class="dk-link" href="{{ fact.url }}">{{ fact.label }}</a>
+              {% else %}
+                {{ fact.label }}
+              {% endif %}
+            </dt>
+            <dd class="text-sm font-medium tabular-nums text-text">{{ fact.value }}</dd>
+          </div>
+          {% if fact.source %}
+            <p class="dk-meta -mt-1">{{ fact.source }}{% if fact.as_of %} · {{ fact.as_of|date:"d.m.Y" }}{% endif %}</p>
+          {% endif %}
+        {% endfor %}
+      </dl>
+    {% endif %}
+  {% else %}
+    {% comment %}
+    Not zero. A source with nothing to say says so; a nought here would be a
+    measurement nobody made.
+    {% endcomment %}
+    <p class="text-sm text-text-secondary">{{ pillar.unavailable_note }}</p>
+  {% endif %}
+
+  {# ---- Drill-through ---- #}
+  {% if pillar.links %}
+    <p class="mt-auto flex flex-wrap gap-x-4 gap-y-1 border-t border-border pt-3 text-sm">
+      {% for link in pillar.links %}
+        <a class="dk-link" href="{{ link.url }}">{{ link.label }}</a>
+      {% endfor %}
+    </p>
+  {% endif %}
+</article>

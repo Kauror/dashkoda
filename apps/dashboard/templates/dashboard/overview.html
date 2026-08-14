@@ -1,486 +1,213 @@
 {% extends "dashboard/shell.html" %}
-{% load membership_format %}
 
 {% comment %}
-Ülevaade — the board's landing page.
+Koja töölaud — the executive overview.
 
-Layout follows direction 1a of the Overview Refresh design: a headline strip, a
-two-by-two grid of module cards, and the communication channels that have no
-source yet.
+Reading order, top to bottom:
 
-Everything it renders comes from `apps.dashboard.overview.build_overview`, which
-reads PostgreSQL through each module's own selectors. The template chooses
-layout and nothing else.
+  Koja seis            – five strategic pillars
+  Mis vajab tähelepanu? – exception-based signals, at most five
+  Järgmised 30 päeva   – the two domains that genuinely have dates
+  Praegu huvi pakkuv   – four separate panels, four separate metrics
+  Kanalite auditoorium – audiences, each on its own, never totalled
+  Andmete seis         – per-source state in each source's own vocabulary
 
-Four things are deliberate and should stay that way:
+The page holds layout and no business rule. Every number arrives formatted,
+compared and worded by `apps.dashboard.executive`, which in turn takes it from
+the domain that owns it. There is no `{% templatetag openblock %} if value > x {% templatetag closeblock %}` anywhere below, because a
+threshold in a template is a business rule nobody can test.
 
-  - a figure with no connected source renders its empty state, never a zero;
-  - the membership chart draws the board report's total against its own paid
-    count — one source, one definition, one reading date, so the gap between
-    the lines is the paid share and nothing else. The koda.ee directory count
-    is a different definition on a different cadence and never appears on those
-    axes, even though it is now the total both the headline strip and the
-    Liikmeskond card state;
-  - a link that leaves the application opens in a new tab: every koda.ee page,
-    every public profile, and the opinion PDFs, which are served by this
-    application but are files rather than pages. Links that stay inside the
-    dashboard — the "Vaata …" links, the headline counts, navigation, filters
-    and pagination — replace the current page as they always have;
-  - each headline cell carries its own module's counts, and every count states
-    the period it was measured over. There is no separate strip repeating those
-    same movements underneath.
-
-The mockup this follows carries synthetic numbers and says so on its own banner.
-None of them reached this file.
+Visual hierarchy is deliberate and unequal: the pillars are the page, the
+signals are loud when present and silent when not, and the lower sections are
+quiet. Six identically weighted card grids would make the reader do the
+prioritising this page exists to do for them.
 {% endcomment %}
 
-{% block title %}Ülevaade – DashKoda{% endblock %}
-
 {% block content %}
-<div class="flex flex-col gap-5">
+<div class="flex flex-col gap-8">
 
   {# ---------------- Page header ---------------- #}
-  <header>
-    <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Koja töölaud</h1>
+  <header class="flex flex-col gap-1">
+    <h1 class="text-2xl font-semibold tracking-tight text-text">Koja töölaud</h1>
+    <p class="text-sm text-text-secondary">
+      Liikmed, mõju, kaasamine ja nähtavus ühes vaates.
+    </p>
+    {% comment %}
+    A source-state chip, not a KPI. It counts sources with something to
+    disclose, and says nothing about how the Chamber is doing — the old
+    "Ühendatud allikaid 9/9" read as a score for a fact about plumbing.
+    {% endcomment %}
+    <p class="dk-meta mt-1">
+      {% if page.has_any_source and page.warning_count %}
+        <a class="dk-link" href="#andmete-seis">{{ page.warning_count }} andmemärkust</a>
+      {% else %}
+        <a class="dk-link" href="#andmete-seis">Andmete kohta</a>
+      {% endif %}
+    </p>
   </header>
 
-  {# ---------------- 1. Põhinäitajad ---------------- #}
-  {% comment %}
-  One strip, three indicators, each carrying the date its value describes in the
-  footer row. The dividers belong to the strip, so the cards render flush.
-
-  A cell holds either one leading figure or a short list of its module's counts;
-  the movements that used to sit in a separate band below now belong to the cell
-  whose module they describe.
-  {% endcomment %}
-  <section aria-labelledby="section-kpi" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Põhinäitajad" heading_id="section-kpi" only %}
-    <div class="dk-kpi-strip sm:grid-cols-1 lg:grid-cols-3 xl:grid-cols-3">
-      {% for kpi in page.kpis %}
-        {% include "dashboard/components/kpi_card.html" with label=kpi.label value=kpi.value unit=kpi.unit change=kpi.change change_direction=kpi.change_direction comparison_period=kpi.comparison_period secondary=kpi.secondary details=kpi.details meter_pct=kpi.meter_pct as_of=kpi.as_of|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
+  {# ---------------- Koja seis ---------------- #}
+  <section aria-labelledby="koja-seis" class="flex flex-col gap-3">
+    <h2 id="koja-seis" class="text-lg font-semibold text-text">Koja seis</h2>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {% for pillar in page.pillars %}
+        {% include "dashboard/components/executive_pillar.html" with pillar=pillar only %}
       {% endfor %}
     </div>
   </section>
 
-  {# ---------------- 2. Module cards ---------------- #}
-  <div class="grid grid-cols-1 gap-5 xl:grid-cols-2">
-
-    {# -------- Õigusloome -------- #}
-    <section aria-labelledby="section-legislation" class="dk-section flex flex-col" x-data="tabPair">
-      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
-        <h2 id="section-legislation" class="text-base font-semibold text-text">Õigusloome</h2>
-        {% comment %}
-        The link appears only once the module has something to show. Sending a
-        reader to a page that is entirely empty states nothing false, but it
-        wastes the one click the card exists to earn.
-        {% endcomment %}
-        {% if legal_work.has_data %}
-          <a href="{% url 'legal-work' %}" class="dk-link text-sm">Vaata õigusloomet</a>
-        {% endif %}
-      </div>
-
-      {% if legal_work.has_data %}
-        <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-2 sm:px-5">
-          {% comment %}
-          Töös leads because it is a state rather than an event: a board member
-          opening the page asks what is on the table before asking what has
-          already left.
-
-          Arrivals are not a third state. A record that has just come in is
-          simply active work, so it belongs in Töös; the full Õigusloome page is
-          where arrivals are inspected by date.
-
-          The tablist stays hidden until Alpine has booted, so it is never a dead
-          control. Without JavaScript both panels below simply remain visible,
-          each under its own heading.
-          {% endcomment %}
-          <div x-cloak role="tablist" aria-label="Õigusloome nimekirjad" class="flex gap-1">
-            <button type="button"
-                    id="tab-open"
-                    role="tab"
-                    aria-controls="panel-open"
-                    x-on:click="showFirst"
-                    :aria-selected="firstSelected"
-                    :class="firstTabClass"
-                    class="dk-tab">Töös</button>
-            <button type="button"
-                    id="tab-sent"
-                    role="tab"
-                    aria-controls="panel-sent"
-                    x-on:click="showSecond"
-                    :aria-selected="secondSelected"
-                    :class="secondTabClass"
-                    class="dk-tab">Välja läinud</button>
-          </div>
-          {% comment %}
-          The three counts that used to sit here — in hand, arrived, sent — are
-          now in the Õigusloome headline cell above, stated once with the period
-          each was measured over, each linking to its own section of the page.
-          {% endcomment %}
-        </div>
-
-        {% comment %}
-        The most urgent open records, ordered by deadline, soonest first, so the
-        topic nearest to going out leads. A record with no deadline trails the
-        dated ones; it says so rather than borrowing a date it does not have.
-        This is a preview of at most seven; the full Õigusloome page lists every
-        open record.
-
-        Both panels reserve the height of a full seven-row list, so the tab with
-        fewer records does not pull the freshness row up the page when the
-        reader switches to it. `dk-preview-reserve` is a minimum: the short list
-        simply ends, leaving empty surface rather than filler rows.
-        {% endcomment %}
-        <div id="panel-open" role="tabpanel" aria-labelledby="tab-open" x-show="firstSelected" class="dk-preview-reserve flex-1">
-          <h3 class="sr-only">Töös olevad teemad</h3>
-          <ul class="divide-y divide-border">
-            {% for row in page.legal_work_open %}
-              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                {% include "dashboard/components/legal_topic.html" with item=row only %}
-                {% if row.item.deadline_date %}
-                  <span class="dk-meta flex-none whitespace-nowrap tabular-nums">tähtaeg {{ row.item.deadline_date|date:"j.m.y" }}</span>
-                {% else %}
-                  <span class="dk-meta flex-none whitespace-nowrap">tähtajata</span>
+  {# ---------------- Mis vajab tähelepanu? ---------------- #}
+  <section aria-labelledby="tahelepanu" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Mis vajab tähelepanu?" heading_id="tahelepanu" description="Ainult see, mis on mõõdetult muutunud või lähipäevil ees." only %}
+    <div class="dk-section-body">
+      {% if page.has_signals %}
+        <ul class="flex flex-col divide-y divide-border">
+          {% for entry in page.signals %}
+            <li class="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+              <div class="flex flex-wrap items-center gap-2">
+                {% comment %}
+                Priority is a word before it is a colour, so it survives a
+                greyscale print and a reader who cannot separate the two
+                warning tones.
+                {% endcomment %}
+                <span class="dk-badge {% if entry.priority == 'critical' %}dk-badge-danger{% elif entry.priority == 'attention' %}dk-badge-warning{% else %}dk-badge-neutral{% endif %}">
+                  {{ entry.priority_label }}
+                </span>
+                <span class="dk-meta">{{ entry.domain_label }}</span>
+              </div>
+              <p class="text-sm font-medium text-text">{{ entry.headline }}</p>
+              <p class="text-sm text-text-secondary">{{ entry.evidence }}</p>
+              <p class="dk-meta flex flex-wrap items-center gap-x-3 gap-y-1">
+                {% if entry.as_of %}<span>Seis {{ entry.as_of|date:"d.m.Y" }}</span>{% endif %}
+                {% if entry.has_link %}
+                  <a class="dk-link" href="{{ entry.href }}">Vaata {{ entry.domain_label|lower }}</a>
                 {% endif %}
-              </li>
-            {% empty %}
-              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Töös olevaid teemasid ei ole selles hetkeseisus.</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div id="panel-sent" role="tabpanel" aria-labelledby="tab-sent" x-show="secondSelected" class="dk-preview-reserve flex-1">
-          <h3 class="sr-only">Viimati välja läinud</h3>
-          <ul class="divide-y divide-border">
-            {% for row in page.legal_work_sent %}
-              <li class="flex items-baseline justify-between gap-3 px-4 py-2.5 sm:px-5">
-                {% include "dashboard/components/legal_topic.html" with item=row only %}
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">välja {{ row.item.sent_date|date:"j.m.y" }}</span>
-              </li>
-            {% empty %}
-              <li class="px-4 py-3 text-sm text-text-secondary sm:px-5">Välja läinud arvamusi ei ole selles hetkeseisus.</li>
-            {% endfor %}
-          </ul>
-        </div>
-
-        <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with as_of=legal_work.reporting_date|date:"j.m.y" only %}
-        </div>
-      {% else %}
-        <div class="dk-section-body">
-          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelnõud ja arvamused ilmuvad siia pärast esimest edukat sünkroonimist." only %}
-        </div>
-      {% endif %}
-    </section>
-
-    {# -------- Liikmeskond -------- #}
-    {% comment %}
-    The member total, the board report's paid count, and the fee collection that
-    paid count is read alongside.
-
-    The total is the koda.ee directory count — the same reading, on the same day,
-    as the one leading the headline strip. One member total on the page, and it
-    is the daily public one. The board report's own total is no longer printed
-    beside it: two identically labelled totals, months apart, is what invites a
-    reader to subtract one from the other. It is still drawn by the chart, under
-    a label naming whose total it is.
-
-    The paid share is computed inside the board report alone — dividing the
-    internal paid count by the public directory total would be a ratio between
-    two different definitions and is never shown. That is why the paid figure
-    names its report underneath: its denominator is not the number beside it.
-
-    Both trends run on one pair of axes, as a solid and a dashed line. The board
-    reads this card to see the gap between the two, and two separate drawings
-    with two independent scales made that gap a matter of guesswork. Sharing the
-    axes is a drawing decision and nothing more: the lines keep their own
-    labels, their own sources and their own cadences, they are never summed, and
-    neither is ever continued into the other.
-    {% endcomment %}
-    <section aria-labelledby="section-membership" class="dk-section flex flex-col">
-      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
-        <h2 id="section-membership" class="text-base font-semibold text-text">Liikmeskond</h2>
-        {% if page.membership.has_any_data %}
-          <a href="{% url 'membership' %}" class="dk-link text-sm">Vaata liikmeskonda</a>
-        {% endif %}
-      </div>
-      <div class="dk-section-body flex flex-1 flex-col gap-4">
-        {% if page.membership.has_any_data %}
-          <div class="flex flex-wrap gap-x-10 gap-y-4">
-            {% comment %}
-            Three figures off one monthly report, in the order the chart below
-            draws them: its total, its paid count, and the fee collection read
-            beside them. Each carries the date its value describes and nothing
-            more — the source was named three times in a row under three figures
-            that all came from it, and the board asked for that to go. The
-            Liikmeskond page still names it in full.
-            {% endcomment %}
-            <div class="min-w-0">
-              <h3 class="text-sm text-text-secondary">{{ page.membership.public_total.label }}</h3>
-              {% if page.membership.public_total.value is not None %}
-                <p class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.public_total.value|group_thousands }}</p>
-              {% else %}
-                <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
-              {% endif %}
-              <p class="dk-meta">{{ page.membership.public_total.as_of|date:"j.m.y" }}</p>
-            </div>
-            <div class="min-w-0">
-              <h3 class="text-sm text-text-secondary">{{ page.membership.internal.label }}</h3>
-              {% if page.membership.internal.value is not None %}
-                <p class="flex flex-wrap items-baseline gap-x-2">
-                  <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.internal.value|group_thousands }}</span>
-                  {% if page.membership.paid_share_pct is not None %}
-                    <span class="dk-meta tabular-nums">· {{ page.membership.paid_share_pct }} %</span>
-                  {% endif %}
-                </p>
-              {% else %}
-                <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
-              {% endif %}
-              {% comment %}
-              This figure's neighbour is now the koda.ee directory count, so the
-              board report is named here. Without it the share beside the paid
-              count reads as a share of the number to its left, and it is not:
-              the denominator is the report's own total, which the chart draws.
-              {% endcomment %}
-              <p class="dk-meta">{{ page.membership.internal.as_of|date:"j.m.y" }} · {{ page.membership.internal.note }}</p>
-            </div>
-            <div class="min-w-0">
-              <h3 class="text-sm text-text-secondary">Liikmemaksude laekumine</h3>
-              {% if page.membership.fee.percentage is not None %}
-                <p class="flex flex-wrap items-baseline gap-x-2">
-                  <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ page.membership.fee.percentage }}</span>
-                  <span class="text-sm text-text-secondary">%</span>
-                </p>
-              {% else %}
-                <p class="text-sm text-text-secondary">Andmeallikas ei ole veel ühendatud.</p>
-              {% endif %}
-              {% if page.membership.fee.amounts %}
-                <p class="text-sm tabular-nums text-text-secondary">{{ page.membership.fee.amounts }}</p>
-              {% endif %}
-              <p class="dk-meta">{{ page.membership.fee.as_of|date:"j.m.y" }}</p>
-            </div>
-          </div>
-
-          {% comment %}
-          How much history the two lines draw: two date fields, submitted as a
-          plain GET form. The same control as the Liikmeskond page's own, built
-          from the same vocabulary in `apps/membership/ranges.py`, so the two
-          pages cannot end up naming the same window two ways.
-
-          `min`/`max` advertise the observation span so the browser's picker
-          greys out dates no report covers — advice only; the server clamps
-          whatever actually arrives. The fields carry the resolved window, not
-          the raw input, so what the control shows is always what the chart
-          drew. A history of a single date renders no control at all: two
-          fields that cannot change anything read as a control that is broken.
-
-          The action carries `#section-membership`, which a GET submission keeps,
-          so choosing a range returns the reader to this card instead of to the
-          top of the page.
-          {% endcomment %}
-          {% if page.membership.has_range_choice %}
-            <form method="get" action="{% url 'home' %}#section-membership" class="flex flex-wrap items-end gap-x-3 gap-y-2">
-              <label class="flex flex-col gap-1">
-                <span class="dk-meta">Alates</span>
-                <input type="date"
-                       name="alates"
-                       value="{{ page.membership.trend_window.start|date:'Y-m-d' }}"
-                       min="{{ page.membership.trend_earliest|date:'Y-m-d' }}"
-                       max="{{ page.membership.trend_latest|date:'Y-m-d' }}"
-                       class="dk-input dk-input-date">
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="dk-meta">Kuni</span>
-                <input type="date"
-                       name="kuni"
-                       value="{{ page.membership.trend_window.end|date:'Y-m-d' }}"
-                       min="{{ page.membership.trend_earliest|date:'Y-m-d' }}"
-                       max="{{ page.membership.trend_latest|date:'Y-m-d' }}"
-                       class="dk-input dk-input-date">
-              </label>
-              <button type="submit" class="dk-button dk-button-secondary">Rakenda</button>
-            </form>
-          {% endif %}
-
-          {% if page.membership.chart %}
-            {% include "dashboard/components/trend_chart.html" with chart=page.membership.chart only %}
-          {% else %}
-            <p class="dk-meta">Trendi kuvamiseks on vaja vähemalt kahte vaatlust.</p>
-          {% endif %}
-        {% else %}
-          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Liikmete arv ilmub siia pärast esimest edukat kontrolli." only %}
-        {% endif %}
-      </div>
-    </section>
-
-    {# -------- Tulevased sündmused -------- #}
-    <section aria-labelledby="section-events" class="dk-section flex flex-col">
-      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
-        <h2 id="section-events" class="text-base font-semibold text-text">Tulevased sündmused</h2>
-        {% if page.upcoming_events %}
-          <a href="{% url 'events' %}" class="dk-link text-sm">Vaata sündmusi</a>
-        {% endif %}
-      </div>
-      {% if page.upcoming_events %}
-        <ul class="flex-1 divide-y divide-border">
-          {% for item in page.upcoming_events %}
-            <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-              <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.start_date|date:'Y-m-d' }}">{{ item.start_date|date:"j.m.y" }}</time>
-              {% comment %}
-              The title is a link only when the workbook supplied a validated
-              public page for this event, and plain text otherwise. Nothing here
-              guesses an address from a title, a date or a service code.
-
-              `relative` is load-bearing, not decoration. The visually-hidden
-              destination note below is `position: absolute`, and an absolutely
-              positioned box is only clipped by an ancestor's `overflow: hidden`
-              when that ancestor is its containing block. Without a positioned
-              anchor the note escapes `truncate`, sits at the *untruncated*
-              title width, and drags the whole page's scroll area sideways —
-              which is invisible until a real title is long enough to truncate.
-              {% endcomment %}
-              {% if item.public_link %}
-                <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.public_link.url }}" target="_blank" rel="noopener noreferrer">
-                  {{ item.event_name }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
-                </a>
-              {% else %}
-                <span class="min-w-0 flex-1 truncate text-sm text-text">{{ item.event_name }}</span>
-              {% endif %}
-              {% comment %}
-              Total measured views for the event's public page — all of GA4's
-              coverage, not a period. Shown only where a public page exists and
-              GA4 measured it; an unmeasured page renders nothing, because
-              `0 vaatamist` would be a claim nobody made.
-
-              Muted and after the title on purpose: this is metadata about the
-              row, not the reason the row is there. `flex-none` keeps it out of
-              the title's space, and it wraps to its own line before it squeezes
-              the title on a narrow screen.
-              {% endcomment %}
-              {% if item.page_views_label %}
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">{{ item.page_views_label }}</span>
-              {% endif %}
-              {% if item.tag_label %}
-                {% include "dashboard/components/status_badge.html" with label=item.tag_label variant="info" only %}
-              {% endif %}
+              </p>
             </li>
           {% endfor %}
         </ul>
-        <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with as_of=events.observed_at|date:"j.m.y" only %}
-        </div>
       {% else %}
-        <div class="dk-section-body">
-          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Eelseisvad sündmused ilmuvad siia pärast sündmuste programmi esimest edukat importi." only %}
-        </div>
+        {% comment %}
+        Silence is a real answer. Filling this with rows confirming that
+        ordinary things are ordinary teaches the reader to skim the section on
+        the day it is not.
+        {% endcomment %}
+        <p class="text-sm text-text-secondary">
+          Olulisi muutusi või lähenevaid tähtaegu ei ole.
+        </p>
       {% endif %}
-    </section>
+    </div>
+  </section>
 
-    {# -------- Viimased uudised -------- #}
-    {% comment %}
-    The Chamber's own news feed. Press coverage and the newsletter have no source
-    at all; the card used to name them as unconnected in a footer strip, and the
-    board asked for that strip to go. Nothing is claimed on their behalf either
-    way — they are simply not on this card. `planned_module` is still how a
-    module with no source at all is stated where one is actually promised.
-    {% endcomment %}
-    <section aria-labelledby="section-news" class="dk-section flex flex-col">
-      <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-5">
-        <h2 id="section-news" class="text-base font-semibold text-text">Viimased uudised</h2>
-        {% if page.latest_news %}
-          <a href="{% url 'news' %}" class="dk-link text-sm">Vaata uudiseid</a>
-        {% endif %}
-      </div>
-      {% if page.latest_news %}
-        <ul class="flex-1 divide-y divide-border">
-          {% for item in page.latest_news %}
-            <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-              <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ item.published_at|date:'c' }}">{{ item.published_at|date:"j.m.y" }}</time>
-              {% comment %}
-              `relative` is load-bearing, not decoration. The visually-hidden
-              destination note below is `position: absolute`, and an absolutely
-              positioned box is only clipped by an ancestor's `overflow: hidden`
-              when that ancestor is its containing block. Without a positioned
-              anchor the note escapes `truncate`, sits at the *untruncated*
-              title width, and drags the whole page's scroll area sideways —
-              which is invisible until a real title is long enough to truncate.
-              {% endcomment %}
-              <a class="dk-link relative min-w-0 flex-1 truncate text-sm" href="{{ item.canonical_url }}" target="_blank" rel="noopener noreferrer">
-                {{ item.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
-              </a>
-              {% if item.page_views_label %}
-                <span class="dk-meta flex-none whitespace-nowrap tabular-nums">{{ item.page_views_label }}</span>
-              {% endif %}
-              {% if item.category %}
-                {% include "dashboard/components/status_badge.html" with label=item.category variant="info" only %}
+  {# ---------------- Järgmised 30 päeva ---------------- #}
+  <section aria-labelledby="jargmised-30" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Järgmised 30 päeva" heading_id="jargmised-30" description="Õigusloome tähtajad ja kavandatud sündmused." only %}
+    <div class="dk-section-body">
+      {% if page.has_upcoming %}
+        <ol class="flex flex-col divide-y divide-border">
+          {% for item in page.upcoming %}
+            <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2.5 first:pt-0 last:pb-0">
+              <time datetime="{{ item.when|date:'Y-m-d' }}"
+                    class="w-16 shrink-0 text-sm font-semibold tabular-nums text-text">
+                {{ item.when|date:"d.m" }}
+              </time>
+              <span class="dk-badge dk-badge-neutral shrink-0">{{ item.domain_label }}</span>
+              <span class="min-w-0 flex-1 text-sm text-text">
+                {% if item.has_link %}
+                  <a class="dk-link" href="{{ item.url }}"{% if item.is_external %} rel="noopener noreferrer" target="_blank"{% endif %}>
+                    {{ item.title }}{% if item.is_external %}<span class="sr-only"> (avaneb uuel vahelehel)</span>{% endif %}
+                  </a>
+                {% else %}
+                  {{ item.title }}
+                {% endif %}
+              </span>
+              {% if item.context %}
+                <span class="dk-meta shrink-0">{{ item.context }}</span>
               {% endif %}
             </li>
           {% endfor %}
-        </ul>
-        <div class="border-t border-border px-4 py-2 sm:px-5">
-          {% include "dashboard/components/freshness_row.html" with as_of=news.observed_at|date:"j.m.y" only %}
-        </div>
+        </ol>
       {% else %}
-        <div class="dk-section-body">
-          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Uudised ilmuvad siia pärast esimest edukat kontrolli." only %}
-        </div>
+        <p class="text-sm text-text-secondary">Lähiajal ei ole tähtaegu ega sündmusi.</p>
       {% endif %}
-    </section>
+    </div>
+  </section>
 
-  </div>
+  {# ---------------- Praegu huvi pakkuv ---------------- #}
+  <section aria-labelledby="huvi-pakkuv" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Praegu huvi pakkuv" heading_id="huvi-pakkuv" description="Neli eri mõõdikut, igaüks oma perioodiga. Neid ei võrrelda omavahel." only %}
+    <div class="dk-section-body">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {% for item in page.interest %}
+          <article class="flex min-w-0 flex-col gap-1">
+            <h3 class="dk-meta">{{ item.domain_label }}</h3>
+            {% if item.is_available %}
+              <p class="text-sm font-medium break-words text-text">
+                {% if item.has_link %}
+                  <a class="dk-link" href="{{ item.url }}"{% if item.is_external %} rel="noopener noreferrer" target="_blank"{% endif %}>
+                    {{ item.title }}{% if item.is_external %}<span class="sr-only"> (avaneb uuel vahelehel)</span>{% endif %}
+                  </a>
+                {% else %}
+                  {{ item.title }}
+                {% endif %}
+              </p>
+              <p class="text-sm text-text">
+                <span class="font-semibold tabular-nums">{{ item.metric_value }}</span>
+                <span class="text-text-secondary">{{ item.metric_label }}</span>
+              </p>
+              <p class="dk-meta">{{ item.period }}{% if item.context %} · {{ item.context }}{% endif %}</p>
+            {% else %}
+              <p class="text-sm text-text-secondary">{{ item.unavailable_note }}</p>
+            {% endif %}
+          </article>
+        {% endfor %}
+      </div>
+    </div>
+  </section>
 
-  {# ---------------- 3. Kanalite statistika ---------------- #}
+  {# ---------------- Kanalite auditoorium ---------------- #}
   {% comment %}
-  Six channels, built by `apps.visibility.page.build_channel_band`.
-
-  The newsletter and the four social figures are **entered by hand** from each
-  platform's own statistics; every populated card says so and carries the date
-  somebody read it. Nothing on this band is synchronised or API-connected, and no
-  card may ever word it as though it were.
-
-  Website visits are genuinely unconnected. The Google Analytics collector
-  exists but the deployment has not enabled it — no property ID, no key, no
-  schedule — so nothing requests it, no observation has ever been published, and
-  that slot shows no number and links nowhere. Configuration alone would not
-  change this: the card follows the published observation, not the settings.
-
-  A channel nobody has entered shows "Andmed puuduvad", never a zero — a zero
-  here would claim the Chamber has no followers.
+  The heading keeps the id `section-channels`. The section was renamed from
+  `Kanalite statistika`, but the anchor is a contract other tests scope
+  themselves to — the band is the one place on the page where a hand-typed
+  figure must never borrow a synchronised feed's vocabulary, and that check
+  needs to address exactly this section.
   {% endcomment %}
   <section aria-labelledby="section-channels" class="dk-section">
-    {% comment %}
-    No provenance claim in the description. The band mixes collected and
-    typed figures — website traffic comes from Google Analytics — so a
-    single sentence saying every value was entered by hand is false for
-    part of the row. Where each figure comes from is documented in the
-    repository rather than restated beside every number.
-    {% endcomment %}
-    {% include "dashboard/components/section_header.html" with title="Kanalite statistika" heading_id="section-channels" description="Koja suhtluskanalite auditooriumi suurus." only %}
-    <div class="dk-kpi-strip dk-kpi-strip-wide">
-      {% for slot in page.channels %}
-        {% include "dashboard/components/channel_card.html" with slot=slot flush=True only %}
-      {% endfor %}
+    {% include "dashboard/components/section_header.html" with title="Kanalite auditoorium" heading_id="section-channels" description="Iga kanal eraldi. Neid ei liideta — sama inimene võib olla mitmes." only %}
+    <div class="dk-section-body">
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        {% for slot in page.channels %}
+          {% include "dashboard/components/channel_card.html" with slot=slot only %}
+        {% endfor %}
+      </div>
     </div>
   </section>
 
-  {% comment %}
-  There was a fourth block here: a connection-state strip carrying
-  `Ühendatud andmeallikaid: 4/4`, the time of the last check, and a
-  `Kontrolli uuesti` button that swapped the count in place over htmx. It was
-  removed on 2026-08-11.
-
-  What it reported is an operational fact — how many wired feeds publish, and
-  whether any is stale — and this page is read by the board, who cannot act on
-  it. The count had also been 4/4 continuously; a control whose answer never
-  changes teaches a reader to stop pressing it.
-
-  Nothing behind it was deleted. `apps/dashboard/freshness.py` still computes
-  the state, `dashboard/partials/freshness.html` still renders it and
-  `/dashboard/varskus/` still serves it — so putting this back, or moving it to
-  a page meant for whoever operates the collectors, is a template change alone.
-  The strip was the **only** htmx in the application, so with it gone the bundle
-  ships a library nothing on any page uses.
-  {% endcomment %}
+  {# ---------------- Andmete seis ---------------- #}
+  <section id="andmete-seis" aria-labelledby="andmete-seis-pealkiri" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="andmete-seis-pealkiri" description="Iga allikas oma tempos. Kuukiri ei ole vananenud sellepärast, et ta ei ole eilne." only %}
+    <div class="dk-section-body">
+      <ul class="flex flex-col divide-y divide-border">
+        {% for row in page.data_status %}
+          <li class="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="text-sm font-medium text-text">{{ row.domain_label }}</span>
+              <span class="dk-meta">{{ row.source_label }}</span>
+              {% include "dashboard/components/status_badge.html" with label=row.state_label variant=row.state_variant only %}
+            </div>
+            <p class="dk-meta flex flex-wrap gap-x-3 gap-y-1">
+              {% if row.as_of %}<span>Seis {{ row.as_of|date:"d.m.Y" }}</span>{% endif %}
+              {% if row.coverage %}<span>{{ row.coverage }}</span>{% endif %}
+            </p>
+            {% if row.has_limitation %}
+              <p class="text-sm text-text-secondary">{{ row.limitation }}</p>
+            {% endif %}
+          </li>
+        {% endfor %}
+      </ul>
+    </div>
+  </section>
 
 </div>
 {% endblock %}

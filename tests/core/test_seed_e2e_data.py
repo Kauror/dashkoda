@@ -563,3 +563,61 @@ def test_a_second_seed_publishes_no_new_reporting_day():
     run_seed()
 
     assert Ga4DailySnapshot.objects.count() == before
+
+
+# -- the degraded source state ------------------------------------------
+
+
+def test_the_seed_leaves_one_source_stale_after_a_failed_check():
+    """The browser suite must meet a source showing older data after a failure.
+
+    A seed built only from happy paths can never produce this state, and it is
+    one the main page has to get right in two places at once: the pillar keeps
+    its figures rather than withdrawing them, and `Andmete seis` says why they
+    are older than they look.
+    """
+    from apps.news.selectors import get_news_summary
+
+    run_seed()
+
+    summary = get_news_summary()
+
+    assert summary.is_stale_after_failure, "the seeded failure must be visible as staleness"
+    # And nothing was withdrawn to produce it. A seed that deleted content to
+    # simulate a failure would be exercising the wrong branch entirely.
+    assert summary.has_data
+    assert NewsItem.objects.count() >= 10
+
+
+def test_only_one_source_is_left_stale():
+    """One is a state to draw; several would be a suite that cannot tell them apart."""
+    from apps.event_programme.selectors import get_event_programme_summary
+    from apps.legal_work.selectors import get_legal_work_summary
+    from apps.membership.selectors import get_membership_summary
+    from apps.news.selectors import get_news_summary
+
+    run_seed()
+
+    summaries = [
+        get_legal_work_summary(),
+        get_membership_summary(),
+        get_news_summary(),
+        get_event_programme_summary(),
+    ]
+
+    assert sum(1 for summary in summaries if summary.is_stale_after_failure) == 1
+
+
+def test_marking_the_failure_is_idempotent():
+    """Re-running the whole seed leaves the same single failed state.
+
+    Every other builder is idempotent over its own content identity, and this
+    one has to be too, or a second run would either clear the failure or stack
+    another onto a different source.
+    """
+    from apps.news.selectors import get_news_summary
+
+    run_seed()
+    run_seed()
+
+    assert get_news_summary().is_stale_after_failure

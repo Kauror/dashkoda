@@ -2,13 +2,15 @@ import { expect, test } from "@playwright/test";
 
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
+// The executive overview's sections, in reading order: status, exceptions,
+// near-term work, audience behaviour, provenance.
 const SECTIONS = [
-  "Põhinäitajad",
-  "Õigusloome",
-  "Liikmeskond",
-  "Tulevased sündmused",
-  "Viimased uudised",
-  "Kanalite statistika",
+  "Koja seis",
+  "Mis vajab tähelepanu?",
+  "Järgmised 30 päeva",
+  "Praegu huvi pakkuv",
+  "Kanalite auditoorium",
+  "Andmete seis",
 ];
 
 test("the shell renders every section with a truthful empty state", async ({ page }) => {
@@ -17,11 +19,16 @@ test("the shell renders every section with a truthful empty state", async ({ pag
   await signIn(page);
 
   for (const section of SECTIONS) {
-    // Level 2 pins this to the section headings. A headline cell now names its
-    // module too ("Õigusloome"), and that label is an h3 inside the strip.
+    // Level 2 pins this to the section headings. A pillar names its strategic
+    // area too ("Liikmeskond"), and that label is an h3 inside the card.
     await expect(page.getByRole("heading", { name: section, exact: true, level: 2 })).toBeVisible();
   }
-  await expect(page.getByText("Andmeallikas ei ole veel ühendatud.").first()).toBeVisible();
+  // With nothing imported, every pillar says so rather than showing a nought,
+  // and the exception section is silent rather than full of reassurance.
+  await expect(page.getByText("Andmeallikas ei ole ühendatud.").first()).toBeVisible();
+  await expect(
+    page.getByText("Olulisi muutusi või lähenevaid tähtaegu ei ole."),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -54,13 +61,16 @@ test("the Chamber logo is visible and undistorted", async ({ page }) => {
 test("no fabricated business number is shown anywhere on the shell", async ({ page }) => {
   await signIn(page);
 
-  // The whole of `main`, with nothing cut out. This used to drop
-  // `#freshness-region` first, because the connection-check time it printed was
-  // a fact about the application rather than business data; that strip was
-  // removed from the overview on 2026-08-11, so the scan now covers everything.
+  // The whole of `main`, with one heading cut out. `Järgmised 30 päeva` names
+  // the timeline's fixed horizon: it is a constant in a section title, on the
+  // page before any source exists and unmoved when one arrives. Everything else
+  // must still be free of digits — including the header chip, which counts data
+  // notes only once some source has actually published, so an empty deployment
+  // never reports its own emptiness as a list of problems.
   const text = await page.evaluate(() => document.querySelector("main").innerText);
 
-  expect(text).not.toMatch(/\d/);
+  expect(text).toContain("Järgmised 30 päeva");
+  expect(text.replace("Järgmised 30 päeva", "")).not.toMatch(/\d/);
 });
 
 test("the page never scrolls sideways", async ({ page }) => {

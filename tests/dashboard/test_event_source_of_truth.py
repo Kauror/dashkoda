@@ -14,7 +14,7 @@ import pytest
 from django.urls import reverse
 from django.utils.html import strip_tags
 
-from apps.dashboard import freshness, overview
+from apps.dashboard import executive, freshness
 from apps.event_programme.selectors import EventProgrammeSummary
 from apps.event_programme.sync import synchronize_public_workbook
 from apps.events.models import EventSnapshot
@@ -103,59 +103,63 @@ def test_a_page_may_hand_back_the_programme_summary_it_already_read(published_pr
 # -- the overview -------------------------------------------------------
 
 
-def test_the_overview_event_cell_reads_the_workbook(viewer, published_programme):
+def test_the_kaasamine_pillar_reads_the_workbook(viewer, published_programme):
     """Each count is asserted with its value, not just its label.
 
     The synthetic programme has one event five days out, and two behind: the one
     still running and the one ten days ago. A label-only assertion would pass on
-    a cell that had lost its figures.
+    a pillar that had lost its figures.
     """
     page = text_of(viewer.get(reverse("home")))
 
-    assert "sündmusi järgmise 30 päeva jooksul 1" in page
-    assert "sündmusi eelmise 30 päeva jooksul 2" in page
+    assert "Kaasamine" in page
+    assert "Algab 30 päeva jooksul 1" in page
 
 
 def test_the_overview_names_the_programme_as_its_event_source():
-    assert overview.SOURCE_EVENTS == "Sündmuste programm"
-    assert "kalender" not in overview.SOURCE_EVENTS.casefold()
+    assert executive.SOURCE_EVENTS == "Sündmuste programm"
+    assert "kalender" not in executive.SOURCE_EVENTS.casefold()
 
 
 def test_the_overview_takes_no_event_figure_from_the_public_calendar(viewer):
-    """The public calendar published, the workbook not. The cell stays empty."""
+    """The public calendar published, the workbook not. The pillar stays empty.
+
+    Empty means the unavailable note, never a zero: nobody counted no events.
+    """
     synchronize_events(collector=collector_returning(event_collection(3)))
 
     response = viewer.get(reverse("home"))
     page = text_of(response)
-    preview = section(response, "section-events")
 
-    assert "sündmusi järgmise 30 päeva jooksul" not in page
-    assert "sündmusi eelmise 30 päeva jooksul" not in page
-    assert "Sünteetiline sündmus 0" not in strip_tags(preview), (
-        "no public-calendar event may reach the overview preview"
+    assert "Algab 30 päeva jooksul" not in page
+    assert "Sünteetiline sündmus 0" not in page, (
+        "no public-calendar event may reach the executive overview"
     )
-    assert "Andmeallikas ei ole veel ühendatud." in strip_tags(preview)
+    assert executive.NO_SOURCE_NOTE in page
 
 
-def test_the_overview_preview_shows_the_programme_and_links_only_what_the_workbook_linked(
+def test_the_timeline_shows_the_programme_and_links_only_what_the_workbook_linked(
     viewer, published_programme
 ):
-    response = viewer.get(reverse("home"))
-    preview = section(response, "section-events")
+    """The upcoming event reaches the shared thirty-day timeline.
 
-    # The upcoming linked event carries an anchor and the project's wording.
-    assert "Sünteetiline tulev koolitus" in strip_tags(preview)
-    assert "(koda.ee, avaneb uuel vahelehel)" in preview
-    # The ongoing event has no workbook link, so its title is plain text.
-    assert "Sünteetiline käimasolev sündmus" in strip_tags(preview)
-    assert 'href="https://www.koda.ee/et/sundmused/sunteetiline-programmi-sundmus-tulev"' in preview
+    The overview no longer previews a list of events — that moved to Sündmused —
+    but a scheduled event inside the horizon is dated work and belongs on the
+    timeline, with its public page where the matcher resolved one.
+    """
+    response = viewer.get(reverse("home"))
+    body = response.content.decode()
+
+    assert "Sünteetiline tulev koolitus" in strip_tags(body)
+    assert "(avaneb uuel vahelehel)" in body
+    assert 'href="https://www.koda.ee/et/sundmused/sunteetiline-programmi-sundmus-tulev"' in body
 
 
 def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_programme):
     """A failed later check discloses itself and withdraws nothing.
 
-    The disclosure moved to `/dashboard/varskus/` in #104; the figures staying
-    put on the overview is the half that must never move.
+    The disclosure is on the shell freshness row and in `Andmete seis`; the
+    figures staying put on the overview is the half that must never move.
     """
     from apps.event_programme.public_download import PublicDownloadError
 
@@ -167,6 +171,5 @@ def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_p
     freshness = text_of(viewer.get(reverse("dashboard-freshness")))
 
     assert "Vananenud: 1" in freshness
-    assert "sündmusi järgmise 30 päeva jooksul 1" in page, "the figures are not withdrawn"
-    assert "sündmusi eelmise 30 päeva jooksul 2" in page
+    assert "Algab 30 päeva jooksul 1" in page, "the figures are not withdrawn"
     assert "Sünteetiline tõrge" not in page, "no failure detail may reach a viewer"
