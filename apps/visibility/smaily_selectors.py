@@ -302,15 +302,30 @@ class NewsletterAggregate:
         return self.unique_clicks / self.opened
 
 
-def get_newsletter_aggregate(metric: str, *, limit: int = 12) -> NewsletterAggregate:
-    """One newsletter's totals across its most recent measured issues."""
+def get_newsletter_aggregate(
+    metric: str, *, limit: int = 12, offset: int = 0
+) -> NewsletterAggregate:
+    """One newsletter's totals across a slice of its most recent issues.
+
+    `offset` steps back through the send history in blocks of `limit`, which is
+    what lets a caller put the last twelve issues beside the twelve before them.
+    It defaults to zero, so every existing caller asks the same question it
+    always did: the most recent `limit` issues.
+
+    The slice is taken over **sends**, not over a date range, because newsletter
+    cadence is irregular — e-Teataja goes out as two campaigns per issue and the
+    Russian-language letter goes months between sends — and equal spans would
+    compare four issues against nineteen.
+    """
     registry_spec = spec_for(metric)
     label = registry_spec.label if registry_spec else ""
 
+    window = max(limit, 0)
+    start = max(offset, 0)
     campaign_ids = list(
         SmailyCampaign.objects.filter(newsletter=metric)
         .order_by("-completed_at", "-campaign_id")
-        .values_list("pk", flat=True)[: max(limit, 0)]
+        .values_list("pk", flat=True)[start : start + window]
     )
     if not campaign_ids:
         return NewsletterAggregate(metric=metric, label=label)

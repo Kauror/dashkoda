@@ -1,0 +1,132 @@
+{% comment %}
+`Arhiiv` — the exact-lookup layer beneath the dashboard.
+
+Unchanged in behaviour: the same builder, the same period, category, search,
+ordering and pagination the archive has always had. What changed is that it is a
+focus a reader chooses rather than the first thing the page shows, because
+"find me the article about excise duty" and "how are we doing" are different
+errands and the archive only answers the first one well.
+
+Every control carries the whole state — including the focus, without which a
+period chip would quietly return the reader to the overview.
+
+Context: archive
+{% endcomment %}
+
+<section aria-labelledby="section-archive" class="dk-section dk-section-body">
+  <h2 id="section-archive" class="sr-only">Uudiste arhiiv</h2>
+
+  <div class="flex min-w-0 flex-col gap-3">
+    <nav aria-label="Avaldamisperiood" class="flex flex-wrap items-center gap-2">
+      <span class="dk-meta">Avaldatud:</span>
+      {% for option in archive.periods %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="?{{ option.query }}"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
+      {% endfor %}
+    </nav>
+
+    {% comment %}
+    Whose news, beside when. `Kõik` is the absence of the filter rather than a
+    third category, and it is the only chip that includes articles DashKoda has
+    not been able to classify.
+    {% endcomment %}
+    <nav aria-label="Uudise liik" class="flex flex-wrap gap-2">
+      {% for option in archive.categories %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="?{{ option.query }}"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+      {% endfor %}
+    </nav>
+
+    {% if archive.period.period.is_custom %}
+      {% comment %}
+      Native date fields, submitted by an ordinary GET form. The server resolves
+      whatever arrives — reversed, half-filled or unreadable — and the fields
+      then show the window that was actually applied, so the control never
+      disagrees with the list under it.
+      {% endcomment %}
+      <form method="get" class="flex min-w-0 flex-wrap items-end gap-2">
+        <input type="hidden" name="fookus" value="arhiiv">
+        <input type="hidden" name="periood" value="{{ archive.period.key }}">
+        {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
+        {% if archive.search %}<input type="hidden" name="otsing" value="{{ archive.search }}">{% endif %}
+        {% if archive.category %}<input type="hidden" name="kategooria" value="{{ archive.category }}">{% endif %}
+        <div class="flex flex-col gap-1">
+          <label for="alates" class="text-sm text-text-secondary">Alates</label>
+          <input type="date" id="alates" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}" class="dk-input dk-input-date">
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="kuni" class="text-sm text-text-secondary">Kuni</label>
+          <input type="date" id="kuni" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}" class="dk-input dk-input-date">
+        </div>
+        <button type="submit" class="dk-button dk-button-secondary">Näita</button>
+      </form>
+    {% endif %}
+
+    <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <span class="dk-meta">Järjestus:</span>
+        {% for option in archive.sorts %}
+          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+             href="?{{ option.query }}"
+             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+        {% endfor %}
+      </div>
+
+      {% comment %}
+      The period and the sort travel as hidden fields, so a search inside one
+      quarter's newest-first list stays inside it — which is why `hx-include`
+      names the whole form and not the input alone.
+
+      `lk` is deliberately absent. A reader on page 7 who types a new term is
+      asking a new question, and carrying the page number into it answers
+      "nothing found" for anything matching fewer results than that page.
+      {% endcomment %}
+      <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
+        <input type="hidden" name="fookus" value="arhiiv">
+        <input type="hidden" name="periood" value="{{ archive.period.key }}">
+        {% if archive.period.period.is_custom %}
+          <input type="hidden" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}">
+          <input type="hidden" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}">
+        {% endif %}
+        {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
+        {% if archive.category %}<input type="hidden" name="kategooria" value="{{ archive.category }}">{% endif %}
+        <label for="otsing" class="sr-only">Otsi uudist</label>
+        <input type="search" id="otsing" name="otsing" value="{{ archive.search }}"
+               maxlength="120" placeholder="Otsi uudist…" autocomplete="off"
+               class="dk-input w-full min-w-0 sm:w-56"
+               hx-get="{% url 'news-search' %}"
+               hx-trigger="input changed delay:250ms, search"
+               hx-target="#news-results"
+               hx-swap="innerHTML"
+               hx-include="closest form"
+               hx-sync="this:replace"
+               hx-indicator="#news-searching">
+        <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+        <p id="news-searching" class="dk-indicator dk-meta" aria-hidden="true">Otsin…</p>
+      </form>
+    </div>
+
+    {% comment %}
+    Updated by an out-of-band swap, not by the main one: the rows it counts are
+    inside the region below, and this sits above it beside the controls.
+    {% endcomment %}
+    <p id="news-summary" class="dk-meta">{{ archive.result_summary }}</p>
+  </div>
+
+  <div id="news-results" aria-live="polite" class="mt-4">
+    {% include "news/partials/_news_results.html" with archive=archive only %}
+  </div>
+
+  {% comment %}
+  The caveats, once each, where the column ends rather than under every row.
+  {% endcomment %}
+  <div class="mt-3 flex flex-col gap-1">
+    {% if archive.coverage_note %}<p class="dk-meta">{{ archive.coverage_note }}</p>{% endif %}
+    {% if archive.coverage_caveat %}<p class="dk-meta">{{ archive.coverage_caveat }}</p>{% endif %}
+    {% if archive.unclassified_count %}
+      <p class="dk-meta">{{ archive.unclassified_count }} uudise liik ei ole teada; need on nähtavad ainult „Kõik“ all.</p>
+    {% endif %}
+  </div>
+</section>

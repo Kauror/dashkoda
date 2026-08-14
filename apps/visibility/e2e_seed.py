@@ -91,6 +91,14 @@ def _analytics_content_pages() -> tuple[tuple[str, int], ...]:
         # The last article is nearly silent, so it can never drift into the Top
         # 20 and quietly make the search tests assert nothing.
         rows.append((f"/et/uudised/sunteetiline-{index}", 2 if index == 12 else max(weight, 6)))
+    # Two articles the feed no longer carries, still being read this month.
+    # `apps/news/e2e_seed.py` catalogues them a year or more back, so they are
+    # the only rows that can put anything in `Jätkuvalt loetav` — an article
+    # published inside the seeded window is still collecting its launch
+    # attention and is excluded from that list by construction. Weighted well
+    # below rank one so they cannot displace what the ranking tests assert.
+    rows.append(("/et/uudised/arhiiv-igihaljas", 34))
+    rows.append(("/et/uudised/arhiiv-igihaljas-sopradelt", 18))
     for index in range(1, 19):
         weight = 88 if index == 1 else 80 - index * 3
         rows.append((f"/et/sundmused/sunteetiline-{index}", max(weight, 4)))

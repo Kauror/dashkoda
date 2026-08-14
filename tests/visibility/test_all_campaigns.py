@@ -289,7 +289,7 @@ def test_the_backfill_imports_every_type_not_only_eteataja():
 
 def test_the_page_shows_every_kind_and_links_to_the_archive(viewer_client):
     collect()
-    page = viewer_client.get(reverse("news")).content.decode()
+    page = viewer_client.get(reverse("news"), {"fookus": "uudiskirjad"}).content.decode()
 
     assert "Viimased saadetud uudiskirjad" in page
     assert OTHER_LABEL in page
