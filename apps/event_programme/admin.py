@@ -46,6 +46,9 @@ class EventProgrammeItemAdmin(ReadOnlyAdmin):
         "event_type_label",
         "delivery_mode",
         "event_status",
+        "price_status",
+        "added_date",
+        "planning_lead_days",
         "has_public_url",
         "review_required",
     )
@@ -57,6 +60,7 @@ class EventProgrammeItemAdmin(ReadOnlyAdmin):
         "event_type_key",
         "delivery_mode",
         "include_status",
+        "price_status",
         "public_link_status",
         "review_required",
     )

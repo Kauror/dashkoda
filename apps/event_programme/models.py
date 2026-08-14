@@ -58,6 +58,29 @@ class DeliveryMode(models.TextChoices):
     HYBRID = "hybrid", "Hübriid"
 
 
+class PriceStatus(models.TextChoices):
+    """What the generator was able to say about an event's price.
+
+    These are **display labels, not a constraint.** Django's `choices` creates
+    no database check, so a seventh status the Chamber's generator invents next
+    year imports and renders as its own raw key rather than failing validation —
+    the same rule `tag_key` and `event_type_key` follow, and for the same
+    reason: a vocabulary somebody maintains by hand must be allowed to grow.
+
+    The three unknown-ish states stay separate from each other and, above all,
+    separate from `FREE`. An event whose price nobody has recorded is not a free
+    event, and the distance between `Tasuta` and `Hind teadmata` is the whole
+    reason this column is stored at all.
+    """
+
+    FREE = "free", "Tasuta"
+    PAID = "paid", "Tasuline"
+    MIXED = "mixed", "Osaliselt tasuline"
+    TBA = "tba", "Selgub hiljem"
+    MISSING = "missing", "Hind teadmata"
+    REVIEW = "review", "Hind ülevaatamisel"
+
+
 class SyncResult(models.TextChoices):
     NEVER_RUN = "never_run", "Pole veel käivitatud"
     IMPORTED = "imported", "Imporditud"
@@ -198,6 +221,40 @@ class EventProgrammeItem(models.Model):
         max_length=8, choices=IncludeStatus, verbose_name="Arvestamise olek"
     )
 
+    # The event's **current list price**, as the programme states it — planned
+    # pricing, never a transaction. Null is "the generator did not produce a
+    # number"; `price_status` is what distinguishes free from unrecorded, and
+    # nothing may read a null as zero.
+    member_price_eur = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Liikme hind",
+    )
+    nonmember_price_eur = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        null=True,
+        blank=True,
+        verbose_name="Mitteliikme hind",
+    )
+    price_status = models.CharField(
+        max_length=16, choices=PriceStatus, blank=True, db_index=True, verbose_name="Hinna olek"
+    )
+
+    # When the event entered the operational programme, and the generator's own
+    # lead figure. Verified against the export: `planning_lead_days` equals
+    # `start_date - added_date` on every row carrying both, so the stored value
+    # is the source's arithmetic rather than a second definition. A negative
+    # lead — an event entered after it began — is retained as the data-quality
+    # fact it is and is excluded from planning statistics by the selectors, not
+    # by being clamped here.
+    added_date = models.DateField(null=True, blank=True, verbose_name="Programmi lisatud")
+    planning_lead_days = models.IntegerField(
+        null=True, blank=True, verbose_name="Planeerimisvaru (päeva)"
+    )
+
     public_url = models.URLField(max_length=500, blank=True, verbose_name="Avalik viide")
     public_link_status = models.CharField(
         max_length=32, choices=PublicLinkStatus, verbose_name="Lingi olek"
@@ -257,6 +314,17 @@ class EventProgrammeItem(models.Model):
                 condition=Q(source_occurrence_count__gte=1),
                 name="eventprogrammeitem_occurrence_count_positive",
             ),
+            # A negative list price is not a discount, it is a broken cell.
+            # `planning_lead_days` is deliberately *not* constrained: a negative
+            # lead is a real observation about how the programme is maintained.
+            models.CheckConstraint(
+                condition=Q(member_price_eur__isnull=True) | Q(member_price_eur__gte=0),
+                name="eventprogrammeitem_member_price_not_negative",
+            ),
+            models.CheckConstraint(
+                condition=Q(nonmember_price_eur__isnull=True) | Q(nonmember_price_eur__gte=0),
+                name="eventprogrammeitem_nonmember_price_not_negative",
+            ),
         ]
         indexes = [
             models.Index(fields=["snapshot", "-start_date"]),
@@ -271,6 +339,26 @@ class EventProgrammeItem(models.Model):
     @property
     def has_known_date(self) -> bool:
         return self.start_date is not None
+
+    @property
+    def member_price_advantage(self):
+        """`nonmember − member`, only when the programme states both.
+
+        A **price-list fact** about this event as it is currently offered. It is
+        never "how much members saved": no transaction history establishes who
+        paid which list price, and 2018's price list is not what a 2018 buyer
+        was charged.
+        """
+        if self.member_price_eur is None or self.nonmember_price_eur is None:
+            return None
+        return self.nonmember_price_eur - self.member_price_eur
+
+    @property
+    def duration_days(self) -> int | None:
+        """Whole calendar days from start to end, inclusive. Not training hours."""
+        if self.start_date is None:
+            return None
+        return ((self.end_date or self.start_date) - self.start_date).days + 1
 
     def save(self, *args, **kwargs):
         if self.pk is not None and not self._state.adding:
