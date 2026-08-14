@@ -54,7 +54,13 @@ test("the workbook programme is the page's primary content", async ({ page }) =>
   await open_(page);
 
   await expect(page.getByRole("heading", { name: "Sündmuste programm" })).toBeVisible();
-  // The public calendar is named once, as a secondary connection, below it.
+
+  /* The public calendar is named once, as the secondary connection it is, inside
+     the provenance block at the foot. Folded by default — a dashboard should not
+     open with pipeline diagnostics — so the block is opened to read it. */
+  const provenance = page.locator('section[aria-labelledby="section-quality"] details');
+  await expect(provenance).toHaveCount(1);
+  await provenance.locator("summary").click();
   await expect(page.getByRole("heading", { name: "Koda.ee avalik kalender" })).toBeVisible();
   expect(errors).toEqual([]);
 });
@@ -116,7 +122,18 @@ test("tag filtering keeps only that tag", async ({ page }) => {
   const tag = await page.locator("#filter-tag option:not([value=''])").first().getAttribute("value");
   await page.goto(registerUrl(`year=all&tag=${tag}`));
 
-  const labels = await page.locator("main table tbody tr td:nth-child(3)").allInnerTexts();
+  /* Read by column heading rather than by position. The table gained Tüüp and
+     Viis, so a hard-coded `nth-child` now reads a neighbouring column and
+     compares the wrong values — which is what it did, silently, until the set
+     had two members in it. */
+  const column = await page.evaluate(() => {
+    const headings = [...document.querySelectorAll("main table thead th")];
+    return headings.findIndex((cell) => cell.textContent.trim() === "Teema") + 1;
+  });
+  expect(column).toBeGreaterThan(0);
+  const labels = await page
+    .locator(`main table tbody tr td:nth-child(${column})`)
+    .allInnerTexts();
   expect(labels.length).toBeGreaterThan(0);
   expect(new Set(labels.map((label) => label.trim())).size).toBe(1);
 });
@@ -139,7 +156,16 @@ test("clearing the filters returns to the default period", async ({ page }) => {
 
   await page.getByRole("link", { name: "Eemalda filtrid" }).click();
 
-  await expect(page).toHaveURL(new RegExp(`${PAGE}$`));
+  /* Back to the default period, and still on the register: clearing a filter is
+     not a request to be moved to another view.
+
+     Compared as parts rather than against a pattern. A `?` inside a template
+     literal handed to `new RegExp` is a quantifier unless it survives two rounds
+     of escaping, and a regex that silently stops asserting what it reads like is
+     worse than no assertion. */
+  const cleared = new URL(page.url());
+  expect(cleared.pathname).toBe(PAGE);
+  expect(cleared.search).toBe(`?${REGISTER}`);
   await expect(page.getByText(/Valitud periood: \d{4}/)).toBeVisible();
 });
 
@@ -220,9 +246,15 @@ test("a very long linked event name does not widen the page", async ({ page }) =
    */
   await open_(page, "?year=all&public_link=linked");
 
+  /* The long name specifically, not whichever linked row sorts first: the seed
+     gained several linked events and the newest of them is a short one. Picking
+     `.first()` measured that instead and the assertion stopped describing the
+     defect it was written for. */
   const links = page.locator("main table a", { has: page.locator("span.sr-only") });
   await expect(links.first()).toBeVisible();
-  expect((await links.first().innerText()).length).toBeGreaterThan(150);
+  const texts = await links.allInnerTexts();
+  const longest = texts.reduce((a, b) => (a.length >= b.length ? a : b), "");
+  expect(longest.length).toBeGreaterThan(150);
 
   await expectNoHorizontalOverflow(page);
 });

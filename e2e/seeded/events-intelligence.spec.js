@@ -139,11 +139,20 @@ test("the provenance block is present on every focus and folded", async ({ page 
 
   for (const [focus] of FOCUS) {
     await visit(page, focus);
-    const details = page.locator("details", { hasText: "Andmete kohta" }).first();
+
+    /* Located by the section, not by `hasText: "Andmete kohta"`. That string is
+       the section's `h2`, which sits *outside* the disclosure — the filter
+       matched nothing and the failure looked like a missing block rather than a
+       mis-aimed locator. */
+    const details = page.locator('section[aria-labelledby="section-quality"] details');
     await expect(details).toHaveCount(1);
     // A dashboard should not open with pipeline diagnostics, and should never
     // hide them either.
     await expect(details).not.toHaveAttribute("open", /.*/);
+
+    // Folded, but the denominators are one click away.
+    await details.locator("summary").click();
+    await expect(page.getByText("Mida need andmed ei tõesta")).toBeVisible();
   }
 });
 
