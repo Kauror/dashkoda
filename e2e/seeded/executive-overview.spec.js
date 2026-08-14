@@ -51,24 +51,62 @@ test("the membership pillar leads with the public directory count", async ({ pag
   await expect(pillar.getByText("Liikmeid kokku · koja aruanne")).toHaveCount(0);
 });
 
-test("the attention section carries signals with evidence and a priority word", async ({ page }) => {
+test("the attention section renders exactly one of its two valid states", async ({ page }) => {
+  /*
+   * Signals or silence, never both and never neither. The section is scoped by
+   * its heading rather than by a class, so this also holds the heading itself.
+   *
+   * The seeded legal register carries deadlines two and five days out and one
+   * overdue matter whose opinion has not gone, so signals are expected here —
+   * but the assertion is written as the contract rather than as that
+   * expectation. A seed that stopped producing one should fail on the *count*
+   * assertion below with a readable number, not on a locator that silently
+   * resolved to nothing.
+   */
   const attention = page.getByRole("region", { name: "Mis vajab tähelepanu?" });
+  await expect(attention).toBeVisible();
 
-  await expect(attention.getByText("Olulisi muutusi või lähenevaid tähtaegu ei ole.")).toHaveCount(
-    0,
+  const quiet = attention.getByText("Olulisi muutusi või lähenevaid tähtaegu ei ole.");
+  const rows = attention.locator("li");
+
+  const [quietCount, rowCount] = await Promise.all([quiet.count(), rows.count()]);
+
+  // Exactly one state. Both would mean the template lost its branch; neither
+  // would mean the section rendered empty, which says nothing to a reader.
+  expect({ quiet: quietCount, signals: rowCount }).toEqual(
+    rowCount > 0 ? { quiet: 0, signals: rowCount } : { quiet: 1, signals: 0 },
   );
 
-  const rows = attention.locator("li");
-  const count = await rows.count();
-  expect(count).toBeGreaterThan(0);
-  // Bounded: the section is an exception list, not another dashboard.
-  expect(count).toBeLessThanOrEqual(5);
+  if (rowCount === 0) {
+    return;
+  }
 
-  // Urgency is a word before it is a colour, so it survives greyscale and a
-  // reader who cannot separate the two warning tones.
+  // Bounded: an exception list, not another dashboard.
+  expect(rowCount).toBeLessThanOrEqual(5);
+
+  // Urgency is a word before it is a colour, so it survives greyscale, a
+  // printer and a reader who cannot separate the two warning tones. Every row
+  // carries one, not just the first.
   const priorities = ["Kiireloomuline", "Tähelepanu", "Tähelepanuväärne"];
-  const first = await rows.first().innerText();
-  expect(priorities.some((word) => first.includes(word))).toBe(true);
+  const texts = await rows.allInnerTexts();
+  for (const text of texts) {
+    expect(priorities.some((word) => text.includes(word))).toBe(true);
+    // And evidence beneath the claim: a headline with no measurement under it
+    // is an assertion the reader cannot check.
+    expect(text.trim().split("\n").length).toBeGreaterThan(1);
+  }
+});
+
+test("the seeded register produces at least one signal", async ({ page }) => {
+  /*
+   * Separate from the contract test above on purpose. This one is about the
+   * *seed*: if it stops producing a signal, the section's populated branch is
+   * never exercised by any browser run, and the contract test would pass on the
+   * quiet state forever without anyone noticing.
+   */
+  const attention = page.getByRole("region", { name: "Mis vajab tähelepanu?" });
+
+  await expect(attention.locator("li").first()).toBeVisible();
 });
 
 test("the timeline is chronological and every row is dated", async ({ page }) => {
