@@ -394,8 +394,8 @@ class ShopDailyFact(ImmutableWriteGuard, models.Model):
     #: order carrying three templates contributes one to each of three cells.
     #: Summing it over a whole catalogue counts order *lines*, which is why the
     #: overview says `Tellimusridu` and only a product's own page says
-    #: `Tellimused`. On the first real dataset the difference is 5 551 lines
-    #: against 4 052 distinct orders.
+    #: `Tellimused`. On the published dataset the difference is 5 551 lines
+    #: against 4 009 distinct orders, measured 2026-08-14.
     order_count = models.PositiveIntegerField(verbose_name="Tellimusridu")
     units = models.DecimalField(
         max_digits=QUANTITY_DIGITS,
@@ -516,9 +516,13 @@ class ShopDailySummary(ImmutableWriteGuard, models.Model):
 
     `ShopDailyFact` cannot answer this. Its grain is one row per product per
     dimension cell, so an order carrying three templates contributes to three
-    cells and summing it counts that order three times. On the real dataset
-    11.5% of orders carry more than one line — one carries 33 — and the gap
-    between 5 627 lines and 4 056 orders is 39%.
+    cells and summing it counts that order three times. On the published dataset
+    the gap between 5 551 lines and 4 009 orders is 38.5%, measured 2026-08-14.
+
+    The per-type rows prove the same point on their own: 4 008 document orders
+    plus 2 physical-product orders is 4 010, while the true count across every
+    type is 4 009. One order carried both families, so it belongs to two type
+    rows and is one order — which is exactly why the blank-type row exists.
 
     So the count is computed where the order identifiers still exist, at import,
     and only the total survives. **No order number, order ID or customer field

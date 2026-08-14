@@ -100,8 +100,11 @@ So the two surfaces name it differently, and the difference is not cosmetic:
 | `/epood/` overview | **Tellimusridu** | the sum spans products, so an order is counted once per product it contained |
 | `/epood/toode/<id>/` | **Tellimused** | the sum spans one product's cells, so each order appears once |
 
-On the first real dataset that is **5 551 order lines against 4 052 distinct
-orders** — calling the overview figure "orders" would overstate it by 37%.
+On the published dataset that is **5 551 order lines against 4 009 distinct
+orders** — calling the overview figure "orders" overstates it by 38.5%. Both
+figures were measured against the live database on 2026-08-14; the earlier
+estimates in this file and in `models.py` predated `ShopDailySummary`, so the
+order side of them was never counted.
 
 ### Where the distinct count comes from
 
