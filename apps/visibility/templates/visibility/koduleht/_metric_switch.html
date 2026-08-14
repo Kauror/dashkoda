@@ -1,0 +1,18 @@
+{% comment %}
+Which metric the trend draws. One at a time, not all three at once: a count of
+sessions beside a count of page views beside a subset of the first leaves the
+reader working out which line answers their question.
+
+The control sits inside the section it governs, and it is an ordinary set of
+links carrying the whole page state.
+
+Context:
+  options – tuple of (key, label, is_active, query)
+{% endcomment %}
+<nav aria-label="Näitaja" class="flex flex-wrap gap-2">
+  {% for key, label, is_active, query in options %}
+    <a class="dk-chip{% if is_active %} dk-chip-active{% endif %}"
+       href="?{{ query }}"
+       {% if is_active %}aria-current="true"{% endif %}>{{ label }}</a>
+  {% endfor %}
+</nav>

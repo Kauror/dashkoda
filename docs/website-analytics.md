@@ -194,7 +194,7 @@ two catalogues, so the page works when Google does not.
 
 ## Reading it
 
-The **Nähtavus** page carries the history: six periods (30 päeva, 90 päeva,
+The **Koduleht** page carries the history: six periods (30 päeva, 90 päeva,
 1 aasta, 3 aastat, 5 aastat, Kõik), each a real URL. A period the property
 cannot fill is shown disabled rather than hidden.
 
@@ -202,13 +202,122 @@ The grain follows the span — daily under ~120 days, weekly under ~400, monthly
 beyond — and the aggregation happens in PostgreSQL rather than by loading years
 of rows into Python.
 
-`Kust liiklus tuli` — the channel breakdown — is a `<details>` and starts shut.
-The rows are rendered into the page either way, so it is a disclosure and not a
-fetch; what closing it buys is the space between the traffic chart and `Enim
-vaadatud sisu`, which a dozen channel rows used to push below the fold. The
-count sits in the summary so a shut box still says how much is inside.
+Acquisition has a focus view of its own now. On Nähtavus it was a `<details>`
+that started shut, because a dozen channel rows pushed the content ranking below
+the fold; Koduleht gives it `fookus=kanalid` instead, so nothing has to be
+collapsed to make room for it.
 
 The overview card keeps its single headline figure and gains nothing.
+
+### The five views
+
+`fookus` chooses the question and `periood` chooses the window it is asked over,
+and the two are independent — changing one never silently changes the other.
+Every control is an ordinary GET link carrying the whole state, so a view is
+bookmarkable, shareable and reload-safe without JavaScript.
+
+| `fookus` | Answers |
+| --- | --- |
+| `ulevaade` | how much traffic, whether it is changing, how engaged, what moved |
+| `liiklus` | the trend, the weekday pattern, the busiest day, technical signals |
+| `sisu` | the section mix, the ranking, what grew and fell, engagement, language |
+| `kanalid` | where sessions came from and how engaged each channel's were |
+| `lehed` | search the whole measured population, then read one page |
+
+An unknown value resolves to `ulevaade` rather than to an error, the same rule
+the period follows.
+
+### What is shown, and what is refused
+
+A figure is shown when it was measured. A **comparison** is shown when both
+windows were measured well enough to be compared *at the grain the comparison is
+about* — site figures need daily snapshots, a content delta needs page detail, a
+channel delta needs channel detail, and a day can carry the first without either
+of the others. Those are two separate permissions and
+`apps/visibility/website_period.py` holds the second one.
+
+So a thirty-day period against a previous one with twenty-two collected days
+produces **no delta at all**, rather than `−19%` with a footnote. A number on a
+dashboard is read long before its footnote is. `Kõik` has no previous period:
+the window before "everything there is" was not a quiet period, it was an
+unmeasured one.
+
+### Which figures the interface refuses to derive
+
+- **no period user count.** Daily `active_users` are distinct people and cannot
+  be added across days. The interface reports the busiest single day and says
+  that is what it is;
+- **no summed `new_users`.** The field is collected. Whether adding the days
+  produces the period quantity a reader would assume has not been demonstrated
+  against this property, and the rule here is that a metric's meaning is
+  verified before it is published rather than argued from its name;
+- **no per-channel users**, for the same reason as the first;
+- **no source, medium or campaign.** Acquisition is stored at channel-group
+  level only, and a row saying "Google organic" would be an invention;
+- **no search terms.** GA4 drops the query string when it canonicalises a path,
+  so internal search is a count of page views and nothing more.
+
+### Denominators are stated where they are shown
+
+Two live on the content view and they are different on purpose:
+
+- the section mix, the ranking and the concentration figures are over **rankable
+  content** — language homepages, the cart, internal search, Drupal node
+  aliases and error documents are not pieces of content;
+- the language split is over **all measured page views**, because a language
+  homepage is not content but is unambiguously an Estonian or an English page.
+
+Channel share is always against the **whole site's** sessions, never against the
+sum of the channels drawn: a share computed over the visible rows adds to 100%
+whatever is left out, and would therefore be right however much traffic is
+missing from the list.
+
+### Analytical thresholds
+
+A page enters a movement or engagement ranking when it averaged at least **one
+view a day** across one of the two windows, floored at ten so a two-day custom
+range still requires more than a single read. A channel needs **five sessions a
+day**, floored at twenty-five.
+
+Both are rates rather than counts, and both were profiled against the production
+history read-only on 2026-08-14 rather than guessed. Over the thirty days to
+2026-08-13 the property measured 14 029 page views across 1 586 rankable paths,
+and **the median rankable path had one view** — the distribution is a long tail
+of pages nobody read twice. The rate keeps its shape at every offered window,
+which a fixed count cannot:
+
+| window | rankable paths | floor | eligible |
+| --- | --- | --- | --- |
+| 30 päeva | 1 586 | 30 | 57 |
+| 90 päeva | 3 277 | 90 | 80 |
+| 1 aasta | 8 482 | 365 | 140 |
+| Kõik | 11 520 | 1 155 | 119 |
+
+Every eligible page in all four windows carried an engagement reading, so the
+opportunity matrix has both dimensions for its whole population.
+
+The same thirty days reported twelve channel groups, from Organic Search at
+2 665 sessions down to Paid Other and Organic Video at one each. The channel
+floor admits the ten that could be said to have moved and excludes the two that
+cannot.
+
+The opportunity matrix splits at the **medians of its own eligible population**
+rather than at numbers somebody chose, and publishes both thresholds under the
+chart. Movement is ordered by absolute change with the relative change shown
+beside it; there is no blended score, and nothing is hidden in JavaScript.
+
+### The old address
+
+`/koduleht/` is canonical. `/nahtavus/` still resolves and redirects, carrying
+the window and the section into the view that now answers for them — so
+`?periood=90&sisu=uudised` lands on the content view over ninety days with the
+news section selected. Temporary rather than permanent: a 301 is cached by
+browsers indefinitely and is painful to take back.
+
+The Django app is still `apps.visibility` and the route is still named
+`visibility`. Product naming and internal module naming do not have to match,
+and renaming an established app, its migration namespace and its model labels to
+follow a page title is a large change bought with nothing.
 
 ## Operating it
 

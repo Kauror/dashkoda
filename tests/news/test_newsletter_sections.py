@@ -36,7 +36,10 @@ ENEWS = VisibilityMetric.NEWSLETTER_ENEWS
 DAY = dt.date(2026, 7, 1)
 
 NEWS_URL = "/uudised/"
-VISIBILITY_URL = "/nahtavus/"
+# The website page is Koduleht at `/koduleht/` now. `/nahtavus/` still resolves
+# and would answer these assertions after a redirect, but a test that follows one
+# is a test that cannot tell the two apart.
+VISIBILITY_URL = "/koduleht/"
 
 #: Uudised now carries five focus views over one address. The newsletter
 #: material is the `uudiskirjad` focus and the archive is `arhiiv` — both still
@@ -114,16 +117,20 @@ def test_the_visibility_page_has_no_newsletter_section_or_sends(viewer_client):
     assert "Otsi uudiskirja" not in content
 
 
-def test_the_visibility_page_keeps_the_website_and_the_social_channels(viewer_client):
-    """The half of the page that did not move.
+def test_the_overview_band_keeps_the_website_and_the_social_channels(viewer_client):
+    """The half that did not move, asserted where it now lives.
 
-    Asserted explicitly because "remove the newsletter slot" and "remove a slot
-    from the band" are one line apart, and the second would take the website and
-    four social cards with it.
+    "Remove the newsletter slot" and "remove a slot from the band" are one line
+    apart, and the second would take the website and four social cards with it.
+
+    The band left the website page when it became Koduleht — a page named after
+    the website does not open with four figures about something else — so this
+    asserts on the overall dashboard, which is where a board member reads all
+    six channels together.
     """
     read()
 
-    content = page(viewer_client.get(VISIBILITY_URL))
+    content = page(viewer_client.get(reverse("home")))
 
     assert "Kodulehe külastused" in content
     for label in (
@@ -135,14 +142,14 @@ def test_the_visibility_page_keeps_the_website_and_the_social_channels(viewer_cl
         assert label in content, f"{label} left the band with the newsletters"
 
 
-def test_the_visibility_page_renders_without_ga4(viewer_client):
+def test_the_website_page_renders_without_ga4(viewer_client):
     response = viewer_client.get(VISIBILITY_URL)
 
     assert response.status_code == 200
-    assert "Kodulehe külastused" in page(response)
+    assert "Koduleht" in page(response)
 
 
-def test_the_visibility_page_renders_with_newsletter_data_present(viewer_client):
+def test_the_website_page_renders_with_newsletter_data_present(viewer_client):
     """Collected newsletter data must not put the section back.
 
     The queries still run for the overall dashboard's band, so the failure this

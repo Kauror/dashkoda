@@ -31,17 +31,17 @@ def test_the_rest_of_the_page_survives_a_keystroke():
     the other three — invisibly, until the reader reloaded and found the page
     back on its defaults.
     """
-    request = request_from("https://dash.orgusaar.ee/nahtavus/?periood=koik&sisu=uudised")
+    request = request_from("https://dash.orgusaar.ee/koduleht/?periood=koik&sisu=uudised")
 
     pushed = push_url(
         request,
-        path="/nahtavus/",
+        path="/koduleht/",
         allowed=ALLOWED,
         updates={"otsi": "ärifoorum"},
         anchor="#section-newsletter-analytics",
     )
 
-    assert pushed.startswith("/nahtavus/?")
+    assert pushed.startswith("/koduleht/?")
     assert "periood=koik" in pushed
     assert "sisu=uudised" in pushed
     assert "otsi=%C3%A4rifoorum" in pushed
@@ -49,9 +49,9 @@ def test_the_rest_of_the_page_survives_a_keystroke():
 
 
 def test_an_emptied_box_drops_its_parameter_rather_than_pushing_a_blank():
-    request = request_from("https://dash.orgusaar.ee/nahtavus/?periood=koik&otsi=vana")
+    request = request_from("https://dash.orgusaar.ee/koduleht/?periood=koik&otsi=vana")
 
-    pushed = push_url(request, path="/nahtavus/", allowed=ALLOWED, updates={"otsi": ""})
+    pushed = push_url(request, path="/koduleht/", allowed=ALLOWED, updates={"otsi": ""})
 
     assert "otsi" not in pushed
     assert "periood=koik" in pushed
@@ -66,15 +66,15 @@ def test_the_pushed_path_never_comes_from_the_header():
     """
     request = request_from("https://evil.example/phish/?periood=koik")
 
-    pushed = push_url(request, path="/nahtavus/", allowed=ALLOWED, updates={"otsi": "x"})
+    pushed = push_url(request, path="/koduleht/", allowed=ALLOWED, updates={"otsi": "x"})
 
-    assert pushed.startswith("/nahtavus/?")
+    assert pushed.startswith("/koduleht/?")
     assert "evil.example" not in pushed
     assert "phish" not in pushed
 
 
 def test_undeclared_parameters_are_dropped_rather_than_echoed():
-    request = request_from("https://dash.orgusaar.ee/nahtavus/?periood=koik&utm_source=spam&x=1")
+    request = request_from("https://dash.orgusaar.ee/koduleht/?periood=koik&utm_source=spam&x=1")
 
     carried = carried_query(request, ALLOWED)
 
@@ -83,7 +83,7 @@ def test_undeclared_parameters_are_dropped_rather_than_echoed():
 
 def test_an_oversized_query_is_discarded_whole():
     long_query = "&".join(f"periood=x{index}" for index in range(MAX_QUERY_LENGTH))
-    request = request_from(f"https://dash.orgusaar.ee/nahtavus/?{long_query}")
+    request = request_from(f"https://dash.orgusaar.ee/koduleht/?{long_query}")
 
     assert list(carried_query(request, ALLOWED)) == []
 

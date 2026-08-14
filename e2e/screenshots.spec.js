@@ -21,7 +21,7 @@ test("capture the dashboard overview", async ({ page }, testInfo) => {
 
 test("capture the visibility page", async ({ page }, testInfo) => {
   await signIn(page);
-  await page.goto("/nahtavus/");
+  await page.goto("/koduleht/");
   await page.screenshot({ path: shot(testInfo, "visibility"), fullPage: true });
 });
 
