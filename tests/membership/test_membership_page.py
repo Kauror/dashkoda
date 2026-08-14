@@ -333,7 +333,11 @@ def test_every_range_preset_keeps_the_reader_on_its_focus(viewer_client, importe
     """
     body = viewer_client.get(reverse("membership"), {"fookus": "kasv"}).content.decode()
 
-    hrefs = re.findall(r'href="\?([^"]*alates=[^"]*)"', body)
-    assert hrefs, "the growth focus rendered no range presets to check"
+    # Only the links that return the reader to a section: presets and chart
+    # toggles both carry a fragment, and the focus navigation deliberately does
+    # not — a link *to* the overview carrying `fookus=ulevaade` is correct, and
+    # matching it here would assert the opposite of the rule.
+    hrefs = re.findall(r'href="\?([^"]*alates=[^"]*)#section-[^"]*"', body)
+    assert hrefs, "the growth focus rendered no in-section links to check"
     for href in hrefs:
         assert "fookus=kasv" in href, href
