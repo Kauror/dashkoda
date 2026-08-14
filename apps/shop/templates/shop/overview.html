@@ -309,7 +309,14 @@ Nothing here turns one into the other.
             <p><strong class="text-text">Soetamisi / 100 vaatamist.</strong> 100 × soetatud ühikud ÷ ostulehe vaatamised, mõlemad sama kattuva akna sees. „Soetatud“ on üldine sõna, sest suur osa lepingunäidistest on tasuta ja „ostetud“ oleks nende kohta vale.</p>
             <p><strong class="text-text">Ostuleht tooteliigi järgi.</strong> Lepingunäidisel ja füüsilisel tootel on selleks tooteleht, sündmusel sündmuse leht. Kui õiget lehte ei ole määratud, jääb määr näitamata — teist liiki lehte asemele ei panda.</p>
             <p><strong class="text-text">Jagatud lehed.</strong> Koondnäitajates loetakse iga ostuleht üks kord, ka siis kui mitu toodet viitab samale lehele.</p>
-            <p><strong class="text-text">Tellitud väärtus.</strong> Lõpetatud tellimuste summa käibemaksuta. See ei ole raamatupidamislik tulu: Koda.ee ei salvesta laekumist ega tagasimakseid. Arvega tellitud väärtus ei ole võlgnevus ja pangalingiga tellitud väärtus ei ole laekunud tulu.</p>
+            {% comment %}
+            Worded to avoid the phrase itself, not only the claim. A negated
+            "ei ole laekunud tulu" still puts those two words on the page, where
+            a skimming reader may take them for a label — and the browser suite
+            asserts the phrase never appears at all, which is a stronger
+            guarantee than trusting every author to negate correctly.
+            {% endcomment %}
+            <p><strong class="text-text">Tellitud väärtus.</strong> Lõpetatud tellimuste summa käibemaksuta. See ei ole raamatupidamislik tulu: Koda.ee ei salvesta makse laekumist ega tagasimakseid. Makseviis ei muuda seda — arvega tellitud väärtus ei ole võlgnevus ja pangalingiga tellitud väärtus ei ole tõend maksest.</p>
             {% if not overview.orders_are_distinct %}
               <p><strong class="text-text">Tellimusridu.</strong> Eri tellimuste arv on päevakokkuvõttes ainult kuupäeva ja tooteliigi kaupa. Kui valik on sellest kitsam — kategooria, liikmestaatus või otsing — loetakse tooteridu: kolme tootega tellimus on kolm rida. Kitsendatud valiku kõrvale ei panda kunagi kitsendamata tellimuste arvu.</p>
             {% endif %}

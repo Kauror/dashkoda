@@ -25,8 +25,10 @@ test("the ranking never scrolls sideways with real titles", async ({ page }) => 
 });
 
 test("the product detail never scrolls sideways", async ({ page }) => {
+  // Reached through the explorer, which lives on the `Tooted` focus. The
+  // overview's ranking is a top ten; this product is not in it.
   await signIn(page);
-  await page.goto("/epood/?periood=koik");
+  await page.goto("/epood/?fookus=tooted&periood=koik");
   await page.getByRole("link", { name: /Sünteetiline lepingu näidis 1$/ }).first().click();
 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();

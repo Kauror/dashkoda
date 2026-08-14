@@ -36,16 +36,32 @@ from apps.shop.vocabulary import vocabulary_for
 ANCHOR = dt.date(2026, 8, 11)
 
 #: Words this dashboard must never print, and what each would misrepresent.
+#:
+#: Matched **case-insensitively**, which is what catches the real failure mode:
+#: `laekunud tulu` first reached the page inside a negation — "pangalingiga
+#: tellitud väärtus ei ole laekunud tulu" — a true sentence that nonetheless
+#: prints the forbidden label where a skimming reader may take it for one.
+#:
+#: The list holds only terms with **no legitimate use in prose**. Refunds,
+#: downloads and attendance are deliberately absent from it: the module is
+#: required to *say* that it has no such figure, and "Koda.ee ei salvesta
+#: laekumist ega tagasimakseid" is that disclosure rather than a violation of
+#: it. The rule forbids the metric, not the sentence explaining its absence —
+#: so those three are guarded by asserting no such KPI exists, not by banning
+#: the word.
 FORBIDDEN = {
-    "Tulu": "ordered value is not recognised revenue",
-    "Käive": "ordered value is not turnover",
-    "Müügitulu": "ordered value is not sales revenue",
-    "Laekunud": "Koda.ee records no payment receipt",
-    "Osalejad": "a registration is not an attendee",
-    "Kohalkäimine": "attendance is not in this dataset",
-    "Allalaadimised": "no download tracking exists",
-    "Tagasimaksed": "the source has no refund concept",
+    "laekunud tulu": "Koda.ee records no payment receipt",
+    "müügitulu": "ordered value is not sales revenue",
+    "käive": "ordered value is not turnover",
+    "osalejad": "a registration is not an attendee",
+    "osavõtjad": "a registration is not an attendee",
+    "konversioonimäär": "page views are not visitors, so this is not a conversion rate",
 }
+
+
+def _forbidden_in(html: str) -> list[str]:
+    lowered = html.casefold()
+    return [f"{word} ({why})" for word, why in FORBIDDEN.items() if word in lowered]
 
 
 def _state():
@@ -105,8 +121,7 @@ def test_no_focus_view_emits_an_inline_style(focus):
 def test_no_focus_view_uses_a_forbidden_word(focus):
     html = _render("shop/overview.html", {"overview": _overview(focus)})
 
-    for word, why in FORBIDDEN.items():
-        assert word not in html, f"{focus.key} printed {word!r}: {why}"
+    assert not _forbidden_in(html), f"{focus.key} printed: {_forbidden_in(html)}"
 
 
 def test_the_focus_navigation_marks_the_current_view_for_a_screen_reader():
@@ -181,8 +196,7 @@ def test_the_product_page_renders_for_every_family(product_type):
     html = _render("shop/product.html", {"detail": _detail(product_type)})
 
     assert 'style="' not in html
-    for word, why in FORBIDDEN.items():
-        assert word not in html, f"{product_type} printed {word!r}: {why}"
+    assert not _forbidden_in(html), f"{product_type} printed: {_forbidden_in(html)}"
 
 
 def test_the_product_page_names_the_page_its_rate_divides_by():
