@@ -41,6 +41,25 @@ test("capture the news archive", async ({ page }, testInfo) => {
    * and density is exactly what a desktop-only screenshot cannot review.
    */
   await signIn(page);
-  await page.goto("/uudised/?periood=koik");
+  await page.goto("/uudised/?fookus=arhiiv&periood=koik");
   await page.screenshot({ path: shot(testInfo, "news"), fullPage: true });
+});
+
+test("capture each news focus view", async ({ page }, testInfo) => {
+  /*
+   * All five, at every width. The dashboard's whole claim is that a reader gets
+   * an answer in seconds and can then investigate, and whether that holds is a
+   * question about hierarchy and density on a real screen — which is what a
+   * screenshot review is for and what no assertion covers.
+   */
+  await signIn(page);
+  for (const [name, url] of [
+    ["news-overview", "/uudised/"],
+    ["news-impact", "/uudised/?fookus=moju"],
+    ["news-publishing", "/uudised/?fookus=avaldamine"],
+    ["news-newsletters", "/uudised/?fookus=uudiskirjad"],
+  ]) {
+    await page.goto(url);
+    await page.screenshot({ path: shot(testInfo, name), fullPage: true });
+  }
 });
