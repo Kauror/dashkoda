@@ -1,0 +1,140 @@
+{% load membership_format %}
+{% comment %}
+`Uudiskirjad` — how large the lists are and how well the sends perform.
+
+Smaily stays owned by `apps.visibility`: its models, collectors, selectors and
+rate definitions all live there and this page composes them. The card and the
+results section below are the same builders the Nähtavus page used before the
+newsletters moved here, unchanged.
+
+**Nothing is totalled.** Three lists whose overlap nobody has measured do not add
+up to a number of people, and a `Kokku` row would silently claim the overlap is
+zero. Each newsletter states its own audience under its own name.
+
+Context: page, newsletters, newsletter_slot
+{% endcomment %}
+
+{% comment %}
+The audiences, from the same `ChannelSlot` the overall dashboard's band renders.
+Rendered unflushed so it draws its own card border rather than relying on a
+strip.
+{% endcomment %}
+<div id="newsletter-audience">
+  {% include "dashboard/components/channel_card.html" with slot=newsletter_slot only %}
+</div>
+
+{% comment %}
+Subscriber history is deliberately not drawn. Collection began on 2026-08-10 and
+a line through five points would show three newsletters being founded on the
+morning the collector was deployed. `SubscriberSeries` keeps every point, so the
+chart is a template away once there is a history worth drawing — and when it
+returns it must start where collection started and say so.
+{% endcomment %}
+
+<section aria-labelledby="section-newsletter-compare" class="dk-section dk-section-body">
+  <h2 id="section-newsletter-compare" class="text-sm font-medium text-text">Uudiskirjade võrdlus</h2>
+  <p class="dk-meta mt-1">
+    Viimase 12 mõõdetud saadetise kaalutud määrad: liidetud avamised jagatud liidetud
+    kättetoimetatutega, mitte saadetiste protsentide keskmine.
+  </p>
+  <div class="mt-3 w-full overflow-x-auto">
+    <table class="w-full min-w-max border-collapse text-sm">
+      <thead>
+        <tr>
+          <th scope="col" class="border-b border-border px-3 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudiskiri</th>
+          <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Saadetisi</th>
+          <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Kättetoimetatud</th>
+          <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avamismäär</th>
+          <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Klikimäär</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in page.newsletter_comparison %}
+          <tr>
+            <th scope="row" class="border-b border-border px-3 py-2 text-left font-medium text-text">
+              <a class="dk-link-quiet" href="?fookus=uudiskirjad&amp;uudiskiri={{ row.metric|urlencode }}">{{ row.label }}</a>
+            </th>
+            <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.campaigns|integer }}</td>
+            <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.delivered|default:"—" }}</td>
+            <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.open_rate|default:"—" }}</td>
+            <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.click_rate|default:"—" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <p class="dk-meta mt-2">Nimekirju ei liideta: sama inimene võib olla mitmes.</p>
+</section>
+
+{% if page.selected_newsletter and page.newsletter_changes %}
+  <section aria-labelledby="section-newsletter-change" class="dk-section dk-section-body">
+    <h2 id="section-newsletter-change" class="text-sm font-medium text-text">Viimased 12 vs eelmised 12 saadetist</h2>
+    {% comment %}
+    Compared over sends rather than over equal date spans, because newsletter
+    cadence is irregular — e-Teataja goes out as two campaigns per issue and
+    e-Vestnik can go months between sends, so equal spans would compare four
+    against nineteen.
+    {% endcomment %}
+    <p class="dk-meta mt-1">Määrade muutus on protsendipunktides.</p>
+    <dl class="mt-3 flex flex-col divide-y divide-border">
+      {% for row in page.newsletter_changes %}
+        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
+          <dt class="text-sm text-text">{{ row.label }}</dt>
+          <dd class="flex items-baseline gap-3 tabular-nums">
+            <span class="text-sm text-text-secondary">{{ row.previous }} →</span>
+            <span class="text-base font-semibold text-text">{{ row.current }}</span>
+            <span class="dk-meta{% if row.direction == 'up' %} text-success{% elif row.direction == 'down' %} text-danger{% endif %}">
+              {% if row.direction == "up" %}↑{% elif row.direction == "down" %}↓{% else %}→{% endif %}
+              {{ row.change }}
+            </span>
+          </dd>
+        </div>
+      {% endfor %}
+    </dl>
+  </section>
+{% endif %}
+
+{% if page.newsletter_sends %}
+  <section aria-labelledby="section-newsletter-trend" class="dk-section dk-section-body">
+    <h2 id="section-newsletter-trend" class="sr-only">Uudiskirja tulemuste ajalugu</h2>
+    {% include "dashboard/components/chart_figure.html" with chart=page.newsletter_sends only %}
+  </section>
+{% endif %}
+
+{% if page.newsletter_rankings.by_open or page.newsletter_rankings.by_click %}
+  <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
+    {% for title, sends in page.newsletter_rankings.items %}
+      <section class="dk-section dk-section-body">
+        <h2 class="text-sm font-medium text-text">
+          {% if title == "by_open" %}Kõrgeim avamismäär{% else %}Kõrgeim klikimäär{% endif %}
+        </h2>
+        {% comment %}
+        The audience size sits beside every rate. 62% of thirty recipients and
+        41% of twenty thousand are not the same achievement, and a rate without
+        its denominator invites the reader to treat them as one.
+        {% endcomment %}
+        <p class="dk-meta mt-1">Kättetoimetatute arv on määra kõrval.</p>
+        <ol class="mt-3 flex flex-col divide-y divide-border">
+          {% for send in sends %}
+            <li class="flex min-w-0 flex-col gap-1 py-2.5">
+              <span class="min-w-0 text-sm font-medium text-text">{{ send.name }}</span>
+              <span class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                <span class="text-sm font-semibold tabular-nums text-text">
+                  {% if title == "by_open" %}{{ send.open_rate_label }}{% else %}{{ send.click_rate_label }}{% endif %}
+                </span>
+                <span class="dk-meta tabular-nums">{{ send.delivered_label }} kättetoimetatud</span>
+                <span class="dk-meta">{{ send.completed_at|date:"d.m.Y" }}</span>
+              </span>
+            </li>
+          {% endfor %}
+        </ol>
+      </section>
+    {% endfor %}
+  </div>
+{% endif %}
+
+{% comment %}
+The results section and the searchable recent sends, from `apps.visibility`.
+Unchanged: same builder, same template, same `otsi` parameter.
+{% endcomment %}
+{% include "visibility/_newsletters.html" with newsletters=newsletters only %}

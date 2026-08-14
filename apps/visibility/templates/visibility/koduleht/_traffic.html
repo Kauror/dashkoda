@@ -1,0 +1,61 @@
+{% comment %}
+Liiklus — how overall use of the website is changing.
+
+Seven figures are available and they are deliberately not seven equal cards: the
+four primary ones keep the KPI strip, the rest sit underneath as compact
+readouts. A wall of identically weighted numbers is a wall the reader has to
+rank themselves.
+{% endcomment %}
+
+<section aria-labelledby="section-liiklus-kpi" class="dk-section">
+  <h2 id="section-liiklus-kpi" class="sr-only">Liikluse näitajad</h2>
+  <div class="dk-section-body">
+    {% include "visibility/koduleht/_headlines.html" with headlines=page.headlines secondary=page.secondary only %}
+  </div>
+</section>
+
+{% if page.trend %}
+  <section aria-labelledby="section-liiklus-trend" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Liiklus ajas" heading_id="section-liiklus-trend" description="Ajasamm valitakse perioodi pikkuse järgi: päev, nädal või kuu." only %}
+    <div class="dk-section-body flex flex-col gap-4">
+      {% include "visibility/koduleht/_metric_switch.html" with options=page.metric_options only %}
+      {% include "dashboard/components/chart_figure.html" with chart=page.trend only %}
+    </div>
+  </section>
+{% endif %}
+
+{% if page.peak_day %}
+  <section aria-labelledby="section-tipppaev" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kõrgeima liiklusega päev" heading_id="section-tipppaev" only %}
+    <div class="dk-section-body">
+      <dl class="flex flex-wrap gap-x-8 gap-y-3">
+        <div class="flex flex-col gap-0.5">
+          <dt class="text-sm text-text-secondary">Päev</dt>
+          <dd class="text-lg font-semibold tabular-nums text-text">{{ page.peak_day.day|date:"d.m.Y" }}</dd>
+        </div>
+        <div class="flex flex-col gap-0.5">
+          <dt class="text-sm text-text-secondary">Seansid</dt>
+          <dd class="text-lg font-semibold tabular-nums text-text">{{ page.peak_day.sessions }}</dd>
+        </div>
+        {% if page.peak_day.page_views is not None %}
+          <div class="flex flex-col gap-0.5">
+            <dt class="text-sm text-text-secondary">Lehevaatamised</dt>
+            <dd class="text-lg font-semibold tabular-nums text-text">{{ page.peak_day.page_views }}</dd>
+          </div>
+        {% endif %}
+      </dl>
+      <p class="dk-meta mt-2">Kõige rohkem seansse mõõdetud üksikul päeval. See ei ole kordumatute külastajate arv.</p>
+    </div>
+  </section>
+{% endif %}
+
+{% if page.weekday %}
+  <section aria-labelledby="section-nadalapaevad" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Nädalapäevade muster" heading_id="section-nadalapaevad" description="Kuvatakse ainult siis, kui periood katab vähemalt kaheksa nädalat." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=page.weekday only %}
+    </div>
+  </section>
+{% endif %}
+
+{% include "visibility/koduleht/_quality.html" with page=page only %}

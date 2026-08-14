@@ -1,0 +1,97 @@
+{% comment %}
+Kanalid — where traffic comes from, and how engaged it is.
+
+Two charts rather than one with two axes. A count of sessions and a proportion
+of them read at different scales, and putting them on one pair of axes invites a
+comparison between two numbers that do not share a unit.
+
+Shares are of the **whole site's** sessions, never of the channels drawn: a share
+computed over the visible rows always adds to 100% and would therefore be right
+whatever was left out.
+
+The source is GA4's `sessionDefaultChannelGroup` and nothing finer. There is no
+source/medium and no campaign here, because neither is stored — a row saying
+"Google organic" would be an invention.
+{% endcomment %}
+
+{% if page.channel_chart %}
+  <section aria-labelledby="section-kanalid" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Seansid kanalite kaupa" heading_id="section-kanalid" description="Osakaal on arvutatud kogu kodulehe seansside suhtes." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=page.channel_chart only %}
+    </div>
+  </section>
+{% endif %}
+
+{% if page.channel_engagement_chart %}
+  <section aria-labelledby="section-kanalite-kaasatus" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kanalite kaasatus" heading_id="section-kanalite-kaasatus" description="Kaasatud seansid jagatud sama kanali seanssidega samal perioodil." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=page.channel_engagement_chart only %}
+    </div>
+  </section>
+{% endif %}
+
+{% if page.channel_table.has_rows %}
+  <section aria-labelledby="section-kanalite-tabel" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kanalid arvudes" heading_id="section-kanalite-tabel" only %}
+    <div class="dk-section-body">
+      {% include "visibility/koduleht/_table.html" with table=page.channel_table only %}
+      <p class="dk-meta mt-3">
+        Allikas on GA4 vaikimisi kanalirühm. Kasutajate arvu kanali kohta ei kuvata — seda ei saa
+        päevade lõikes kokku liita.
+      </p>
+    </div>
+  </section>
+{% endif %}
+
+<section aria-labelledby="section-kanalite-liikumine" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Kasvavad ja vähenenud kanalid" heading_id="section-kanalite-liikumine" only %}
+  <div class="dk-section-body flex flex-col gap-6">
+    {% if page.comparison.can_compare_channels %}
+      <div class="grid gap-6 xl:grid-cols-2">
+        <div class="flex min-w-0 flex-col gap-2">
+          <h3 class="text-sm font-semibold text-text">Kasvavad kanalid</h3>
+          {% if page.rising_channels %}
+            <ul class="flex flex-col">
+              {% for channel in page.rising_channels %}
+                <li class="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-border py-2 last:border-0">
+                  <span class="text-sm text-text">{{ channel.channel }}</span>
+                  <span class="text-sm tabular-nums text-text-secondary">
+                    {{ channel.previous_sessions }} → {{ channel.sessions }}
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="dk-meta">Ükski kanal ei ületanud mahupiiri kasvupoolel.</p>
+          {% endif %}
+        </div>
+        <div class="flex min-w-0 flex-col gap-2">
+          <h3 class="text-sm font-semibold text-text">Vähenenud kanalid</h3>
+          {% if page.falling_channels %}
+            <ul class="flex flex-col">
+              {% for channel in page.falling_channels %}
+                <li class="flex flex-wrap items-baseline justify-between gap-x-4 border-b border-border py-2 last:border-0">
+                  <span class="text-sm text-text">{{ channel.channel }}</span>
+                  <span class="text-sm tabular-nums text-text-secondary">
+                    {{ channel.previous_sessions }} → {{ channel.sessions }}
+                  </span>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="dk-meta">Ükski kanal ei ületanud mahupiiri languspoolel.</p>
+          {% endif %}
+        </div>
+      </div>
+      <p class="dk-meta">
+        Arvestatud on kanaleid, millel oli vähemalt {{ page.channel_minimum_sessions }} seanssi ühes
+        kahest võrreldavast perioodist. DashKodal ei ole kanalite kulu- ega tulusandmeid, nii et
+        siin ei öelda, kuhu tasuks rohkem panustada.
+      </p>
+    {% else %}
+      {% include "dashboard/components/empty_state.html" with message="Kanalite võrdlust ei kuvata." detail="Selleks peavad mõlemad perioodid olema kanalite kaupa piisavalt kaetud. Vaata „Andmete kohta“." only %}
+    {% endif %}
+  </div>
+</section>

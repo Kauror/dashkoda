@@ -370,11 +370,20 @@ Geometry inside an attribute is written with `stringformat`, never
 `floatformat`. The dashboard renders in Estonian, `floatformat` is localised,
 and `12,34` in a `points` or `d` attribute is not one coordinate — it is two.
 
-The Nähtavus page draws its card-sized trends as inline SVG in
-`visibility/overview.html` rather than loading the ECharts bundle for a line a
-few pixels tall. It keeps `chart_figure`'s contract: the text summary and the
-data table stay in the document for every reader and are not a fallback. A
-series with fewer than two points is not a trend and is not drawn.
+The website page carried its card-sized trends as inline SVG while it was
+**Nähtavus**, rather than loading the ECharts bundle for a line a few pixels
+tall. As **Koduleht** it draws real analytical surfaces — a traffic line,
+horizontal rankings, a stacked composition, an opportunity scatter — so it loads
+the bundle, and only on the views that have something to draw. The rule that did
+not change is `chart_figure`'s contract: the text summary and the data table stay
+in the document for every reader and are not a fallback, and a series with fewer
+than two points is not a trend and is not drawn.
+
+Koduleht builds its payloads in `apps/visibility/website_charts.py` with a local
+dataclass of the same shape as `apps.membership.charts.ChartPayload`. The
+component's contract is the shared thing; the dataclass is not, and importing one
+feature module's into another would couple two apps through an object neither
+owns.
 
 There was once a `sparkline_figure` component for this. It was never included by
 any template and was removed; the inline implementation is the only one, and a

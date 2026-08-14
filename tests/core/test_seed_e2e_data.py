@@ -426,22 +426,51 @@ def test_the_seed_connects_the_website_section():
     assert get_connection_status().is_connected
     days = Ga4DailySnapshot.objects.filter(is_current_for_date=True)
     assert days.count() == visibility_seed.ANALYTICS_DAYS
-    assert days.filter(has_page_detail=True).count() == visibility_seed.ANALYTICS_DAYS
     assert Ga4PageDaily.objects.exists()
     assert Ga4ChannelDaily.objects.exists()
 
+    # Not every day: a handful are seeded with the site figures and no detail
+    # rows, because a day whose page detail was never queried is not a day with
+    # no pages, and the partial-coverage handling — the refused content
+    # comparison, the note that says why — is unreachable from a browser
+    # otherwise.
+    assert days.filter(has_page_detail=True).count() == (
+        visibility_seed.ANALYTICS_DAYS - len(visibility_seed.ANALYTICS_DAYS_WITHOUT_PAGE_DETAIL)
+    )
+    assert days.filter(has_channel_detail=True).count() == (
+        visibility_seed.ANALYTICS_DAYS - len(visibility_seed.ANALYTICS_DAYS_WITHOUT_CHANNEL_DETAIL)
+    )
+    # A day marked as carrying no detail carries none, rather than being marked
+    # and quietly holding rows anyway.
+    for snapshot in days.filter(has_page_detail=False):
+        assert not snapshot.pages.exists()
+
 
 def test_the_seeded_site_total_is_the_sum_of_its_page_rows():
-    """What makes "excluded from a list, never from a total" checkable here."""
+    """What makes "excluded from a list, never from a total" checkable here.
+
+    Only on the days whose page detail was collected. On the few days the seed
+    publishes without it the site figures are still real — that is the whole
+    point of them: a day GA4 reported but whose per-page breakdown was never
+    queried has traffic, and a seed that zeroed it would be describing an outage
+    rather than partial coverage.
+    """
     from django.db.models import Sum
 
     from apps.visibility.models import Ga4DailySnapshot, Ga4PageDaily
 
     run_seed()
 
-    for snapshot in Ga4DailySnapshot.objects.filter(is_current_for_date=True):
+    detailed = Ga4DailySnapshot.objects.filter(is_current_for_date=True, has_page_detail=True)
+    for snapshot in detailed:
         rows = Ga4PageDaily.objects.filter(snapshot=snapshot).aggregate(total=Sum("page_views"))
         assert snapshot.page_views == rows["total"]
+
+    for snapshot in Ga4DailySnapshot.objects.filter(
+        is_current_for_date=True, has_page_detail=False
+    ):
+        assert snapshot.page_views
+        assert snapshot.sessions
 
 
 def test_the_seeded_ranking_excludes_utility_paths_but_keeps_their_traffic():
