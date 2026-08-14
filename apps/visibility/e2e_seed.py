@@ -23,7 +23,32 @@ from apps.shop.e2e_seed import (
 #: How much history to publish. Long enough that `30 päeva` and `90 päeva` are
 #: both offered and the longer windows are visibly disabled, so the browser
 #: suite sees an offered control and a refused one rather than only one branch.
-ANALYTICS_DAYS = 45
+#:
+#: Raised from 45 to 70 for Koduleht. A thirty-day window needs a **complete**
+#: thirty-day window before it or the comparison is refused, correctly, and the
+#: whole of `Mis muutus?`, the growth and decline lists and every
+#: percentage-point movement would be invisible to the browser suite — which is
+#: exactly the shape of defect that has shipped through a green suite here.
+ANALYTICS_DAYS = 70
+
+#: How far back the previous window of a thirty-day period begins. Pages whose
+#: traffic differs across this boundary are what give the movement analysis
+#: something to find.
+ANALYTICS_WINDOW_DAYS = 30
+
+#: Which seeded days carry no page rows, and which none by channel, counted back
+#: from the newest. A day that was not queried is not a day with no pages, and the
+#: seed has to be able to express the difference — `Andmete kohta` reports a
+#: page-detail count below the day count over the whole history because of these.
+#:
+#: Deliberately **behind both 30-day windows**. Inside one of them they made the
+#: two windows differ in coverage by nearly seven points, which the comparison
+#: rule refuses — correctly, and with the effect that the browser suite could
+#: never reach the movement lists at all. The seed was arguing with the analysis
+#: instead of exercising it. The refusal itself is asserted where a rule about
+#: arithmetic belongs, in `tests/visibility/test_website_period.py`.
+ANALYTICS_DAYS_WITHOUT_PAGE_DETAIL = (64, 65)
+ANALYTICS_DAYS_WITHOUT_CHANNEL_DETAIL = (67,)
 
 #: Paths that must never reach a content ranking, with the traffic they carry.
 #: They are the whole reason the ranking has an exclusion registry: on the real
@@ -55,6 +80,30 @@ ANALYTICS_INDEX_PAGES = (
 #: a target the ranking never shows — and the term appears in no path, so only
 #: the title catalogue can find it.
 ANALYTICS_QUIET_PATH = "/et/uudised/sunteetiline-12"
+
+#: Pages that exist to exercise one analysis each, as `(path, current weight,
+#: previous weight, engagement seconds per view)`. Every one is a case the
+#: Koduleht analytics has to get right and that a uniform history cannot show:
+#:
+#: - a page that grew into the ranking from outside it, which is what a
+#:   population-wide movement query exists to discover;
+#: - one that fell away, so the decline list is populated and its deliberately
+#:   neutral wording is on screen;
+#: - one read briefly by many and one read at length by few — the two
+#:   opportunity quadrants;
+#: - one with no measured traffic at all in the previous window, so the row
+#:   renders `uus mõõdetud liiklus` rather than an invented percentage;
+#: - an English and a Russian page, so the language split has three rows and
+#:   its disclaimer has something to disclaim.
+ANALYTICS_BEHAVIOUR_PAGES = (
+    ("/et/uudised/sunteetiline-kasvav", 120, 8, 55),
+    ("/et/sundmused/sunteetiline-vaibuv", 6, 110, 50),
+    ("/et/teenused/sunteetiline-kiire", 140, 132, 9),
+    ("/et/teenused/sunteetiline-sygav", 34, 30, 240),
+    ("/et/uudised/sunteetiline-uus", 64, 0, 60),
+    ("/en/news/sunteetiline-inglise", 46, 40, 70),
+    ("/ru/novosti/sunteetiline-vene", 18, 17, 65),
+)
 
 #: How many of the seeded articles carry measured traffic. The rest are
 #: catalogued and unmeasured, which is a real and common state.
@@ -124,6 +173,11 @@ def _analytics_content_pages() -> tuple[tuple[str, int], ...]:
     # database with no website analytics at all. Six tests were failing on it.
     rows.append((f"/et/sundmused/sunteetiline-{SHOP_EVENT_INDEX}", 22))
     rows.append(("/et/pood/tooted/sunteetiline-fyysiline", 18))
+    # The pages that exercise one analysis each. The weight here only reserves
+    # the path for the duplicate guard below; `_analytics_day` replaces it per
+    # window, which is the whole point of them.
+    for path, current, _previous, _seconds in ANALYTICS_BEHAVIOUR_PAGES:
+        rows.append((path, current))
     # First weight wins. The guard is kept rather than the duplicate simply
     # deleted because this list is assembled from five independent loops over
     # four domains, and the next collision would fail exactly as quietly.
@@ -138,6 +192,15 @@ def _analytics_content_pages() -> tuple[tuple[str, int], ...]:
 #: a *ranking* leaves the website's totals untouched.
 ANALYTICS_PAGES = ANALYTICS_UTILITY_PAGES + ANALYTICS_INDEX_PAGES + _analytics_content_pages()
 
+#: The engagement seconds an ordinary page earns per view. The behaviour pages
+#: override it, so the two opportunity quadrants are populated by pages that
+#: genuinely differ rather than by rounding.
+ANALYTICS_ORDINARY_SECONDS_PER_VIEW = 38
+_BEHAVIOUR_BY_PATH = {
+    path: (current, previous, seconds)
+    for path, current, previous, seconds in ANALYTICS_BEHAVIOUR_PAGES
+}
+
 #: Acquisition channels and their share of a day's sessions, in whole percent.
 #: The names are GA4's own default channel group, which is not Chamber data —
 #: it is the vocabulary the report arrives in.
@@ -150,7 +213,7 @@ ANALYTICS_CHANNELS = (
 )
 
 
-def _analytics_day(report_date: dt.date):
+def _analytics_day(report_date: dt.date, *, newest: dt.date):
     """One synthetic reporting day, shaped so the chart is not a straight line.
 
     The weekday rhythm is deterministic, so re-running publishes an identical
@@ -162,9 +225,31 @@ def _analytics_day(report_date: dt.date):
     # Quieter at the weekend. Integer arithmetic throughout: a float would make
     # the canonical payload depend on binary rounding, and the checksum with it.
     scale = 4 if report_date.weekday() >= 5 else 10
-    pages = tuple(
-        PageRow(path=path, page_views=max(base * scale // 10, 1)) for path, base in ANALYTICS_PAGES
-    )
+    age = (newest - report_date).days
+    in_current_window = age < ANALYTICS_WINDOW_DAYS
+
+    rows: list[PageRow] = []
+    for path, base in ANALYTICS_PAGES:
+        behaviour = _BEHAVIOUR_BY_PATH.get(path)
+        if behaviour is None:
+            seconds_per_view = ANALYTICS_ORDINARY_SECONDS_PER_VIEW
+        else:
+            current_weight, previous_weight, seconds_per_view = behaviour
+            base = current_weight if in_current_window else previous_weight
+            if base == 0:
+                # No row at all rather than a row of zero. The page had no
+                # measured traffic in that window, and a zero would claim it
+                # was measured at none.
+                continue
+        views = max(base * scale // 10, 1)
+        rows.append(
+            PageRow(
+                path=path,
+                page_views=views,
+                user_engagement_seconds=views * seconds_per_view,
+            )
+        )
+    pages = tuple(rows)
 
     # The site total *is* the sum of the page rows. Anything else would make
     # "excluded from the list, never from the total" untestable here.
@@ -183,18 +268,26 @@ def _analytics_day(report_date: dt.date):
         0, ChannelRow(channel=ANALYTICS_CHANNELS[0][0], sessions=max(sessions - assigned, 0))
     )
 
+    # A day whose detail was not queried is not a day with no pages.
+    has_page_detail = age not in ANALYTICS_DAYS_WITHOUT_PAGE_DETAIL
+    has_channel_detail = age not in ANALYTICS_DAYS_WITHOUT_CHANNEL_DETAIL
+
+    # Engagement is slightly higher in the current window, so the rate and the
+    # time per session each have a movement to report rather than a flat zero.
+    engaged_share = 6 if in_current_window else 5
+
     return DayReading(
         report_date=report_date,
         sessions=sessions,
         active_users=sessions * 8 // 10,
         new_users=sessions * 3 // 10,
         page_views=page_views,
-        engaged_sessions=sessions * 5 // 10,
-        user_engagement_seconds=sessions * 47,
-        pages=pages,
-        channels=tuple(channels),
-        has_page_detail=True,
-        has_channel_detail=True,
+        engaged_sessions=sessions * engaged_share // 10,
+        user_engagement_seconds=sessions * (52 if in_current_window else 47),
+        pages=pages if has_page_detail else (),
+        channels=tuple(channels) if has_channel_detail else (),
+        has_page_detail=has_page_detail,
+        has_channel_detail=has_channel_detail,
     ).validate()
 
 
@@ -205,7 +298,17 @@ class _SeedGa4Collector:
     substitutes the transport and nothing else: the same normalisation, the same
     canonical checksum, the same import run, the same immutable revisions. No
     request is made and no property ID or credential is read.
+
+    `newest` is the last day of the **whole** seeded span, given once at
+    construction. It cannot be taken from `collect_range`'s own `end`, because
+    the real collector walks a long range in 31-day chunks and calls this once
+    per chunk — so every chunk would restart the current/previous boundary and
+    the day ages that decide which days carry detail would repeat inside each of
+    them. That is what published four detail-less days instead of two.
     """
+
+    def __init__(self, *, newest: dt.date):
+        self.newest = newest
 
     def collect_range(self, *, start: dt.date, end: dt.date, with_pages=True, with_channels=True):
         from apps.visibility.ga4 import CollectionCounts, RangeCollection
@@ -213,7 +316,7 @@ class _SeedGa4Collector:
         days = {}
         current = start
         while current <= end:
-            days[current] = _analytics_day(current)
+            days[current] = _analytics_day(current, newest=self.newest)
             current += dt.timedelta(days=1)
         return RangeCollection(
             days=days,
@@ -242,7 +345,7 @@ def seed_website_analytics(today: dt.date) -> str:
     # stated in full so the seeded span does not depend on that clamp.
     end = today - dt.timedelta(days=1)
     outcome = synchronize_ga4(
-        collector=_SeedGa4Collector(),
+        collector=_SeedGa4Collector(newest=end),
         start=end - dt.timedelta(days=ANALYTICS_DAYS - 1),
         end=end,
         today=today,

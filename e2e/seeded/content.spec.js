@@ -88,19 +88,19 @@ test("every chart keeps its accessible table alongside the drawing", async ({ pa
 
   /*
    * The rule is a pairing: a drawing never appears without a readable
-   * equivalent beside it. It used to be asserted as "Nähtavus has at least one
-   * table", which held only because the social sparklines were on that page.
-   * They were struck out by the board, and for a while afterwards the seed
-   * published no GA4 history at all, so Nähtavus drew nothing here — a count
-   * would pass or fail on which sections happen to exist rather than on the
-   * guarantee. The seed publishes analytics again, so the traffic chart is back
-   * and this loop now has something to check on Nähtavus too; the shape of the
-   * test stays as it is, because that is what keeps it honest either way.
+   * equivalent beside it. It used to be asserted as "the website page has at
+   * least one table", which held only because the social sparklines were on
+   * that page. They were struck out by the board, and for a while afterwards
+   * the seed published no GA4 history at all, so the page drew nothing here — a
+   * count would pass or fail on which sections happen to exist rather than on
+   * the guarantee. The seed publishes analytics again and Koduleht draws
+   * several charts, so this loop has something to check there too; the shape of
+   * the test stays as it is, because that is what keeps it honest either way.
    *
    * So: assert the pairing wherever something is drawn, and assert it on a page
    * the seed does populate, or the test proves nothing.
    */
-  for (const path of ["/nahtavus/", "/liikmeskond/"]) {
+  for (const path of ["/koduleht/", "/liikmeskond/"]) {
     await page.goto(path);
     const drawings = await page.locator('main [role="img"]').count();
     const captions = await page.locator("main table caption").count();

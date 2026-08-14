@@ -225,7 +225,8 @@ The Django admin index gets one panel linking to the hub, added *above*
 | `/admin/data-entry/visibility/new/` | GET, POST | enter a new submission |
 | `/admin/data-entry/visibility/<id>/` | GET | read-only confirmation of what was published |
 | `/admin/data-entry/visibility/<id>/correct/` | GET, POST | prefill and publish a revision |
-| `/nahtavus/` | GET | the viewer page |
+| `/koduleht/` | GET | the viewer page |
+| `/nahtavus/` | GET | the address it used to have; redirects, query string carried |
 
 Every `/admin/` route requires an active staff account **and** sits behind the
 viewer PIN middleware. The shared PIN alone is never sufficient. All of them are
@@ -401,22 +402,26 @@ LinkedIni jälgijad, Instagrami jälgijad, YouTube’i tellijad.
 The band is a grid: one column below `sm`, two to `lg`, three to `2xl` and six
 above it. Six across at 1280 px would wrap the labels mid-word.
 
-### `/nahtavus/` — Mõju ja nähtavus
+### `/koduleht/` — where the typed figures are *not*
 
-Heading and explanation, the current band, the newsletter audience with its
-definition, the four social channels with trends, the whole observation history,
-the source definitions and the Google Analytics state.
+The website page was **Nähtavus** and carried the social channel band, the
+observation history and the source definitions. It is **Koduleht** now and
+answers questions about the website; none of the four hand-entered social
+figures appears on it.
 
-Trends reuse the server-rendered sparkline from PR #14: geometry travels in the
-`points` attribute, never in a `style`, which keeps `style-src 'self'` intact.
-Four small follower histories do not justify loading ECharts. A series of fewer
-than two points is not a trend and nothing is drawn; every trend keeps its values
-as an accessible table, which stays in the document rather than being a fallback.
-Missing observations are gaps, never zeros.
+Nothing about them was deleted. The models, the history, the admin entry and the
+correction workflow are exactly as they were, and `build_channel_band` still
+renders all six slots on the overall DashKoda overview — which is where a board
+member reads them. What changed is that a page named after the website no longer
+opens with four figures about something else.
 
-The history table shows date, metric, value, collection method, correction state
-and source. It **does not name who entered a figure** — that is a staff detail
-and lives in the admin history instead.
+The staff `Lisa andmed` link is still on the page for an active staff account,
+but out of the analytical hierarchy: it sits inside `Andmete kohta` rather than
+in the header. An ordinary viewer holds the shared PIN and no Django account and
+is offered no editing control at all, exactly as before.
+
+Neither page names who entered a figure — that is a staff detail and lives in
+the admin history instead.
 
 A staff-only `Lisa andmed` action appears when `request.user.is_staff`. An
 ordinary shared-PIN viewer never sees an editing control they cannot use.

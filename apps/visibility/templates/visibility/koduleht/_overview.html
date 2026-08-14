@@ -1,0 +1,91 @@
+{% comment %}
+Ülevaade — the answers, before the reader interacts with anything.
+
+Ordered so the five-second question is settled at the top: how much traffic,
+whether it is rising, how engaged it is, what changed, and only then the
+drawings. There is no channel-card strip and no twenty-row table on this screen;
+both belong to a focus view, and both used to be the first thing a manager saw.
+
+Nothing here is a composite index and nothing is generated text. `Mis muutus?`
+is the set of comparisons that survived the coverage check, and `Võimalused`
+is four deterministic rules stated with the measurements that triggered them.
+{% endcomment %}
+
+{# ---------------- Primary figures ---------------- #}
+<section aria-labelledby="section-kpi" class="dk-section">
+  <h2 id="section-kpi" class="sr-only">Peamised näitajad</h2>
+  <div class="dk-section-body">
+    {% include "visibility/koduleht/_headlines.html" with headlines=page.headlines secondary=page.secondary only %}
+  </div>
+</section>
+
+{# ---------------- Mis muutus? ---------------- #}
+{% if page.insights %}
+  <section aria-labelledby="section-muutus" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-muutus" description="Võrdlus vahetult eelneva sama pikkusega perioodiga." only %}
+    <div class="dk-section-body">
+      <dl class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {% for insight in page.insights %}
+          <div class="flex min-w-0 flex-col gap-0.5 border-l border-border pl-3">
+            <dt class="text-sm text-text-secondary">{{ insight.label }}</dt>
+            <dd class="text-lg font-semibold tabular-nums{% if insight.direction == 'up' %} text-success{% elif insight.direction == 'down' %} text-danger{% else %} text-text{% endif %}">
+              <span aria-hidden="true">{% if insight.direction == "up" %}↑{% elif insight.direction == "down" %}↓{% else %}→{% endif %}</span>
+              {{ insight.value }}
+            </dd>
+            {% if insight.detail %}<dd class="dk-meta">{{ insight.detail }}</dd>{% endif %}
+          </div>
+        {% endfor %}
+      </dl>
+    </div>
+  </section>
+{% endif %}
+
+{# ---------------- Main traffic trend ---------------- #}
+{% if page.trend %}
+  <section aria-labelledby="section-trend" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Liiklus ajas" heading_id="section-trend" only %}
+    <div class="dk-section-body flex flex-col gap-4">
+      {% include "visibility/koduleht/_metric_switch.html" with options=page.metric_options only %}
+      {% include "dashboard/components/chart_figure.html" with chart=page.trend only %}
+    </div>
+  </section>
+{% endif %}
+
+{# ---------------- Kust tullakse ---------------- #}
+{% if page.channels %}
+  <section aria-labelledby="section-kust" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kust tullakse" heading_id="section-kust" description="Suurimad kanalid ja nende osakaal kogu kodulehe seanssidest." only %}
+    <div class="dk-section-body flex flex-col gap-4">
+      {% if page.channel_chart %}
+        {% include "dashboard/components/chart_figure.html" with chart=page.channel_chart only %}
+      {% endif %}
+      <p><a class="dk-link" href="?{{ page.link_to_channels }}">Vaata kanaleid →</a></p>
+    </div>
+  </section>
+{% endif %}
+
+{# ---------------- Mida vaadatakse ---------------- #}
+{% if page.top_pages %}
+  <section aria-labelledby="section-mida" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Mida vaadatakse" heading_id="section-mida" description="Enim vaadatud sisulehed valitud perioodil." only %}
+    <div class="dk-section-body flex flex-col gap-3">
+      <ol class="flex flex-col">
+        {% for row in page.top_pages %}
+          <li class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-border py-2 last:border-0">
+            <span class="min-w-0 flex-1 text-sm text-text">
+              {{ row.label }}
+              {% if row.type_label %}<span class="dk-badge dk-badge-neutral">{{ row.type_label }}</span>{% endif %}
+            </span>
+            <span class="shrink-0 text-sm font-semibold tabular-nums text-text">{{ row.page_views }}</span>
+          </li>
+        {% endfor %}
+      </ol>
+      <p><a class="dk-link" href="?{{ page.link_to_content }}">Vaata sisu →</a></p>
+    </div>
+  </section>
+{% endif %}
+
+{# ---------------- Võimalused ---------------- #}
+{% if page.opportunities %}
+  {% include "visibility/koduleht/_opportunities.html" with opportunities=page.opportunities heading_id="section-voimalused" only %}
+{% endif %}

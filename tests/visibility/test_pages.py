@@ -9,13 +9,35 @@ import pytest
 from django.urls import reverse
 from django.utils.html import strip_tags
 
-from .conftest import PAGE_URL
+from .conftest import LEGACY_PAGE_URL, PAGE_URL
 
 pytestmark = pytest.mark.django_db
 
 
 def body(response) -> str:
     return response.content.decode()
+
+
+def _card_heading(page: str, label: str) -> str:
+    """The `<h3>` of one channel card, so a link assertion is about *that* card.
+
+    Searching the whole page for an href proves only that some element somewhere
+    carries it, which is how a test for "this card links here" passes because a
+    different card does.
+
+    Walks the label's occurrences rather than taking the first: a channel name
+    appears in more than one place on the overview, and the first hit is not
+    reliably the heading.
+    """
+    start = 0
+    while True:
+        marker = page.find(label, start)
+        assert marker != -1, f"no <h3> on the page carries {label!r}"
+        opening = page.rfind("<h3", 0, marker)
+        closing = page.find("</h3>", opening) if opening != -1 else -1
+        if opening != -1 and closing > marker:
+            return page[opening:closing]
+        start = marker + 1
 
 
 def visible_text(response) -> str:
@@ -96,7 +118,7 @@ def test_the_band_carries_no_provenance_caption(submit, viewer_client):
     assert "Automaatselt kogutud" not in page
 
 
-def test_neither_page_words_a_typed_figure_as_a_collected_one(submit, viewer_client):
+def test_a_typed_figure_is_never_worded_as_a_collected_one(submit, viewer_client):
     """The rule that survives, now that the definition list is gone.
 
     `Allikate määratlused` was struck out on the board's marked-up print, and
@@ -104,10 +126,13 @@ def test_neither_page_words_a_typed_figure_as_a_collected_one(submit, viewer_cli
     the narrower rule from AGENTS.md: a typed figure is never *worded* as a
     feed. Which figures are typed is documented in `apps/visibility/registry.py`
     rather than restated beside every number.
+
+    Read on the overview, which is where the typed figures are shown since the
+    website page became Koduleht.
     """
     submit(facebook_followers=4200)
 
-    page = body(viewer_client.get(PAGE_URL))
+    page = body(viewer_client.get(reverse("home")))
 
     assert "4200" in page
     for feed_word in ("sünkroonitud", "API-ga ühendatud", "automaatselt uuendatud"):
@@ -264,15 +289,103 @@ def test_the_band_names_the_newsletters_nobody_has_entered(submit, viewer_client
     assert "eNews" in page
 
 
-def test_the_newsletter_slot_links_to_the_visibility_page(submit, viewer_client):
+# ----------------------------------------------------------------------
+# Where each card's heading goes
+# ----------------------------------------------------------------------
+#
+# The band used to be handed one URL for all six cards, which meant that
+# address had to be wrong for five of them — and quietly became wrong for all
+# six as material moved. Each destination is decided per slot now, and these
+# are the three answers.
+
+
+def test_the_newsletter_card_links_to_the_page_that_shows_newsletters(submit, viewer_client):
+    """`Uudiskirjade tulemused` is on Uudised.
+
+    This card pointed at the website page for as long as it took anybody to
+    notice — a link to a page whose newsletters had already moved.
+    """
     submit(newsletter_eteataja=1200)
 
-    assert f'href="{PAGE_URL}"' in body(viewer_client.get(reverse("home")))
+    page = body(viewer_client.get(reverse("home")))
+    heading = _card_heading(page, "Uudiskirjad")
+
+    assert f'href="{reverse("news")}"' in heading
+
+
+def test_the_website_card_links_to_koduleht(submit, viewer_client, ga4_day, today, days_ago):
+    """The one card whose subject is a page DashKoda actually has.
+
+    It linked nowhere for a good reason — a link to Google Analytics would land
+    a board member on a login screen — and that reason stopped being the only
+    option when Koduleht arrived.
+    """
+    ga4_day(days_ago(1), sessions=120, page_views=300)
+
+    page = body(viewer_client.get(reverse("home")))
+    heading = _card_heading(page, "Kodulehe külastused")
+
+    assert f'href="{PAGE_URL}"' in heading
+
+
+def test_the_social_cards_link_nowhere(submit, viewer_client):
+    """There is no viewer-readable page of social history to point at.
+
+    Koduleht deliberately shows none, and the admin entry list is staff-only —
+    linking a viewer there would advertise a door they cannot open, which is the
+    same rule that keeps `Lisa andmed` off their page. A plain heading is the
+    honest state, not an oversight.
+    """
+    submit(
+        facebook_followers=4200,
+        linkedin_followers=2500,
+        instagram_followers=700,
+        youtube_subscribers=60,
+    )
+
+    page = body(viewer_client.get(reverse("home")))
+
+    for label in (
+        "Facebooki jälgijad",
+        "LinkedIni jälgijad",
+        "Instagrami jälgijad",
+        "YouTube’i tellijad",
+    ):
+        heading = _card_heading(page, label)
+        assert "<a" not in heading, f"{label} links its heading somewhere"
+
+    # The figures themselves are still there, and the outbound profile links —
+    # which are a different thing — are untouched.
+    assert "4200" in page
+    assert "https://www.facebook.com/" in page
+
+
+def test_no_card_points_at_a_page_that_does_not_show_it(submit, viewer_client):
+    """The defect the three tests above exist to prevent, stated once.
+
+    A heading link is a promise that the thing named is at the other end. The
+    band broke that promise for five of six cards by construction, because one
+    address was shared by slots describing different subjects.
+    """
+    submit(facebook_followers=4200, newsletter_eteataja=1200)
+
+    page = body(viewer_client.get(reverse("home")))
+
+    # No social card points at Koduleht, which shows no social figures.
+    for label in ("Facebooki jälgijad", "LinkedIni jälgijad"):
+        assert PAGE_URL not in _card_heading(page, label)
+    # And the newsletter card does not either.
+    assert PAGE_URL not in _card_heading(page, "Uudiskirjad")
 
 
 # ======================================================================
-# The Nähtavus page
+# The Koduleht page
 # ======================================================================
+#
+# The website surface was `Nähtavus` and carried the five-slot social band above
+# a traffic section. It is `Koduleht` now and answers questions about the
+# website; the social figures are untouched and are still shown on the overview
+# band, which the first half of this file covers.
 
 
 def test_the_page_requires_viewer_access(client):
@@ -286,17 +399,67 @@ def test_a_viewer_can_open_the_page(viewer_client):
     response = viewer_client.get(PAGE_URL)
 
     assert response.status_code == 200
-    assert "Mõju ja nähtavus" in body(response)
+    assert "Koduleht" in body(response)
 
 
-def test_the_navigation_offers_nahtavus(viewer_client):
+def test_the_navigation_offers_koduleht(viewer_client):
     page = body(viewer_client.get(reverse("home")))
 
-    assert "Nähtavus" in page
+    assert "Koduleht" in page
     assert f'href="{PAGE_URL}"' in page
+    assert "Nähtavus" not in page
 
 
-def test_the_page_shows_the_latest_value_for_each_channel(submit, viewer_client, today):
+def test_the_old_address_still_resolves(viewer_client):
+    """A board member who bookmarked the website page should arrive at it, not
+    at a 404. Temporary rather than permanent: a 301 is cached indefinitely."""
+    response = viewer_client.get(LEGACY_PAGE_URL)
+
+    assert response.status_code == 302
+    assert response.url.startswith(PAGE_URL)
+
+
+def test_the_old_address_carries_the_saved_state_into_the_view_that_answers_it(
+    viewer_client,
+):
+    response = viewer_client.get(f"{LEGACY_PAGE_URL}?periood=90&sisu=uudised")
+
+    assert response.status_code == 302
+    assert "periood=90" in response.url
+    assert "sisu=uudised" in response.url
+    # A saved section filter was somebody asking about content.
+    assert "fookus=sisu" in response.url
+
+
+def test_a_saved_search_lands_in_the_page_explorer(viewer_client):
+    response = viewer_client.get(f"{LEGACY_PAGE_URL}?otsing=liikmemaks")
+
+    assert response.status_code == 302
+    assert "fookus=lehed" in response.url
+    assert "otsing=liikmemaks" in response.url
+
+
+def test_the_redirect_drops_parameters_koduleht_does_not_understand(viewer_client):
+    """What comes back is rebuilt from validated values, never echoed."""
+    response = viewer_client.get(f"{LEGACY_PAGE_URL}?periood=90&utm_source=spam&x=1")
+
+    assert "periood=90" in response.url
+    assert "utm_source" not in response.url
+    assert "x=1" not in response.url
+
+
+def test_the_redirect_does_not_loop(viewer_client):
+    response = viewer_client.get(LEGACY_PAGE_URL, follow=True)
+
+    assert response.status_code == 200
+    assert len(response.redirect_chain) == 1
+
+
+def test_koduleht_does_not_show_the_social_channel_band(submit, viewer_client):
+    """A page called Koduleht should answer questions about the website. The
+    four typed figures are not deleted and are not hidden — they are on the
+    overview band, and `test_the_band_has_all_six_channels_in_order` covers
+    them there."""
     submit(
         facebook_followers=4200,
         linkedin_followers=2500,
@@ -306,90 +469,41 @@ def test_the_page_shows_the_latest_value_for_each_channel(submit, viewer_client,
 
     page = body(viewer_client.get(PAGE_URL))
 
-    for value in ("4200", "2500", "700", "60"):
-        assert value in page
-    assert f"{today.day}.{today:%m.%y}" in page
-
-
-def test_the_page_no_longer_carries_a_definition_list(viewer_client):
-    """`Allikate määratlused` was struck out on the board's marked-up print.
-
-    What each metric counts is documented in the repository — `registry.py`
-    holds every definition and `docs/newsletter-audience.md` explains the
-    newsletter figures — rather than restated beside every number on the page.
-    """
-    page = body(viewer_client.get(PAGE_URL))
-
-    assert "Allikate määratlused" not in page
-    assert "Sotsiaalmeedia" not in page
-    assert "Uudiskirjade nimekirjad" not in page
-
-
-def test_a_correction_replaces_the_figure_rather_than_appearing_beside_it(
-    submit, viewer_client, today
-):
-    """The observation-history table is gone, so a corrected figure has to be
-    unambiguous: the page shows what is true now and not both readings.
-
-    The superseded row is not deleted — it is still stored, still marked, and
-    still readable in the admin, which is where a correction gets audited. This
-    asserts only that the page stopped printing it."""
-    submit(facebook_followers=4200)
-    submit(facebook_followers=4250)
-
-    page = body(viewer_client.get(PAGE_URL))
-
-    assert "4250" in page
+    assert "Facebook" not in page
+    assert "LinkedIn" not in page
+    assert "Instagram" not in page
     assert "4200" not in page
-    assert "Vaatluste ajalugu" not in page
-    assert "Asendatud" not in page
 
 
-def test_the_page_draws_no_social_sparkline(submit, viewer_client, today, days_ago):
-    """The `Sotsiaalmeedia` section was struck out on the board's marked-up print.
-
-    Its per-channel sparklines went with it. The four figures are still on the
-    channel band above; what is gone is a second, larger copy of them, and the
-    series they were drawn from is no longer queried on every render.
-    """
-    submit(observation_date=days_ago(30), facebook_followers=4100)
-    submit(observation_date=today, facebook_followers=4200)
-
+def test_koduleht_makes_no_focus_area_of_social_media(viewer_client):
     page = body(viewer_client.get(PAGE_URL))
 
     assert "Sotsiaalmeedia" not in page
-    assert "Trendi kuvamiseks on vaja vähemalt kahte vaatlust." not in page
-    # The figure itself is still on the page, on the band.
-    assert "4200" in page
 
 
-def test_the_page_loads_no_chart_bundle(submit, viewer_client, today, days_ago):
-    """Four small follower histories do not justify a megabyte of ECharts."""
-    submit(observation_date=days_ago(30), facebook_followers=4100)
-    submit(observation_date=today, facebook_followers=4200)
-
-    page = body(viewer_client.get(PAGE_URL))
-
-    assert "charts.js" not in page
-
-
-def test_the_page_carries_no_inline_style_and_no_external_asset(submit, viewer_client):
+def test_the_social_figures_still_exist_after_the_rename(submit, viewer_client, today):
+    """The regression this guards: a page rename that quietly took the history
+    with it. Nothing about the models, the admin or the overview changed."""
     submit(facebook_followers=4200)
 
-    page = body(viewer_client.get(PAGE_URL))
+    from apps.visibility.selectors import get_visibility_summary
 
-    assert 'style="' not in page
-    assert "<script>" not in page
-    # The only absolute URLs are the four fixed public profile links.
-    for match in re.findall(r'href="(https://[^"]+)"', page):
-        assert match.startswith(
-            (
-                "https://www.facebook.com/",
-                "https://www.linkedin.com/",
-                "https://www.instagram.com/",
-                "https://www.youtube.com/",
-            )
-        ), match
+    summary = get_visibility_summary(today=today)
+    facebook = next(r for r in summary.social if "Facebook" in r.label)
+
+    assert facebook.value == 4200
+    assert "4200" in body(viewer_client.get(reverse("home")))
+
+
+def test_manual_entry_is_no_longer_a_primary_koduleht_action(submit, staff_client):
+    """Still reachable for staff, but out of the analytical hierarchy: it sits
+    in `Andmete kohta` rather than in the page header."""
+    submit(facebook_followers=4200)
+
+    page = body(staff_client.get(PAGE_URL))
+
+    assert "/admin/data-entry/visibility/new/" in page
+    assert "Andmete kohta" in page
 
 
 def test_an_ordinary_viewer_sees_no_editing_control(submit, viewer_client):
@@ -401,15 +515,6 @@ def test_an_ordinary_viewer_sees_no_editing_control(submit, viewer_client):
     assert "/admin/data-entry/" not in page
 
 
-def test_a_staff_user_sees_the_add_action(submit, staff_client):
-    submit(facebook_followers=4200)
-
-    page = body(staff_client.get(PAGE_URL))
-
-    assert "Lisa andmed" in page
-    assert "/admin/data-entry/visibility/new/" in page
-
-
 def test_the_page_does_not_name_who_entered_a_figure(submit, viewer_client, staff_user):
     """Who typed it is a staff detail and belongs in the admin history."""
     submit(facebook_followers=4200, actor=staff_user)
@@ -419,25 +524,27 @@ def test_the_page_does_not_name_who_entered_a_figure(submit, viewer_client, staf
     assert staff_user.username not in page
 
 
-def test_the_page_says_google_analytics_is_not_connected(viewer_client):
+def test_the_page_carries_no_inline_style_and_no_external_asset(submit, viewer_client):
+    """`style-src 'self'` and `script-src 'self'`: a bar length or a line
+    position may never be an inline width, and no asset may come from a CDN."""
+    submit(facebook_followers=4200)
+
     page = body(viewer_client.get(PAGE_URL))
 
-    assert "Google Analytics ei ole ühendatud." in page
-    assert "Lisamisel" in page
+    assert 'style="' not in page
+    assert "<script>" not in page
+    for match in re.findall(r'href="(https://[^"]+)"', page):
+        assert match.startswith("https://www.koda.ee/"), match
 
 
-def test_an_empty_page_says_so_rather_than_showing_zeros(viewer_client):
-    """An unentered metric has to read as unmeasured, never as a zero.
-
-    This used to lean on the observation-history table's empty state as well.
-    That table is gone, so the guarantee now rests where it belongs: on the
-    cards themselves, each of which says it has nothing rather than showing 0.
-    """
+def test_an_empty_page_says_what_is_missing_rather_than_showing_zeros(viewer_client):
+    """No collected day is not a day of no traffic."""
     page = body(viewer_client.get(PAGE_URL))
 
-    assert "Andmed puuduvad." in page
-    # Every card shows the muted em-dash placeholder and none shows a figure.
-    # Checking the element rather than the text "0": a card that rendered a zero
-    # would use the value span, whatever the digits happened to be.
-    assert "text-metric font-semibold tracking-tight text-text-muted" in page
-    assert 'tabular-nums text-text">' not in page
+    assert "ei ole veel kogutud" in page
+    assert "charts.js" not in page
+
+
+def test_an_empty_page_ships_no_chart_bundle(viewer_client):
+    """The bundle loads only when the current view has something to draw."""
+    assert "build/charts.js" not in body(viewer_client.get(PAGE_URL))

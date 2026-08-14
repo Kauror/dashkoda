@@ -74,7 +74,7 @@ Two places, in one transaction:
   list the Chamber starts caring about next year already has history;
 - `VisibilityObservation` — each newsletter's total, marked
   `CollectionMethod.AUTOMATIC` with no entry batch. Every existing reader (the
-  overview's channel band, the Nähtavus page, freshness) asks this table, so the
+  overview's channel band, the Koduleht page, freshness) asks this table, so the
   collector writes there through the same supersession path a typed correction
   uses.
 
@@ -213,7 +213,8 @@ drift towards whichever list is smallest.
 
 The newsletter material is on **`/uudised/`**, below the news archive. It was on
 `/nahtavus/` until the two were separated: a reader asking what the Chamber
-published is already on the news page, and Nähtavus now keeps the website and
+published is already on the news page, and the website page — Koduleht now —
+keeps the website and
 the social channels. The data did not move — `apps/visibility` still owns every
 Smaily model, collector, selector and presenter, and `apps/news` imports them.
 

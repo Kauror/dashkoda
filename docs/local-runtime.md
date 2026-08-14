@@ -221,7 +221,7 @@ http://127.0.0.1:8000/admin/data-entry/visibility/new/
 ```
 
 Both need a Django superuser as well as the viewer PIN. The results appear at
-`http://127.0.0.1:8000/nahtavus/` and in the overview's channel band.
+`http://127.0.0.1:8000/koduleht/` and in the overview's channel band.
 
 Use obviously synthetic values locally. **Never enter real Chamber follower
 counts into a development database**, and never commit one.
@@ -267,7 +267,7 @@ renders and the whole test suite passes with neither, and only the scheduled
 
 The seed publishes a synthetic GA4 history too, through the same
 `synchronize_ga4` path a real collection uses with the transport replaced — so
-`/nahtavus/` shows its traffic chart, channel table, content ranking and page
+`/koduleht/` shows its traffic chart, channel table, content ranking and page
 search locally without a property ID or a credential, and without contacting
 Google. That was not always so: while the seed published no analytics, the whole
 website section rendered as the `Lisamisel` empty state in every browser run and

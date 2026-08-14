@@ -3,17 +3,19 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
 /*
- * The Nähtavus page and the overview's six-slot channel band.
+ * The Koduleht page and the overview's six-slot channel band.
  *
  * CI runs against a container with an empty database, so every assertion here is
  * about the *truthful empty state* and the layout. That is the state a fresh
  * deployment is in, and it is the one most likely to be got wrong: a band with
- * nothing in it must show no figure at all rather than a row of zeros.
+ * nothing in it must show no figure at all rather than a row of zeros, and a
+ * page with no collected day must say so rather than draw an empty axis.
  *
- * The newsletters are not on this page any more — see `news-newsletters.spec.js`
- * for where they went. The overview's band below still names all six channels:
- * Uudiskirjad is a communication channel on the executive summary whatever page
- * carries its analytics.
+ * The website page was `Nähtavus` and carried a five-slot social channel band
+ * above its traffic section. It is `Koduleht` now and answers questions about
+ * the website; the four hand-entered social figures are untouched and are still
+ * on the overview's band, which is what the first block below covers. The
+ * newsletters left earlier — see `news-newsletters.spec.js`.
  */
 
 const CHANNELS = [
@@ -25,11 +27,11 @@ const CHANNELS = [
   "YouTube’i tellijad",
 ];
 
-/** Sign in, then open Nähtavus. `signIn` always lands on the overview. */
-async function openVisibility(page) {
+/** Sign in, then open Koduleht. `signIn` always lands on the overview. */
+async function openKoduleht(page) {
   await signIn(page);
-  await page.goto("/nahtavus/");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mõju ja nähtavus");
+  await page.goto("/koduleht/");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
 }
 
 test("the overview band names all six channels", async ({ page }) => {
@@ -49,51 +51,77 @@ test("the six-slot band never scrolls the overview sideways", async ({ page }) =
   await expectNoHorizontalOverflow(page);
 });
 
-test("Nähtavus is reachable from the navigation", async ({ page }) => {
+test("Koduleht is reachable from the navigation", async ({ page }) => {
   await signIn(page);
 
   if (page.viewportSize().width < 1024) {
     await page.getByRole("button", { name: "Ava menüü" }).click();
   }
   const menu = page.getByRole("navigation", { name: "Peamenüü" }).last();
-  await menu.getByRole("link", { name: "Nähtavus" }).click();
+  await menu.getByRole("link", { name: "Koduleht" }).click();
 
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Mõju ja nähtavus");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
 });
 
-test("the visibility page renders its sections and its empty states", async ({ page }) => {
+test("the old address still reaches the page", async ({ page }) => {
+  // A board member who bookmarked `/nahtavus/` should arrive, not meet a 404.
+  await signIn(page);
+  await page.goto("/nahtavus/?periood=90");
+
+  await expect(page).toHaveURL(/\/koduleht\//);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
+});
+
+test("an uncollected source says so rather than drawing an empty chart", async ({ page }) => {
   const errors = watchConsole(page);
 
-  await openVisibility(page);
+  await openKoduleht(page);
 
-  await expect(page.getByRole("heading", { name: "Praegune seis", exact: true })).toBeVisible();
-  await expect(page.getByText("Google Analytics ei ole ühendatud.").first()).toBeVisible();
+  await expect(page.getByText("Google Analyticsi andmeid ei ole veel kogutud.").first()).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("the newsletters are no longer on this page", async ({ page }) => {
-  // They moved to Uudised. The band here keeps the website and the four social
-  // channels; the overview's own band still carries Uudiskirjad, which is why
-  // this asserts on Nähtavus rather than on the shell.
-  await openVisibility(page);
+test("the focus navigation offers every view", async ({ page }) => {
+  await openKoduleht(page);
 
-  await expect(page.getByRole("heading", { name: "Uudiskirjad", exact: true })).toHaveCount(0);
-  await expect(
-    page.getByRole("heading", { name: "Uudiskirjade tulemused", exact: true }),
-  ).toHaveCount(0);
-  await expect(page.getByLabel("Otsi uudiskirja")).toHaveCount(0);
-
-  // And the half that stayed is still here.
-  await expect(
-    page.getByRole("heading", { name: "Kodulehe külastused", exact: true }).first(),
-  ).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "Facebooki jälgijad", exact: true }),
-  ).toBeVisible();
+  const views = page.getByRole("navigation", { name: "Vaade" });
+  for (const label of ["Ülevaade", "Liiklus", "Sisu", "Kanalid", "Lehed"]) {
+    await expect(views.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
 });
 
-test("the visibility page shows no fabricated audience figure", async ({ page }) => {
-  await openVisibility(page);
+test("each focus view is a real URL that renders on its own", async ({ page }) => {
+  // Not an SPA: every view is bookmarkable, shareable and reload-safe.
+  await signIn(page);
+
+  for (const focus of ["ulevaade", "liiklus", "sisu", "kanalid", "lehed"]) {
+    await page.goto(`/koduleht/?fookus=${focus}`);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
+  }
+});
+
+test("an unknown focus renders the overview rather than an error", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/koduleht/?fookus=ei-ole-olemas");
+
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
+});
+
+test("the social channel band is not on this page", async ({ page }) => {
+  // Koduleht answers questions about the website. The four typed figures are
+  // not deleted and not hidden — they are on the overview's band, which the
+  // first test in this file covers.
+  await openKoduleht(page);
+
+  await expect(page.getByRole("heading", { name: "Facebooki jälgijad", exact: true })).toHaveCount(
+    0,
+  );
+  await expect(page.getByRole("heading", { name: "Uudiskirjad", exact: true })).toHaveCount(0);
+  await expect(page.getByText("Sotsiaalmeedia")).toHaveCount(0);
+});
+
+test("the page shows no fabricated audience figure", async ({ page }) => {
+  await openKoduleht(page);
 
   const text = await page.evaluate(() => document.querySelector("main").innerText);
 
@@ -103,56 +131,46 @@ test("the visibility page shows no fabricated audience figure", async ({ page })
   expect(withoutThresholds).not.toMatch(/\d/);
 });
 
+test("an empty page ships no chart bundle", async ({ page }) => {
+  // The bundle loads only when the current view has something to draw.
+  await openKoduleht(page);
+
+  const scripts = await page.evaluate(() =>
+    Array.from(document.querySelectorAll("script[src]")).map((node) => node.getAttribute("src")),
+  );
+  expect(scripts.some((src) => src.includes("charts.js"))).toBe(false);
+});
+
 test("an ordinary viewer sees no data-entry control", async ({ page }) => {
-  await openVisibility(page);
+  await openKoduleht(page);
 
   await expect(page.getByRole("link", { name: "Lisa andmed" })).toHaveCount(0);
 });
 
-test("the band leaves no empty cell at any width", async ({ page }) => {
-  /*
-   * The strip paints `bg-border` behind its cells and separates them with a
-   * one-pixel gap, so a grid track with no card in it is not blank — it is a
-   * grey block the width of a card. That is what appeared on the right of this
-   * band when the newsletter card moved to Uudised and left five cards in a
-   * six-column grid.
-   *
-   * The invariant is the one the stylesheet's own comments describe for every
-   * strip: the column count divides the card count into full rows. Asserted
-   * from the computed style rather than from the class name, because the class
-   * is only a promise about what the columns will be, and it runs at every
-   * configured viewport, so a breakpoint that divides ragged fails on its own.
-   */
-  await openVisibility(page);
-
-  const band = await page.evaluate(() => {
-    const strip = document.querySelector(".dk-kpi-strip");
-    return {
-      cards: strip.children.length,
-      columns: getComputedStyle(strip).gridTemplateColumns.split(" ").length,
-    };
-  });
-
-  expect(
-    band.cards % band.columns,
-    `${band.cards} cards in a ${band.columns}-column grid leaves ` +
-      `${band.columns - (band.cards % band.columns)} empty cell(s) showing the strip's background`,
-  ).toBe(0);
-});
-
-test("the visibility page never scrolls sideways", async ({ page }) => {
-  await openVisibility(page);
+test("the page never scrolls sideways", async ({ page }) => {
+  await openKoduleht(page);
 
   await expectNoHorizontalOverflow(page);
 });
 
-test("the visibility page stays usable at 200% zoom", async ({ page }) => {
+test("every focus view holds its width", async ({ page }) => {
+  // The `sr-only` escape is this codebase's recurring layout bug, and a table
+  // or a chart label is exactly where it reappears. Each view is measured.
+  await signIn(page);
+
+  for (const focus of ["ulevaade", "liiklus", "sisu", "kanalid", "lehed"]) {
+    await page.goto(`/koduleht/?fookus=${focus}`);
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
+test("the page stays usable at 200% zoom", async ({ page }) => {
   // Measured from the desktop viewport only, as the shell suite does. Halving
   // 320 px would ask the layout to hold up at 160, which is below every width
   // the design system supports and is not what 200% zoom means to a reader.
   test.skip(page.viewportSize().width < 1024, "measured from the desktop viewport");
 
-  await openVisibility(page);
+  await openKoduleht(page);
 
   // Browser zoom halves the CSS-pixel viewport, so it is emulated by halving the
   // viewport rather than by setting CSS zoom, which does not scale the layout
