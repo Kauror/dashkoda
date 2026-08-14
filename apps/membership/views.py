@@ -49,15 +49,23 @@ from .charts import (
     Toggle,
     ToggleOption,
     available_benchmarks,
+    composition_chart,
     decision_batch_reasons_chart,
     decision_batch_sizes_chart,
     fee_collection_chart,
+    growth_index_chart,
+    join_cohort_chart,
     monthly_new_members_chart,
     new_member_periods_chart,
     removal_reasons_chart,
     seasonality_chart,
     size_movement_chart,
     total_and_paid_chart,
+)
+from .composition import Dimension
+from .composition_selectors import (
+    get_composition_growth,
+    get_current_composition_snapshot,
 )
 from .focus import (
     FOCUS_COMPOSITION,
@@ -71,6 +79,7 @@ from .focus import (
 )
 from .intelligence import (
     KPI_BASELINE_LOOKBACK_DAYS,
+    build_composition_preview,
     build_headlines,
     build_insights,
     build_movement_summary,
@@ -108,6 +117,12 @@ def membership_overview(request):
     latest = get_internal_membership_latest()
     quality = get_internal_membership_quality_summary()
     focus = resolve_focus(request.GET.get(PARAM_FOCUS))
+
+    # The roster snapshot. A third source, read once: its date, its counts
+    # and nothing that identifies a member. It is never added to either
+    # membership total — it describes what kinds of organisations the
+    # membership is made of, not how many there are.
+    composition = get_current_composition_snapshot()
 
     # The window comes from `ranges.py`, which the overview card also reads, so
     # the two pages describe the same window with the same words. Whatever the
@@ -208,6 +223,8 @@ def membership_overview(request):
         available.add(FOCUS_FEES)
     if latest is not None or batches:
         available.add(FOCUS_MOVEMENT)
+    if composition is not None:
+        available.add(FOCUS_COMPOSITION)
 
     sections = _sections_for(
         focus,
@@ -225,6 +242,7 @@ def membership_overview(request):
         has_range_choice=has_range_choice,
         control_state=control_state,
         window=window,
+        composition=composition,
     )
 
     return render(
@@ -253,8 +271,21 @@ def membership_overview(request):
             if focus == FOCUS_OVERVIEW
             else (),
             "movement_summary": build_movement_summary(latest) if focus == FOCUS_OVERVIEW else None,
+            "composition_preview": build_composition_preview(
+                composition,
+                link_query=f"?{urlencode({**carried, PARAM_FOCUS: FOCUS_COMPOSITION})}",
+            )
+            if focus == FOCUS_OVERVIEW
+            else None,
+            # Read only by the composition focus, to state the date the
+            # whole view describes before any chart is reached.
+            "composition_snapshot": composition if focus == FOCUS_COMPOSITION else None,
             "quality_badge": build_quality_badge(quality),
-            "source_stamps": build_source_stamps(latest=latest, quality=quality),
+            "source_stamps": build_source_stamps(
+                latest=latest,
+                quality=quality,
+                composition_date=composition.snapshot_date if composition else None,
+            ),
             # Each section carries only the controls that govern it. A section
             # with nothing to draw renders nothing.
             "sections": [section for section in sections if section.has_charts],
@@ -507,13 +538,122 @@ def _movement_sections(*, latest, batches, decisions, chosen, control_state, **_
     ]
 
 
-def _composition_sections(**_ignored):
-    """Aggregate composition of the current roster.
+def _composition_sections(*, composition=None, **_ignored):
+    """What kinds of organisations the membership is made of.
 
-    Populated by the composition import; the focus is not offered at all until
-    that data exists, so there is no empty state to draw here.
+    Everything here describes **one dated roster export** and says so in every
+    heading, because a composition total is not a membership count: the board
+    report and the public directory both measure that differently, and putting
+    a third number beside them without its date would invite a comparison none
+    of the three supports.
+
+    The focus is not offered until a roster has been imported, so there is no
+    empty state to draw. `composition_chart` still returns `None` for a
+    dimension with nothing in it, and a section with no chart renders nothing.
     """
-    return []
+    if composition is None:
+        return []
+
+    on = composition.snapshot_date
+    sections: list[AnalyticsSection] = []
+
+    # Ordinal dimensions keep their scale order; nominal ones are ranked, because
+    # for a county or a sector the ranking is most of the answer.
+    structure = [
+        (
+            Dimension.EMPLOYEE_SIZE,
+            "section-size",
+            "Ettevõtte suurus",
+            "Kui suured on koja liikmed?",
+            False,
+        ),
+        (
+            Dimension.REGION,
+            "section-region",
+            "Piirkonnad",
+            "Kus koja liikmed asuvad?",
+            True,
+        ),
+        (
+            Dimension.SECTOR,
+            "section-sector",
+            "Tegevusalad",
+            "Millistel tegevusaladel koja liikmed tegutsevad?",
+            True,
+        ),
+        (
+            Dimension.TENURE_BAND,
+            "section-tenure",
+            "Liikmestaaž",
+            "Kui kaua on tänased liikmed kojas olnud?",
+            False,
+        ),
+    ]
+
+    for dimension, section_id, title, question, ranked in structure:
+        chart = composition_chart(
+            composition.dimension(dimension),
+            payload_id=f"membership-composition-{dimension.replace('_', '-')}",
+            title=title,
+            question=question,
+            snapshot_date=on,
+            ranked=ranked,
+            footnotes=(
+                (
+                    "Tegevusala on tuletatud EMTAK/NACE koodist jaotise "
+                    f"tasemel (klassifikaatori versioon {composition.sector_mapping_version}).",
+                )
+                if dimension == Dimension.SECTOR
+                else ()
+            ),
+        )
+        if chart is not None:
+            sections.append(
+                AnalyticsSection(
+                    section_id=section_id,
+                    title=title,
+                    show_title=False,
+                    charts=(chart,),
+                )
+            )
+
+    cohorts = join_cohort_chart(composition.dimension(Dimension.JOIN_COHORT), snapshot_date=on)
+    if cohorts is not None:
+        sections.append(
+            AnalyticsSection(
+                section_id="section-cohorts",
+                title="Tänased liikmed liitumisaasta järgi",
+                show_title=False,
+                charts=(cohorts,),
+            )
+        )
+
+    # Which kinds of organisation are over-represented among the members who
+    # joined most recently. Sector carries the most signal and is the only
+    # dimension drawn here — three growth-index charts would ask the reader to
+    # hold three baselines at once.
+    rows, suppressed = get_composition_growth(composition, Dimension.SECTOR)
+    growth = growth_index_chart(
+        rows,
+        suppressed,
+        dimension_label="Tegevusalad",
+        snapshot_date=on,
+        recent_total=composition.recent_joiner_count,
+    )
+    if growth is not None:
+        sections.append(
+            AnalyticsSection(
+                section_id="section-growth-index",
+                title="Kust kasv tuleb",
+                description=(
+                    "Viimase 12 kuu jooksul liitunud tänaste liikmete koosseis "
+                    "võrreldes kogu liikmeskonnaga."
+                ),
+                charts=(growth,),
+            )
+        )
+
+    return sections
 
 
 def _monthly_years(latest_date) -> list[int]:

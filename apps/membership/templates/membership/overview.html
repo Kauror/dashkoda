@@ -163,6 +163,35 @@ by a rule written for this one.
     </section>
   {% endif %}
 
+  {# ---------------- 3b. What the composition view describes ---------------- #}
+  {% comment %}
+  A roster export is a reading taken on one day, and every chart below it
+  describes that day. Saying so once at the top is what stops the whole view
+  from being read as "the membership right now".
+
+  The count is deliberately called the number of members *in this export*, not
+  the membership total: the board report and the public directory both measure
+  that differently, and a third unlabelled number beside them would invite a
+  comparison none of the three supports.
+  {% endcomment %}
+  {% if composition_snapshot %}
+    <section aria-labelledby="section-composition-scope" class="dk-section">
+      <h2 id="section-composition-scope" class="sr-only">Koosseisu ulatus</h2>
+      <div class="dk-section-body flex flex-col gap-1 py-4">
+        <p class="text-sm text-text">
+          Koosseis seisuga
+          <strong class="font-medium">{{ composition_snapshot.snapshot_date|date:"j.m.Y" }}</strong>,
+          <span class="tabular-nums">{{ composition_snapshot.row_count }}</span> liiget selles nimekirjas.
+        </p>
+        <p class="dk-meta">
+          Tuletatud liikmete nimekirjast koondnäitajatena. Üksikuid ettevõtteid ei
+          salvestata. See arv ei ole sama mis juhatuse aruande liikmete arv ega
+          Koda.ee avaliku kataloogi kirjete arv — need kolm loendavad eri asju.
+        </p>
+      </div>
+    </section>
+  {% endif %}
+
   {# ---------------- 4. Analytical sections ---------------- #}
   {% comment %}
   On the overview this is the membership trend and nothing else — the dominant
@@ -349,6 +378,42 @@ by a rule written for this one.
         </dl>
         <p class="dk-meta mt-3">
           Vahe on kahe aruandes esitatud arvu vahe, mitte liikmeskonna muutus.
+        </p>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- 6b. Kes on meie liikmed? ---------------- #}
+  {% comment %}
+  Four facts and a link, not a second copy of the composition page. A reader who
+  wants the distributions follows the link; a reader who wants a sense of the
+  membership gets one without leaving the overview.
+
+  Absent entirely when no roster has been imported — no placeholder, no
+  decorative empty frame, and no figure standing in for a source that does not
+  exist yet.
+  {% endcomment %}
+  {% if composition_preview %}
+    <section aria-labelledby="section-composition-preview" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Kes on meie liikmed?" heading_id="section-composition-preview" description=composition_preview.snapshot_label only %}
+      <div class="dk-section-body flex flex-col gap-4">
+        <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          {% for fact in composition_preview.facts %}
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <dt class="text-sm text-text-secondary">{{ fact.label }}</dt>
+              <dd class="flex flex-col gap-0.5">
+                <span class="text-lg font-semibold tracking-tight text-text">{{ fact.value }}</span>
+                {% if fact.detail %}
+                  <span class="dk-meta tabular-nums">{{ fact.detail }}</span>
+                {% endif %}
+              </dd>
+            </div>
+          {% endfor %}
+        </dl>
+        <p>
+          <a href="{{ composition_preview.link_query }}" class="dk-link text-sm">
+            {{ composition_preview.link_label }} →
+          </a>
         </p>
       </div>
     </section>

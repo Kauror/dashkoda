@@ -1962,3 +1962,393 @@ def new_member_periods_chart(periods: tuple) -> ChartPayload | None:
             "Kuude graafikuga neid kokku ei liideta.",
         ),
     )
+
+
+# ---------------------------------------------------------------------------
+# I. Composition of the current roster
+# ---------------------------------------------------------------------------
+
+
+def composition_chart(
+    result,
+    *,
+    payload_id: str,
+    title: str,
+    question: str,
+    snapshot_date: date,
+    ranked: bool,
+    axis_name: str = "Liikmeid",
+    limit: int = 10,
+    footnotes: tuple[str, ...] = (),
+) -> ChartPayload | None:
+    """One dimension of the membership, as horizontal bars.
+
+    Horizontal rather than vertical because the categories are Estonian
+    sector and county names, which need a readable line of text beside each
+    bar rather than a rotated axis label.
+
+    Not a pie, ever: categories of similar size are hard to compare as angles,
+    fifteen counties would be unreadable as one, and the design system offers no
+    pie component to justify inventing one.
+
+    `ranked` decides the order and it is a property of the dimension, not a
+    preference. A size class and a tenure band are an ordinal scale whose order
+    *is* the meaning, so they keep it; a county or a sector has no inherent
+    order, so ranking them largest-first is most of the answer.
+
+    Returns `None` when there is nothing to draw, so a caller can leave the
+    section out rather than render an empty frame.
+    """
+    if result is None or not result.has_data:
+        return None
+
+    rows = result.ranked(limit=limit) if ranked else result.categories
+    rows = [row for row in rows if row.count]
+    if not rows:
+        return None
+
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {
+                "type": "value",
+                "name": axis_name,
+                "nameLocation": "middle",
+                "nameGap": 28,
+            },
+            "yAxis": {
+                "type": "category",
+                "data": [row.label for row in rows],
+                "inverse": True,
+            },
+            "tooltip": {"trigger": "item"},
+            "series": [
+                {
+                    "name": axis_name,
+                    "type": "bar",
+                    "labelLayout": dict(LABEL_LAYOUT),
+                    "data": [
+                        {
+                            "value": _number(row.count),
+                            "tip": row.key,
+                            "label": {
+                                **BAR_LABEL,
+                                "show": True,
+                                "position": "right",
+                                # A separator rather than spaces: two runs of
+                                # spaces collapse when a label is drawn to a
+                                # canvas, which turns `52  54,7%` into
+                                # `5254,7%`.
+                                "formatter": f"{integer(row.count)} · {percent(row.share_pct)}",
+                            },
+                        }
+                        for row in rows
+                    ],
+                }
+            ],
+            "dashkoda": {
+                "tooltip": {
+                    row.key: {
+                        "title": row.label,
+                        "rows": [
+                            {"label": "Liikmeid", "value": integer(row.count), "emphasis": True},
+                            {
+                                "label": "Osakaal",
+                                "value": percent(row.share_pct),
+                                "emphasis": False,
+                            },
+                        ],
+                        "note": f"Seisuga {long_date(snapshot_date)}",
+                    }
+                    for row in rows
+                },
+                "axisFormat": {"x": "integer"},
+            },
+        }
+    )
+
+    return ChartPayload(
+        payload_id=payload_id,
+        title=title,
+        option=option,
+        size="categorical",
+        question=question,
+        observation_label=(f"Seisuga {long_date(snapshot_date)} · {integer(result.total)} liiget"),
+        table_headers=("Kategooria", "Liikmeid", "Osakaal"),
+        # The table lists every category at full detail, including any the chart
+        # folded into `Muu`. Exact lookup is what the table is for.
+        table_rows=tuple(
+            (row.label, row.count, percentage(row.share_pct, places=1))
+            for row in sorted(result.categories, key=lambda c: (-c.count, c.label))
+        ),
+        summary=(
+            f"Horisontaalne tulpgraafik: {title.lower()}, {len(rows)} kategooriat, "
+            f"seisuga {long_date(snapshot_date)}."
+        ),
+        empty_message="Koosseisu andmeid ei ole.",
+        footnotes=footnotes,
+    )
+
+
+# How many joining years are drawn individually before the rest become one bar.
+#
+# The roster reaches back to 1925 and holds 46 distinct joining years. Drawing
+# all of them puts eight decades of one- and two-member bars beside the years a
+# reader is actually asking about, and the early ones are not individually
+# meaningful at that distance.
+COHORT_YEARS_SHOWN = 20
+
+
+def join_cohort_chart(result, *, snapshot_date: date) -> ChartPayload | None:
+    """Which joining years are represented in today's membership?
+
+    Vertical bars on a year axis, because a joining year is a position in time
+    and reads left to right.
+
+    **This is not cohort retention.** The roster holds the members who are here
+    now, so every year is seen only through the organisations that stayed; a
+    year with few bars may have recruited few members or may have lost many, and
+    nothing in this application can tell the two apart. The title says which
+    question it answers and the footnote says which one it does not.
+    """
+    if result is None or not result.has_data:
+        return None
+
+    years = sorted(
+        (row for row in result.categories if row.key.isdigit()),
+        key=lambda row: int(row.key),
+    )
+    if not years:
+        return None
+
+    recent = years[-COHORT_YEARS_SHOWN:]
+    older = years[:-COHORT_YEARS_SHOWN]
+    labels = [row.key for row in recent]
+    counts = [row.count for row in recent]
+    keys = [row.key for row in recent]
+
+    if older:
+        labels.insert(0, f"enne {recent[0].key}")
+        counts.insert(0, sum(row.count for row in older))
+        keys.insert(0, "earlier")
+
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {"type": "category", "data": labels},
+            "yAxis": {
+                "type": "value",
+                "name": "Liikmeid",
+                "nameLocation": "middle",
+                "nameGap": 44,
+            },
+            "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
+            "series": [
+                {
+                    "name": "Tänaseid liikmeid",
+                    "type": "bar",
+                    "labelLayout": dict(LABEL_LAYOUT),
+                    "data": [
+                        {"value": _number(count), "tip": key}
+                        for key, count in zip(keys, counts, strict=True)
+                    ],
+                }
+            ],
+            "dashkoda": {
+                "tooltip": {
+                    key: {
+                        "title": (f"Liitus {label}" if key != "earlier" else f"Liitus {label}"),
+                        "rows": [
+                            {
+                                "label": "Tänaseid liikmeid",
+                                "value": integer(count),
+                                "emphasis": True,
+                            }
+                        ],
+                        "note": "Praeguses liikmeskonnas alles olevad ettevõtted",
+                    }
+                    for key, label, count in zip(keys, labels, counts, strict=True)
+                },
+                "axisFormat": {"y": "integer"},
+            },
+        }
+    )
+
+    return ChartPayload(
+        payload_id="membership-composition-join-cohort",
+        title="Tänased liikmed liitumisaasta järgi",
+        option=option,
+        size="medium",
+        question="Millistest liitumisaastatest on tänane liikmeskond koos?",
+        observation_label=(f"Seisuga {long_date(snapshot_date)} · {integer(result.total)} liiget"),
+        table_headers=("Liitumisaasta", "Tänaseid liikmeid", "Osakaal"),
+        table_rows=tuple(
+            (row.key, row.count, percentage(row.share_pct, places=1))
+            for row in sorted(result.categories, key=lambda c: c.key)
+        ),
+        summary=(
+            f"Tulpgraafik {len(labels)} liitumisaasta kohta, seisuga {long_date(snapshot_date)}."
+        ),
+        empty_message="Liitumisaastate jaotust ei ole.",
+        footnotes=(
+            "Graafik näitab, millal tänased liikmed liitusid. See ei ole "
+            "püsimamäär: lahkunud liikmeid nimekirjas ei ole ja ükski allikas "
+            "siin rakenduses neid ei loenda.",
+        ),
+    )
+
+
+def growth_index_chart(
+    rows: tuple,
+    suppressed: tuple[str, ...],
+    *,
+    dimension_label: str,
+    snapshot_date: date,
+    recent_total: int,
+) -> ChartPayload | None:
+    """Which kinds of organisation are over-represented among recent joiners?
+
+    One share divided by another, times a hundred. A category at 100 holds the
+    same share of the recent joiners as it does of the membership; above that it
+    is over-represented among them and below it under-represented.
+
+    That is the whole calculation, and it is stated on the page beside the
+    chart. It is descriptive: no model, no smoothing, no significance test, and
+    no claim that a difference will persist.
+
+    Categories with too few members on either side are **named as withheld**
+    rather than drawn at zero or at 100. A ratio built on two organisations
+    swings by tens of points on a single membership, and ranking that beside a
+    category of nine hundred would present noise as a finding.
+    """
+    if not rows:
+        return None
+
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {
+                "type": "value",
+                "name": "Kasvuindeks (100 = sama osakaal)",
+                "nameLocation": "middle",
+                "nameGap": 28,
+            },
+            "yAxis": {
+                "type": "category",
+                "data": [row.label for row in rows],
+                "inverse": True,
+            },
+            "tooltip": {"trigger": "item"},
+            "series": [
+                {
+                    "name": "Kasvuindeks",
+                    "type": "bar",
+                    "labelLayout": dict(LABEL_LAYOUT),
+                    "data": [
+                        {
+                            "value": _number(row.index),
+                            "tip": row.key,
+                            "label": {
+                                **BAR_LABEL,
+                                "show": True,
+                                "position": "right",
+                                "formatter": integer(row.index),
+                            },
+                        }
+                        for row in rows
+                    ],
+                    # The reference line is the whole point of the scale: a bar
+                    # means nothing until you can see which side of parity it
+                    # falls on.
+                    "markLine": {
+                        "silent": True,
+                        "symbol": "none",
+                        "data": [{"xAxis": 100}],
+                        "label": {"formatter": "100", "position": "end"},
+                    },
+                }
+            ],
+            "dashkoda": {
+                "tooltip": {
+                    row.key: {
+                        "title": row.label,
+                        "rows": [
+                            {
+                                "label": "Osakaal hiljuti liitunutest",
+                                "value": (
+                                    f"{percent(row.recent_share_pct)} ({integer(row.recent_count)})"
+                                ),
+                                "emphasis": False,
+                            },
+                            {
+                                "label": "Osakaal kogu liikmeskonnast",
+                                "value": (
+                                    f"{percent(row.overall_share_pct)} "
+                                    f"({integer(row.overall_count)})"
+                                ),
+                                "emphasis": False,
+                            },
+                            {
+                                "label": "Kasvuindeks",
+                                "value": integer(row.index),
+                                "emphasis": True,
+                            },
+                        ],
+                        "note": "100 = sama osakaal mõlemas",
+                    }
+                    for row in rows
+                },
+                "axisFormat": {"x": "integer"},
+            },
+        }
+    )
+
+    footnotes = [
+        "Kasvuindeks = hiljuti liitunute osakaal jagatud kogu liikmeskonna "
+        "osakaaluga, korrutatud sajaga. 100 tähendab sama esindatust, üle 100 "
+        "suuremat ja alla 100 väiksemat.",
+        "«Hiljuti liitunud» on need tänased liikmed, kelle liitumiskuupäev jääb "
+        "hetkeseisule eelnenud 12 kuu sisse. See ei ole kõigi viimase aasta "
+        "uute liikmete arv — vahepeal lahkunuid nimekirjas ei ole.",
+    ]
+    if suppressed:
+        footnotes.append(
+            f"{len(suppressed)} kategooriat on välja jäetud, sest neis on "
+            "võrdluseks liiga vähe liikmeid. Neid ei kuvata nullina."
+        )
+
+    return ChartPayload(
+        payload_id="membership-composition-growth-index",
+        title=f"{dimension_label}: esindatus hiljuti liitunute seas",
+        option=option,
+        size="categorical",
+        question="Millised organisatsioonid on hiljuti liitunute seas üle esindatud?",
+        observation_label=(
+            f"Seisuga {long_date(snapshot_date)} · {integer(recent_total)} hiljuti liitunut"
+        ),
+        table_headers=(
+            "Kategooria",
+            "Hiljuti liitunuid",
+            "Osakaal hiljuti",
+            "Liikmeid kokku",
+            "Osakaal kokku",
+            "Kasvuindeks",
+        ),
+        table_rows=tuple(
+            (
+                row.label,
+                row.recent_count,
+                percentage(row.recent_share_pct, places=1),
+                row.overall_count,
+                percentage(row.overall_share_pct, places=1),
+                row.index,
+            )
+            for row in rows
+        ),
+        summary=(
+            f"Horisontaalne tulpgraafik {len(rows)} kategooria kasvuindeksiga, "
+            "võrdlusjoon 100 juures."
+        ),
+        empty_message="Kasvuindeksi arvutamiseks ei ole piisavalt liikmeid.",
+        footnotes=tuple(footnotes),
+    )

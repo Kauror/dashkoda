@@ -707,3 +707,94 @@ def build_source_stamps(
             )
         )
     return tuple(stamps)
+
+
+# ---------------------------------------------------------------------------
+# Composition preview on the overview
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class CompositionFact:
+    """One line of the overview's composition preview."""
+
+    label: str
+    value: str
+    detail: str = ""
+
+
+@dataclass(frozen=True)
+class CompositionPreview:
+    """`Kes on meie liikmed?` — four facts and a way through to the rest.
+
+    Deliberately not a second copy of the composition page. Four readouts and a
+    link: a reader who wants the distributions follows the link, and a reader
+    who wants a sense of the membership gets it without leaving the overview.
+
+    Omitted entirely when no roster has been imported. An empty panel headed
+    with a question is worse than no panel, and a decorative placeholder would
+    imply a source that does not exist.
+    """
+
+    snapshot_label: str
+    facts: tuple[CompositionFact, ...]
+    link_query: str
+    link_label: str = "Vaata koosseisu"
+
+    @property
+    def has_data(self) -> bool:
+        return bool(self.facts)
+
+
+def build_composition_preview(snapshot, *, link_query: str) -> CompositionPreview | None:
+    """The four facts that describe the membership in one glance.
+
+    Each names the largest group in its dimension, ignoring `Teadmata`: "most
+    members are unclassified" is a fact about the import rather than about the
+    Chamber, and it does not belong in a sentence that reads as a statement
+    about the membership.
+    """
+    if snapshot is None:
+        return None
+
+    from .composition import Dimension
+
+    facts: list[CompositionFact] = []
+
+    for dimension, label in (
+        (Dimension.EMPLOYEE_SIZE, "Suurim suurusklass"),
+        (Dimension.REGION, "Suurim piirkond"),
+        (Dimension.SECTOR, "Suurim tegevusala"),
+    ):
+        result = snapshot.dimension(dimension)
+        largest = result.largest if result else None
+        if largest is not None:
+            facts.append(
+                CompositionFact(
+                    label=label,
+                    value=largest.label,
+                    detail=f"{integer(largest.count)} liiget · {percent(largest.share_pct)}",
+                )
+            )
+
+    median = snapshot.median_tenure_years
+    if median is not None:
+        long_share = snapshot.long_tenure_share_pct
+        facts.append(
+            CompositionFact(
+                label="Mediaanstaaž",
+                value=f"{percent(median).rstrip('%')} a",
+                detail=(
+                    f"{percent(long_share)} on liikmed 11+ aastat" if long_share is not None else ""
+                ),
+            )
+        )
+
+    if not facts:
+        return None
+
+    return CompositionPreview(
+        snapshot_label=f"Seisuga {long_date(snapshot.snapshot_date)}",
+        facts=tuple(facts),
+        link_query=link_query,
+    )
