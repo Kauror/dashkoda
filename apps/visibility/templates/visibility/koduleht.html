@@ -64,9 +64,15 @@ Four things are deliberate and should stay that way:
     {% elif page.focus.key == "lehed" %}
       {% include "visibility/koduleht/_pages.html" with page=page only %}
     {% endif %}
-
-    {% include "visibility/koduleht/_methodology.html" with page=page can_add_data=can_add_data only %}
   {% endif %}
+
+  {% comment %}
+  Outside the branch above on purpose. A page with nothing collected is exactly
+  when a reader most needs to know what is measured, what is missing and why the
+  page is empty — and it is the only place the operator's manual-entry link
+  lives now, so hiding it with the analysis would take that away too.
+  {% endcomment %}
+  {% include "visibility/koduleht/_methodology.html" with page=page can_add_data=can_add_data only %}
 
 </div>
 {% endblock %}

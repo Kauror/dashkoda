@@ -96,7 +96,7 @@ def test_the_band_carries_no_provenance_caption(submit, viewer_client):
     assert "Automaatselt kogutud" not in page
 
 
-def test_neither_page_words_a_typed_figure_as_a_collected_one(submit, viewer_client):
+def test_a_typed_figure_is_never_worded_as_a_collected_one(submit, viewer_client):
     """The rule that survives, now that the definition list is gone.
 
     `Allikate määratlused` was struck out on the board's marked-up print, and
@@ -104,10 +104,13 @@ def test_neither_page_words_a_typed_figure_as_a_collected_one(submit, viewer_cli
     the narrower rule from AGENTS.md: a typed figure is never *worded* as a
     feed. Which figures are typed is documented in `apps/visibility/registry.py`
     rather than restated beside every number.
+
+    Read on the overview, which is where the typed figures are shown since the
+    website page became Koduleht.
     """
     submit(facebook_followers=4200)
 
-    page = body(viewer_client.get(PAGE_URL))
+    page = body(viewer_client.get(reverse("home")))
 
     assert "4200" in page
     for feed_word in ("sünkroonitud", "API-ga ühendatud", "automaatselt uuendatud"):

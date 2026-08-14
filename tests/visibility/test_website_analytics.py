@@ -331,17 +331,30 @@ def test_section_share_movement_is_in_percentage_points(ga4_day):
 # ---------------------------------------------------------------------------
 
 
-def _movement_history(ga4_day, rows):
-    """`rows` is `(path, current_views, previous_views)`, spread over each window."""
+def _movement_history(ga4_day, rows, *, spot=()):
+    """Seed both windows.
+
+    `rows` is `(path, current_views_per_day, previous_views_per_day)`, repeated
+    on every day of the window it belongs to. A weight of zero means **no row at
+    all** rather than a measured zero — the page had no traffic that window, and
+    a stored zero would claim it was measured at none.
+
+    `spot` is `(path, current_total, previous_total)` placed on the first day of
+    each window only, for the small totals a per-day weight cannot express. It
+    is merged into that day rather than published as a second snapshot: exactly
+    one current revision may exist per date.
+    """
+    spot_current = {path: total for path, total, _ in spot}
+    spot_previous = {path: total for path, _, total in spot}
+
     for offset in range(30):
-        ga4_day(
-            START + dt.timedelta(days=offset),
-            pages=tuple((path, current, current * 10) for path, current, _ in rows),
-        )
-        ga4_day(
-            PREV_START + dt.timedelta(days=offset),
-            pages=tuple((path, previous, previous * 10) for path, _, previous in rows),
-        )
+        current_pages = [(path, current, current * 10) for path, current, _ in rows if current]
+        previous_pages = [(path, previous, previous * 10) for path, _, previous in rows if previous]
+        if offset == 0:
+            current_pages += [(p, v, v * 10) for p, v in spot_current.items() if v]
+            previous_pages += [(p, v, v * 10) for p, v in spot_previous.items() if v]
+        ga4_day(START + dt.timedelta(days=offset), pages=tuple(current_pages))
+        ga4_day(PREV_START + dt.timedelta(days=offset), pages=tuple(previous_pages))
 
 
 def test_growth_is_measured_across_the_whole_population(ga4_day):
@@ -390,10 +403,11 @@ def test_a_page_with_no_previous_measurement_reports_no_relative_change(ga4_day)
 
 def test_a_small_base_cannot_dominate_the_growth_ranking(ga4_day):
     """1 → 5 views is +400% and is not the site's biggest growth story."""
-    _movement_history(ga4_day, [("/et/uudised/tiny", 0, 0), ("/et/uudised/real", 60, 20)])
-    # One extra day gives the tiny page a handful of views in total.
-    ga4_day(END, pages=(("/et/uudised/tiny", 5, 50),))
-    ga4_day(PREV_END, pages=(("/et/uudised/tiny", 1, 10),))
+    _movement_history(
+        ga4_day,
+        [("/et/uudised/real", 60, 20)],
+        spot=[("/et/uudised/tiny", 5, 1)],
+    )
 
     movement = get_page_movement(
         start=START, end=END, previous_start=PREV_START, previous_end=PREV_END, limit=10
@@ -404,9 +418,17 @@ def test_a_small_base_cannot_dominate_the_growth_ranking(ga4_day):
 
 
 def test_a_page_eligible_in_either_window_is_considered(ga4_day):
-    """A page that fell out of relevance must still be visible as having done so."""
-    _movement_history(ga4_day, [("/et/sundmused/gone", 0, 40)])
-    ga4_day(END, pages=(("/et/sundmused/gone", 1, 10),))
+    """A page that fell out of relevance must still be visible as having done so.
+
+    It clears the floor only in the window it has left, which is the whole point:
+    a floor applied to the current window alone would hide every page that
+    stopped being read.
+    """
+    _movement_history(
+        ga4_day,
+        [("/et/uudised/steadyish", 20, 20), ("/et/sundmused/gone", 0, 40)],
+        spot=[("/et/sundmused/gone", 1, 0)],
+    )
 
     movement = get_page_movement(
         start=START, end=END, previous_start=PREV_START, previous_end=PREV_END, limit=10
@@ -443,16 +465,18 @@ def test_movement_is_one_query_over_the_whole_population(ga4_day, django_assert_
 
 def test_engagement_per_view_divides_by_the_views_that_measured_it(ga4_day):
     for offset in range(30):
-        ga4_day(START + dt.timedelta(days=offset), pages=(("/et/teenused/a", 10, 600),))
-    # One day measured views but no engagement seconds at all.
-    ga4_day(END, pages=(("/et/teenused/a", 10, None),))
+        # The last day measured views and no engagement seconds at all, which is
+        # a state the metric's nullability genuinely produces.
+        seconds = None if offset == 29 else 600
+        ga4_day(START + dt.timedelta(days=offset), pages=(("/et/teenused/a", 10, seconds),))
 
     matrix = get_engagement_matrix(start=START, end=END)
     page = next(p for p in matrix.pages if p.path == "/et/teenused/a")
 
-    assert page.page_views == 310
-    assert page.views_with_seconds == 300
-    assert page.seconds_per_view == pytest.approx(60.0)
+    assert page.page_views == 300
+    assert page.views_with_seconds == 290
+    # 29 days x 600 s over the 290 views that carried a reading, not over 300.
+    assert page.seconds_per_view == pytest.approx(29 * 600 / 290)
 
 
 def test_a_page_below_the_volume_floor_is_not_in_the_matrix(ga4_day):

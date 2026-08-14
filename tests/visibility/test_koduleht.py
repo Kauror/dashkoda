@@ -331,16 +331,29 @@ def test_the_channels_view_builds_no_content_analysis(history):
 # ---------------------------------------------------------------------------
 
 
-def test_search_runs_over_the_whole_population_not_the_ranking(history, ga4_day):
-    """A page ranked far outside the top twenty is exactly what somebody looks
-    up, and searching the ranking would answer only for pages already visible."""
+def test_search_runs_over_the_whole_population_not_the_ranking(ga4_day):
+    """A page ranked far outside the ranking is exactly what somebody looks up,
+    and searching the ranking would answer only for pages already visible.
+
+    Seeded without the shared `history` fixture: one busy page that dominates
+    every ranking, and one quiet page that no ranking would ever show.
+    """
     for offset in range(30):
-        ga4_day(START + dt.timedelta(days=offset), pages=(("/et/liikmed/liikmemaks", 2, 40),))
+        ga4_day(
+            START + dt.timedelta(days=offset),
+            sessions=100,
+            pages=(
+                ("/et/uudised/vali", 500, 10000),
+                ("/et/liikmed/liikmemaks", 2, 40),
+            ),
+        )
 
     page = build_website_page(focus_key=FOCUS_PAGES, period_key="30", search="liikmemaks")
 
     assert page.search.total == 1
     assert page.search.rows[0].path == "/et/liikmed/liikmemaks"
+    # 60 views over the window — far below the busy page, and found anyway.
+    assert page.search.rows[0].page_views == 60
 
 
 def test_search_matches_a_pasted_koda_ee_url(history):

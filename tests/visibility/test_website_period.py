@@ -218,14 +218,16 @@ def test_a_previous_window_before_measurement_is_refused_not_shortened(history):
 
 
 def test_a_complete_period_is_not_compared_with_a_patchy_one(ga4_day):
-    """Thirty intended days against twenty-two measured ones is not −19%."""
+    """Thirty intended days against twenty measured ones is not −19%."""
     current_start = dt.date(2026, 2, 1)
-    for offset in range(28):
+    for offset in range(30):
         ga4_day(current_start + dt.timedelta(days=offset), sessions=100)
-    # The previous window is missing a third of its days.
-    previous_start = current_start - dt.timedelta(days=28)
-    for offset in range(28):
-        if offset % 3 == 0:
+    # The previous window is complete at its edges — so a comparison is
+    # *available* — but missing a third of its days in the middle, which is what
+    # must stop the delta being drawn.
+    previous_start = current_start - dt.timedelta(days=30)
+    for offset in range(30):
+        if offset and offset % 3 == 0:
             continue
         ga4_day(previous_start + dt.timedelta(days=offset), sessions=100)
 
@@ -242,8 +244,8 @@ def test_two_equally_patchy_periods_remain_comparable(ga4_day):
     time; refusing that comparison would leave the dashboard silent about a
     perfectly ordinary month."""
     current_start = dt.date(2026, 2, 1)
-    previous_start = current_start - dt.timedelta(days=28)
-    for offset in range(28):
+    previous_start = current_start - dt.timedelta(days=30)
+    for offset in range(30):
         if offset != 5:
             ga4_day(current_start + dt.timedelta(days=offset), sessions=100)
         if offset != 9:
@@ -261,8 +263,8 @@ def test_page_and_channel_comparison_are_judged_separately(ga4_day):
     and a content delta drawn over days with no page rows compares the days that
     happen to have them."""
     current_start = dt.date(2026, 2, 1)
-    previous_start = current_start - dt.timedelta(days=28)
-    for offset in range(28):
+    previous_start = current_start - dt.timedelta(days=30)
+    for offset in range(30):
         ga4_day(
             current_start + dt.timedelta(days=offset),
             sessions=100,

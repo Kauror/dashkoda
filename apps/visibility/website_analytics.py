@@ -36,7 +36,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from django.db.models import Case, Count, F, Max, Min, Q, Sum, Value, When
-from django.db.models.functions import ExtractIsoWeekDay
+from django.db.models.functions import Coalesce, ExtractIsoWeekDay
 
 from .content_ranking import ERROR_DOCUMENT_PREFIXES, LANGUAGES
 from .content_sections import SECTION_EVENTS, SECTION_NEWS, SECTION_SERVICES, ContentSection
@@ -197,24 +197,29 @@ def get_traffic_summary(*, start: date | None, end: date | None) -> WebsiteTraff
         return WebsiteTrafficSummary(start=start, end=end, days=0)
 
     rows = current_days().filter(report_date__gte=start, report_date__lte=end)
+    # None of these aliases may be spelled like a field another aggregate in the
+    # same call reads. Django resolves a later `Sum("sessions")` against an
+    # earlier annotation named `sessions` and raises "Cannot compute
+    # Sum('sessions'): 'sessions' is an aggregate" — which is a loud failure
+    # here, and would have been a silent wrong denominator if it had resolved.
     totals = rows.aggregate(
-        sessions=Sum("sessions"),
-        page_views=Sum("page_views"),
-        engaged_sessions=Sum("engaged_sessions"),
-        engagement_seconds=Sum("user_engagement_seconds"),
+        total_sessions=Sum("sessions"),
+        total_page_views=Sum("page_views"),
+        total_engaged=Sum("engaged_sessions"),
+        total_seconds=Sum("user_engagement_seconds"),
         # `Max`, never `Sum`. Monday's users and Tuesday's are mostly the same
         # people, and no arithmetic over daily distinct counts produces a period
         # distinct count.
-        peak_active_users=Max("active_users"),
-        sessions_with_engaged=Sum("sessions", filter=Q(engaged_sessions__isnull=False)),
-        sessions_with_seconds=Sum("sessions", filter=Q(user_engagement_seconds__isnull=False)),
-        days=Count("id"),
+        busiest_active_users=Max("active_users"),
+        sessions_when_engaged=Sum("sessions", filter=Q(engaged_sessions__isnull=False)),
+        sessions_when_seconds=Sum("sessions", filter=Q(user_engagement_seconds__isnull=False)),
+        day_count=Count("id"),
     )
 
     peak_day = None
-    if totals["peak_active_users"] is not None:
+    if totals["busiest_active_users"] is not None:
         peak_day = (
-            rows.filter(active_users=totals["peak_active_users"])
+            rows.filter(active_users=totals["busiest_active_users"])
             .order_by("report_date")
             .values_list("report_date", flat=True)
             .first()
@@ -223,15 +228,15 @@ def get_traffic_summary(*, start: date | None, end: date | None) -> WebsiteTraff
     return WebsiteTrafficSummary(
         start=start,
         end=end,
-        days=totals["days"] or 0,
-        sessions=totals["sessions"],
-        page_views=totals["page_views"],
-        engaged_sessions=totals["engaged_sessions"],
-        engagement_seconds=totals["engagement_seconds"],
-        peak_active_users=totals["peak_active_users"],
+        days=totals["day_count"] or 0,
+        sessions=totals["total_sessions"],
+        page_views=totals["total_page_views"],
+        engaged_sessions=totals["total_engaged"],
+        engagement_seconds=totals["total_seconds"],
+        peak_active_users=totals["busiest_active_users"],
         peak_active_users_on=peak_day,
-        sessions_with_engaged=totals["sessions_with_engaged"],
-        sessions_with_seconds=totals["sessions_with_seconds"],
+        sessions_with_engaged=totals["sessions_when_engaged"],
+        sessions_with_seconds=totals["sessions_when_seconds"],
     )
 
 
@@ -392,31 +397,34 @@ def get_channel_performance(
     rows = current_channels().filter(report_date__gte=lower, report_date__lte=end)
 
     current_window = Q(report_date__gte=start, report_date__lte=end)
+    # Aliases deliberately unlike the field names: see `get_traffic_summary`.
     aggregates = {
-        "sessions": Sum("sessions", filter=current_window),
-        "engaged": Sum("engaged_sessions", filter=current_window),
+        "window_sessions": Sum("sessions", filter=current_window),
+        "window_engaged": Sum("engaged_sessions", filter=current_window),
     }
     if previous_start is not None and previous_end is not None:
         previous_window = Q(report_date__gte=previous_start, report_date__lte=previous_end)
-        aggregates["previous_sessions"] = Sum("sessions", filter=previous_window)
-        aggregates["previous_engaged"] = Sum("engaged_sessions", filter=previous_window)
+        aggregates["prior_sessions"] = Sum("sessions", filter=previous_window)
+        aggregates["prior_engaged"] = Sum("engaged_sessions", filter=previous_window)
 
     grouped = (
-        rows.values("channel").annotate(**aggregates).order_by(F("sessions").desc(nulls_last=True))
+        rows.values("channel")
+        .annotate(**aggregates)
+        .order_by(F("window_sessions").desc(nulls_last=True))
     )
 
     return tuple(
         WebsiteChannelPerformance(
             channel=row["channel"],
-            sessions=row["sessions"] or 0,
-            engaged_sessions=row["engaged"],
-            previous_sessions=row.get("previous_sessions"),
-            previous_engaged_sessions=row.get("previous_engaged"),
-            share=_ratio(row["sessions"], site_sessions),
-            previous_share=_ratio(row.get("previous_sessions"), previous_site_sessions),
+            sessions=row["window_sessions"] or 0,
+            engaged_sessions=row["window_engaged"],
+            previous_sessions=row.get("prior_sessions"),
+            previous_engaged_sessions=row.get("prior_engaged"),
+            share=_ratio(row["window_sessions"], site_sessions),
+            previous_share=_ratio(row.get("prior_sessions"), previous_site_sessions),
         )
         for row in grouped
-        if row["sessions"]
+        if row["window_sessions"]
     )
 
 
@@ -653,10 +661,23 @@ def get_page_movement(
     grouped = (
         rows.values("path")
         .annotate(
-            views=Sum("page_views", filter=Q(report_date__gte=start, report_date__lte=end)),
-            previous_views=Sum(
-                "page_views",
-                filter=Q(report_date__gte=previous_start, report_date__lte=previous_end),
+            # `Coalesce` is load-bearing. A page with no rows at all in one
+            # window sums to NULL there, and `views - NULL` is NULL, so the
+            # ordering below silently dropped every page that appeared for the
+            # first time — which is exactly the arrival this analysis exists to
+            # find. Zero is the right value *here* because the window was
+            # measured and the page was not in it; `is_new` is what keeps that
+            # distinguishable from a page that fell to nothing.
+            views=Coalesce(
+                Sum("page_views", filter=Q(report_date__gte=start, report_date__lte=end)),
+                Value(0),
+            ),
+            previous_views=Coalesce(
+                Sum(
+                    "page_views",
+                    filter=Q(report_date__gte=previous_start, report_date__lte=previous_end),
+                ),
+                Value(0),
             ),
         )
         # The floor admits a page that cleared it in **either** window, so both a

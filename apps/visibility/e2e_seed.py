@@ -285,7 +285,17 @@ class _SeedGa4Collector:
     substitutes the transport and nothing else: the same normalisation, the same
     canonical checksum, the same import run, the same immutable revisions. No
     request is made and no property ID or credential is read.
+
+    `newest` is the last day of the **whole** seeded span, given once at
+    construction. It cannot be taken from `collect_range`'s own `end`, because
+    the real collector walks a long range in 31-day chunks and calls this once
+    per chunk — so every chunk would restart the current/previous boundary and
+    the day ages that decide which days carry detail would repeat inside each of
+    them. That is what published four detail-less days instead of two.
     """
+
+    def __init__(self, *, newest: dt.date):
+        self.newest = newest
 
     def collect_range(self, *, start: dt.date, end: dt.date, with_pages=True, with_channels=True):
         from apps.visibility.ga4 import CollectionCounts, RangeCollection
@@ -293,7 +303,7 @@ class _SeedGa4Collector:
         days = {}
         current = start
         while current <= end:
-            days[current] = _analytics_day(current, newest=end)
+            days[current] = _analytics_day(current, newest=self.newest)
             current += dt.timedelta(days=1)
         return RangeCollection(
             days=days,
@@ -322,7 +332,7 @@ def seed_website_analytics(today: dt.date) -> str:
     # stated in full so the seeded span does not depend on that clamp.
     end = today - dt.timedelta(days=1)
     outcome = synchronize_ga4(
-        collector=_SeedGa4Collector(),
+        collector=_SeedGa4Collector(newest=end),
         start=end - dt.timedelta(days=ANALYTICS_DAYS - 1),
         end=end,
         today=today,
