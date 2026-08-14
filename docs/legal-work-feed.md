@@ -10,14 +10,40 @@ canonical workbook described here; DashKoda only consumes the result, read-only.
 
 ## What the dashboard shows, and what it deliberately does not
 
-Shown: topics currently being worked on, the most recently sent opinions, the
-newest received topics, and the data's freshness.
+The page is an analytical surface with one URL. A `fookus` parameter selects
+which view is rendered — overview, workflow, active matters, opinions, member
+feedback, register — and it is validated against a closed set, so an unknown
+value resolves to the overview rather than raising. There is no SPA and no
+client-side routing. `apps/legal_work/analytics.py` owns the metric definitions
+and `docs/legal-work-intelligence.md` documents them.
 
-Deliberately absent, in the model as well as the interface: the responsible
-lawyer, lawyer workload, member-feedback statistics, links to Chamber opinions,
-matching to opinion documents, historical multi-year analysis, and any AI
-interpretation. These are not hidden columns — the fields do not exist, so they
-cannot leak.
+Shown: current-year volume, opinions sent, a same-date year-on-year comparison,
+active matters by stage, monthly inflow and output, the long-term opinion
+series, consultation-window median and mean, active-topic age, deadline
+pressure, member-feedback counts, the whole-register search, and the data's
+freshness and coverage.
+
+Deliberately absent, in the model as well as the interface: **the responsible
+lawyer**, lawyer workload, **member identities**, any AI interpretation, any
+forecast, and any composite score. These are not hidden columns — the fields do
+not exist, so they cannot leak.
+
+Three further things are absent because the data cannot support them, not
+because the interface lacks room:
+
+- **No member response rate.** Schema 1.2 carries `feedback_member_count` and
+  `feedback_requested_member_count`, but the first is not a subset of the
+  second: members also answer through newsletters and general calls, and the
+  register contains matters where more members answered than were asked
+  directly. The two counts are shown separately and never divided.
+- **No opinion count derived from documents.** The opinion catalogues and the
+  public Koda.ee corpus resolve *evidence* for a matter. The authoritative
+  "opinion sent" fact stays `sent_status = SENT` together with the date that
+  proves it.
+- **No merged categories.** `stage`, `recipient` and `act_type` are free text
+  that has drifted across the register's history — one ministry was renamed and
+  another was reorganised with a changed remit. Exact source values are kept,
+  because no automatic rule can tell a spelling variant from a reorganisation.
 
 ## The workbook contract
 

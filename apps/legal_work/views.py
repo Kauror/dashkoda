@@ -13,17 +13,17 @@ record appearing in two lists is answered once. That is what guarantees a topic
 cannot be a link in one section and plain text in another.
 """
 
-from datetime import timedelta
-
 from django.shortcuts import render
 from django.urls import reverse
-from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
 
+from .analytics import data_quality
+from .intelligence_page import FOCUS_REGISTER, PARAM_FOCUS, build_page, parse_focus
+from .register import REGISTER_PARAMS, build_register
 from .search import (
     PARAM_PAGE,
     PARAM_QUERY,
@@ -34,48 +34,49 @@ from .search import (
     parse_status,
 )
 from .selectors import (
-    ACTIVITY_WINDOW_DAYS,
-    DEFAULT_RECENT_LIMIT,
-    count_received_since,
-    count_sent_since,
     get_current_snapshot,
     get_latest_sent_items,
     get_legal_work_summary,
     get_open_items,
-    get_upcoming_deadlines,
 )
 from .topic_links import present_deadlines, present_topics, resolve_links_for
 
 
 @require_GET
 def legal_work_overview(request):
+    """One page, one URL, one render, and exactly the focus that was asked for.
+
+    `fookus` selects the analytical surface. It is validated against a closed
+    set and an unknown value resolves to the overview, so a truncated link or an
+    old bookmark lands somewhere real instead of raising.
+
+    Every collection is materialised before links are resolved, so the whole
+    page still costs **one** link query however many rows it draws, and a record
+    appearing in two lists is asked about once. That is what guarantees a topic
+    cannot be a link in one section and plain text in another.
+    """
     summary = get_legal_work_summary()
     snapshot = summary.snapshot
-    window_start = timezone.localdate() - timedelta(days=ACTIVITY_WINDOW_DAYS)
+    focus = parse_focus(request.GET.get(PARAM_FOCUS))
 
-    # Materialised first, because the link lookup needs to know every record the
-    # page will draw before it runs. A record listed both as in-work and as an
-    # approaching deadline is asked about once and answered once.
-    #
-    # Arrivals are not a list of their own here any more. A record that has just
-    # come in is active work and is already in Hetkel töös; `received_recent`
-    # below still counts the window, because how much arrived is a real
-    # measurement even without a table repeating the rows.
-    open_items = list(get_open_items(snapshot))
-    sent_items = list(get_latest_sent_items(snapshot, limit=DEFAULT_RECENT_LIMIT))
-    deadlines = get_upcoming_deadlines(snapshot) if snapshot else ()
+    page = build_page(snapshot, focus=focus, page_url=reverse("legal-work"))
 
-    # The search is materialised alongside the standing lists, before links are
-    # resolved, so it joins the page's single link query. A record found by
-    # search and also sitting in `Hetkel töös` is asked about once and links
-    # identically in both places.
+    # The standing lists the linked-to sections draw. Bounded exactly as before.
+    open_items = list(page.open_items) if page.open_items else list(get_open_items(snapshot))
+    sent_items = list(page.sent_items) if page.sent_items else list(get_latest_sent_items(snapshot))
+
+    # The register focus gets the full explorer: facets, filters and per-record
+    # detail. Every other focus keeps the plain term-and-status search, which is
+    # what the overview has always carried.
+    register = build_register(snapshot, request.GET) if focus == FOCUS_REGISTER else None
+
     search = build_search(
         snapshot,
         query=parse_query(request.GET.get(PARAM_QUERY)),
         status=parse_status(request.GET.get(PARAM_STATUS)),
         page=parse_page(request.GET.get(PARAM_PAGE)),
     )
-    links = resolve_links_for(open_items, sent_items, deadlines, search.results)
+    links = resolve_links_for(open_items, sent_items, page.deadlines, search.results)
 
     return render(
         request,
@@ -88,20 +89,13 @@ def legal_work_overview(request):
             # paying for it twice.
             "freshness": current_freshness(summary),
             "summary": summary,
+            "page": page,
             "open_items": present_topics(open_items, links),
             "sent_items": present_topics(sent_items, links),
-            # Counters are `None` rather than `0` when no snapshot is published,
-            # so an unconnected source never reads as a quiet month. The summary
-            # itself reports 0 for an absent snapshot, which is the right answer
-            # to "how many rows are published" and the wrong one to show as a
-            # measurement, so the distinction is made here.
-            "open_count": summary.open_count if summary.has_data else None,
-            "total_count": summary.total_count if summary.has_data else None,
-            "received_recent": count_received_since(snapshot, window_start) if snapshot else None,
-            "sent_recent": count_sent_since(snapshot, window_start) if snapshot else None,
-            "deadlines": present_deadlines(deadlines, links),
+            "deadlines": present_deadlines(page.deadlines, links),
             "search": search.presented_with(links),
-            "activity_window_days": ACTIVITY_WINDOW_DAYS,
+            "register": register,
+            "quality": data_quality(snapshot) if summary.has_data else None,
         },
     )
 
@@ -109,7 +103,7 @@ def legal_work_overview(request):
 #: What this page understands. A live-search fragment carries the reader's
 #: current query forward so a reload keeps the status they had chosen — and
 #: carries *only* these, because the value ends up in somebody's address bar.
-LEGAL_WORK_PARAMS = (PARAM_QUERY, PARAM_STATUS, PARAM_PAGE)
+LEGAL_WORK_PARAMS = (PARAM_QUERY, PARAM_STATUS, PARAM_PAGE, PARAM_FOCUS)
 
 
 @require_GET
@@ -126,8 +120,31 @@ def legal_work_search_fragment(request):
 
     Page one, always: a new term is a new question, and a reader on page 3 of
     one search would otherwise be told there are no results for the next.
+
+    On the register focus the same route answers with the register's own rows,
+    because the reader there is typing into a box that has six filters beside
+    it. Rebuilding the plain search would silently drop every one of them and
+    hand back a wider answer than the page claims to be showing.
     """
     snapshot = get_current_snapshot()
+
+    if parse_focus(request.GET.get(PARAM_FOCUS)) == FOCUS_REGISTER:
+        register = build_register(snapshot, request.GET)
+        return search_fragment(
+            request,
+            "legal_work/partials/_register_results.html",
+            {"register": register},
+            pushed=push_url(
+                request,
+                path=reverse("legal-work"),
+                allowed=(PARAM_FOCUS, *REGISTER_PARAMS),
+                # Every value has been through the register's own validation, so
+                # what reaches the address bar is what reached the query.
+                updates={PARAM_QUERY: register.state.query, PARAM_PAGE: ""},
+                anchor="#section-register",
+            ),
+        )
+
     search = build_search(
         snapshot,
         query=parse_query(request.GET.get(PARAM_QUERY)),

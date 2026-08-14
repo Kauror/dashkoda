@@ -147,9 +147,52 @@ SEARCH_OPEN = "toos"
 SEARCH_SENT = "valjas"
 SEARCH_STATUSES = (SEARCH_ALL, SEARCH_OPEN, SEARCH_SENT)
 
+#: Deadline states the register can be narrowed to, measured from the snapshot's
+#: own reporting date rather than from today.
+#:
+#: `DEADLINE_OVERDUE` deliberately means *passed and still unanswered*. A matter
+#: whose opinion has already gone out and which remains open — waiting on a
+#: committee, waiting to come into force — is not late, and a filter that swept
+#: it up would manufacture a backlog out of ordinary process.
+DEADLINE_ANY = ""
+DEADLINE_OVERDUE = "moodas"
+DEADLINE_WEEK = "7"
+DEADLINE_FORTNIGHT = "14"
+DEADLINE_THREE_WEEKS = "21"
+DEADLINE_NONE = "puudub"
+DEADLINE_STATES = (
+    DEADLINE_ANY,
+    DEADLINE_OVERDUE,
+    DEADLINE_WEEK,
+    DEADLINE_FORTNIGHT,
+    DEADLINE_THREE_WEEKS,
+    DEADLINE_NONE,
+)
+DEADLINE_HORIZONS = {DEADLINE_WEEK: 7, DEADLINE_FORTNIGHT: 14, DEADLINE_THREE_WEEKS: 21}
+
+#: Member-feedback states. Three, not two, because the whole point is that an
+#: untracked row and a row measured at zero are different facts: `FEEDBACK_ZERO`
+#: is "somebody counted, and the answer was none", `FEEDBACK_UNTRACKED` is
+#: "nobody counted". Collapsing them would be the same error as writing 0 into
+#: an empty cell.
+FEEDBACK_ANY = ""
+FEEDBACK_PRESENT = "on"
+FEEDBACK_ZERO = "null"
+FEEDBACK_UNTRACKED = "puudub"
+FEEDBACK_STATES = (FEEDBACK_ANY, FEEDBACK_PRESENT, FEEDBACK_ZERO, FEEDBACK_UNTRACKED)
+
 
 def search_items(
-    snapshot: LegalWorkSnapshot | None = None, *, query: str = "", status: str = SEARCH_ALL
+    snapshot: LegalWorkSnapshot | None = None,
+    *,
+    query: str = "",
+    status: str = SEARCH_ALL,
+    source_year: int | None = None,
+    stage_key: str = "",
+    recipient: str = "",
+    act_type: str = "",
+    deadline: str = DEADLINE_ANY,
+    feedback: str = FEEDBACK_ANY,
 ):
     """Every record in the current snapshot matching `query`.
 
@@ -178,9 +221,63 @@ def search_items(
             matching |= Q(**{f"{field}__icontains": query})
         queryset = queryset.filter(matching)
 
+    # Every value below has already been checked against a closed set, or
+    # against the categories this snapshot actually contains, before it gets
+    # here. Nothing arrives straight from the query string.
+    if source_year is not None:
+        queryset = queryset.filter(source_year=source_year)
+    if stage_key:
+        queryset = queryset.filter(stage_key=stage_key)
+    if recipient:
+        queryset = queryset.filter(recipient=recipient)
+    if act_type:
+        queryset = queryset.filter(act_type=act_type)
+
+    queryset = _apply_deadline_filter(queryset, snapshot, deadline)
+
+    if feedback == FEEDBACK_PRESENT:
+        queryset = queryset.filter(feedback_member_count__gt=0)
+    elif feedback == FEEDBACK_ZERO:
+        queryset = queryset.filter(feedback_member_count=0)
+    elif feedback == FEEDBACK_UNTRACKED:
+        queryset = queryset.filter(feedback_member_count__isnull=True)
+
     # Newest arrival first, undated last, then a stable tie-break so two renders
     # of one search never disagree about the order.
     return queryset.order_by(F("received_date").desc(nulls_last=True), "topic", "record_id")
+
+
+def _apply_deadline_filter(queryset, snapshot: LegalWorkSnapshot | None, deadline: str):
+    """Narrow by how the opinion deadline sits against the reporting date.
+
+    The reporting date, not today: a filter measured against the wall clock
+    would put a record in a different band depending on when the page happened
+    to be loaded, while the data underneath had not moved at all.
+    """
+    if deadline == DEADLINE_ANY or snapshot is None:
+        return queryset
+
+    reporting_date = snapshot.reporting_date
+
+    if deadline == DEADLINE_NONE:
+        return queryset.filter(deadline_date__isnull=True)
+
+    if deadline == DEADLINE_OVERDUE:
+        # Passed *and* still unanswered. A matter whose opinion already went out
+        # is not late, however old its deadline.
+        return queryset.filter(
+            deadline_date__isnull=False,
+            deadline_date__lt=reporting_date,
+        ).exclude(sent_status=SentStatus.SENT)
+
+    horizon = DEADLINE_HORIZONS.get(deadline)
+    if horizon is None:
+        return queryset
+    return queryset.filter(
+        deadline_date__isnull=False,
+        deadline_date__gte=reporting_date,
+        deadline_date__lte=reporting_date + timedelta(days=horizon),
+    )
 
 
 def count_received_since(snapshot: LegalWorkSnapshot | None, since: date) -> int:

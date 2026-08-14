@@ -1,230 +1,662 @@
 {% extends "dashboard/shell.html" %}
+{% load static %}
 
 {% comment %}
-Õigusloome page.
+Õigusloome intelligence dashboard.
 
-Shows exactly the four things the brief asked for: what is being worked on now,
-what went out most recently, what came in most recently, and how trustworthy
-the data is. Nothing else is displayed — no responsible lawyer, no member
-feedback, no source-row numbers, no warning internals and no Microsoft
-identifiers. Those either do not exist in the model or are deliberately not
-rendered.
+One page and one URL. `fookus` chooses which analytical surface is drawn, so
+every view is bookmarkable, shareable and reload-safe, and the back button moves
+between them like it moves between any two pages. There is no SPA and no
+client-side routing: the server renders the focus it was asked for.
 
-Every value on this page comes from one imported snapshot. When there is no
-current snapshot the page renders the documented empty states instead.
+Every value comes from one imported snapshot, and the page reads PostgreSQL and
+nothing else. It never contacts Microsoft, never parses a workbook and never
+reads Koda.ee while serving a request.
+
+What the page still refuses to show is as deliberate as what it draws: no
+responsible lawyer, no member names or companies, no member response rate, no
+forecast and no composite score. Those are not hidden columns — most do not
+exist in the model, and the ones that do are counts rather than identities.
+
+`section-figures`, `section-open` and `section-sent` are linked into from the
+dashboard overview. They stay on the default focus and keep their ids;
+`apps/legal_work/sections.py` names them and a test holds the page to them.
 {% endcomment %}
 
 {% block title %}Õigusloome – DashKoda{% endblock %}
+
+{% block extra_head %}
+  {% comment %}
+  The chart bundle is over a megabyte, so it loads only on a focus that actually
+  draws something. The overview draws one chart; the register draws none and
+  ships no chart JavaScript at all.
+  {% endcomment %}
+  {% if page.has_charts %}
+    <script type="module" src="{% static 'build/charts.js' %}"></script>
+  {% endif %}
+{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-6">
 
   {% comment %}
-  Title only. The subtitle and the connection strip came off at the board's
-  request; the strip's contents are unchanged and still render further down, in
-  the Andmete seis section at the foot of the page.
+  The header states what the data *is*, not when the page loaded. A reader who
+  sees today's date beside a figure assumes the figure is today's; the workbook
+  is regenerated each morning and may be older than that.
   {% endcomment %}
-  <header>
+  <header class="flex flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Õigusloome</h1>
+    {% if summary.has_data %}
+      <p class="dk-meta">
+        Andmed seisuga {{ summary.reporting_date|date:"d.m.Y" }}
+        · skeem {{ summary.snapshot.schema_version }}
+        · <a class="dk-link-quiet" href="#section-data-state">Andmete kohta</a>
+      </p>
+    {% endif %}
   </header>
 
-  {# ---------------- 0. Näitajad ---------------- #}
   {% comment %}
-  The three counts the overview leads with, so a reader arriving from the front
-  page recognises them. Every one comes from the published snapshot; when none is
-  published each cell shows its own empty state rather than a zero.
-
-  The total row count is not among them. It answers "how big is the workbook",
-  which is a question about the file rather than about the Chamber's work; the
-  Andmete seis section at the foot of the page is where the file is described.
+  Focus navigation. Ordinary links carrying an ordinary GET parameter, so it
+  works without JavaScript and each surface has a real address. `aria-current`
+  is what tells a screen reader which one is open — the chip styling alone
+  would not.
   {% endcomment %}
-  <section aria-labelledby="section-figures" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" only %}
-    <div class="dk-kpi-strip">
-      {% include "dashboard/components/kpi_card.html" with label="Hetkel töös" value=open_count as_of=summary.reporting_date|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Sisse tulnud" value=received_recent comparison_period="viimase kuu jooksul" as_of=summary.reporting_date|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-      {% include "dashboard/components/kpi_card.html" with label="Välja läinud" value=sent_recent comparison_period="viimase kuu jooksul" as_of=summary.reporting_date|date:"j.m.y" flush=True empty_message="Andmeallikas ei ole veel ühendatud." only %}
-    </div>
-  </section>
+  <nav aria-label="Õigusloome vaated">
+    <ul class="flex flex-wrap gap-2">
+      {% for link in page.links %}
+        <li>
+          <a href="{{ link.url }}"
+             class="dk-chip{% if link.is_active %} dk-chip-active{% endif %}"
+             {% if link.is_active %}aria-current="page"{% endif %}>{{ link.label }}</a>
+        </li>
+      {% endfor %}
+    </ul>
+  </nav>
 
-  {# ---------------- 0b. Lähenevad tähtajad ---------------- #}
+  {% if page.focus == "ulevaade" %}
+    {# ---------------- Hero figures ---------------- #}
+    {% comment %}
+    Four answers, as a hairline strip rather than four bordered cards. The
+    workbook's row total is not among them: it answers how big the file is, not
+    how much work there is, and Andmete seis is where the file is described.
+
+    `{aasta}. aasta teemad` carries no year-on-year delta. It is a stock counted
+    by the register's own annual grouping, so it cannot be clamped to a
+    comparable date the way a datable event can, and attaching a delta would
+    compare a part-year stock against a finished one.
+    {% endcomment %}
+    <section aria-labelledby="section-figures" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Näitajad" heading_id="section-figures" only %}
+      {% if page.headlines %}
+        <dl class="dk-kpi-strip">
+          {% for headline in page.headlines %}
+            {% comment %}
+            `relative` is load-bearing. The screen-reader note below is
+            absolutely positioned, and `dk-kpi-strip` is a static
+            `overflow-hidden` grid — so without a positioned ancestor the note's
+            containing block is the page, nothing clips it, and it settles
+            wherever its untruncated text ends, dragging the document sideways
+            with it. Positioning the cell makes the cell its containing block.
+            {% endcomment %}
+            <div class="relative flex flex-col gap-1 px-4 py-3 sm:px-5">
+              <dt class="text-sm text-text-secondary">{{ headline.label }}</dt>
+              <dd class="flex flex-wrap items-baseline gap-x-2">
+                <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ headline.value }}</span>
+                {% if headline.direction %}
+                  {% comment %}
+                  The glyph carries the direction as well as the colour, and the
+                  screen-reader text spells it out: a change distinguished only
+                  by hue does not exist for a reader who cannot separate hues.
+                  {% endcomment %}
+                  <span class="dk-meta{% if headline.direction == 'up' %} text-success{% elif headline.direction == 'down' %} text-danger{% endif %}" aria-hidden="true">
+                    {% if headline.direction == "up" %}↑{% elif headline.direction == "down" %}↓{% else %}→{% endif %}
+                  </span>
+                  <span class="sr-only">{{ headline.change_label }}</span>
+                {% endif %}
+              </dd>
+              {% if headline.note %}<p class="dk-meta">{{ headline.note }}</p>{% endif %}
+            </div>
+          {% endfor %}
+        </dl>
+      {% else %}
+        <div class="dk-section-body">
+          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+        </div>
+      {% endif %}
+      {% comment %}
+      Secondary readouts, deliberately smaller than the four above. They are
+      measurements the overview benefits from without competing with the answers
+      it leads with.
+      {% endcomment %}
+      {% if page.secondary %}
+        <dl class="dk-section-body flex flex-wrap gap-x-8 gap-y-3 border-t border-border pt-3">
+          {% for readout in page.secondary %}
+            <div class="min-w-0">
+              <dt class="text-sm text-text-secondary">{{ readout.label }}</dt>
+              <dd class="text-lg font-semibold tabular-nums text-text">{{ readout.value }}</dd>
+              {% if readout.note %}<p class="dk-meta">{{ readout.note }}</p>{% endif %}
+            </div>
+          {% endfor %}
+        </dl>
+      {% endif %}
+    </section>
+
+    {# ---------------- Mis muutus? ---------------- #}
+    {% comment %}
+    Deterministic observations only. Every line is a comparison the data
+    supports, written as a measurement — no generated prose, no causal or
+    political conclusion, and no composite score. The dashboard supplies the
+    evidence; the interpretation stays human.
+    {% endcomment %}
+    {% if page.insights %}
+      <section aria-labelledby="section-insights" class="dk-section">
+        {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-insights" only %}
+        <ul class="divide-y divide-border">
+          {% for insight in page.insights %}
+            {% comment %}
+            Stacked on a phone, side by side from `sm` up.
+
+            As one flex row this overflowed 320px in a way nothing on the page
+            could show: the label took most of the line, the detail was squeezed
+            to about sixty pixels, and `overflow-wrap: normal` cannot break a
+            word — so "kuupäevani" painted straight past its own box and widened
+            the document. No element box was ever outside the viewport, which is
+            why the overflow diagnostic listed only innocent boxes inside their
+            scrollers.
+
+            Stacking gives each span the full column on the width where the
+            squeeze happens, and `break-words` means no single token can do it
+            again at any width or in any font. CI's Ubuntu text is wider than a
+            Windows machine's, so this must hold with room to spare rather than
+            just barely.
+            {% endcomment %}
+            <li class="flex flex-col gap-1 px-4 py-2.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:px-5">
+              <span class="text-sm font-medium break-words text-text">{{ insight.label }}</span>
+              <span class="min-w-0 flex-1 text-sm break-words text-text-secondary">{{ insight.detail }}</span>
+            </li>
+          {% endfor %}
+        </ul>
+      </section>
+    {% endif %}
+  {% endif %}
+
+  {# ---------------- Charts for the active focus ---------------- #}
+  {% if page.charts %}
+    <section aria-labelledby="section-charts" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title=page.focus_label heading_id="section-charts" only %}
+      <div class="dk-section-body flex flex-col gap-8">
+        {% for chart in page.charts %}
+          {% include "dashboard/components/chart_figure.html" with chart=chart only %}
+        {% endfor %}
+      </div>
+    </section>
+  {% endif %}
+
+  {% comment %}
+  The focus's own caveats, rendered independently of whether it drew a chart.
+  These are the statements that stop a figure being over-read — what a feedback
+  count is not, why two flows are not one net number — so a surface without a
+  chart must not lose them.
+  {% endcomment %}
+  {% if page.footnotes %}
+    <section aria-labelledby="section-notes" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Kuidas neid arve lugeda" heading_id="section-notes" only %}
+      <div class="dk-section-body">
+        <ul class="flex flex-col gap-2 text-sm text-text-secondary">
+          {% for note in page.footnotes %}<li>{{ note }}</li>{% endfor %}
+        </ul>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- Lähenevad tähtajad ---------------- #}
   {% if deadlines %}
     <section aria-labelledby="section-deadlines" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="Lähenevad tähtajad" heading_id="section-deadlines" only %}
       <ul class="divide-y divide-border">
         {% for deadline in deadlines %}
           <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
+            {% comment %}
+            The remaining time is written as text beside the colour, so urgency
+            is never carried by hue alone.
+            {% endcomment %}
             <span class="flex-none text-micro font-semibold tracking-wide uppercase {% if deadline.variant == 'danger' %}text-danger{% elif deadline.variant == 'warning' %}text-warning{% else %}text-info{% endif %}">{{ deadline.remaining_label }}</span>
             {% include "dashboard/components/legal_topic.html" with item=deadline.topic class_name="min-w-0 flex-1 text-sm" only %}
             <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ deadline.deadline_date|date:'Y-m-d' }}">{{ deadline.deadline_date|date:"j.m.y" }}</time>
           </li>
         {% endfor %}
       </ul>
+      {% if page.focus == "ulevaade" %}
+        <div class="dk-section-body pt-0">
+          <a class="dk-link text-sm" href="?fookus=aktiivsed">Aktiivsed teemad →</a>
+        </div>
+      {% endif %}
     </section>
   {% endif %}
 
-  {# ---------------- 1. Otsing ---------------- #}
+  {# ---------------- Liikmete tagasiside ---------------- #}
   {% comment %}
-  A search over the whole register, above the two standing lists rather than
-  instead of them.
+  Counts per topic, never people. The source records how many members answered
+  and how many were asked directly; it does not record who, and nothing here
+  adds a field that could.
 
-  `Hetkel töös` and `Viimati välja läinud` together draw 33 of the snapshot's
-  612 records. Every other record — every concluded topic, every opinion older
-  than the last fifteen — was imported, matched to its public consultation and
-  then unreachable from the page that is about it. This is how you reach one.
-
-  The box is always here; the results appear only once something is typed, so a
-  reader who never searches sees the page exactly as it was. A found record
-  carries the same public link, resolved by the same rule, as it would in either
-  list above — the view resolves them all in one query.
+  No response rate: the two counts are not a valid numerator and denominator,
+  because members also answer through newsletters and general calls.
   {% endcomment %}
-  <section aria-labelledby="section-search" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Otsi" heading_id="section-search" only %}
-    {% comment %}
-    Tighter than the standard body on both axes. The section is one input, one
-    button and a row of chips — three controls, none of which reads better for
-    being spaced like a table.
-    {% endcomment %}
-    <div class="dk-section-body flex min-w-0 flex-col gap-2 py-3 sm:py-4">
-      {% comment %}
-      A plain GET form. Without the bundle it submits and reloads; with it, the
-      input's `hx-*` attributes filter the rows below as somebody types and the
-      form is never submitted. Both paths render the same partial.
-
-      The status travels as a hidden field so `hx-include` carries it: narrowing
-      to `Töös` and then typing must stay inside `Töös`, and neither submitting
-      nor typing may quietly widen the question.
-
-      `lk` is deliberately absent. A reader on page 3 who types a new term is
-      asking a new question, and carrying the page number into it answers "no
-      results" for anything matching fewer pages. The fragment resets to page
-      one and `push_url` drops the parameter to match.
-      {% endcomment %}
-      <form method="get" action="#section-search" class="flex min-w-0 flex-wrap items-center gap-2">
-        {% if search.status %}<input type="hidden" name="seis" value="{{ search.status }}">{% endif %}
-        <label for="otsing" class="sr-only">Otsi õigusloome registrist</label>
-        <input type="search"
-               id="otsing"
-               name="otsing"
-               value="{{ search.query }}"
-               maxlength="120"
-               placeholder="Teema, number, saaja, seis…"
-               autocomplete="off"
-               class="dk-input w-full min-w-0 sm:w-80"
-               hx-get="{% url 'legal-work-search' %}"
-               hx-trigger="input changed delay:250ms, search"
-               hx-target="#legal-search-results"
-               hx-swap="innerHTML"
-               hx-include="closest form"
-               hx-sync="this:replace"
-               hx-indicator="#legal-searching">
-        <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
-        {% if search.is_searching %}
-          <a class="dk-link text-sm" href="?">Tühjenda</a>
+  {% if page.feedback %}
+    <section aria-labelledby="section-feedback" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Liikmete tagasiside" heading_id="section-feedback" only %}
+      {% if page.feedback.has_coverage %}
+        <dl class="dk-kpi-strip">
+          <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
+            <dt class="text-sm text-text-secondary">Teemasid, kus liikmed andsid tagasisidet</dt>
+            <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.with_feedback }}</dd>
+          </div>
+          <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
+            <dt class="text-sm text-text-secondary">Tagasiside mõõdetud</dt>
+            <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.tracked_topics }}</dd>
+            <p class="dk-meta">teemal; {{ page.feedback.measured_zero }} neist mõõdetud nulliga</p>
+          </div>
+          <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
+            <dt class="text-sm text-text-secondary">Liikmete tagasiside juhtumeid teemade lõikes</dt>
+            <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.feedback_instances|default_if_none:"—" }}</dd>
+            <p class="dk-meta">ei ole unikaalsete liikmete arv</p>
+          </div>
+        </dl>
+        {% if page.focus == "ulevaade" %}
+          <div class="dk-section-body pt-0">
+            <a class="dk-link text-sm" href="?fookus=tagasiside">Vaata liikmete tagasisidet →</a>
+          </div>
         {% endif %}
-        <p id="legal-searching" class="dk-indicator dk-meta self-center" aria-hidden="true">Otsin…</p>
-      </form>
+      {% else %}
+        <div class="dk-section-body">
+          <p class="text-sm text-text-secondary">Andmed kogunevad.</p>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
 
-      {% comment %}
-      The swapped region. `aria-live="polite"` tells a screen reader that rows
-      arrived without a page change, the same contract the Nähtavus searches
-      follow.
-      {% endcomment %}
-      <div id="legal-search-results" aria-live="polite" class="flex min-w-0 flex-col gap-2">
-        {% include "legal_work/partials/_search_results.html" with search=search only %}
-      </div>
-    </div>
-  </section>
+  {# ---------------- Enim tagasisidet saanud teemad ---------------- #}
+  {% comment %}
+  Neutrally titled. A high count means broad engagement, not importance: a
+  technical amendment affecting one sector can matter enormously and draw three
+  replies, and nothing here ranks significance.
 
-  {# ---------------- 2. Hetkel töös ---------------- #}
-  <section aria-labelledby="section-open" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Hetkel töös" heading_id="section-open" only %}
-    {% if open_items %}
+  Topic names only. The source holds no member identity and this table adds none.
+  {% endcomment %}
+  {% if page.feedback_topics %}
+    <section aria-labelledby="section-feedback-topics" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Enim liikmete tagasisidet saanud teemad" heading_id="section-feedback-topics" only %}
       <div class="w-full overflow-x-auto">
         <table class="w-full min-w-max border-collapse text-sm">
-          <caption class="sr-only">Hetkel töös olevad õigusloome teemad</caption>
+          <caption class="sr-only">Teemad, millel liikmed andsid kõige rohkem tagasisidet</caption>
           <thead>
             <tr>
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Õigusakti liik</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sisse</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Arvamuse tähtaeg</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% comment %}
-            `row` is a presentation object: the imported record plus whatever
-            public address the read path resolved for it. Every column but the
-            topic reads `row.item`, which is the imported row untouched.
-            {% endcomment %}
-            {% for row in open_items %}
-              <tr>
-                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.act_type|default:"—" }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
-                  {% if row.item.received_date %}{{ row.item.received_date|date:"j.m.y" }}{% else %}—{% endif %}
-                </td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">
-                  {% if row.item.deadline_date %}{{ row.item.deadline_date|date:"j.m.y" }}{% else %}—{% endif %}
-                </td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
-              </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    {% else %}
-      <div class="dk-section-body">
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Hetkel töös olevad teemad ilmuvad siia pärast esimest edukat sünkroonimist." only %}
-      </div>
-    {% endif %}
-  </section>
-
-  {# ---------------- 3. Viimati välja läinud ---------------- #}
-  <section aria-labelledby="section-sent" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Viimati välja läinud" heading_id="section-sent" only %}
-    {% if sent_items %}
-      <div class="w-full overflow-x-auto">
-        <table class="w-full min-w-max border-collapse text-sm">
-          <caption class="sr-only">Viimati välja läinud arvamused</caption>
-          <thead>
-            <tr>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Välja</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kellele</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Aasta</th>
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tagasisidet andis</th>
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Küsiti otse</th>
             </tr>
           </thead>
           <tbody>
-            {% for row in sent_items %}
+            {% for topic in page.feedback_topics %}
               <tr>
-                <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary whitespace-nowrap">{{ row.item.sent_date|date:"j.m.y" }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.recipient|default:"—" }}</td>
-                <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
-                {% comment %}
-                `default_if_none`, not `default`: a reported 0 is a real answer —
-                nobody responded — and must stay distinguishable from a topic
-                where the question was never tracked, which is the em dash.
-                {% endcomment %}
-                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ row.item.feedback_member_count|default_if_none:"—" }}</td>
-                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ row.item.feedback_requested_member_count|default_if_none:"—" }}</td>
+                <th scope="row" class="max-w-xl border-b border-border px-4 py-2 text-left font-medium text-text">{{ topic.topic }}</th>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ topic.source_year }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ topic.feedback_member_count }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ topic.requested_member_count|default_if_none:"—" }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
-    {% else %}
-      <div class="dk-section-body">
-        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
-      </div>
-    {% endif %}
-  </section>
+    </section>
+  {% endif %}
 
-  {# ---------------- 4. Andmete seis ---------------- #}
+  {# ---------------- Tagasiside kaetus aastate lõikes ---------------- #}
+  {% comment %}
+  The coverage table is what stops the feedback figures being misread. Tracking
+  began partway through the register's history and is still partial, so a year
+  with few recorded responses may simply be a year that was barely measured.
+  A year before tracking shows an em dash, never a zero.
+  {% endcomment %}
+  {% if page.feedback_coverage %}
+    <section aria-labelledby="section-feedback-coverage" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Tagasiside mõõtmise kaetus" heading_id="section-feedback-coverage" only %}
+      <div class="w-full overflow-x-auto">
+        <table class="w-full min-w-max border-collapse text-sm">
+          <caption class="sr-only">Liikmete tagasiside mõõtmise kaetus aastate lõikes</caption>
+          <thead>
+            <tr>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Aasta</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teemasid</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Mõõdetud</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tagasisidega</th>
+              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Juhtumeid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for year in page.feedback_coverage %}
+              <tr>
+                <th scope="row" class="border-b border-border px-4 py-2 text-left font-medium text-text">{{ year.year }}</th>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ year.total_topics }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ year.tracked_topics }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ year.with_feedback }}</td>
+                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ year.feedback_instances|default_if_none:"—" }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- Register explorer ---------------- #}
+  {% comment %}
+  The whole current snapshot, narrowed by the facets a lawyer actually uses.
+
+  An applied filter is never invisible. The advanced disclosure states how many
+  are active even while collapsed, and every active one is drawn as a chip that
+  removes it — a narrowed register that looks unnarrowed is worse than no filter
+  at all, because the reader concludes the Chamber has eleven records.
+
+  Every control is a plain link or a `<select>` inside a GET form, so the whole
+  surface works with no JavaScript. htmx only makes the term filter rows as
+  somebody types.
+  {% endcomment %}
+  {% if register %}
+    <section aria-labelledby="section-register" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Register" heading_id="section-register" only %}
+      <div class="dk-section-body flex min-w-0 flex-col gap-3 py-3 sm:py-4">
+
+        <form method="get" action="#section-register" class="flex min-w-0 flex-col gap-3">
+          <input type="hidden" name="fookus" value="register">
+
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <label for="otsing" class="sr-only">Otsi õigusloome registrist</label>
+            <input type="search"
+                   id="otsing"
+                   name="otsing"
+                   value="{{ register.state.query }}"
+                   maxlength="120"
+                   placeholder="Teema, number, saaja, seis…"
+                   autocomplete="off"
+                   class="dk-input w-full min-w-0 sm:w-72"
+                   hx-get="{% url 'legal-work-search' %}"
+                   hx-trigger="input changed delay:250ms, search"
+                   hx-target="#legal-register-results"
+                   hx-swap="innerHTML"
+                   hx-include="closest form"
+                   hx-sync="this:replace"
+                   hx-indicator="#legal-register-searching">
+
+            <label for="register-seis" class="sr-only">Olek</label>
+            <select id="register-seis" name="seis" class="dk-input">
+              {% for option in register.status_options %}
+                <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+
+            <label for="register-aasta" class="sr-only">Aasta</label>
+            <select id="register-aasta" name="aasta" class="dk-input">
+              <option value="">Kõik aastad</option>
+              {% for option in register.year_options %}
+                <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+
+            <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+            {% if register.state.query or register.state.has_filters %}
+              <a class="dk-link text-sm" href="?fookus=register">Tühjenda</a>
+            {% endif %}
+            <p id="legal-register-searching" class="dk-indicator dk-meta self-center" aria-hidden="true">Otsin…</p>
+          </div>
+
+          {% comment %}
+          Secondary filters, collapsed by default but never silently. The
+          summary carries the active count, so a reader who has narrowed the
+          register and scrolled away still sees that they did.
+          {% endcomment %}
+          <details class="text-sm" {% if register.state.has_filters %}open{% endif %}>
+            <summary class="cursor-pointer text-text-secondary">
+              Täpsem valik{% if register.state.has_filters %} · {{ register.state.active_filter_count }} aktiivset filtrit{% endif %}
+            </summary>
+            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div class="flex min-w-0 flex-col gap-1">
+                <label for="register-etapp" class="dk-meta">Hetkeseis</label>
+                <select id="register-etapp" name="etapp" class="dk-input">
+                  <option value="">Kõik</option>
+                  {% for option in register.stage_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex min-w-0 flex-col gap-1">
+                <label for="register-saaja" class="dk-meta">Saaja</label>
+                <select id="register-saaja" name="saaja" class="dk-input">
+                  <option value="">Kõik</option>
+                  {% for option in register.recipient_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex min-w-0 flex-col gap-1">
+                <label for="register-liik" class="dk-meta">Õigusakti liik</label>
+                <select id="register-liik" name="liik" class="dk-input">
+                  <option value="">Kõik</option>
+                  {% for option in register.act_type_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex min-w-0 flex-col gap-1">
+                <label for="register-tahtaeg" class="dk-meta">Tähtaeg</label>
+                <select id="register-tahtaeg" name="tahtaeg" class="dk-input">
+                  {% for option in register.deadline_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex min-w-0 flex-col gap-1 sm:col-span-2">
+                <label for="register-tagasiside" class="dk-meta">Liikmete tagasiside</label>
+                <select id="register-tagasiside" name="tagasiside" class="dk-input">
+                  {% for option in register.feedback_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+                {% comment %}
+                Three feedback states rather than two, because "measured at
+                zero" and "never measured" are different facts about a matter.
+                {% endcomment %}
+                <p class="dk-meta">
+                  „Mõõdetud, tagasisidet ei antud“ ja „Tagasisidet ei ole mõõdetud“
+                  on eri asjad: esimene on mõõdetud null, teine puuduv mõõtmine.
+                </p>
+              </div>
+              <div class="sm:col-span-2">
+                <button type="submit" class="dk-button dk-button-secondary">Rakenda</button>
+              </div>
+            </div>
+          </details>
+        </form>
+
+        {% comment %}
+        The active filters, always drawn outside the disclosure. Each one is a
+        link that removes just itself and keeps the rest.
+        {% endcomment %}
+        {% if register.applied %}
+          <ul class="flex flex-wrap gap-2" aria-label="Aktiivsed filtrid">
+            {% for filter in register.applied %}
+              <li>
+                <a class="dk-chip dk-chip-active" href="?fookus=register&amp;{{ filter.remove_query }}#section-register">
+                  <span class="dk-meta">{{ filter.label }}:</span>&nbsp;{{ filter.value }}
+                  <span aria-hidden="true">&nbsp;×</span>
+                  <span class="sr-only"> — eemalda see filter</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        <div id="legal-register-results" aria-live="polite" class="flex min-w-0 flex-col gap-2">
+          {% include "legal_work/partials/_register_results.html" with register=register only %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- Register search ---------------- #}
+  {% comment %}
+  A search over the whole current snapshot, not over the rows this page happens
+  to draw. It stays on the overview as well as the register focus: it is how a
+  reader reaches a topic concluded last spring, and burying it one click deep
+  would undo the reason it was added.
+  {% endcomment %}
+  {% if page.focus == "ulevaade" %}
+    <section aria-labelledby="section-search" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Otsi" heading_id="section-search" only %}
+      <div class="dk-section-body flex min-w-0 flex-col gap-2 py-3 sm:py-4">
+        {% comment %}
+        A plain GET form. Without the bundle it submits and reloads; with it, the
+        input's `hx-*` attributes filter the rows below as somebody types. Both
+        paths render the same partial, so typing and reloading cannot disagree.
+
+        `fookus` travels as a hidden field so a search started on the register
+        focus stays on it after a submit.
+        {% endcomment %}
+        <form method="get" action="#section-search" class="flex min-w-0 flex-wrap items-center gap-2">
+          {% if search.status %}<input type="hidden" name="seis" value="{{ search.status }}">{% endif %}
+          <label for="otsing" class="sr-only">Otsi õigusloome registrist</label>
+          <input type="search"
+                 id="otsing"
+                 name="otsing"
+                 value="{{ search.query }}"
+                 maxlength="120"
+                 placeholder="Teema, number, saaja, seis…"
+                 autocomplete="off"
+                 class="dk-input w-full min-w-0 sm:w-80"
+                 hx-get="{% url 'legal-work-search' %}"
+                 hx-trigger="input changed delay:250ms, search"
+                 hx-target="#legal-search-results"
+                 hx-swap="innerHTML"
+                 hx-include="closest form"
+                 hx-sync="this:replace"
+                 hx-indicator="#legal-searching">
+          <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+          {% if search.is_searching %}
+            <a class="dk-link text-sm" href="?">Tühjenda</a>
+          {% endif %}
+          <p id="legal-searching" class="dk-indicator dk-meta self-center" aria-hidden="true">Otsin…</p>
+        </form>
+
+        <div id="legal-search-results" aria-live="polite" class="flex min-w-0 flex-col gap-2">
+          {% include "legal_work/partials/_search_results.html" with search=search only %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- Hetkel töös ---------------- #}
+  {% comment %}
+  Kept on the default focus with its anchor: the dashboard overview links
+  straight into it, and a fragment that lands nowhere fails silently in a
+  browser. The full, filterable list lives under `fookus=aktiivsed`.
+  {% endcomment %}
+  {% if page.focus == "ulevaade" or page.focus == "aktiivsed" %}
+    <section aria-labelledby="section-open" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Hetkel töös" heading_id="section-open" only %}
+      {% if open_items %}
+        <div class="w-full overflow-x-auto">
+          <table class="w-full min-w-max border-collapse text-sm">
+            <caption class="sr-only">Hetkel töös olevad õigusloome teemad</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Õigusakti liik</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sisse</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Arvamuse tähtaeg</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tagasisidet andis</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in open_items %}
+                <tr>
+                  <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
+                  <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.act_type|default:"—" }}</td>
+                  <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
+                    {% if row.item.received_date %}{{ row.item.received_date|date:"j.m.y" }}{% else %}—{% endif %}
+                  </td>
+                  <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">
+                    {% if row.item.deadline_date %}{{ row.item.deadline_date|date:"j.m.y" }}{% else %}—{% endif %}
+                  </td>
+                  <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
+                  {% comment %}
+                  `default_if_none`, not `default`: a reported 0 is a real answer
+                  — nobody responded — and must stay distinguishable from a topic
+                  where the question was never tracked, which is the em dash.
+                  {% endcomment %}
+                  <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ row.item.feedback_member_count|default_if_none:"—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="dk-section-body">
+          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." detail="Hetkel töös olevad teemad ilmuvad siia pärast esimest edukat sünkroonimist." only %}
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ---------------- Viimati välja läinud ---------------- #}
+  {% if page.focus == "ulevaade" or page.focus == "arvamused" %}
+    <section aria-labelledby="section-sent" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Viimati välja läinud" heading_id="section-sent" only %}
+      {% if sent_items %}
+        <div class="w-full overflow-x-auto">
+          <table class="w-full min-w-max border-collapse text-sm">
+            <caption class="sr-only">Viimati välja läinud arvamused</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teema</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Välja</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kellele</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Hetkeseis</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tagasisidet andis</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Küsiti otse</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in sent_items %}
+                <tr>
+                  <td class="max-w-xl border-b border-border px-4 py-2 text-text">{% include "dashboard/components/legal_topic.html" with item=row class_name="text-sm" only %}</td>
+                  <td class="border-b border-border px-4 py-2 whitespace-nowrap text-text-secondary">{{ row.item.sent_date|date:"j.m.y" }}</td>
+                  <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.recipient|default:"—" }}</td>
+                  <td class="border-b border-border px-4 py-2 text-text-secondary">{{ row.item.stage|default:"—" }}</td>
+                  <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ row.item.feedback_member_count|default_if_none:"—" }}</td>
+                  <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ row.item.feedback_requested_member_count|default_if_none:"—" }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <div class="dk-section-body">
+          {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
+  {# ---------------- Andmete seis ---------------- #}
+  {% comment %}
+  Quiet on the page and deep enough for an analyst. Coverage is stated per field
+  so a reader can tell what a metric could and could not measure, and the
+  anomalies are reported rather than repaired: every one of them stays imported
+  exactly as the workbook stated it.
+  {% endcomment %}
   <section aria-labelledby="section-data-state" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="section-data-state" only %}
     <div class="dk-section-body flex flex-col gap-3">
@@ -240,6 +672,41 @@ current snapshot the page renders the documented empty states instead.
             <dd class="font-medium text-text">{{ summary.open_count }}</dd>
           </div>
         </dl>
+        {% if quality %}
+          <details class="text-sm">
+            <summary class="cursor-pointer text-text-secondary">Väljade kaetus ja andmekvaliteet</summary>
+            <div class="mt-2 w-full overflow-x-auto">
+              <table class="w-full min-w-max border-collapse text-sm">
+                <caption class="sr-only">Väljade kaetus praeguses hetkeseisus</caption>
+                <thead>
+                  <tr>
+                    <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Väli</th>
+                    <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Täidetud</th>
+                    <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kirjetest</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for entry in quality.coverage %}
+                    <tr>
+                      <th scope="row" class="border-b border-border px-4 py-2 text-left font-medium text-text">{{ entry.label }}</th>
+                      <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ entry.present }}</td>
+                      <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ entry.total }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+            <ul class="mt-2 flex flex-col gap-1 text-sm text-text-secondary">
+              <li>Hoiatustega kirjeid: {{ quality.warning_records }}</li>
+              <li>Saabumise kuupäev aruandekuupäevast hilisem: {{ quality.future_received }}</li>
+              <li>Tähtaeg saabumisest varasem: {{ quality.negative_window }}</li>
+            </ul>
+            <p class="mt-2 text-sm text-text-secondary">
+              Neid kirjeid ei parandata ega kustutata. Nad jäävad imporditud kujul alles;
+              muutub ainult see, millised statistikud neid kasutavad.
+            </p>
+          </details>
+        {% endif %}
       {% endif %}
     </div>
   </section>
