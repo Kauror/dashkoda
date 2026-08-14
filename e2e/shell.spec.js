@@ -61,13 +61,16 @@ test("the Chamber logo is visible and undistorted", async ({ page }) => {
 test("no fabricated business number is shown anywhere on the shell", async ({ page }) => {
   await signIn(page);
 
-  // The whole of `main`, with nothing cut out. This used to drop
-  // `#freshness-region` first, because the connection-check time it printed was
-  // a fact about the application rather than business data; that strip was
-  // removed from the overview on 2026-08-11, so the scan now covers everything.
+  // The whole of `main`, with one heading cut out. `Järgmised 30 päeva` names
+  // the timeline's fixed horizon: it is a constant in a section title, on the
+  // page before any source exists and unmoved when one arrives. Everything else
+  // must still be free of digits — including the header chip, which counts data
+  // notes only once some source has actually published, so an empty deployment
+  // never reports its own emptiness as a list of problems.
   const text = await page.evaluate(() => document.querySelector("main").innerText);
 
-  expect(text).not.toMatch(/\d/);
+  expect(text).toContain("Järgmised 30 päeva");
+  expect(text.replace("Järgmised 30 päeva", "")).not.toMatch(/\d/);
 });
 
 test("the page never scrolls sideways", async ({ page }) => {
