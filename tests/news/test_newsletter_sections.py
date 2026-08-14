@@ -36,7 +36,10 @@ ENEWS = VisibilityMetric.NEWSLETTER_ENEWS
 DAY = dt.date(2026, 7, 1)
 
 NEWS_URL = "/uudised/"
-VISIBILITY_URL = "/nahtavus/"
+# The website page is Koduleht at `/koduleht/` now. `/nahtavus/` still resolves
+# and would answer these assertions after a redirect, but a test that follows one
+# is a test that cannot tell the two apart.
+VISIBILITY_URL = "/koduleht/"
 
 #: The section headings each page is asserted to hold or not hold.
 CARD_HEADING = "Uudiskirjad"
