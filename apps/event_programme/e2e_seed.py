@@ -14,10 +14,34 @@ from django.core.management.base import CommandError
 
 from apps.core.e2e_seed import freeze_package_timestamps
 
+# The one event page the shop seed sells a registration product for. Imported
+# rather than repeated, exactly as `apps.visibility.e2e_seed` imports it: three
+# seeders have to name the same path or the cross-domain joins test nothing.
+from apps.shop.e2e_seed import SHOP_EVENT_INDEX
+
 # A synthetic public page on the allowed host. `/et/sundmused/` is the real
 # prefix, and `sunteetiline-*` is unmistakably not a production path, so a
 # screenshot can never be read as a link to a real Chamber event.
 SYNTHETIC_EVENT_URL = "https://www.koda.ee/et/sundmused/sunteetiline-programmi-sundmus"
+
+
+def _event_page(index: int) -> str:
+    """A public page `apps.visibility.e2e_seed` has measured.
+
+    The three seeders have to agree on these paths or the whole cross-domain
+    half of this dashboard tests nothing: GA4 files traffic under a path, the
+    shop files its event product under a path, and the programme's own
+    `public_url` is what joins an event to both. `sunteetiline-3` in particular
+    is `apps.shop.e2e_seed.SHOP_EVENT_INDEX`, which is the one event with
+    Commerce registration facts behind it.
+    """
+    return f"https://www.koda.ee/et/sundmused/sunteetiline-{index}"
+
+
+#: A page the programme links to that GA4 has **never measured**. Not a
+#: zero-traffic page — an unmeasured one, which the interface must render as `—`
+#: rather than as `0 vaatamist`.
+UNMEASURED_EVENT_URL = "https://www.koda.ee/et/sundmused/sunteetiline-moootmata"
 
 LONG_EVENT_NAME = (
     "Sünteetiline väga pikk sündmuse nimi, mis on kirjutatud ainult selleks, et "
@@ -68,16 +92,27 @@ def _programme_row(
     delivery_mode: str,
     public_url: str | None = None,
     review_required: bool = False,
+    price_status: str = "paid",
+    member_price: float | None = 100,
+    nonmember_price: float | None = 200,
+    added_date: dt.date | None = None,
 ) -> dict:
     """One synthetic `DASH_EVENTS` row, keyed by the contract's column names.
 
     The four derived calendar fields come from `start` exactly as the generator
     derives them, so an undated row carries no year, month or quarter rather than
     an invented one.
+
+    `planning_lead_days` is **derived here from the two dates**, exactly as the
+    real generator derives it. Writing an independent number would make the seed
+    the one place in the system where the source's own identity does not hold,
+    and `tests/event_programme/test_planning.py` asserts that identity against
+    imported rows.
     """
     tag_key, tag_label = tag
     type_key, type_label = event_type
     dated = start is not None
+    lead = (start - added_date).days if dated and added_date is not None else None
     return {
         "event_id": f"SEED-EVENT-{index:04d}",
         "service_code": f"S{index:04d}",
@@ -100,22 +135,25 @@ def _programme_row(
         "event_type_label": type_label,
         "delivery_mode": delivery_mode,
         "include_status": "REVIEW" if review_required else "YES",
+        # Internal group columns exist in the export and must never reach a
+        # model field: their business meaning has never been established.
         "group_raw": None,
         "group_secondary_raw": None,
-        # Pricing exists in the export and must never reach a model field.
-        "member_price_raw": "100",
-        "member_price_eur": 100,
-        "nonmember_price_raw": "200",
-        "nonmember_price_eur": 200,
+        # The normalised price pair is stored; the `*_raw` echoes beside it are
+        # not, and the later-price pair is not either.
+        "member_price_raw": None if member_price is None else str(member_price),
+        "member_price_eur": member_price,
+        "nonmember_price_raw": None if nonmember_price is None else str(nonmember_price),
+        "nonmember_price_eur": nonmember_price,
         "later_member_price_raw": None,
         "later_member_price_eur": None,
         "later_nonmember_price_raw": None,
         "later_nonmember_price_eur": None,
-        "price_status": "parsed",
+        "price_status": price_status,
         "discount_code": None,
         "discount_raw": None,
-        "added_date": None,
-        "planning_lead_days": None,
+        "added_date": dt.datetime.combine(added_date, dt.time()) if added_date else None,
+        "planning_lead_days": lead,
         "public_url": public_url,
         "public_link_status": "linked_embedded_latest" if public_url else "not_linked",
         "source_year": start.year if dated else 2099,
@@ -163,7 +201,8 @@ def _programme_rows(today: dt.date) -> list[dict]:
         tag=tag(0),
         event_type=event_type(0),
         delivery_mode="onsite",
-        public_url=SYNTHETIC_EVENT_URL,
+        public_url=_event_page(1),
+        added_date=today - dt.timedelta(days=51),
     )
     # Under way right now: started before today and ends after it.
     add(
@@ -174,8 +213,11 @@ def _programme_rows(today: dt.date) -> list[dict]:
         tag=tag(1),
         event_type=event_type(1),
         delivery_mode="hybrid",
+        added_date=today - dt.timedelta(days=8),
     )
-    # Inside the backward 30-day window, and unlinked.
+    # Inside the backward 30-day window, measured, and old enough that its whole
+    # 30-day pre-event window sits inside GA4's coverage. The one event the
+    # fair-comparison window can actually be computed for.
     add(
         name="Sünteetiline hiljuti toimunud sündmus",
         start=today - dt.timedelta(days=10),
@@ -183,8 +225,104 @@ def _programme_rows(today: dt.date) -> list[dict]:
         tag=tag(2),
         event_type=event_type(0),
         delivery_mode="online",
+        public_url=_event_page(2),
+        price_status="free",
+        member_price=0,
+        nonmember_price=0,
+        added_date=today - dt.timedelta(days=100),
     )
-    # Inside the forward 30-day window, as a multi-day range.
+    # The one event with Commerce registration facts behind it: its public page
+    # is the shop seed's event-registration product page.
+    add(
+        name="Sünteetiline registreerimisega sündmus",
+        start=today - dt.timedelta(days=12),
+        status="past",
+        tag=tag(0),
+        event_type=event_type(1),
+        delivery_mode="onsite",
+        public_url=_event_page(SHOP_EVENT_INDEX),
+        added_date=today - dt.timedelta(days=42),
+    )
+    # Linked to a page GA4 has never measured. Its view column must read `—`,
+    # not `0`, and it must sort behind every measured event rather than as
+    # though it had scored nothing.
+    add(
+        name="Sünteetiline mõõtmata lehega sündmus",
+        start=today - dt.timedelta(days=14),
+        status="past",
+        tag=tag(1),
+        event_type=event_type(0),
+        delivery_mode="online",
+        public_url=UNMEASURED_EVENT_URL,
+        price_status="mixed",
+        member_price=0,
+        nonmember_price=45,
+        added_date=today - dt.timedelta(days=70),
+    )
+    # Two programme events pointing at one public page. Their traffic may not be
+    # counted twice, and neither may be silently dropped.
+    for suffix, offset in (("A", 16), ("B", 17)):
+        add(
+            name=f"Sünteetiline jagatud lehega sündmus {suffix}",
+            start=today - dt.timedelta(days=offset),
+            status="past",
+            tag=tag(2),
+            event_type=event_type(1),
+            delivery_mode="hybrid",
+            public_url=_event_page(4),
+            added_date=today - dt.timedelta(days=offset + 30),
+        )
+    # Delivery mode the source never stated. It is `Määramata`, never `Kohapeal`.
+    add(
+        name="Sünteetiline määramata toimumisviisiga sündmus",
+        start=today - dt.timedelta(days=20),
+        status="past",
+        tag=tag(0),
+        event_type=event_type(0),
+        delivery_mode="",
+        price_status="tba",
+        member_price=None,
+        nonmember_price=None,
+        added_date=today - dt.timedelta(days=25),
+    )
+    # A price nobody recorded. It must never be presented as free.
+    add(
+        name="Sünteetiline teadmata hinnaga sündmus",
+        start=today - dt.timedelta(days=22),
+        status="past",
+        tag=tag(1),
+        event_type=event_type(1),
+        delivery_mode="onsite",
+        price_status="missing",
+        member_price=None,
+        nonmember_price=None,
+        added_date=today - dt.timedelta(days=120),
+    )
+    # Entered into the programme *after* it began. A real data-quality fact:
+    # kept, flagged, and excluded from the planning statistics rather than
+    # clamped to zero.
+    add(
+        name="Sünteetiline tagantjärele lisatud sündmus",
+        start=today - dt.timedelta(days=30),
+        status="past",
+        tag=tag(2),
+        event_type=event_type(0),
+        delivery_mode="onsite",
+        added_date=today - dt.timedelta(days=5),
+    )
+    # No `added_date` at all: planning coverage is never 100%, and the focus has
+    # to state its own denominator.
+    add(
+        name="Sünteetiline planeerimisandmeteta sündmus",
+        start=today - dt.timedelta(days=35),
+        status="past",
+        tag=tag(0),
+        event_type=event_type(1),
+        delivery_mode="online",
+        added_date=None,
+    )
+    # Inside the forward 30-day window, as a multi-day range, and receiving web
+    # attention right now.
     add(
         name="Sünteetiline mitmepäevane sündmus",
         start=today + dt.timedelta(days=3),
@@ -193,6 +331,33 @@ def _programme_rows(today: dt.date) -> list[dict]:
         tag=tag(0),
         event_type=event_type(1),
         delivery_mode="onsite",
+        public_url=_event_page(5),
+        added_date=today - dt.timedelta(days=97),
+    )
+    # An eight-day programme, so the duration bands have a long entry.
+    add(
+        name="Sünteetiline mitmenädalane programm",
+        start=today + dt.timedelta(days=12),
+        end=today + dt.timedelta(days=19),
+        status="upcoming",
+        tag=tag(1),
+        event_type=event_type(0),
+        delivery_mode="hybrid",
+        public_url=_event_page(6),
+        member_price=450,
+        nonmember_price=900,
+        added_date=today - dt.timedelta(days=200),
+    )
+    # Starts inside the next 30 days with no public page at all: the actionable
+    # signal the overview surfaces under `Tähelepanu`.
+    add(
+        name="Sünteetiline avaliku leheta tulevane sündmus",
+        start=today + dt.timedelta(days=6),
+        status="upcoming",
+        tag=tag(2),
+        event_type=event_type(0),
+        delivery_mode="online",
+        added_date=today - dt.timedelta(days=11),
     )
     # The quarter boundary: 31 March and 1 April of the same year.
     boundary_year = today.year - 1
@@ -225,17 +390,28 @@ def _programme_rows(today: dt.date) -> list[dict]:
     )
     # Enough history that year filtering has several years to choose between and
     # that the whole programme runs past one page of 50 rows.
+    #
+    # The price and planning variety is spread deterministically rather than
+    # randomly: a seed that produces a different distribution on each run cannot
+    # be asserted against.
     for offset in range(1, 4):
         year = today.year - offset
         for month in (2, 3, 5, 9, 11, 12):
             for day in (7, 14, 21):
+                position = month + day
+                free = position % 4 == 0
                 add(
                     name=f"Sünteetiline sündmus {year}-{month:02d}-{day:02d}",
                     start=dt.date(year, month, day),
                     status="past",
-                    tag=tag(month + day),
+                    tag=tag(position),
                     event_type=event_type(month),
-                    delivery_mode=DELIVERY_MODES[(month + day) % len(DELIVERY_MODES)],
+                    delivery_mode=DELIVERY_MODES[position % len(DELIVERY_MODES)],
+                    price_status="free" if free else "paid",
+                    member_price=0 if free else 40 + position,
+                    nonmember_price=0 if free else 80 + position * 2,
+                    # Leads across every band the planning focus draws.
+                    added_date=dt.date(year, month, day) - dt.timedelta(days=7 + position * 3),
                 )
     return rows
 

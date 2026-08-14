@@ -61,15 +61,20 @@ def test_the_chosen_ordering_survives_a_keystroke():
     no ordering in it, and the rows fall back to chronological while the chip
     still reads `Vaadatuimad`.
     """
-    from apps.event_programme.views import PROGRAMME_FIELDS
+    from apps.event_programme.views import PROGRAMME_FIELDS, PROGRAMME_PARAMS
 
     assert "sort" in PROGRAMME_FIELDS
 
-    template = "apps/event_programme/templates/event_programme/overview.html"
+    template = "apps/event_programme/templates/event_programme/partials/_focus_register.html"
     with open(template, encoding="utf-8") as handle:
         markup = handle.read()
 
     assert '<input type="hidden" name="sort"' in markup
+    # The focus is the same class of state and the same failure: without it a
+    # keystroke pushes a URL with no `fookus`, and the next full page load opens
+    # the overview with a filter applied and nothing on screen saying so.
+    assert '<input type="hidden" name="fookus"' in markup
+    assert "fookus" in PROGRAMME_PARAMS
 
 
 def test_a_cleared_filter_leaves_the_address_bar(viewer_client):

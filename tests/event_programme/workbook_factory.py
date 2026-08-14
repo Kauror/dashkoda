@@ -91,16 +91,28 @@ def synthetic_row(
     date_parse_status: str = "parsed_single",
     review_required: bool = False,
     warning_codes: str | None = None,
+    price_status: str = "paid",
+    member_price_eur: float | None = 100,
+    nonmember_price_eur: float | None = 200,
+    added_date: dt.datetime | None = None,
+    planning_lead_days: int | None = None,
 ) -> dict:
     """One synthetic DASH_EVENTS row, keyed by column name.
 
     The calendar fields derive from `start_date` exactly as the generator
     derives them, so an undated row leaves all four empty rather than carrying
     a year with no date, and a March event really does carry March and Q1.
+
+    `planning_lead_days` derives from the two dates the same way the real
+    generator derives it, unless a caller states one explicitly — which is how a
+    test builds the disagreeing row that proves the importer stores the source's
+    figure rather than recomputing its own.
     """
     dated = start_date is not None
     if end_date is SAME_DAY:
         end_date = start_date
+    if planning_lead_days is None and dated and added_date is not None:
+        planning_lead_days = (start_date.date() - added_date.date()).days
     return {
         "event_id": event_id,
         "service_code": service_code,
@@ -123,22 +135,25 @@ def synthetic_row(
         "event_type_label": event_type_label,
         "delivery_mode": delivery_mode,
         "include_status": include_status,
+        # Internal group columns exist in the file and must never reach a model
+        # field: their business meaning has never been established.
         "group_raw": None,
         "group_secondary_raw": None,
-        # Pricing exists in the file and must never reach a model field.
-        "member_price_raw": "100",
-        "member_price_eur": 100,
-        "nonmember_price_raw": "200",
-        "nonmember_price_eur": 200,
+        # The normalised price pair and the status are stored. The `*_raw`
+        # echoes, the later-price pair and the discount columns are not.
+        "member_price_raw": None if member_price_eur is None else str(member_price_eur),
+        "member_price_eur": member_price_eur,
+        "nonmember_price_raw": None if nonmember_price_eur is None else str(nonmember_price_eur),
+        "nonmember_price_eur": nonmember_price_eur,
         "later_member_price_raw": None,
         "later_member_price_eur": None,
         "later_nonmember_price_raw": None,
         "later_nonmember_price_eur": None,
-        "price_status": "parsed",
+        "price_status": price_status,
         "discount_code": None,
         "discount_raw": None,
-        "added_date": None,
-        "planning_lead_days": None,
+        "added_date": added_date,
+        "planning_lead_days": planning_lead_days,
         "public_url": public_url,
         "public_link_status": public_link_status,
         "source_year": source_year,

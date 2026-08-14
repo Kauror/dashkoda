@@ -183,11 +183,19 @@ def test_the_seeded_programme_covers_every_shape_the_page_has_to_render():
         EventStatus.UPCOMING,
         EventStatus.DATE_UNKNOWN,
     }
+    # All three stated modes **and** the blank one. A delivery mode the source
+    # never stated is `Määramata`, never `Kohapeal`, and the dashboard has to be
+    # able to show that on a real seeded row rather than only in a unit test.
     assert {item.delivery_mode for item in items} == {
         DeliveryMode.ONSITE,
         DeliveryMode.ONLINE,
         DeliveryMode.HYBRID,
+        "",
     }
+    assert {item.price_status for item in items} >= {"paid", "free", "missing", "tba"}
+    assert items.filter(planning_lead_days__gt=0).exists(), "a planned event"
+    assert items.filter(planning_lead_days__lt=0).exists(), "a retroactively entered event"
+    assert items.filter(added_date=None).exists(), "an event with no planning data"
     assert len({item.tag_key for item in items}) >= 3
     assert len({item.event_type_key for item in items}) >= 2
     assert items.filter(start_date=None).exists(), "an undated record"
@@ -253,7 +261,10 @@ def test_the_seeded_event_programme_workbook_satisfies_the_real_contract(tmp_pat
 
     assert len(parsed.rows) > 50
     assert parsed.dated_event_count == len(parsed.rows) - 1
-    assert parsed.linked_public_url_count == 1
+    # Several linked events now, because the cross-domain joins need them: GA4
+    # files traffic under a path, the shop files its event product under a path,
+    # and the programme's own `public_url` is what ties an event to both.
+    assert parsed.linked_public_url_count > 1
     assert parsed.review_required_count == 1
 
 

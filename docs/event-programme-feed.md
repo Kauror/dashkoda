@@ -82,19 +82,44 @@ operational workbook. They are provenance, not a date. Every period figure and
 every period filter uses `event_year`, `event_month_key`, `event_quarter` and
 `start_date`; `source_year` is never presented as when an event happened.
 
-### Prices and participant counts
+### Prices and planning dates are imported; participant counts are not
 
-**Pricing is not imported.** The workbook carries member, non-member and later
-prices, their parsed euro values, a discount code and a price status; the importer
-validates the columns so a generator change cannot pass unnoticed and then
-discards them. No model field, no migration and no interface element exists for
-any of them.
+**The normalised price pair, the price status, `added_date` and
+`planning_lead_days` are stored.** That reverses the first implementation, and
+the reversal was made against measurements of the real export rather than
+because the columns exist:
 
-**Participant and registration counts are not available.** No accepted
+| Column | Coverage in the real export | Why it is stored |
+| --- | --- | --- |
+| `price_status` | **100%** in every source year | makes "free" a stated fact instead of an absent price read as zero |
+| `member_price_eur` | 95.8% | the programme's own planned price |
+| `nonmember_price_eur` | 93.9% | the member/non-member price structure |
+| `added_date` | 99.4%, spread across every source year in proportion to that year's events | a real per-event date, not a backfill stamped on one day |
+| `planning_lead_days` | 96.7%, and equal to `start_date − added_date` on **every** row carrying both | the generator's own arithmetic, reproduced rather than replaced |
+
+Still discarded, and still verified in the header so a generator change cannot
+pass unnoticed: every `*_raw` echo column, `discount_code`, `discount_raw`,
+`group_raw`, `group_secondary_raw`, and the **later** price pair. The later
+prices reach only 3.4% coverage and nobody has documented what "later" means, so
+`docs` cannot say what a reader would be looking at.
+
+`price_status` carries six values today — `paid`, `free`, `mixed`, `tba`,
+`missing`, `review` — and its `choices` are display labels rather than a
+constraint, so a seventh the generator invents imports and renders as its own
+key. **The three unknown-ish states never collapse into `free`.** An event whose
+price nobody recorded is not a free event.
+
+A negative `planning_lead_days` is retained rather than clamped. 70 rows of the
+real export carry one, and the generator flags them itself with
+`negative_planning_lead`: an event entered into the programme after it ran is a
+fact about how the programme is maintained. The planning statistics exclude
+those rows and say how many they excluded.
+
+**Participant and attendance counts are still not available.** No accepted
 authoritative source provides them, and they are never inferred from "kohad
-täis", availability wording, a public registration page, an event status or
-capacity text. Both are deferred product decisions, not omissions to be worked
-around.
+täis", availability wording, a public registration page, an event status,
+capacity text, page views or Commerce registrations. Attendance is a deferred
+product decision, not an omission to be worked around.
 
 ## Where the workbook comes from
 
@@ -153,15 +178,42 @@ from the legal-work export:
 ### What DashKoda stores, and what it deliberately does not
 
 Stored: identity and service code, name, dates and the derived year, month and
-quarter, status, tag and event type, delivery mode, include status, public URL
+quarter, status, tag and event type, delivery mode, include status, the current
+price pair and price status, `added_date` and `planning_lead_days`, public URL
 and link status, the source provenance, and the quality flags.
 
-Deliberately absent, in the model as well as the interface: **all pricing**
-(member, non-member, later, and their parsed euro values), discount codes,
-`price_status`, every `*_raw` echo column, `added_date` and
-`planning_lead_days`. These are verified in the header — so a generator change
+Deliberately absent, in the model as well as the interface: every `*_raw` echo
+column, `discount_code`, `discount_raw`, `group_raw`, `group_secondary_raw` and
+the later price pair. These are verified in the header — so a generator change
 cannot pass unnoticed — and then discarded. They are not hidden columns; the
 fields do not exist, so they cannot leak.
+
+`group_raw` carries 19 distinct values on 1 127 rows and `group_secondary_raw`
+five on 493. They are internal team fields whose business meaning has never been
+established, and an internal grouping is not published to a dashboard because it
+happens to be present.
+
+### An occurrence is a source row, not a session
+
+`DASH_EVENT_OCCURRENCES` is validated for presence and **not** used as an
+analytics source, and that is a finding rather than a default. Its columns are
+`event_id`, `service_code`, `occurrence_number`, `is_canonical_occurrence`,
+`include_status`, the source provenance, the `*_raw` echoes and
+`difference_codes` — the shape of a **deduplication** record, not of a session.
+
+On the real export: 1 264 occurrence rows across 1 222 distinct service codes;
+1 180 codes appear once and 42 appear twice, and of those 42 only **four** carry
+differing date text. `SUM(source_occurrence_count)` is 1 232 against 1 190
+canonical events, and the 42-row difference is exactly
+`repeated_service_code_count`. The sheet also carries **no parsed dates at all**
+— only `date_text_raw`, the free text the generator could not always read.
+
+So an occurrence is a qualifying row in the Chamber's operational workbook, and
+a repeat is one event described twice. Counting occurrences would not measure
+"how many times an event ran"; it would measure how often somebody entered a row
+twice. The dashboard therefore reports **canonical programme events** and says
+so on the page. Importing the sheet would additionally persist exactly the raw
+source text this app has decided not to hold.
 
 ### Validation rules
 
@@ -235,6 +287,76 @@ than fail validation.
 
 ## How the dashboard reads it
 
+### The Sündmused dashboard
+
+`/sundmused/` is one route with six focus views, chosen by `?fookus=`. An
+unknown value falls back to `ulevaade` rather than producing an error page, and
+only the active focus is computed — a reader on the overview pays for neither
+the seasonality medians nor GA4.
+
+| `fookus` | Answers | Reads |
+| --- | --- | --- |
+| `ulevaade` | what the programme looks like right now | programme, GA4 |
+| `maht` | how much, and when | programme |
+| `formaadid` | what kinds of events, and how that shifted | programme |
+| `huvi` | which events the public looked at | programme, GA4, Commerce |
+| `planeerimine` | how far ahead events are arranged, and what they cost | programme |
+| `programm` | the exact register | programme, GA4, Commerce |
+
+The period control selects an **event cohort** — events whose own start date
+falls in the year — and never a measurement window. An event's page may have
+been viewed months before it ran and its registrations bought the previous
+December; those windows belong to the analyses that use them and are named
+there. One control that silently meant three periods at once is the confusion
+the page is built to avoid.
+
+Three modules own the analysis, all under `apps/event_programme/`:
+`analytics.py` (volume, mix, planning, price, all in PostgreSQL),
+`attention.py` (the GA4 windows) and `commerce.py` (the bounded shop bridge).
+`charts.py` shapes payloads for the shared `chart_figure` component and
+`intelligence.py` assembles one focus per request.
+
+#### The GA4 windows
+
+Three questions, never averaged into one:
+
+- **viimased 30 mõõdetud päeva** — what is being looked at now. Upcoming events
+  only;
+- **30 päeva enne sündmust** — `start_date − 29` to `start_date` inclusive, an
+  equal window per event, and the only fair way to compare two events months
+  apart. Computed **only** when GA4 covers the whole window; a partial window
+  yields no figure rather than a smaller one;
+- **mõõdetud kokku** — everything GA4 has for the page, which is not a lifetime
+  figure for a page that predates collection.
+
+An unmeasured page is `None`, never `0`, everywhere. Benchmarks compare an
+event against the median of its own type, falling back to every eligible event
+below eight comparable events, and the scope travels with the answer.
+
+#### The Commerce bridge
+
+`commerce.py` joins a programme event to `event_registration` products through
+the **canonical event-page path** — `ShopProductPage` with `page_role = event`,
+already canonicalised by the shop importer with the same `canonical_path` GA4
+uses. Nothing else is pulled in: no documents, no physical products, no
+membership, no payment-method analysis and no catalogue explorer. E-pood remains
+the authoritative dashboard for the store.
+
+Cardinality is reported rather than assumed. Several products on one event page
+are summed, because picking one would drop registrations that happened. Two
+programme events sharing one page are both shown and both flagged, because the
+page's total belongs to neither exclusively.
+
+**On the Chamber's current export there are zero event-registration products** —
+155 documents and four physical goods — so the whole registration surface is
+absent rather than showing zeros, and the register offers no registration
+column or sort. A unit is a quantity on a completed Commerce order line and is
+never called `Osalejad`; `ordered_value_net` is ordered value excluding VAT and
+is never called revenue. The member/non-member split stays hidden until
+`ShopSourceState.member_semantics_verified` is true, which it is not.
+
+### Selectors
+
 `apps/event_programme/selectors.py` is the only read path. It reads PostgreSQL and
 the **current** snapshot, and it never consults `apps.events`.
 
@@ -274,7 +396,14 @@ snapshot before they reach a query:
 | `status` | `past`, `ongoing`, `upcoming`, `date_unknown` | `event_status` |
 | `public_link` | `all`, `linked`, `unlinked` | whether `public_url` is set |
 | `review` | `all`, `required`, `clear` | `review_required` |
+| `sort` | `date`, `views`, `registrations` | ordering, applied to the whole filtered population |
+| `fookus` | a focus name | which analytical view is shown |
 | `page` | a page number | server-side pagination, 50 rows |
+
+`event_type` and `delivery_mode` are read again. The selector always honoured
+them; what they lacked was a control on screen, and a filter switchable from a
+query string with nowhere to say it is on shrinks the table for no visible
+reason. Both now sit under `Täpsem valik` and are counted in its badge.
 
 Nothing is hard-coded: a year, tag, type, quarter, month or delivery mode is
 offered because the snapshot contains it, so a vocabulary the Chamber grows in
@@ -291,7 +420,17 @@ a stable tie-break on event name and service code — so two events on one day n
 swap places between requests or between pages. Pagination links, the clear-filters
 action and the data-quality links are rebuilt from the validated filter state, so
 a link carries exactly the filters that were applied and a bogus parameter cannot
-travel from page to page.
+travel from page to page. Every link the register emits carries `fookus=programm`,
+so a pagination click or a sort chip cannot drop the reader on the overview with
+filters applied and nothing on screen saying so.
+
+`Enim vaadatud` and `Enim registreerimisühikuid` rank the **whole filtered
+population** before the page slice — ranking a page of results would rank
+whichever fifty rows happened to be on it. Both keep unmeasured rows behind
+measured ones in their original chronological order rather than sorting them as
+though they had scored nothing: an event with no measurement and an event
+measured at zero are different facts. The registration ordering is offered only
+when the Commerce export carries event-registration products at all.
 
 ### Read-only admin
 

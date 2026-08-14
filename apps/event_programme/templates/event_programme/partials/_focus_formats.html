@@ -1,0 +1,80 @@
+{% comment %}
+Formaadid ja teemad — what kinds of events does the Chamber run?
+
+Types and themes come from the hand-maintained classification in the Chamber's
+own workbook, not from anything this application inferred from a title. That is
+the reason they are worth ranking: somebody who knew what the event was decided
+what it was. No keyword matching and no classifier lives anywhere in this app.
+
+Every distribution here is mutually exclusive — one event carries exactly one
+type, one theme and one delivery mode — so the shares sum to the population and
+`Muu` is the genuine remainder rather than a bucket for things that were
+dropped.
+
+Context:
+  view – a FormatsView
+  page – the IntelligencePage it belongs to
+{% endcomment %}
+
+<section aria-labelledby="section-state" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Programmi seis" heading_id="section-state" description="Tuletatud sündmuste kuupäevadest ja tänasest päevast, mitte impordi hetkel arvutatud seisundist." only %}
+  <div class="dk-section-body">
+    <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      <div>
+        <dt class="dk-meta">Toimunud</dt>
+        <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ view.state.past }}</dd>
+      </div>
+      <div>
+        <dt class="dk-meta">Käib</dt>
+        <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ view.state.ongoing }}</dd>
+      </div>
+      <div>
+        <dt class="dk-meta">Tulemas</dt>
+        <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ view.state.upcoming }}</dd>
+      </div>
+      <div>
+        <dt class="dk-meta">Kuupäev teadmata</dt>
+        <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ view.state.date_unknown }}</dd>
+      </div>
+    </dl>
+  </div>
+</section>
+
+<div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+  <section aria-labelledby="section-types" class="dk-section">
+    <h2 id="section-types" class="sr-only">Sündmused tüübi järgi</h2>
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=view.type_chart only %}
+    </div>
+  </section>
+
+  <section aria-labelledby="section-tags" class="dk-section">
+    <h2 id="section-tags" class="sr-only">Teemad</h2>
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=view.tag_chart only %}
+    </div>
+  </section>
+</div>
+
+<section aria-labelledby="section-delivery" class="dk-section">
+  <h2 id="section-delivery" class="sr-only">Toimumisviis</h2>
+  <div class="dk-section-body">
+    {% include "dashboard/components/chart_figure.html" with chart=view.delivery_chart only %}
+  </div>
+</section>
+
+<section aria-labelledby="section-delivery-time" class="dk-section">
+  <h2 id="section-delivery-time" class="sr-only">Toimumisviisi muutus</h2>
+  <div class="dk-section-body">
+    {% include "dashboard/components/chart_figure.html" with chart=view.delivery_over_time only %}
+  </div>
+</section>
+
+{% if view.tag_over_time %}
+  <section aria-labelledby="section-tags-time" class="dk-section">
+    <h2 id="section-tags-time" class="sr-only">Teemade muutus</h2>
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=view.tag_over_time only %}
+    </div>
+  </section>
+{% endif %}

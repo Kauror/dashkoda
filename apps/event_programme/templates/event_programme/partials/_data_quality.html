@@ -1,0 +1,136 @@
+{% comment %}
+Andmete kohta — provenance, coverage and limits.
+
+Present on every focus and folded away by default. A dashboard should not open
+with pipeline diagnostics, and it should never hide them either: every
+denominator any figure on this page divides by is written out here, so a reader
+who wants to check a share against its population can.
+
+The public Koda.ee calendar lives here as the secondary connection it is. It
+answers "what did we announce publicly", the programme answers "what did the
+Chamber run", and the difference between their counts is **not** a count of
+unpublished events — the two sources have different coverage and different
+timing. Event-level publication coverage is the matched-public-link figure
+above it, which is a real per-event fact.
+
+Context:
+  quality               – a DataCoverage
+  public_calendar       – the public feed's summary
+  public_upcoming_count – its own upcoming count, or None
+{% endcomment %}
+
+<section aria-labelledby="section-quality" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Andmete kohta" heading_id="section-quality" description="Allikas, katvus ja see, mida need andmed ei tõesta." only %}
+  <div class="dk-section-body">
+    <details class="text-sm">
+      <summary class="cursor-pointer text-text-secondary">
+        {% if not quality.export_refreshed_at %}
+          Sündmuseprogrammi ei ole veel imporditud
+        {% elif quality.review_required %}
+          {{ quality.review_required }} sündmust vajavad ülevaatust
+        {% else %}
+          Andmed korras
+        {% endif %}
+        {% if quality.export_refreshed_at %}· allikas seisuga {{ quality.export_refreshed_at|date:"j.m.Y" }}{% endif %}
+      </summary>
+
+      <div class="mt-4 flex flex-col gap-5">
+
+        {% if quality.export_refreshed_at %}
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-medium text-text">Programmi eksport</h3>
+          <dl class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div><dt class="dk-meta">Skeemi versioon</dt><dd class="tabular-nums text-text-secondary">{{ quality.schema_version }}</dd></div>
+            <div><dt class="dk-meta">Generaatori versioon</dt><dd class="tabular-nums text-text-secondary">{{ quality.generator_version }}</dd></div>
+            <div><dt class="dk-meta">Sündmusi kokku</dt><dd class="tabular-nums text-text-secondary">{{ quality.canonical_events }}</dd></div>
+            <div><dt class="dk-meta">Kuupäevaga</dt><dd class="tabular-nums text-text-secondary">{{ quality.dated_events }}</dd></div>
+            <div><dt class="dk-meta">Kuupäev teadmata</dt><dd class="tabular-nums text-text-secondary">{{ quality.undated_events }}</dd></div>
+            <div><dt class="dk-meta">Korduvaid teenusekoode</dt><dd class="tabular-nums text-text-secondary">{{ quality.repeated_service_codes }}</dd></div>
+            <div><dt class="dk-meta">Välja jäetud ridu</dt><dd class="tabular-nums text-text-secondary">{{ quality.excluded_rows }}</dd></div>
+            <div><dt class="dk-meta">Hoiatusi</dt><dd class="tabular-nums text-text-secondary">{{ quality.warnings }}</dd></div>
+            <div><dt class="dk-meta">Ülevaatust vajavaid</dt><dd class="tabular-nums text-text-secondary">{{ quality.review_required }}</dd></div>
+          </dl>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-medium text-text">Katvus</h3>
+          <dl class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
+            <div><dt class="dk-meta">Tüüp määratud</dt><dd class="tabular-nums text-text-secondary">{{ quality.type_coverage }} / {{ quality.canonical_events }}</dd></div>
+            <div><dt class="dk-meta">Teema määratud</dt><dd class="tabular-nums text-text-secondary">{{ quality.tag_coverage }} / {{ quality.canonical_events }}</dd></div>
+            <div><dt class="dk-meta">Toimumisviis määratud</dt><dd class="tabular-nums text-text-secondary">{{ quality.delivery_coverage }} / {{ quality.canonical_events }}</dd></div>
+            <div><dt class="dk-meta">Hinnaolek olemas</dt><dd class="tabular-nums text-text-secondary">{{ quality.price_coverage }} / {{ quality.canonical_events }}</dd></div>
+            <div><dt class="dk-meta">Planeerimisvaru olemas</dt><dd class="tabular-nums text-text-secondary">{{ quality.planning_coverage }} / {{ quality.canonical_events }}</dd></div>
+            <div><dt class="dk-meta">Tagantjärele lisatud</dt><dd class="tabular-nums text-text-secondary">{{ quality.retroactive_planning }}</dd></div>
+            <div><dt class="dk-meta">Töövihiku lingiga</dt><dd class="tabular-nums text-text-secondary">{{ quality.workbook_links }}</dd></div>
+            <div><dt class="dk-meta">Avaliku lehega kokku</dt><dd class="tabular-nums text-text-secondary">{{ quality.effective_links }} / {{ quality.canonical_events }}</dd></div>
+          </dl>
+          {% if quality.ga4_start %}
+            <p class="dk-meta">Google Analytics mõõdab {{ quality.ga4_start|date:"j.m.Y" }}–{{ quality.ga4_end|date:"j.m.Y" }}.</p>
+          {% endif %}
+        </div>
+
+        {% if quality.commerce %}
+          <div class="flex flex-col gap-2">
+            <h3 class="text-sm font-medium text-text">E-poe ühendus</h3>
+            <dl class="grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-3 lg:grid-cols-4">
+              <div><dt class="dk-meta">Registreerimistooteid</dt><dd class="tabular-nums text-text-secondary">{{ quality.commerce.registration_products }}</dd></div>
+              <div><dt class="dk-meta">Commerce'i sündmuselehti</dt><dd class="tabular-nums text-text-secondary">{{ quality.commerce.commerce_event_paths }}</dd></div>
+              <div><dt class="dk-meta">Kattuvaid lehti</dt><dd class="tabular-nums text-text-secondary">{{ quality.commerce.matched_paths }}</dd></div>
+              <div><dt class="dk-meta">Sündmusi vastega</dt><dd class="tabular-nums text-text-secondary">{{ quality.commerce.matched_events }} / {{ quality.commerce.programme_events }}</dd></div>
+              <div><dt class="dk-meta">Lehti ühe tootega</dt><dd class="tabular-nums text-text-secondary">{{ quality.commerce.paths_with_one_product }}</dd></div>
+              <div><dt class="dk-meta">Lehti mitme tootega</dt><dd class="tabular-nums text-text-secondary">{{ quality.commerce.paths_with_many_products }}</dd></div>
+              <div><dt class="dk-meta">Commerce'i lehti ilma sündmuseta</dt><dd class="tabular-nums text-text-secondary">{{ quality.commerce.commerce_paths_without_event }}</dd></div>
+              <div><dt class="dk-meta">Liikmestaatuse tähendus kinnitatud</dt><dd class="text-text-secondary">{% if quality.commerce.member_semantics_verified %}Jah{% else %}Ei{% endif %}</dd></div>
+            </dl>
+            {% if not quality.commerce.member_semantics_verified %}
+              <p class="dk-meta">
+                Liikme ja mitteliikme jaotust ei näidata: ei ole kinnitatud, et Commerce'i tellimus
+                salvestab liikmestaatuse tehingu hetkel, mitte praeguse seisuga. Kinnitamata
+                semantikaga jaotus oleks ajaloo osas vaikselt vale.
+              </p>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        {% endif %}
+
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-medium text-text">Mida need andmed ei tõesta</h3>
+          <p class="text-sm text-text-secondary">
+            Ükski allikas ei ütle, kui palju inimesi sündmusel osales. Seetõttu ei ole sellel lehel
+            osalejate arvu, kohalkäijaid, kohtade täitumust, vabu kohti, no-show määra ega
+            rahulolu — ja neid ei tuletata ka registreerimistest ega lehevaatamistest.
+            Lehevaatamised on vaatamised, mitte inimesed: sama lugeja kaks korda on kaks vaatamist,
+            ja unikaalseid külastajaid nende arvude põhjal kokku liita ei saa.
+          </p>
+          <p class="text-sm text-text-secondary">
+            Üks kirje on üks <strong>programmi sündmus</strong> — üks teenusekood. Töövihiku
+            toimumiskorrad on sama sündmuse korduvad lähteread, mitte eraldi sessioonid, ja neid ei
+            kasutata siin mahu mõõtmiseks.
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-medium text-text">Koda.ee avalik kalender</h3>
+          <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {% include "dashboard/components/status_badge.html" with label=public_calendar.state_label variant=public_calendar.state_variant only %}
+            {% if public_upcoming_count is not None %}
+              <p class="text-sm text-text-secondary tabular-nums">
+                Avalikus kalendris eelseisvaid sündmusi lähikuul: <span class="font-semibold text-text">{{ public_upcoming_count }}</span>
+              </p>
+            {% else %}
+              <p class="text-sm text-text-secondary">Avalikku kalendrit ei ole veel edukalt kogutud.</p>
+            {% endif %}
+          </div>
+          <p class="dk-meta">
+            Teisene ühendus. Programm on autoriteetne allikas; avalik kalender ei anna sellele lehele
+            ühtegi arvu, kuupäeva ega sündmust. Nende kahe vahe ei ole avaldamata sündmuste arv —
+            allikate katvus ja ajastus on erinevad. Sündmusepõhine avaldatus on ülal
+            „Avaliku lehega kokku“.
+          </p>
+        </div>
+
+      </div>
+    </details>
+  </div>
+</section>
