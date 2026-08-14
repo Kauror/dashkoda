@@ -10,6 +10,7 @@ import pytest
 from django.urls import reverse
 
 from apps.access.middleware import CSP
+from apps.core.formatting import GROUP_SEPARATOR
 from apps.membership.bootstrap import ensure_membership_source
 from apps.membership.models import MembershipCountObservation, MembershipMetricConflict
 from apps.sources.services import build_import_run, register_external_reference
@@ -74,8 +75,11 @@ def test_internal_section_shows_after_import(viewer_client, public_observation, 
     body = _page(viewer_client)
 
     assert "Sisemine liikmeskonna aruanne" in body
-    assert "15.01.25" in body
-    assert "3300" in body
+    # The headline strip states the source's own date in full and groups the
+    # thousand, which the raw model value did not. Both are the design system's
+    # formatters rather than this page's choice.
+    assert "15.01.2025" in body
+    assert f"3{GROUP_SEPARATOR}300" in body
 
 
 def test_the_page_never_claims_the_definitions_match(
@@ -133,7 +137,8 @@ def test_every_chart_has_a_table_alternative(viewer_client, imported_package):
 
 
 def test_monthly_chart_omits_a_conflict_instead_of_charting_zero(viewer_client, imported_package):
-    body = _page(viewer_client)
+    # Recruitment lives under `fookus=kasv`; the overview draws the stock trend.
+    body = viewer_client.get(reverse("membership"), {"fookus": "kasv"}).content.decode()
     match = re.search(
         r'<script id="internal-membership-monthly" type="application/json">(.*?)</script>',
         body,

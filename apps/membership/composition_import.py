@@ -479,6 +479,16 @@ def import_composition_snapshot(
 
         with transaction.atomic():
             retiring = _retire_current(source, supersede_previous=supersede_previous)
+            # Stand the previous reading down *before* the new one is written.
+            # `one_current_per_source` is a partial unique constraint, so it
+            # fires the moment a second current row exists — creating first and
+            # retiring afterwards violates it inside the same statement, which
+            # is exactly what happened the first time this ran against
+            # PostgreSQL.
+            for previous in retiring:
+                previous.is_current = False
+                previous.save(update_fields=["is_current"])
+
             snapshot = MembershipCompositionSnapshot.objects.create(
                 source=source,
                 import_run=run,
@@ -502,10 +512,10 @@ def import_composition_snapshot(
                 },
                 is_current=True,
             )
+            # The pointer to the replacement can only be set once it exists.
             for previous in retiring:
-                previous.is_current = False
                 previous.superseded_by = snapshot
-                previous.save(update_fields=["is_current", "superseded_by"])
+                previous.save(update_fields=["superseded_by"])
 
             written = _write_values(snapshot, tally)
 

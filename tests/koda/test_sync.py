@@ -166,6 +166,14 @@ def test_membership_stores_no_member_rows():
     model_names = {model.__name__ for model in models}
 
     assert model_names == {
+        # Aggregate composition of the member roster. The roster itself carries
+        # a company name, a registry code, an address, a director and two
+        # contact addresses; neither model below has a field capable of holding
+        # any of them. A composition value is a vocabulary key, a vocabulary
+        # label and an integer, and the snapshot beside it holds a date, a
+        # checksum, a row count and coverage percentages.
+        "MembershipCompositionSnapshot",
+        "MembershipCompositionValue",
         # The public Koda.ee member directory.
         "MembershipCountObservation",
         "MembershipFeedState",

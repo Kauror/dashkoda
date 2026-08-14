@@ -93,6 +93,22 @@ by a rule written for this one.
     </nav>
   {% endif %}
 
+  {# ---------------- 2b. Nothing imported yet ---------------- #}
+  {% comment %}
+  The whole page is the internal board report, so when none has been imported
+  there is nothing to focus, compare or reconcile. It says so plainly instead of
+  drawing an empty frame, and the `sr-only` heading keeps naming the section for
+  a screen reader whether or not a figure follows it.
+  {% endcomment %}
+  {% if not internal_latest %}
+    <section aria-labelledby="section-internal" class="dk-section">
+      <h2 id="section-internal" class="sr-only">Sisemine liikmeskonna aruanne</h2>
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Sisemist liikmeskonna aruannet ei ole veel imporditud." detail="Ajalugu lisatakse ühekordse impordiga ja uued aruanded sisestatakse käsitsi." only %}
+      </div>
+    </section>
+  {% endif %}
+
   {# ---------------- 3. The four headline answers ---------------- #}
   {% comment %}
   Four figures replaced nine equally weighted ones. Nine cards asked the reader
@@ -109,7 +125,13 @@ by a rule written for this one.
   {% endcomment %}
   {% if headlines %}
     <section aria-labelledby="section-headlines" class="dk-section">
-      <h2 id="section-headlines" class="sr-only">Peamised näitajad</h2>
+      {% comment %}
+      Two names, because they answer to different readers. The visible landmark
+      is `Peamised näitajad`, which is what these four figures are; the second
+      line says which source they come from, and it is the sentence that keeps
+      this page's total from being read as the public catalogue's.
+      {% endcomment %}
+      <h2 id="section-headlines" class="sr-only">Peamised näitajad · Sisemine liikmeskonna aruanne</h2>
       <dl class="dk-kpi-strip">
         {% for headline in headlines %}
           <div class="flex flex-col gap-1 px-4 py-4 sm:px-5">
