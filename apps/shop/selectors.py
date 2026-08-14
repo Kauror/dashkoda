@@ -618,6 +618,80 @@ class CategoryRow:
         return acquisitions_per_hundred(self.conversion_units, self.product_page_views)
 
 
+@dataclass(frozen=True)
+class TopProduct:
+    """One product and what it acquired, for a caller that wants only the top few.
+
+    Deliberately thinner than `ProductRow`: no web figures, no conversion rate,
+    no category. The overview's E-pood panel names the leading product and says
+    how many units it moved, and every other field on `ProductRow` costs a query
+    that panel would not read.
+    """
+
+    source_product_id: int
+    title: str
+    product_type: str
+    units: Decimal = ZERO
+
+    @property
+    def product_type_label(self) -> str:
+        return ProductType(self.product_type).label
+
+
+def get_top_products(window: ComparisonWindow, *, limit: int = 5, **filters):
+    """The most-acquired products of a window, ranked and sliced in PostgreSQL.
+
+    `build_product_rows` returns the whole population on purpose — search and
+    sorting run across all of it — but a caller that wants three rows should not
+    pay for twelve hundred. This orders and limits in the database, then names
+    the survivors from `latest_snapshots`, so the cost is two queries whatever
+    the catalogue holds.
+
+    Ordering breaks ties on `source_product_id` so the ranking is stable between
+    requests; two products on equal units would otherwise swap places between
+    page loads.
+    """
+    if not window.has_commerce:
+        return ()
+
+    ranked = list(
+        _facts_in_window(window, **filters)
+        .values("product_id")
+        .annotate(units=Sum("units"))
+        .filter(units__gt=0)
+        .order_by("-units", "product_id")[:limit]
+    )
+    if not ranked:
+        return ()
+
+    product_pks = [row["product_id"] for row in ranked]
+    # `select_related`, because the type and the source id live on the product
+    # and a per-row lazy load would be an N+1 over the slice.
+    named = {
+        snapshot.product_id: snapshot
+        for snapshot in latest_snapshots()
+        .filter(product_id__in=product_pks)
+        .select_related("product")
+    }
+    rows = []
+    for row in ranked:
+        snapshot = named.get(row["product_id"])
+        if snapshot is None:
+            # A fact whose product has no current snapshot cannot be named, and
+            # a row titled with a database id is not a product anybody
+            # recognises. Skipped rather than shown nameless.
+            continue
+        rows.append(
+            TopProduct(
+                source_product_id=snapshot.product.source_product_id,
+                title=snapshot.title,
+                product_type=snapshot.product.product_type,
+                units=row["units"] or ZERO,
+            )
+        )
+    return tuple(rows)
+
+
 def _measures(rows) -> dict[int, dict]:
     """Aggregate a fact queryset by product pk. One grouped query."""
     return {
