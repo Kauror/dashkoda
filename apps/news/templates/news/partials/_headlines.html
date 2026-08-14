@@ -1,0 +1,55 @@
+{% comment %}
+The page's primary measures, as a divided strip rather than a row of cards.
+
+The strip's own hairlines separate one figure from the next, so no cell needs a
+border, a background or the padding to clear one — which is what keeps four
+figures inside one screen height on a phone.
+
+**A measure with no value is not in `page.headlines` at all.** The builder omits
+it rather than passing an empty one, so this template never has to decide what a
+missing measure looks like: three honest figures render as three, and the grid
+closes up behind the fourth.
+
+Every string arrives formatted. The direction is carried as a glyph and as
+`change_label` for a screen reader as well as by colour, because a change
+distinguished only by hue does not exist for a reader who cannot separate hues.
+
+Context: headlines
+{% endcomment %}
+
+<div class="dk-kpi-strip">
+  {% for headline in headlines %}
+    <div class="flex flex-col gap-1.5 px-4 py-4 sm:px-5">
+      <h3 class="text-sm font-medium text-text-secondary">{{ headline.label }}</h3>
+
+      <p class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ headline.value }}</p>
+
+      {% if headline.has_change %}
+        <p class="dk-meta tabular-nums{% if headline.direction == 'up' %} text-success{% elif headline.direction == 'down' %} text-danger{% endif %}">
+          {% if headline.direction == "up" %}↑{% elif headline.direction == "down" %}↓{% else %}→{% endif %}
+          {{ headline.change }}<span class="sr-only"> ({{ headline.change_label }})</span>
+        </p>
+      {% elif headline.note %}
+        <p class="dk-meta">{{ headline.note }}</p>
+      {% endif %}
+
+      {% comment %}
+      What the figure is of: the population, the window, the denominator. This is
+      the line that stops a number being a number without a question.
+      {% endcomment %}
+      {% if headline.detail %}
+        <p class="dk-meta">{{ headline.detail }}</p>
+      {% endif %}
+
+      {% if headline.parts %}
+        <p class="dk-meta tabular-nums">
+          {% for part in headline.parts %}{{ part }}{% if not forloop.last %} · {% endif %}{% endfor %}
+        </p>
+      {% endif %}
+
+      {% if headline.has_change and headline.note %}
+        <p class="dk-meta">{{ headline.note }}</p>
+      {% endif %}
+    </div>
+  {% endfor %}
+</div>
