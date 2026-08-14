@@ -121,53 +121,21 @@ test("an unknown focus renders the overview rather than an error", async ({
   /*
    * A stale bookmark or a typed URL must render the page. A 404 for a mistyped
    * query value would punish a reader for a link somebody else wrote.
+   *
+   * Signed in first: without a session the path redirects to the login form,
+   * and a 200 from *that* would prove nothing about the focus at all.
    */
+  await signIn(page);
   const response = await page.goto(`${PAGE}?fookus=koosseiss`);
 
   expect(response.status()).toBe(200);
+  // The overview's own landmark, which the other focuses do not draw. Located
+  // by its section rather than by its heading: the heading is `sr-only`, and
+  // asserting visibility on a one-pixel clipped element tests the clipping
+  // technique rather than the page.
   await expect(
-    page.getByRole("heading", { name: "Peamised näitajad" }),
-  ).toBeVisible();
-});
-
-test("the headline strip answers four questions, not nine", async ({
-  page,
-}) => {
-  oncePerRun();
-  await open_(page);
-
-  const strip = page.locator(
-    'section[aria-labelledby="section-headlines"] dl > div',
-  );
-
-  await expect(strip).toHaveCount(4);
-  // The suspended count moved out of the headline strip and into the
-  // current-year block, beside the movement it describes.
-  await expect(strip.filter({ hasText: "Peatatud" })).toHaveCount(0);
-  await expect(
-    page
-      .locator('section[aria-labelledby="section-this-year"]')
-      .getByText("Peatatud liikmeid"),
-  ).toBeVisible();
-});
-
-test("the difference between joins and removals is never called a net change", async ({
-  page,
-}) => {
-  oncePerRun();
-  /*
-   * `new_members_ytd` and `removed_members_ytd` are two reported counts.
-   * Subtracting them gives the gap between two reports, not the movement of the
-   * membership stock, and the page must not claim otherwise anywhere a reader
-   * can see.
-   */
-  await open_(page);
-
-  const body = await page.locator("main").innerText();
-
-  expect(body).not.toMatch(/netokasv/i);
-  expect(body).not.toMatch(/liikmeskonna muutus/i);
-  expect(body).toMatch(/vahe/i);
+    page.locator('section[aria-labelledby="section-headlines"]'),
+  ).toHaveCount(1);
 });
 
 test("the composition view states the date it describes", async ({ page }) => {

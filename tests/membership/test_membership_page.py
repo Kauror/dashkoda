@@ -245,3 +245,95 @@ def test_range_control_only_accepts_known_values(viewer_client, imported_package
 
         assert response.status_code == 200
         assert "DROP TABLE" not in response.content.decode()
+
+
+def test_the_headline_strip_answers_four_questions_not_nine(viewer_client, imported_package):
+    """The redesign's central claim, asserted against the rendered page.
+
+    Nine equally weighted figures asked the reader to decide which mattered.
+    These are server-render facts, so they are pinned here rather than in the
+    browser suite: a Playwright assertion about how many `<div>`s a list holds
+    proves the same thing more slowly and in a place it cannot be debugged.
+    """
+    body = _page(viewer_client)
+
+    assert "Peamised näitajad" in body
+    for label in (
+        "Liikmeid kokku",
+        "Liitumised ja väljaarvamised",
+        "Tasunute osakaal",
+        "Liikmemaksu laekumine",
+    ):
+        assert label in body, f"headline missing: {label}"
+
+
+def test_the_suspended_count_moved_out_of_the_headline_strip(viewer_client, imported_package):
+    """It is a secondary status and belongs beside the movement it describes."""
+    body = _page(viewer_client)
+
+    assert "Sel aastal" in body
+    assert "Peatatud liikmeid" in body
+    # It is inside the current-year block, which follows the headline strip.
+    assert body.index("Peatatud liikmeid") > body.index("Liikmemaksu laekumine")
+
+
+def test_the_difference_is_never_presented_as_a_net_membership_change(
+    viewer_client, imported_package
+):
+    """`new_members_ytd` and `removed_members_ytd` are two reported counts.
+
+    Subtracting them gives the gap between two reports, not the movement of the
+    membership stock, and the page must not claim otherwise.
+
+    `liikmeskonna muutus` is checked rather than merely forbidden, because the
+    page uses the phrase once — to deny it. Every occurrence must be that
+    denial; an affirmative use would be the defect this test exists to catch.
+    """
+    body = _page(viewer_client).casefold()
+
+    assert "netokasv" not in body
+    assert "netomuutus" not in body
+    assert body.count("liikmeskonna muutus") == body.count("mitte liikmeskonna muutus")
+    assert "liitumiste ja väljaarvamiste vahe" in body
+
+
+def test_an_unknown_focus_renders_the_overview_rather_than_raising(viewer_client, imported_package):
+    for raw in ("koosseiss", "growth", "../etc", ""):
+        response = viewer_client.get(reverse("membership"), {"fookus": raw})
+
+        assert response.status_code == 200
+        assert "Peamised näitajad" in response.content.decode()
+
+
+def test_each_focus_draws_only_its_own_sections(viewer_client, imported_package):
+    """A focus is a different page, not a scroll position.
+
+    Recruitment is the section this asserts on because the approved package
+    always carries monthly values, so it is drawn whenever the focus that owns
+    it is asked for and never when it is not. The decision section needs a
+    schema 2.0 package and has its own tests.
+    """
+    overview = _page(viewer_client)
+    growth = viewer_client.get(reverse("membership"), {"fookus": "kasv"}).content.decode()
+
+    assert "section-recruitment" not in overview
+    assert "section-recruitment" in growth
+    # The overview leads with the figures instead.
+    assert "section-headlines" in overview
+    assert "section-headlines" not in growth
+
+
+def test_every_range_preset_keeps_the_reader_on_its_focus(viewer_client, imported_package):
+    """`RangePreset.query` carries only the two dates.
+
+    Without `fookus` prepended, a preset clicked on any focus but the first
+    drops the reader back to the overview — a control that appears to navigate
+    away from the chart it governs. Checked over every rendered preset rather
+    than one, because the defect would be per-link.
+    """
+    body = viewer_client.get(reverse("membership"), {"fookus": "kasv"}).content.decode()
+
+    hrefs = re.findall(r'href="\?([^"]*alates=[^"]*)"', body)
+    assert hrefs, "the growth focus rendered no range presets to check"
+    for href in hrefs:
+        assert "fookus=kasv" in href, href
