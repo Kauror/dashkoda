@@ -91,14 +91,13 @@ dashboard overview. They stay on the default focus and keep their ids;
         <dl class="dk-kpi-strip">
           {% for headline in page.headlines %}
             {% comment %}
-            `relative` is load-bearing. The screen-reader note below is
-            absolutely positioned, and `dk-kpi-strip` is a static
-            `overflow-hidden` grid — so without a positioned ancestor the note's
-            containing block is the page, nothing clips it, and it settles
-            wherever its untruncated text ends, dragging the document sideways
-            with it. Positioning the cell makes the cell its containing block.
+            The screen-reader note below is absolutely positioned and needs a
+            positioned ancestor, or it escapes the strip's `overflow-hidden` and
+            drags the document sideways. The design system now guarantees one —
+            `.dk-kpi-strip > *` is `relative` — so this cell no longer carries
+            its own. See `frontend/src/styles.css`.
             {% endcomment %}
-            <div class="relative flex flex-col gap-1 px-4 py-3 sm:px-5">
+            <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
               <dt class="text-sm text-text-secondary">{{ headline.label }}</dt>
               <dd class="flex flex-wrap items-baseline gap-x-2">
                 <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ headline.value }}</span>
