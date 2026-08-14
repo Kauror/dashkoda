@@ -351,6 +351,160 @@ dashboard overview. They stay on the default focus and keep their ids;
     </section>
   {% endif %}
 
+  {# ---------------- Register explorer ---------------- #}
+  {% comment %}
+  The whole current snapshot, narrowed by the facets a lawyer actually uses.
+
+  An applied filter is never invisible. The advanced disclosure states how many
+  are active even while collapsed, and every active one is drawn as a chip that
+  removes it — a narrowed register that looks unnarrowed is worse than no filter
+  at all, because the reader concludes the Chamber has eleven records.
+
+  Every control is a plain link or a `<select>` inside a GET form, so the whole
+  surface works with no JavaScript. htmx only makes the term filter rows as
+  somebody types.
+  {% endcomment %}
+  {% if register %}
+    <section aria-labelledby="section-register" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Register" heading_id="section-register" only %}
+      <div class="dk-section-body flex min-w-0 flex-col gap-3 py-3 sm:py-4">
+
+        <form method="get" action="#section-register" class="flex min-w-0 flex-col gap-3">
+          <input type="hidden" name="fookus" value="register">
+
+          <div class="flex min-w-0 flex-wrap items-center gap-2">
+            <label for="otsing" class="sr-only">Otsi õigusloome registrist</label>
+            <input type="search"
+                   id="otsing"
+                   name="otsing"
+                   value="{{ register.state.query }}"
+                   maxlength="120"
+                   placeholder="Teema, number, saaja, seis…"
+                   autocomplete="off"
+                   class="dk-input w-full min-w-0 sm:w-72"
+                   hx-get="{% url 'legal-work-search' %}"
+                   hx-trigger="input changed delay:250ms, search"
+                   hx-target="#legal-register-results"
+                   hx-swap="innerHTML"
+                   hx-include="closest form"
+                   hx-sync="this:replace"
+                   hx-indicator="#legal-register-searching">
+
+            <label for="register-seis" class="sr-only">Olek</label>
+            <select id="register-seis" name="seis" class="dk-input">
+              {% for option in register.status_options %}
+                <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+
+            <label for="register-aasta" class="sr-only">Aasta</label>
+            <select id="register-aasta" name="aasta" class="dk-input">
+              <option value="">Kõik aastad</option>
+              {% for option in register.year_options %}
+                <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+              {% endfor %}
+            </select>
+
+            <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+            {% if register.state.query or register.state.has_filters %}
+              <a class="dk-link text-sm" href="?fookus=register">Tühjenda</a>
+            {% endif %}
+            <p id="legal-register-searching" class="dk-indicator dk-meta self-center" aria-hidden="true">Otsin…</p>
+          </div>
+
+          {% comment %}
+          Secondary filters, collapsed by default but never silently. The
+          summary carries the active count, so a reader who has narrowed the
+          register and scrolled away still sees that they did.
+          {% endcomment %}
+          <details class="text-sm" {% if register.state.has_filters %}open{% endif %}>
+            <summary class="cursor-pointer text-text-secondary">
+              Täpsem valik{% if register.state.has_filters %} · {{ register.state.active_filter_count }} aktiivset filtrit{% endif %}
+            </summary>
+            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div class="flex min-w-0 flex-col gap-1">
+                <label for="register-etapp" class="dk-meta">Hetkeseis</label>
+                <select id="register-etapp" name="etapp" class="dk-input">
+                  <option value="">Kõik</option>
+                  {% for option in register.stage_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex min-w-0 flex-col gap-1">
+                <label for="register-saaja" class="dk-meta">Saaja</label>
+                <select id="register-saaja" name="saaja" class="dk-input">
+                  <option value="">Kõik</option>
+                  {% for option in register.recipient_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex min-w-0 flex-col gap-1">
+                <label for="register-liik" class="dk-meta">Õigusakti liik</label>
+                <select id="register-liik" name="liik" class="dk-input">
+                  <option value="">Kõik</option>
+                  {% for option in register.act_type_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex min-w-0 flex-col gap-1">
+                <label for="register-tahtaeg" class="dk-meta">Tähtaeg</label>
+                <select id="register-tahtaeg" name="tahtaeg" class="dk-input">
+                  {% for option in register.deadline_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+              <div class="flex min-w-0 flex-col gap-1 sm:col-span-2">
+                <label for="register-tagasiside" class="dk-meta">Liikmete tagasiside</label>
+                <select id="register-tagasiside" name="tagasiside" class="dk-input">
+                  {% for option in register.feedback_options %}
+                    <option value="{{ option.value }}" {% if option.is_active %}selected{% endif %}>{{ option.label }}</option>
+                  {% endfor %}
+                </select>
+                {% comment %}
+                Three feedback states rather than two, because "measured at
+                zero" and "never measured" are different facts about a matter.
+                {% endcomment %}
+                <p class="dk-meta">
+                  „Mõõdetud, tagasisidet ei antud“ ja „Tagasisidet ei ole mõõdetud“
+                  on eri asjad: esimene on mõõdetud null, teine puuduv mõõtmine.
+                </p>
+              </div>
+              <div class="sm:col-span-2">
+                <button type="submit" class="dk-button dk-button-secondary">Rakenda</button>
+              </div>
+            </div>
+          </details>
+        </form>
+
+        {% comment %}
+        The active filters, always drawn outside the disclosure. Each one is a
+        link that removes just itself and keeps the rest.
+        {% endcomment %}
+        {% if register.applied %}
+          <ul class="flex flex-wrap gap-2" aria-label="Aktiivsed filtrid">
+            {% for filter in register.applied %}
+              <li>
+                <a class="dk-chip dk-chip-active" href="?fookus=register&amp;{{ filter.remove_query }}#section-register">
+                  <span class="dk-meta">{{ filter.label }}:</span>&nbsp;{{ filter.value }}
+                  <span aria-hidden="true">&nbsp;×</span>
+                  <span class="sr-only"> — eemalda see filter</span>
+                </a>
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+
+        <div id="legal-register-results" aria-live="polite" class="flex min-w-0 flex-col gap-2">
+          {% include "legal_work/partials/_register_results.html" with register=register only %}
+        </div>
+      </div>
+    </section>
+  {% endif %}
+
   {# ---------------- Register search ---------------- #}
   {% comment %}
   A search over the whole current snapshot, not over the rows this page happens
@@ -358,7 +512,7 @@ dashboard overview. They stay on the default focus and keep their ids;
   reader reaches a topic concluded last spring, and burying it one click deep
   would undo the reason it was added.
   {% endcomment %}
-  {% if page.focus == "ulevaade" or page.focus == "register" %}
+  {% if page.focus == "ulevaade" %}
     <section aria-labelledby="section-search" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="Otsi" heading_id="section-search" only %}
       <div class="dk-section-body flex min-w-0 flex-col gap-2 py-3 sm:py-4">
@@ -371,7 +525,6 @@ dashboard overview. They stay on the default focus and keep their ids;
         focus stays on it after a submit.
         {% endcomment %}
         <form method="get" action="#section-search" class="flex min-w-0 flex-wrap items-center gap-2">
-          {% if page.focus != "ulevaade" %}<input type="hidden" name="fookus" value="{{ page.focus }}">{% endif %}
           {% if search.status %}<input type="hidden" name="seis" value="{{ search.status }}">{% endif %}
           <label for="otsing" class="sr-only">Otsi õigusloome registrist</label>
           <input type="search"

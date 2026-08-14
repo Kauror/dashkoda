@@ -22,7 +22,8 @@ from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
 
 from .analytics import data_quality
-from .intelligence_page import PARAM_FOCUS, build_page, parse_focus
+from .intelligence_page import FOCUS_REGISTER, PARAM_FOCUS, build_page, parse_focus
+from .register import REGISTER_PARAMS, build_register
 from .search import (
     PARAM_PAGE,
     PARAM_QUERY,
@@ -64,6 +65,11 @@ def legal_work_overview(request):
     open_items = list(page.open_items) if page.open_items else list(get_open_items(snapshot))
     sent_items = list(page.sent_items) if page.sent_items else list(get_latest_sent_items(snapshot))
 
+    # The register focus gets the full explorer: facets, filters and per-record
+    # detail. Every other focus keeps the plain term-and-status search, which is
+    # what the overview has always carried.
+    register = build_register(snapshot, request.GET) if focus == FOCUS_REGISTER else None
+
     search = build_search(
         snapshot,
         query=parse_query(request.GET.get(PARAM_QUERY)),
@@ -88,6 +94,7 @@ def legal_work_overview(request):
             "sent_items": present_topics(sent_items, links),
             "deadlines": present_deadlines(page.deadlines, links),
             "search": search.presented_with(links),
+            "register": register,
             "quality": data_quality(snapshot) if summary.has_data else None,
         },
     )
@@ -113,8 +120,31 @@ def legal_work_search_fragment(request):
 
     Page one, always: a new term is a new question, and a reader on page 3 of
     one search would otherwise be told there are no results for the next.
+
+    On the register focus the same route answers with the register's own rows,
+    because the reader there is typing into a box that has six filters beside
+    it. Rebuilding the plain search would silently drop every one of them and
+    hand back a wider answer than the page claims to be showing.
     """
     snapshot = get_current_snapshot()
+
+    if parse_focus(request.GET.get(PARAM_FOCUS)) == FOCUS_REGISTER:
+        register = build_register(snapshot, request.GET)
+        return search_fragment(
+            request,
+            "legal_work/partials/_register_results.html",
+            {"register": register},
+            pushed=push_url(
+                request,
+                path=reverse("legal-work"),
+                allowed=(PARAM_FOCUS, *REGISTER_PARAMS),
+                # Every value has been through the register's own validation, so
+                # what reaches the address bar is what reached the query.
+                updates={PARAM_QUERY: register.state.query, PARAM_PAGE: ""},
+                anchor="#section-register",
+            ),
+        )
+
     search = build_search(
         snapshot,
         query=parse_query(request.GET.get(PARAM_QUERY)),
