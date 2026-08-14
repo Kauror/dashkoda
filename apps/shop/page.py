@@ -66,6 +66,7 @@ from .selectors import (
     aggregate_web,
     build_category_rows,
     build_product_rows,
+    denominator_path,
     distinct_orders_supported,
     get_catalogue_summary,
     get_categories,
@@ -85,6 +86,7 @@ from .selectors import (
     get_web_opportunities,
     get_yearly_series,
     latest_snapshot_for,
+    page_views_in_window,
     paths_by_product,
     resolve_comparison,
 )
@@ -110,6 +112,19 @@ def _rate(value: Decimal | None) -> str:
     if value is None:
         return DASH
     return f"{value}".replace(".", ",")
+
+
+def _views_for(figures: dict, path: str) -> int | None:
+    """Views for one path, or `None` when it was never measured.
+
+    `None` and `0` are different answers and stay different: a page with no
+    stored GA4 rows was not measured, while a measured zero is a page nobody
+    visited. `page_views_in_window` decides which, and this only unwraps it.
+    """
+    if not path:
+        return None
+    figure = figures.get(path)
+    return figure.views if figure is not None else None
 
 
 def _payment_value(payments: dict, key: str) -> str:
@@ -1653,10 +1668,37 @@ class ProductDetail:
     period: object = None
     periods: tuple = ()
 
+    # --- the intelligence layer ------------------------------------------
+    #: Type-aware wording, so an event says `Registreerimised` and a template
+    #: says `Soetatud` without either page hard-coding the other's word.
+    units_label: str = "Soetatud"
+    units_noun: str = "ühikut"
+    views_label: str = "Tootelehe vaatamised"
+    rate_label: str = "Soetamisi / 100 vaatamist"
+    #: Which page role this product's rate divides by, named for the reader.
+    denominator_label: str = ""
+    #: Views for that page. For a template this is the product page and for an
+    #: event registration the event page, so the heading and the number always
+    #: describe the same page as the rate below them.
+    denominator_views: str = DASH
+    #: Period-over-period movement, which the page previously lacked entirely.
+    kpis: tuple[KpiCard, ...] = ()
+    comparison_label: str = ""
+    comparison_available: bool = False
+    trend: object = None
+    #: Composition, for the deep read.
+    mix: MixPresenter = field(default_factory=MixPresenter)
+    payment_mix: PaymentMixPresenter = field(default_factory=PaymentMixPresenter)
+    month_rows: tuple = ()
+
     @property
     def has_funnel(self) -> bool:
         """Only a document with both pages has an information → product step."""
         return bool(self.information_url and self.product_url)
+
+    @property
+    def is_event(self) -> bool:
+        return bool(self.event_url)
 
 
 def build_product_detail(
@@ -1679,20 +1721,102 @@ def build_product_detail(
     snapshot = latest_snapshot_for(product)
     roles = paths_by_product((product.pk,)).get(product.pk, {})
 
-    rows = build_product_rows(window)
-    row = next((item for item in rows if item.source_product_id == source_product_id), None)
+    # This product's own paths and figures, rather than the whole catalogue's.
+    # `build_product_rows` builds every product in scope; asking it for one was
+    # a full-catalogue aggregation to answer a single-product question.
+    words = vocabulary_for(product.product_type)
+    denominator = denominator_path(product.product_type, roles)
+    figures = page_views_in_window([path for path in roles.values() if path], window=window)
+    product_views = _views_for(figures, roles.get(PageRole.PRODUCT, ""))
+    information_views = _views_for(figures, roles.get(PageRole.INFORMATION, ""))
+    denominator_views = _views_for(figures, denominator)
 
     filters = {"product_ids": (source_product_id,)}
     totals = get_totals(window, **filters)
     months = get_monthly_series(window, **filters)
     member_split = get_member_split(window, **filters)
+    mix = get_free_paid_split(window, **filters)
+    payments = get_payment_split(window, **filters)
 
-    from .selectors import acquisitions_per_hundred
-
-    product_views = row.product_page_views.views if row and row.product_page_views else None
-    information_views = (
-        row.information_page_views.views if row and row.information_page_views else None
+    # The rate's numerator must read the **web** window, exactly as the ranking
+    # does: six years of acquisitions over three years of views is not a rate.
+    conversion_units = (
+        get_totals(
+            ComparisonWindow(window.web_start, window.web_end, window.web_start, window.web_end),
+            **filters,
+        ).units
+        if window.has_web
+        else Decimal(0)
     )
+
+    # --- comparison, which this page previously had none of ---------------
+    pair = derive_period_pair(
+        current_start=window.commerce_start,
+        current_end=window.commerce_end,
+        coverage_start=coverage.coverage_start,
+    )
+    previous_window = (
+        ComparisonWindow(pair.previous_start, pair.previous_end, None, None)
+        if pair.is_available
+        else ComparisonWindow(None, None, None, None)
+    )
+    previous_totals = get_totals(previous_window, **filters) if pair.is_available else None
+
+    detail_kpis = (
+        _kpi(
+            words.units_label,
+            MetricComparison.of(
+                totals.units, previous_totals.units if previous_totals else None, period=pair
+            ),
+            formatter=lambda v: group_thousands(int(v)),
+            unit=words.units_noun,
+        ),
+        # `Tellimused` is accurate here and only here: the sum runs over one
+        # product's own cells, so each order appears once.
+        _kpi(
+            "Tellimused",
+            MetricComparison.of(
+                totals.orders, previous_totals.orders if previous_totals else None, period=pair
+            ),
+            formatter=lambda v: group_thousands(int(v)),
+            secondary="tellimust, mis sisaldasid seda toodet",
+        ),
+        _kpi(
+            "Tellitud väärtus",
+            MetricComparison.of(
+                totals.ordered_value_net,
+                previous_totals.ordered_value_net if previous_totals else None,
+                period=pair,
+            ),
+            formatter=euros,
+            unit="KM-ta",
+        ),
+    )
+
+    trend = _trend_chart(
+        [(point.month, float(point.units)) for point in months],
+        (
+            [
+                (point.month, float(point.units))
+                for point in get_monthly_series(previous_window, **filters)
+            ]
+            if pair.is_available
+            else []
+        ),
+        label=words.trend_label,
+        previous_label=pair.previous_label,
+        offset_days=pair.length_days,
+    )
+
+    payment_present = [
+        (label, payments[key].ordered_value_net)
+        for key, label in (
+            (PaymentClass.INVOICE, "Arve"),
+            (PaymentClass.BANK_OR_CARD, "Pangalink või kaart"),
+            (PaymentClass.UNKNOWN, "Teadmata"),
+        )
+        if payments.get(key) and payments[key].ordered_value_net > 0
+    ]
 
     def _units(status: str) -> str:
         totals_for = member_split.get(status)
@@ -1726,7 +1850,30 @@ def build_product_detail(
         value=euros(totals.ordered_value_net),
         product_views=_figure(product_views),
         information_views=_figure(information_views),
-        rate=_rate(acquisitions_per_hundred(row.conversion_units if row else None, product_views)),
+        # Divided by this family's acquisition page — the event page for a
+        # registration, the product page for a template — and `—` when that
+        # page is missing, never another role's views standing in for it.
+        rate=_rate(acquisitions_per_hundred(conversion_units, denominator_views)),
+        units_label=words.units_label,
+        units_noun=words.units_noun,
+        views_label=words.views_label,
+        rate_label=words.rate_label,
+        denominator_label=words.views_label,
+        denominator_views=_figure(denominator_views),
+        kpis=detail_kpis,
+        comparison_label=pair.previous_label,
+        comparison_available=pair.is_available,
+        trend=trend,
+        mix=_mix_presenter(mix, None),
+        payment_mix=PaymentMixPresenter(
+            is_known=bool(payment_present),
+            rows=_bars(
+                ((label, euros(amount), int(amount), "") for label, amount in payment_present)
+            ),
+            invoice_value=_payment_value(payments, PaymentClass.INVOICE),
+            settled_value=_payment_value(payments, PaymentClass.BANK_OR_CARD),
+            unknown_value=_payment_value(payments, PaymentClass.UNKNOWN),
+        ),
         list_price=euros(snapshot.list_price_net)
         if snapshot and snapshot.list_price_net is not None
         else DASH,

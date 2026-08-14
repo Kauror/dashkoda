@@ -11,7 +11,7 @@ happens here and nowhere else.
 
 | Product family | Acquisition page | Why |
 | --- | --- | --- |
-| `document` | `PageRole.PRODUCT` | `/et/pood/` carries the buy action, `/et/tooriistad/` only explains |
+| `document` | `PageRole.PRODUCT` | `/et/pood/` carries the buy action; `/et/tooriistad/` explains |
 | `event_registration` | `PageRole.EVENT` | the public event page *is* the registration page |
 | `physical_product` | `PageRole.PRODUCT` | the shop product page carries the buy action |
 
