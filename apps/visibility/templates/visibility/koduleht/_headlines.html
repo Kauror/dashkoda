@@ -26,7 +26,17 @@ Context:
         {% if headline.has_value %}
           <dd class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ headline.value }}</dd>
           {% if headline.has_change %}
-            <dd class="dk-meta tabular-nums{% if headline.direction == 'up' %} text-success{% elif headline.direction == 'down' %} text-danger{% endif %}">
+            {% comment %}
+            `relative` contains the hidden note, which is absolutely positioned.
+            Without it the nearest positioned ancestor is nothing at all, so the
+            note is contained by nothing, settles at its untruncated text width
+            and pushes the document out — while `.dk-kpi-strip`'s own
+            `overflow-hidden` clips it and makes the card look innocent. This is
+            the codebase's recurring layout bug and
+            `e2e/seeded/layout.spec.js` asserts the shape rather than the
+            symptom, which is what caught it here.
+            {% endcomment %}
+            <dd class="dk-meta relative tabular-nums{% if headline.direction == 'up' %} text-success{% elif headline.direction == 'down' %} text-danger{% endif %}">
               <span aria-hidden="true">{% if headline.direction == "up" %}↑{% elif headline.direction == "down" %}↓{% else %}→{% endif %}</span>
               {{ headline.change }}
               <span class="sr-only">({{ headline.change_label }})</span>

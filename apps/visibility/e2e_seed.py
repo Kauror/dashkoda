@@ -36,14 +36,19 @@ ANALYTICS_DAYS = 70
 #: something to find.
 ANALYTICS_WINDOW_DAYS = 30
 
-#: Which seeded days carry no page rows, and which none by channel, counted
-#: back from the newest. They are the only way a browser test sees partial
-#: coverage handled: page detail missing inside the current window makes the
-#: content comparison refuse itself, and the interface has to say so rather
-#: than draw a delta anyway. A day that was not queried is not a day with no
-#: pages, and the seed has to be able to express the difference.
-ANALYTICS_DAYS_WITHOUT_PAGE_DETAIL = (9, 10)
-ANALYTICS_DAYS_WITHOUT_CHANNEL_DETAIL = (14,)
+#: Which seeded days carry no page rows, and which none by channel, counted back
+#: from the newest. A day that was not queried is not a day with no pages, and the
+#: seed has to be able to express the difference — `Andmete kohta` reports a
+#: page-detail count below the day count over the whole history because of these.
+#:
+#: Deliberately **behind both 30-day windows**. Inside one of them they made the
+#: two windows differ in coverage by nearly seven points, which the comparison
+#: rule refuses — correctly, and with the effect that the browser suite could
+#: never reach the movement lists at all. The seed was arguing with the analysis
+#: instead of exercising it. The refusal itself is asserted where a rule about
+#: arithmetic belongs, in `tests/visibility/test_website_period.py`.
+ANALYTICS_DAYS_WITHOUT_PAGE_DETAIL = (64, 65)
+ANALYTICS_DAYS_WITHOUT_CHANNEL_DETAIL = (67,)
 
 #: Paths that must never reach a content ranking, with the traffic they carry.
 #: They are the whole reason the ranking has an exclusion registry: on the real

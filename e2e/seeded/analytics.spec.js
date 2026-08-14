@@ -370,14 +370,33 @@ test("the methodology discloses coverage without shouting about it", async ({ pa
 test("the seeded gaps are disclosed rather than smoothed over", async ({ page }) => {
   oncePerRun();
   await signIn(page);
-  await page.goto("/koduleht/?periood=30");
 
-  // The seed publishes a few days with the site figures and no page detail. The
-  // content comparison must refuse itself and say why rather than draw a delta.
+  /*
+   * The seed publishes a few days carrying the site figures and no page rows,
+   * behind both 30-day windows. So the thirty-day comparison is trusted and the
+   * movement lists are drawn, while the coverage disclosure over the whole
+   * history reports fewer page-detail days than days — which is the honest
+   * statement, and the one a reader needs before trusting a long-window ranking.
+   */
   await page.goto("/koduleht/?fookus=sisu&periood=30");
-  const movement = page.locator(MOVEMENT);
-  const text = await movement.innerText();
-  expect(text).toMatch(/Kasvavad lehed|Kasvu ja languse võrdlust ei kuvata/);
+  await expect(page.locator(MOVEMENT)).toContainText("Kasvavad lehed");
+
+  await page.goto("/koduleht/?periood=koik");
+  const method = page.locator(METHOD);
+  await method.locator("summary").first().click();
+
+  const counts = await method.evaluate((node) => {
+    const read = (label) => {
+      const term = Array.from(node.querySelectorAll("dt")).find(
+        (dt) => dt.textContent.trim() === label,
+      );
+      return term ? Number(term.nextElementSibling.textContent.trim()) : null;
+    };
+    return { days: read("Kogutud päevi"), pages: read("Lehekaupa kogutud päevi") };
+  });
+
+  expect(counts.days).toBeGreaterThan(0);
+  expect(counts.pages).toBeLessThan(counts.days);
 });
 
 // ---------------------------------------------------------------------------
