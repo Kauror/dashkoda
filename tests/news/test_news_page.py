@@ -17,8 +17,10 @@ from apps.news.categories import NewsCategory
 from apps.news.focus import (
     FOCUS_ARCHIVE,
     FOCUS_IMPACT,
+    FOCUS_NEWSLETTERS,
     FOCUS_OVERVIEW,
     FOCUS_PUBLISHING,
+    FOCUSES,
     parse_focus,
 )
 from apps.news.measurement import resolve_reading
@@ -31,6 +33,47 @@ def coverage():
     from apps.visibility.ga4_selectors import get_coverage
 
     return get_coverage()
+
+
+# -- every view renders against nothing at all --------------------------------
+
+
+@pytest.mark.parametrize("focus", [one.key for one in FOCUSES])
+def test_every_focus_renders_with_no_data_whatsoever(viewer_client, focus):
+    """A dashboard that 500s on an unconnected source is worse than no dashboard.
+
+    The regression this exists for: `eligible_cohort` short-circuited to a bare
+    `none()` when GA4 held nothing, so the correlated subquery went looking for
+    window-bound columns that had never been annotated and `fookus=moju` raised
+    `FieldError`. Every test seeded some GA4, so every test passed — only an
+    empty database could find it, and this is that database.
+
+    Driven through the real view rather than the builders, so a template that
+    reaches for a figure the builder did not produce fails here too.
+    """
+    from django.urls import reverse
+
+    response = viewer_client.get(reverse("news"), {"fookus": focus})
+
+    assert response.status_code == 200
+    assert "Uudised" in response.content.decode()
+
+
+@pytest.mark.parametrize("focus", [one.key for one in FOCUSES if one.key != FOCUS_NEWSLETTERS])
+def test_every_focus_renders_with_articles_but_no_analytics(viewer_client, focus):
+    """The other half-connected state: a catalogue and no measurement.
+
+    News collection and GA4 are separate sources with separate schedules, so
+    "articles but nothing measured" is a state production really passes through
+    — and the one where a first-window figure has nothing to be computed from.
+    """
+    from django.urls import reverse
+
+    article("lugu", published=dt.date(2026, 3, 1))
+
+    response = viewer_client.get(reverse("news"), {"fookus": focus})
+
+    assert response.status_code == 200
 
 
 # -- focus navigation ---------------------------------------------------------

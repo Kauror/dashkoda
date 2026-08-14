@@ -323,9 +323,16 @@ def eligible_cohort(
     before it is sliced. The gap rule is not applied per row here — coverage is
     contiguous, `missing_days_within` verifies it for the span once, and a cohort
     is withheld entirely rather than silently thinned if that ever stops holding.
+
+    **The window bounds are annotated even when the cohort is empty.** Returning a
+    bare `none()` for a property with no GA4 data at all would satisfy every test
+    that seeds some, and then raise `FieldError` in production the moment
+    `annotate_first_window` looked for the `OuterRef` columns that were never
+    added. An empty cohort is still a cohort of this shape.
     """
-    if not coverage.has_data or coverage.earliest is None or coverage.latest is None:
-        return NewsResource.objects.none()
+    empty = not coverage.has_data or coverage.earliest is None or coverage.latest is None
+    if empty:
+        return with_window_bounds(NewsResource.objects.none(), days=days)
 
     latest_publication = coverage.latest - timedelta(days=days - 1)
     rows = with_window_bounds(
