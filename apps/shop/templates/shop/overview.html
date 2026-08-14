@@ -151,10 +151,10 @@ Nothing here turns one into the other.
     putting it beside the acquisition count would mean explaining that caveat
     four times or not at all.
     {% endcomment %}
-    {% if overview.window.has_web %}
-      <section aria-labelledby="section-webquick" class="dk-section">
-        {% include "dashboard/components/section_header.html" with title="Veeb ja soetamine" heading_id="section-webquick" only %}
-        <div class="dk-section-body flex flex-col gap-3">
+    <section aria-labelledby="section-web" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Veeb ja soetamine" heading_id="section-web" only %}
+      <div class="dk-section-body flex flex-col gap-3">
+        {% if overview.window.has_web %}
           <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
               <p class="text-sm text-text-secondary">{{ overview.views_label }}</p>
@@ -168,9 +168,17 @@ Nothing here turns one into the other.
           {% if overview.web_is_partial %}
             <p class="dk-meta">Veebivõrdlus {{ overview.web_interval_label }} — lühem kui valitud tellimuste periood. Määr arvutatakse mõlemal pool sama akna sees.</p>
           {% endif %}
-        </div>
-      </section>
-    {% endif %}
+        {% else %}
+          {% comment %}
+          Stated rather than omitted. A period outside the measured overlap must
+          say so: a section that simply disappears leaves the reader to guess
+          whether the traffic was zero or the question unanswerable, which is
+          the distinction this whole module exists to keep visible.
+          {% endcomment %}
+          {% include "dashboard/components/empty_state.html" with message="Veebivõrdlus ei ole selle perioodi kohta võimalik." detail="Valitud periood jääb väljapoole mõõdetud veebistatistikat või imporditud tellimusi." only %}
+        {% endif %}
+      </div>
+    </section>
 
     {# ---------------- 3. trend ---------------- #}
     <section aria-labelledby="section-trend" class="dk-section">

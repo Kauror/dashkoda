@@ -81,7 +81,7 @@ test("search finds a product that is not on the first page", async ({ page }) =>
    * this product sits past the ranking's page of twenty-five.
    */
   await signIn(page);
-  await page.goto("/epood/?periood=koik");
+  await page.goto("/epood/?fookus=tooted&periood=koik");
   await page.getByLabel("Otsi toodet").fill("Sünteetiline lepingu näidis 28");
   await page.getByRole("button", { name: "Otsi" }).click();
 
@@ -111,12 +111,49 @@ test("the member split is withheld while its semantics are unverified", async ({
 });
 
 test("the explorer drops the information column", async ({ page }) => {
+  // The explorer lives on the `Tooted` focus now, not under the overview.
   await signIn(page);
-  await page.goto("/epood/?periood=koik");
+  await page.goto("/epood/?fookus=tooted&periood=koik");
 
   const headers = page.locator("#tooted thead th");
   await expect(headers).toHaveCount(5);
   await expect(page.locator("#tooted").getByText("Tutvustus")).toHaveCount(0);
+});
+
+test("every focus view opens and none scrolls sideways", async ({ page }) => {
+  /*
+   * The five views are one route in five states. Each is reached by its own URL
+   * so a bookmark and the back button both work, and each is checked for
+   * horizontal overflow — the recurring layout bug in this repository is an
+   * uncontained `sr-only` note widening the whole document while the table
+   * inside it scrolls correctly and looks innocent.
+   */
+  await signIn(page);
+
+  for (const focus of ["ulevaade", "ostud", "tooted", "nahtavus", "vaartus"]) {
+    await page.goto(`/epood/?fookus=${focus}&periood=koik`);
+    await expect(page.getByRole("heading", { level: 1, name: "E-pood" })).toBeVisible();
+    await expect(page.locator('nav[aria-label="Vaade"] a[aria-current="page"]')).toHaveCount(1);
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
+test("an unknown focus falls back to the overview rather than erroring", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/epood/?fookus=ei-ole-olemas");
+
+  await expect(page.getByRole("heading", { level: 1, name: "E-pood" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Ülevaade" })).toBeVisible();
+});
+
+test("changing the focus keeps the period and the product type", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/epood/?periood=90&liik=document");
+  await page.locator('nav[aria-label="Vaade"]').getByRole("link", { name: "Ostud" }).click();
+
+  await expect(page).toHaveURL(/fookus=ostud/);
+  await expect(page).toHaveURL(/periood=90/);
+  await expect(page).toHaveURL(/liik=document/);
 });
 
 test("a period past the export offers no web comparison", async ({ page }) => {
