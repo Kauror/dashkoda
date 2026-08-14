@@ -198,13 +198,21 @@ def _membership_pillar(summary) -> ExecutivePillar:
         facts=(
             ExecutiveFact(
                 label="Tasunud liikmete osakaal",
-                value=percent(summary.paid_share_pct) if summary.paid_share_pct else None,
+                # `is not None`, not truthiness: a reported share of exactly 0%
+                # is a measured value and must render, not vanish as missing.
+                value=(
+                    percent(summary.paid_share_pct) if summary.paid_share_pct is not None else None
+                ),
                 source=SOURCE_INTERNAL_REPORT,
                 as_of=summary.internal_as_of,
             ),
             ExecutiveFact(
                 label="Liikmemaksu laekumine",
-                value=percent(summary.fee_collection_pct) if summary.fee_collection_pct else None,
+                value=(
+                    percent(summary.fee_collection_pct)
+                    if summary.fee_collection_pct is not None
+                    else None
+                ),
                 source=SOURCE_INTERNAL_REPORT,
                 as_of=summary.internal_as_of,
             ),

@@ -22,6 +22,7 @@ import json
 from datetime import date
 
 from django.core.management.base import BaseCommand, CommandError
+from django.utils import timezone
 
 from apps.membership.composition_import import (
     CompositionImportError,
@@ -75,7 +76,11 @@ class Command(BaseCommand):
         except ValueError as error:
             raise CommandError("--snapshot-date peab olema kujul YYYY-MM-DD.") from error
 
-        if snapshot_date > date.today():
+        # `timezone.localdate()`, not `date.today()`: the container clock runs
+        # UTC while the application's day is Europe/Tallinn, and the wall clock
+        # would reject today's snapshot as "future" for the first hours of
+        # every Tallinn day.
+        if snapshot_date > timezone.localdate():
             raise CommandError("--snapshot-date ei saa olla tulevikus.")
 
         try:

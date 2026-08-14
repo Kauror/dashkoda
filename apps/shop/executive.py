@@ -39,7 +39,7 @@ the export's own date beside its figures for the same reason.
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
-from datetime import date, timedelta
+from datetime import date
 from decimal import Decimal
 
 from django.urls import reverse
@@ -47,6 +47,7 @@ from django.urls import reverse
 from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
 from apps.core.formatting import euros, integer, percent
 
+from .comparison import derive_period_pair
 from .models import ProductType
 from .periods import DEFAULT_PERIOD, resolve_period
 from .selectors import (
@@ -142,7 +143,7 @@ def get_shop_executive() -> ShopExecutive:
 
     executive = ShopExecutive(
         units=totals.units,
-        previous_units=_previous_units(period.start, period.end),
+        previous_units=_previous_units(period.start, period.end, coverage),
         ordered_value_net=totals.ordered_value_net,
         free_share=_free_share(mix),
         top_product=_top_product(window),
@@ -155,21 +156,25 @@ def get_shop_executive() -> ShopExecutive:
     return _with_signals(executive, coverage)
 
 
-def _previous_units(start: date, end: date) -> Decimal | None:
+def _previous_units(start: date, end: date, coverage: ShopCoverage) -> Decimal | None:
     """Acquisitions over the equal-length period immediately before this one.
 
-    Built here rather than taken from a preset, because the presets are anchored
-    on coverage end and there is no "previous" preset to resolve. Equal length
-    and non-overlapping, which is the only comparison the pillar offers.
+    The window comes from `derive_period_pair` — the same rule every figure on
+    the E-pood page takes its previous period from. It refuses a previous window
+    that would reach before Commerce coverage began, so the pillar can never
+    compare a full period against the partial history that happens to precede
+    it; the page and this pillar therefore agree about when a comparison exists.
     """
-    span = (end - start).days
-    previous_end = start - timedelta(days=1)
-    previous_start = previous_end - timedelta(days=span)
+    pair = derive_period_pair(
+        current_start=start, current_end=end, coverage_start=coverage.coverage_start
+    )
+    if not pair.is_available:
+        return None
     window = ComparisonWindow(
-        commerce_start=previous_start,
-        commerce_end=previous_end,
-        web_start=previous_start,
-        web_end=previous_end,
+        commerce_start=pair.previous_start,
+        commerce_end=pair.previous_end,
+        web_start=pair.previous_start,
+        web_end=pair.previous_end,
     )
     return get_totals(window, product_types=NON_EVENT_TYPES).units
 

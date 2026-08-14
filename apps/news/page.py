@@ -602,11 +602,11 @@ def build_overview(
         if reading.has_window
         else analytics.NewsTrafficSummary()
     )
-    previous_traffic = analytics.NewsTrafficSummary()
-    if reading.has_window:
-        previous_start, previous_end = analytics.previous_window(reading.start, reading.end)
-        if coverage.earliest is not None and previous_start >= coverage.earliest:
-            previous_traffic = analytics.news_traffic(start=previous_start, end=previous_end)
+    previous_traffic = (
+        analytics.previous_traffic_within(reading.start, reading.end, coverage)
+        if reading.has_window
+        else analytics.NewsTrafficSummary()
+    )
 
     cohorts = analytics.benchmark_cohorts(coverage=coverage)
 
