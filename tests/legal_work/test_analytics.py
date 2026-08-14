@@ -286,6 +286,9 @@ def test_stage_bars_reconcile_exactly_with_the_active_total(publish):
     assert breakdown.stages[0].count == 2
     # Two spellings of one key group together, and the label is the commoner one.
     assert breakdown.stages[0].stage_key == "kooskõlastusringil"
+    # The unknown bucket is named rather than dropped, and it loses the tie with
+    # `Riigikogus` — both have one matter, so it sorts last rather than landing
+    # between two named stages on alphabet alone.
     assert [stage.label for stage in breakdown.stages][-1] == analytics.UNKNOWN_STAGE_LABEL
     assert breakdown.largest_share == pytest.approx(50.0)
 

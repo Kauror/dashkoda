@@ -365,7 +365,11 @@ def stage_breakdown(snapshot: LegalWorkSnapshot | None) -> StageBreakdown:
                 )
                 for key, entry in by_key.items()
             ),
-            key=lambda stage: (-stage.count, stage.label),
+            # Count first, as the chart promises. The unknown bucket loses ties
+            # so it does not sit between two named stages purely on alphabet —
+            # but it is not pinned to the bottom either: if most active work
+            # were unstaged, that is the first thing a reader should see.
+            key=lambda stage: (-stage.count, stage.stage_key == "", stage.label),
         )
     )
     return StageBreakdown(stages=stages, total=total)
