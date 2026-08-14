@@ -16,6 +16,17 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "../helpers.js"
 
 const PAGE = "/sundmused/";
 
+/* `/sundmused/` now opens on Ülevaade and the register is one of six focus views.
+   Every test below is about the register, so the focus is composed here rather
+   than repeated in fourteen call sites — a test that forgot it would assert
+   against the overview and fail in a way that looks like a data problem. */
+const REGISTER = "fookus=programm";
+
+function registerUrl(query = "") {
+  const rest = query.replace(/^\?/, "");
+  return `${PAGE}?${REGISTER}${rest ? `&${rest}` : ""}`;
+}
+
 /* `browser.newContext()` does not inherit the config's `use`, so the one test
    that needs its own context has to be told where the app is. */
 const BASE_URL = process.env.DASHKODA_E2E_BASE_URL || "http://127.0.0.1:8000";
@@ -32,7 +43,7 @@ const rows = (page) => page.locator("main table tbody tr");
 
 async function open_(page, query = "") {
   await signIn(page);
-  await page.goto(`${PAGE}${query}`);
+  await page.goto(registerUrl(query));
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sündmused");
 }
 
@@ -69,7 +80,7 @@ test("year filtering narrows the table and states the period", async ({ page }) 
     .evaluateAll((nodes) => nodes.map((node) => node.value).filter((value) => /^\d{4}$/.test(value)));
   const oldest = years[years.length - 1];
 
-  await page.goto(`${PAGE}?year=${oldest}`);
+  await page.goto(registerUrl(`year=${oldest}`));
   await expect(page.getByText(`Valitud periood: ${oldest}`)).toBeVisible();
 
   const dates = await page.locator("main table tbody tr td:first-child").allInnerTexts();
@@ -103,7 +114,7 @@ test("tag filtering keeps only that tag", async ({ page }) => {
   await open_(page, "?year=all");
 
   const tag = await page.locator("#filter-tag option:not([value=''])").first().getAttribute("value");
-  await page.goto(`${PAGE}?year=all&tag=${tag}`);
+  await page.goto(registerUrl(`year=all&tag=${tag}`));
 
   const labels = await page.locator("main table tbody tr td:nth-child(3)").allInnerTexts();
   expect(labels.length).toBeGreaterThan(0);
@@ -115,7 +126,7 @@ test("combined filters narrow together", async ({ page }) => {
   await open_(page, "?year=all&review=required&public_link=unlinked");
 
   const before = await rows(page).count();
-  await page.goto(`${PAGE}?year=all`);
+  await page.goto(registerUrl("year=all"));
   const all = await rows(page).count();
 
   expect(before).toBeLessThan(all);
@@ -159,7 +170,7 @@ test("a linked title is a link and an unlinked title is plain text", async ({ pa
     /^https:\/\/www\.koda\.ee\/et\/sundmused\//,
   );
 
-  await page.goto(`${PAGE}?year=all&public_link=unlinked`);
+  await page.goto(registerUrl("year=all&public_link=unlinked"));
   const unlinkedCells = page.locator("main table tbody tr td:nth-child(2)");
   expect(await unlinkedCells.count()).toBeGreaterThan(0);
   expect(await unlinkedCells.locator("a").count()).toBe(0);
@@ -278,7 +289,7 @@ test("filtering works with JavaScript disabled", async ({ browser }) => {
     await page.goto("/sisene/");
     await page.getByLabel("PIN-kood").fill(process.env.DASHKODA_E2E_PIN || "4071");
     await page.getByRole("button", { name: "Sisene" }).click();
-    await page.goto(`${PAGE}?year=all`);
+    await page.goto(registerUrl("year=all"));
 
     // `Avalik leht` is one of the six filters behind the `Täpsem valik`
     // disclosure. `<details>` is native HTML and needs no script to open, which
@@ -311,7 +322,7 @@ test("the advanced filters stay folded until one of them is applied", async ({ p
   //
   // `page.goto` rather than a second `open_`: that helper signs in first, and
   // signing in twice in one test lands on a dashboard with no PIN field to fill.
-  await page.goto(`${PAGE}?year=all&public_link=linked`);
+  await page.goto(registerUrl("year=all&public_link=linked"));
   await expect(page.locator("details", { hasText: "Täpsem valik" })).toHaveAttribute("open", /.*/);
   await expect(page.getByText("1 aktiivne")).toBeVisible();
 });
@@ -330,13 +341,20 @@ test("a search does not unfold the advanced filters", async ({ page }) => {
   );
 });
 
-test("the figures strip leaves no empty cell", async ({ page }) => {
+test("the headline strip leaves no empty cell", async ({ page }) => {
   oncePerRun();
 
-  // Three figures. The strip paints `bg-border` behind its cells, so a column
-  // count that does not divide three renders the remainder as a grey block the
-  // width of a card — which is what the default four columns did here.
-  await open_(page, "?year=all");
+  // The strip moved to Ülevaade, which is the page that answers questions; the
+  // register lists rows and states its own count under the filters.
+  //
+  // It paints `bg-border` behind its cells, so a column count that does not
+  // divide the card count renders the remainder as a grey block the width of a
+  // card — which is what the default four columns did when there were three
+  // figures. The strip is three cards or four depending on whether the planning
+  // data supports the fourth, so both counts have to divide.
+  await signIn(page);
+  await page.goto(`${PAGE}?fookus=ulevaade&year=all`);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Sündmused");
 
   const strip = await page.evaluate(() => {
     const node = document.querySelector(".dk-kpi-strip");
