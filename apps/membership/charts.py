@@ -28,6 +28,7 @@ from decimal import Decimal
 
 from apps.core.formatting import (
     MONTH_ABBREVIATIONS,
+    day_and_month,
     euros,
     integer,
     long_date,
@@ -574,7 +575,7 @@ BENCHMARKS = (BENCHMARK_PREVIOUS, BENCHMARK_AVERAGE)
 BENCHMARK_YEARS = 3
 
 
-def _months(values: tuple[MonthlyValue, ...]) -> tuple[tuple[int, int | None], ...]:
+def monthly_pairs(values: tuple[MonthlyValue, ...]) -> tuple[tuple[int, int | None], ...]:
     """Twelve months, each a number or nothing.
 
     A conflict and a month nobody reported both arrive as `None`; an explicitly
@@ -589,7 +590,7 @@ def _months(values: tuple[MonthlyValue, ...]) -> tuple[tuple[int, int | None], .
     return tuple(months)
 
 
-def _last_complete_month(months: tuple[tuple[int, int | None], ...]) -> int | None:
+def last_complete_month(months: tuple[tuple[int, int | None], ...]) -> int | None:
     """The last month up to which every month is known.
 
     A year-to-date figure that skipped an unreported March would be a total of
@@ -637,7 +638,7 @@ def _benchmark_series(
     """
     if benchmark == BENCHMARK_AVERAGE:
         years = tuple(range(current_year - BENCHMARK_YEARS, current_year))
-        months = {year: _months(by_year.get(year, ())) for year in years}
+        months = {year: monthly_pairs(by_year.get(year, ())) for year in years}
         return (
             f"{BENCHMARK_YEARS} a keskmine",
             tuple(
@@ -646,7 +647,7 @@ def _benchmark_series(
             ),
         )
     previous = current_year - 1
-    return str(previous), _months(by_year.get(previous, ()))
+    return str(previous), monthly_pairs(by_year.get(previous, ()))
 
 
 def monthly_new_members_chart(
@@ -675,7 +676,7 @@ def monthly_new_members_chart(
         return _empty_monthly_chart(view, benchmark)
 
     current_year = years[-1]
-    current_months = _months(by_year[current_year])
+    current_months = monthly_pairs(by_year[current_year])
     benchmark_label, benchmark_months = _benchmark_series(
         by_year, current_year=current_year, benchmark=benchmark
     )
@@ -883,7 +884,7 @@ def _monthly_readouts(
     the same one, and comparing it with a full previous year would be the
     collapse this refuses to draw.
     """
-    through = _last_complete_month(current_months)
+    through = last_complete_month(current_months)
     if through is None:
         return (
             Readout(
@@ -902,7 +903,7 @@ def _monthly_readouts(
         )
     ]
 
-    previous = elapsed_total(_months(by_year.get(current_year - 1, ())), through=through)
+    previous = elapsed_total(monthly_pairs(by_year.get(current_year - 1, ())), through=through)
     if previous is None:
         readouts.append(
             Readout(
@@ -1696,3 +1697,268 @@ def _reason_tooltips(rows: list[dict], observation_date: date | None) -> dict:
             "note": f"Seisuga {long_date(observation_date)}" if observation_date else "",
         }
     return tooltips
+
+
+# ---------------------------------------------------------------------------
+# G. Seasonality: is this month unusual for the time of year?
+# ---------------------------------------------------------------------------
+
+
+# How many months must have both a current value and a historical mean before
+# the deviation chart is worth drawing. Two points do not describe a seasonal
+# shape, and a chart with one bar states a single fact more clearly as a
+# sentence.
+MIN_SEASONALITY_MONTHS = 3
+
+
+def seasonality_chart(by_year: dict[int, tuple[MonthlyValue, ...]]) -> ChartPayload | None:
+    """Is this calendar month unusually strong or weak for the time of year?
+
+    The recruitment chart already answers "how is the year going". This answers a
+    different question: February is always quiet and December is always busy, so
+    a February that is down on January is not news. The subject here is the gap
+    between a month and *its own* historical norm.
+
+    Diverging bars, one per calendar month, showing the current year minus the
+    mean of the same month across the previous complete years. A month is drawn
+    only when both sides exist, and the mean withdraws entirely unless every one
+    of those years reported that month — an average over "the years that
+    happened to report" changes meaning from bar to bar.
+
+    The statistics are deliberately ordinary: a mean over three years. Twelve
+    points a year for a decade does not support a seasonal decomposition, and a
+    forecast drawn from it would be a confident line describing nothing.
+
+    Returns `None` when too few months qualify, so the caller can leave the
+    section out rather than draw an empty frame.
+    """
+    years = sorted(by_year)
+    if not years:
+        return None
+    current_year = years[-1]
+    baseline_years = tuple(range(current_year - BENCHMARK_YEARS, current_year))
+    baseline_months = {year: monthly_pairs(by_year.get(year, ())) for year in baseline_years}
+    current = dict(monthly_pairs(by_year.get(current_year, ())))
+
+    rows: list[dict] = []
+    for month in range(1, 13):
+        value = current.get(month)
+        mean = mean_of_complete_years(baseline_months, period=month, years=baseline_years)
+        if value is None or mean is None:
+            continue
+        rows.append(
+            {
+                "month": month,
+                "label": MONTH_LABELS[month - 1],
+                "name": month_name(month),
+                "value": value,
+                "mean": mean,
+                "deviation": Decimal(value) - mean,
+            }
+        )
+
+    if len(rows) < MIN_SEASONALITY_MONTHS:
+        return None
+
+    baseline_label = f"{baseline_years[0]}–{baseline_years[-1]}"
+
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {"type": "category", "data": [row["label"] for row in rows]},
+            "yAxis": {
+                "type": "value",
+                "name": "Erinevus keskmisest",
+                "nameLocation": "middle",
+                "nameGap": 44,
+            },
+            "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
+            "series": [
+                {
+                    "name": "Erinevus keskmisest",
+                    "type": "bar",
+                    "labelLayout": dict(LABEL_LAYOUT),
+                    "data": [
+                        {
+                            "value": _number(row["deviation"]),
+                            "tip": str(row["month"]),
+                            "label": {
+                                **BAR_LABEL,
+                                "show": True,
+                                "position": "top" if row["deviation"] >= 0 else "bottom",
+                                "formatter": signed_integer(row["deviation"]),
+                            },
+                        }
+                        for row in rows
+                    ],
+                }
+            ],
+            "dashkoda": {
+                "tooltip": {
+                    str(row["month"]): {
+                        "title": f"{row['name']} {current_year}",
+                        "rows": [
+                            {"label": "Liitus", "value": integer(row["value"]), "emphasis": False},
+                            {
+                                # Whole members in the tooltip; the table below
+                                # carries the unrounded average, which is where
+                                # an exact figure is meant to be looked up.
+                                "label": f"{BENCHMARK_YEARS} a keskmine",
+                                "value": integer(row["mean"]),
+                                "emphasis": False,
+                            },
+                            {
+                                "label": "Erinevus",
+                                "value": signed_integer(row["deviation"]),
+                                "emphasis": True,
+                            },
+                        ],
+                        "note": f"Keskmine aastatest {baseline_label}",
+                    }
+                    for row in rows
+                },
+                "axisFormat": {"y": "integer"},
+            },
+        }
+    )
+
+    strongest = max(rows, key=lambda row: row["deviation"])
+    weakest = min(rows, key=lambda row: row["deviation"])
+    readouts = (
+        Readout(
+            label="Tugevaim kuu",
+            value=strongest["name"],
+            change=signed_integer(strongest["deviation"]),
+            change_label=f"{signed_integer(strongest['deviation'])} vorreldes sama kuu keskmisega",
+            direction=_direction(strongest["deviation"]),
+        ),
+        Readout(
+            label="Norgim kuu",
+            value=weakest["name"],
+            change=signed_integer(weakest["deviation"]),
+            change_label=f"{signed_integer(weakest['deviation'])} vorreldes sama kuu keskmisega",
+            direction=_direction(weakest["deviation"]),
+        ),
+    )
+
+    return ChartPayload(
+        payload_id="internal-membership-seasonality",
+        title=f"{current_year}. aasta kuud võrreldes sama kuu keskmisega",
+        option=option,
+        size="categorical",
+        question="Kas see kuu on aastaajale tavapärasest tugevam või nõrgem?",
+        observation_label=(f"Võrdlusalus {baseline_label}, {len(rows)} võrreldavat kuud"),
+        readouts=readouts,
+        table_headers=("Kuu", str(current_year), f"{BENCHMARK_YEARS} a keskmine", "Erinevus"),
+        table_rows=tuple(
+            (row["name"], row["value"], row["mean"], row["deviation"]) for row in rows
+        ),
+        summary=(
+            f"Tulpgraafik {len(rows)} kuu kohta, mis näitab {current_year}. aasta "
+            "liitumiste erinevust sama kalendrikuu keskmisest."
+        ),
+        empty_message="Hooajalisuse võrdluseks ei ole piisavalt täielikke aastaid.",
+        footnotes=(
+            "Keskmine arvutatakse ainult siis, kui kõik võrdlusaastad on selle kuu "
+            "kohta andmed esitanud. Muidu jäetakse kuu graafikult välja.",
+        ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# H. Multi-month recruitment periods
+# ---------------------------------------------------------------------------
+
+
+def new_member_periods_chart(periods: tuple) -> ChartPayload | None:
+    """New members over spans the board never broke into months.
+
+    Some reports give a single arrivals figure for June and July together. That
+    number is real and it is not two monthly numbers; splitting it in half would
+    invent a distribution nobody measured, and dropping it would discard a
+    reported fact.
+
+    So it is drawn on its own, against its actual reported span. One horizontal
+    bar per period, labelled with the dates the board used. Nothing here shares
+    an axis with the monthly series and nothing is added to it.
+
+    Returns `None` when no such period exists, which is the common case.
+    """
+    rows = [period for period in periods if period.new_members is not None]
+    if not rows:
+        return None
+
+    def span(period) -> str:
+        return (
+            f"{day_and_month(period.period_start)} – "
+            f"{day_and_month(period.period_end)} {period.period_end.year}"
+        )
+
+    labels = [span(period) for period in rows]
+
+    option = _base_option(legend=False)
+    option.update(
+        {
+            "xAxis": {
+                "type": "value",
+                "name": "Liikmeid",
+                "nameLocation": "middle",
+                "nameGap": 28,
+            },
+            "yAxis": {"type": "category", "data": labels, "inverse": True},
+            "tooltip": {"trigger": "item"},
+            "series": [
+                {
+                    "name": "Liitunud",
+                    "type": "bar",
+                    "labelLayout": dict(LABEL_LAYOUT),
+                    "data": [
+                        {
+                            "value": _number(period.new_members),
+                            "tip": str(period.id),
+                            "label": {
+                                **BAR_LABEL,
+                                "show": True,
+                                "position": "right",
+                                "formatter": integer(period.new_members),
+                            },
+                        }
+                        for period in rows
+                    ],
+                }
+            ],
+            "dashkoda": {
+                "tooltip": {
+                    str(period.id): {
+                        "title": span(period),
+                        "rows": [
+                            {
+                                "label": "Liitunud",
+                                "value": integer(period.new_members),
+                                "emphasis": True,
+                            }
+                        ],
+                        "note": "Periood, mida aruanne kuudeks ei jaganud",
+                    }
+                    for period in rows
+                },
+                "axisFormat": {"x": "integer"},
+            },
+        }
+    )
+
+    return ChartPayload(
+        payload_id="internal-membership-new-member-periods",
+        title="Mitut kuud hõlmavad liitumisperioodid",
+        option=option,
+        size="categorical",
+        question="Kui palju liikmeid lisandus perioodidel, mida aruanne kuudeks ei jaganud?",
+        table_headers=("Periood", "Liitunud"),
+        table_rows=tuple((span(period), period.new_members) for period in rows),
+        summary=(f"Horisontaalne tulpgraafik {len(rows)} mitmekuulise liitumisperioodi kohta."),
+        empty_message="Mitmekuulisi liitumisperioode ei ole.",
+        footnotes=(
+            "Need arvud katavad mitut kuud korraga ja neid ei jagata kuude vahel. "
+            "Kuude graafikuga neid kokku ei liideta.",
+        ),
+    )

@@ -3,23 +3,43 @@
 {% load membership_format %}
 
 {% comment %}
-Liikmeskond page.
+Liikmeskond — the membership intelligence page.
 
 Two membership sources, side by side, never merged:
 
-  1. Avalik liikmekataloog — how many member profiles Koda.ee publishes. Its
-     definition text is unchanged from before the internal history existed.
+  1. Avalik liikmekataloog — how many member profiles Koda.ee publishes. It is
+     reported on the dashboard overview, not here.
   2. Sisemine liikmeskonna aruanne — what the Chamber's own board reports say.
+     This page is that source.
 
 They count different things. Nothing here adds them, subtracts them, or presents
-one as a continuation of the other, and when the two numbers differ the page
-says why the definitions differ rather than implying an error.
+one as a continuation of the other.
 
 There is still deliberately no "uusi liikmeid sel aastal" figure from the public
 source — it is not a DashKoda metric. The internal new-member figures below come
 from the board reports and are labelled as internal reported data.
 
-No individual member is listed anywhere, because neither dataset stores one.
+No individual member is listed anywhere, because no dataset behind this page
+stores one.
+
+## Shape of the page
+
+  header + what each source is as of
+  focus navigation
+  four headline answers        (overview only)
+  the membership trend
+  Mis muutus?                  (overview only)
+  Sel aastal                   (overview only)
+  the focus's own analysis
+  Andmete kohta
+
+The overview is built to be read without interaction. The other focuses are
+where the analysis lives, and every control that governs a chart sits inside the
+same section as the chart.
+
+Every class here is either a design-system `dk-*` class or a Tailwind utility.
+This page adds no CSS of its own, so no other dashboard section can be changed
+by a rule written for this one.
 {% endcomment %}
 
 {% block title %}Liikmeskond – DashKoda{% endblock %}
@@ -38,84 +58,116 @@ No individual member is listed anywhere, because neither dataset stores one.
 {% block content %}
 <div class="flex flex-col gap-6">
 
-  <header>
+  {# ---------------- 1. Header and provenance ---------------- #}
+  {% comment %}
+  One freshness date for the whole page would be a claim this dashboard cannot
+  make: the board report, the roster snapshot and the annual history are read on
+  three different days. Each source states its own as-of date, and a source that
+  has not been imported is simply absent from the line.
+  {% endcomment %}
+  <header class="flex flex-col gap-2">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Liikmeskond</h1>
+    {% if source_stamps %}
+      <p class="dk-meta flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
+        {% for stamp in source_stamps %}
+          <span>{{ stamp.label }} {{ stamp.value }}</span>
+          {% if not forloop.last %}<span aria-hidden="true">·</span>{% endif %}
+        {% endfor %}
+      </p>
+    {% endif %}
   </header>
 
-  {# ---------------- 2. Internal board report ---------------- #}
+  {# ---------------- 2. Focus navigation ---------------- #}
   {% comment %}
-  No visible heading and no description: both were struck out on the board's
-  print-out. The whole page is the internal report, so a heading saying so
-  named the page rather than a section of it.
-
-  The `h2` stays as `sr-only`. The section is a landmark pointing at it with
-  `aria-labelledby`, and a landmark whose target is missing is announced as
-  "region" and nothing else — worse for a screen reader than the heading was
-  redundant for everyone else.
+  Ordinary links carrying `fookus`, so every view is bookmarkable, shareable and
+  reachable with the back button. A focus with nothing to draw is not offered —
+  a navigation item leading to an empty page reads as a fault.
   {% endcomment %}
+  {% if focus_links|length > 1 %}
+    <nav aria-label="Vaade" class="flex flex-wrap items-center gap-2">
+      {% for link in focus_links %}
+        <a href="{{ link.query }}"
+           class="dk-chip{% if link.is_active %} dk-chip-active{% endif %}"
+           {% if link.is_active %}aria-current="page"{% endif %}>{{ link.label }}</a>
+      {% endfor %}
+    </nav>
+  {% endif %}
+
+  {# ---------------- 3. The four headline answers ---------------- #}
   {% comment %}
-  The nine figures are a `dk-kpi-strip`, the same hairline grid the E-pood
-  headline uses, rather than nine bordered cards inside a bordered section. Nine
-  cards each carried their own rule, their own padding and a gap to the next
-  one; the strip carries one rule between neighbours and none at the edges.
-  Three columns, because nine divides into three whole rows — at four the ninth
-  figure would sit alone on a line and read as a more important thing.
+  Four figures replaced nine equally weighted ones. Nine cards asked the reader
+  to decide which mattered; these four are ordered — how many members there are,
+  how that number moved, how much of the membership has paid, and how the fee
+  year is progressing.
 
-  The strip goes edge to edge, so it cannot sit inside `dk-section-body` — the
-  observation line carries the body's padding on its own instead.
+  Nothing was deleted to get there. The fee amounts are the fourth figure's
+  detail line and the suspended count moved into `Sel aastal`, beside the
+  movement it describes.
+
+  The strip is the same hairline grid the other bands use: one rule between
+  neighbours, none at the edges, no border around each statistic.
   {% endcomment %}
-  <section aria-labelledby="section-internal" class="dk-section">
-    <h2 id="section-internal" class="sr-only">Sisemine liikmeskonna aruanne</h2>
-    {% if internal_latest %}
-      <p class="px-4 pt-4 pb-3 text-sm text-text-secondary sm:px-5">
-        Viimane aruanne seisuga
-        <strong class="font-medium text-text">
-          {% if internal_latest.is_year_precision %}
-            {{ internal_latest.observation_date|date:"Y" }}. aasta
-          {% else %}
-            {{ internal_latest.observation_date|date:"j.m.y" }}
-          {% endif %}
-        </strong>.
-      </p>
+  {% if headlines %}
+    <section aria-labelledby="section-headlines" class="dk-section">
+      <h2 id="section-headlines" class="sr-only">Peamised näitajad</h2>
+      <dl class="dk-kpi-strip">
+        {% for headline in headlines %}
+          <div class="flex flex-col gap-1 px-4 py-4 sm:px-5">
+            <dt class="text-sm text-text-secondary">{{ headline.label }}</dt>
+            <dd class="flex flex-col gap-1">
+              {% if headline.is_available %}
+                <span class="text-metric leading-none font-semibold tracking-tight tabular-nums text-text">
+                  {{ headline.value }}{% if headline.unit %}<span class="ml-1 text-base font-normal text-text-secondary">{{ headline.unit }}</span>{% endif %}
+                </span>
+              {% else %}
+                {% comment %}
+                A figure the source did not report shows the dash the design
+                system uses for "not measured", never a zero.
+                {% endcomment %}
+                <span class="text-metric leading-none font-semibold text-text-muted" aria-label="Andmed puuduvad">–</span>
+              {% endif %}
 
-      <dl class="dk-kpi-strip dk-kpi-strip-trio">
-        {% include "membership/partials/internal_metric.html" with label="Liikmeid kokku" value=internal_latest.observation.total_members withheld=internal_latest.withheld field="total_members" only %}
-        {% include "membership/partials/internal_metric.html" with label="Tasunud liikmeid" value=internal_latest.observation.paid_members withheld=internal_latest.withheld field="paid_members" only %}
-        {% include "membership/partials/internal_metric.html" with label="Tasunute osakaal" value=internal_latest.paid_member_share_pct|percentage suffix="%" only %}
-        {% include "membership/partials/internal_metric.html" with label="Laekunud liikmemaks" value=internal_latest.observation.membership_fees_received_eur|whole_euros suffix="EUR" withheld=internal_latest.withheld field="membership_fees_received_eur" only %}
-        {% include "membership/partials/internal_metric.html" with label="Liikmemaksu aastaeelarve" value=internal_latest.observation.membership_fee_budget_eur|whole_euros suffix="EUR" withheld=internal_latest.withheld field="membership_fee_budget_eur" only %}
-        {% include "membership/partials/internal_metric.html" with label="Laekumise protsent" value=internal_latest.observation.membership_fee_collection_pct_reported|percentage suffix="%" withheld=internal_latest.withheld field="membership_fee_collection_pct_reported" only %}
-        {% include "membership/partials/internal_metric.html" with label="Uusi liikmeid aasta algusest" value=internal_latest.observation.new_members_ytd withheld=internal_latest.withheld field="new_members_ytd" only %}
-        {% include "membership/partials/internal_metric.html" with label="Väljaarvatuid aasta algusest" value=internal_latest.observation.removed_members_ytd withheld=internal_latest.withheld field="removed_members_ytd" only %}
-        {% include "membership/partials/internal_metric.html" with label="Peatatud liikmeid" value=internal_latest.observation.suspended_members withheld=internal_latest.withheld field="suspended_members" only %}
+              {% if headline.detail %}
+                <span class="dk-meta tabular-nums">{{ headline.detail }}</span>
+              {% endif %}
+
+              {% if headline.has_change %}
+                {% comment %}
+                The glyph carries the arithmetic direction and the colour carries
+                what the movement means. They are separate on purpose: more
+                departures is an increase and bad news, and a strip that painted
+                that green because the number rose would be worse than one with
+                no colour at all. A reader who cannot separate the hues still
+                gets the sense from the glyph, and a screen reader gets it from
+                `change_label`.
+                {% endcomment %}
+                <span class="dk-meta tabular-nums{% if headline.tone == 'positive' %} text-success{% elif headline.tone == 'negative' %} text-danger{% endif %}">
+                  {% if headline.direction == "up" %}↑{% elif headline.direction == "down" %}↓{% else %}→{% endif %}
+                  {{ headline.change }}
+                  <span class="sr-only"> ({{ headline.change_label }})</span>
+                  {% if headline.comparison_label %}
+                    <span class="text-text-muted">{{ headline.comparison_label }}</span>
+                  {% endif %}
+                </span>
+              {% elif headline.comparison_label and headline.is_available %}
+                <span class="dk-meta">{{ headline.comparison_label }}</span>
+              {% endif %}
+
+              {% if headline.note %}
+                <span class="dk-meta">{{ headline.note }}</span>
+              {% endif %}
+            </dd>
+          </div>
+        {% endfor %}
       </dl>
+    </section>
+  {% endif %}
 
-      {% comment %}
-      The paragraph explaining why this total and the catalogue's differ was
-      struck out.
-
-      It is the one removal here that costs something, so it is written down
-      rather than simply deleted: the two counts measure different things,
-      they are not equal, and no text on the page says so any more. If anyone
-      asks why the overview shows one number and this page another, this is
-      the answer that used to be here.
-      {% endcomment %}
-    {% else %}
-      <div class="dk-section-body">
-        {% include "dashboard/components/empty_state.html" with message="Sisemist liikmeskonna aruannet ei ole veel imporditud." detail="Ajalugu lisatakse ühekordse impordiga ja uued aruanded sisestatakse käsitsi." only %}
-      </div>
-    {% endif %}
-  </section>
-
-  {# ---------------- 3. Analytical sections ---------------- #}
+  {# ---------------- 4. Analytical sections ---------------- #}
   {% comment %}
-  Four analytical tools, each answering one management question and each
-  carrying only the controls that govern it.
-
-  This replaced a single "Ajaloolised trendid" section with one date range above
-  a pile of five charts, of which only two obeyed that range. The control looked
-  like it governed the page and did not, which is the kind of thing a reader
-  discovers by mistrusting a number.
+  On the overview this is the membership trend and nothing else — the dominant
+  visual, immediately under the figures it explains. On the other focuses it is
+  that focus's own analysis.
 
   Every control is an ordinary link or GET form. Switching a view is a request
   the browser can bookmark, share and go back through; nothing here holds client
@@ -163,6 +215,7 @@ No individual member is listed anywhere, because neither dataset stores one.
               <details class="text-sm">
                 <summary class="cursor-pointer text-text-secondary">Kohandatud vahemik</summary>
                 <form method="get" action="{% url 'membership' %}#{{ section.section_id }}" class="mt-2 flex flex-wrap items-end gap-x-3 gap-y-2">
+                  <input type="hidden" name="fookus" value="{{ focus }}">
                   <label class="flex flex-col gap-1">
                     <span class="dk-meta">Alates</span>
                     <input type="date"
@@ -208,34 +261,163 @@ No individual member is listed anywhere, because neither dataset stores one.
     </section>
   {% endfor %}
 
-  {# ---------------- 4. Data quality ---------------- #}
+  {# ---------------- 5. Mis muutus? ---------------- #}
+  {% comment %}
+  Deterministic signals computed from the same numbers the charts draw, in a
+  fixed priority order. No generated prose, no model inference, and no composite
+  "health score" — a single number with no unit that nobody can check is not an
+  answer, it is a way of avoiding one.
+
+  Each signal names the baseline it was measured against, so a reader can go and
+  check it. A signal that cannot be computed is absent rather than shown as
+  "no change".
+  {% endcomment %}
+  {% if insights %}
+    <section aria-labelledby="section-insights" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-insights" only %}
+      <div class="dk-section-body">
+        <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          {% for insight in insights %}
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <dt class="text-sm text-text-secondary">{{ insight.label }}</dt>
+              <dd class="flex flex-col gap-0.5">
+                <span class="flex flex-wrap items-baseline gap-x-2">
+                  <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ insight.value }}</span>
+                  <span class="text-sm font-medium tabular-nums{% if insight.tone == 'positive' %} text-success{% elif insight.tone == 'negative' %} text-danger{% else %} text-text-secondary{% endif %}">
+                    {% if insight.direction == "up" %}↑{% elif insight.direction == "down" %}↓{% else %}→{% endif %}
+                    {{ insight.change }}
+                    <span class="sr-only"> ({{ insight.change_label }})</span>
+                  </span>
+                </span>
+                <span class="dk-meta tabular-nums">{{ insight.detail }}</span>
+              </dd>
+            </div>
+          {% endfor %}
+        </dl>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- 6. Sel aastal ---------------- #}
+  {% comment %}
+  The current year's movement, as typography rather than a chart: two counts,
+  their difference and the suspended total are four numbers, and drawing four
+  numbers as bars adds a canvas, an axis and a legend to a fact that fits on one
+  line. The size-band diverging chart under `Liikumine ja põhjused` is where the
+  question that genuinely needs a picture is answered.
+
+  The difference is labelled as the difference between two reported counts. It
+  is **not** the change in the membership: `new_members_ytd` and
+  `removed_members_ytd` are two figures from a board report, and subtracting
+  them does not produce the movement of the stock. Calling it `neto` would claim
+  a reconciliation this page has not done.
+  {% endcomment %}
+  {% if movement_summary %}
+    <section aria-labelledby="section-this-year" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Sel aastal" heading_id="section-this-year" description=movement_summary.observation_label only %}
+      <div class="dk-section-body">
+        <dl class="flex flex-wrap gap-x-10 gap-y-4">
+          {% if movement_summary.joined %}
+            <div class="min-w-0">
+              <dt class="text-sm text-text-secondary">Liitus</dt>
+              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.joined }}</dd>
+            </div>
+          {% endif %}
+          {% if movement_summary.removed %}
+            <div class="min-w-0">
+              <dt class="text-sm text-text-secondary">Välja arvati</dt>
+              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.removed }}</dd>
+            </div>
+          {% endif %}
+          {% if movement_summary.has_difference %}
+            <div class="min-w-0">
+              <dt class="text-sm text-text-secondary">Liitumiste ja väljaarvamiste vahe</dt>
+              <dd class="flex items-baseline gap-2">
+                <span class="text-xl font-semibold tracking-tight tabular-nums{% if movement_summary.difference_tone == 'positive' %} text-success{% elif movement_summary.difference_tone == 'negative' %} text-danger{% else %} text-text{% endif %}">
+                  {% if movement_summary.difference_direction == "up" %}↑{% elif movement_summary.difference_direction == "down" %}↓{% else %}→{% endif %}
+                  {{ movement_summary.difference }}
+                </span>
+              </dd>
+            </div>
+          {% endif %}
+          {% if movement_summary.suspended %}
+            <div class="min-w-0">
+              <dt class="text-sm text-text-secondary">Peatatud liikmeid</dt>
+              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.suspended }}</dd>
+            </div>
+          {% endif %}
+        </dl>
+        <p class="dk-meta mt-3">
+          Vahe on kahe aruandes esitatud arvu vahe, mitte liikmeskonna muutus.
+        </p>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- 7. Andmete kohta ---------------- #}
+  {% comment %}
+  One line in the reading path saying whether anything was withheld, and the
+  whole methodology behind a disclosure. The long version used to sit open at
+  the bottom of the page, which put parser bookkeeping in front of a reader who
+  had come to look at a membership figure.
+
+  Viewer-facing quality copy stays at the level of counts. Source paths, warning
+  identifiers, parser internals, raw conflicting values and stack traces are
+  never shown.
+  {% endcomment %}
   {% if internal_latest %}
     <section aria-labelledby="section-quality" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Andmete seisund" heading_id="section-quality" only %}
-      <div class="dk-section-body flex flex-col gap-3 text-sm text-text-secondary">
-        <p>
-          Ajalugu hõlmab
-          {% if internal_quality.earliest_observation_date %}
-            {{ internal_quality.earliest_observation_date|date:"Y" }}.–{{ internal_quality.latest_observation_date|date:"Y" }}. aastat,
-          {% endif %}
-          kokku {{ internal_quality.preferred_count }} eelistatud vaatlust.
+      <h2 id="section-quality" class="sr-only">Andmete seisund</h2>
+      <div class="dk-section-body flex flex-col gap-3 py-4 text-sm text-text-secondary">
+        <p class="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <span class="dk-badge {% if quality_badge.needs_attention %}dk-badge-warning{% else %}dk-badge-success{% endif %}">
+            {{ quality_badge.label }}
+          </span>
         </p>
-        {% if internal_quality.has_omissions %}
-          <p>
-            Osad ajaloolised punktid on vastuolude tõttu graafikult välja jäetud:
-            {{ internal_quality.conflicted_metric_count }} lahendamata näitaja vastuolu ja
-            {{ internal_quality.review_required_count }} ülevaatamist vajavat vaatlust.
-            Vastuolulisi väärtusi ei asendata nulliga.
-          </p>
-        {% else %}
-          <p>Ühtegi näitajat ei ole vastuolu tõttu välja jäetud.</p>
-        {% endif %}
-        {% if internal_quality.provisional_month_count %}
-          <p>{{ internal_quality.provisional_month_count }} kuu väärtus on esialgne ja on graafikul märgistatud.</p>
-        {% endif %}
-        {% if internal_quality.conflict_month_count %}
-          <p>{{ internal_quality.conflict_month_count }} kuud on vastuolulised ja neid ei kuvata.</p>
-        {% endif %}
+
+        <details>
+          <summary class="cursor-pointer text-text-secondary">Andmete kohta</summary>
+          <div class="mt-3 flex flex-col gap-3">
+            <p>
+              Ajalugu hõlmab
+              {% if internal_quality.earliest_observation_date %}
+                {{ internal_quality.earliest_observation_date|date:"Y" }}.–{{ internal_quality.latest_observation_date|date:"Y" }}. aastat,
+              {% endif %}
+              kokku {{ internal_quality.preferred_count }} eelistatud vaatlust.
+            </p>
+            {% if internal_quality.has_omissions %}
+              <p>
+                Osad ajaloolised punktid on vastuolude tõttu graafikult välja jäetud:
+                {{ internal_quality.conflicted_metric_count }} lahendamata näitaja vastuolu ja
+                {{ internal_quality.review_required_count }} ülevaatamist vajavat vaatlust.
+                Vastuolulisi väärtusi ei asendata nulliga.
+              </p>
+            {% else %}
+              <p>Ühtegi näitajat ei ole vastuolu tõttu välja jäetud.</p>
+            {% endif %}
+            {% if internal_quality.provisional_month_count %}
+              <p>{{ internal_quality.provisional_month_count }} kuu väärtus on esialgne ja on graafikul märgistatud.</p>
+            {% endif %}
+            {% if internal_quality.conflict_month_count %}
+              <p>{{ internal_quality.conflict_month_count }} kuud on vastuolulised ja neid ei kuvata.</p>
+            {% endif %}
+            <p>
+              Puuduvat väärtust ei asendata nulliga ega interpoleerita. Aruandes
+              selgelt esitatud null on tegelik väärtus ja jääb tühjast eristatavaks.
+            </p>
+            <p>
+              Võrdlus «aasta tagasi» kasutab aastapäevale lähimat vaatlust
+              lubatud hälbe piires. Kui sellist vaatlust ei ole, jääb võrdlus
+              esitamata.
+            </p>
+            {% if summary %}
+              <p>
+                Avalik liikmekataloog ja sisemine aruanne loendavad eri asju.
+                Neid ei liideta, ei võrdle omavahel ega jätkata teineteise reana.
+              </p>
+            {% endif %}
+          </div>
+        </details>
       </div>
     </section>
   {% endif %}
