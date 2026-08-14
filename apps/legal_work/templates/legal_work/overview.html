@@ -154,14 +154,25 @@ dashboard overview. They stay on the default focus and keep their ids;
         <ul class="divide-y divide-border">
           {% for insight in page.insights %}
             {% comment %}
-            The label is deliberately **not** `flex-none`. A flex item that
-            cannot shrink is sized to its max-content width, so a label like
-            "Tähtaeg möödas, arvamus ootel" refuses to wrap and pushes the row
-            past a 320px viewport. Both spans wrap; `min-w-0` lets them.
+            Stacked on a phone, side by side from `sm` up.
+
+            As one flex row this overflowed 320px in a way nothing on the page
+            could show: the label took most of the line, the detail was squeezed
+            to about sixty pixels, and `overflow-wrap: normal` cannot break a
+            word — so "kuupäevani" painted straight past its own box and widened
+            the document. No element box was ever outside the viewport, which is
+            why the overflow diagnostic listed only innocent boxes inside their
+            scrollers.
+
+            Stacking gives each span the full column on the width where the
+            squeeze happens, and `break-words` means no single token can do it
+            again at any width or in any font. CI's Ubuntu text is wider than a
+            Windows machine's, so this must hold with room to spare rather than
+            just barely.
             {% endcomment %}
-            <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-              <span class="min-w-0 text-sm font-medium text-text">{{ insight.label }}</span>
-              <span class="min-w-0 flex-1 text-sm text-text-secondary">{{ insight.detail }}</span>
+            <li class="flex flex-col gap-1 px-4 py-2.5 sm:flex-row sm:flex-wrap sm:items-baseline sm:gap-x-3 sm:px-5">
+              <span class="text-sm font-medium break-words text-text">{{ insight.label }}</span>
+              <span class="min-w-0 flex-1 text-sm break-words text-text-secondary">{{ insight.detail }}</span>
             </li>
           {% endfor %}
         </ul>
