@@ -362,6 +362,35 @@ class MoverPresenter:
 
 
 @dataclass(frozen=True)
+class CategoryMoverPresenter:
+    """One category's movement, formatted the same way a product's is."""
+
+    row: object
+
+    @property
+    def name(self) -> str:
+        return self.row.name
+
+    @property
+    def change_label(self) -> str:
+        change = int(self.row.change)
+        return f"{change:+d}".replace("-", "−")
+
+    @property
+    def context(self) -> str:
+        if self.row.is_new:
+            return "uus perioodil"
+        percentage = self.row.percentage_change
+        return "" if percentage is None else f"{int(percentage):+d}%".replace("-", "−")
+
+    @property
+    def context_title(self) -> str:
+        if self.row.is_new:
+            return "Eelmisel perioodil soetusi ei olnud."
+        return ""
+
+
+@dataclass(frozen=True)
 class RankingBar:
     """One row of the ranking: which product, in which category, how many.
 
@@ -609,6 +638,9 @@ class ShopOverview:
     focus_label: str = ""
     focus_question: str = ""
     focus_options: tuple[FocusOption, ...] = ()
+    #: Ready-made links to each view by key, so a template can point at one
+    #: without indexing into `focus_options` by position.
+    focus_links: dict = field(default_factory=dict)
     #: Type-aware wording for every acquisition figure on the page.
     units_label: str = "Soetatud"
     units_noun: str = "ühikut"
@@ -1338,6 +1370,7 @@ def build_overview(
         focus_label=focus.label,
         focus_question=focus.question,
         focus_options=_focus_options(focus.key, resolved, state, metric),
+        focus_links={item.key: _focus_query(item.key) for item in FOCUSES},
         units_label=words.units_label,
         units_noun=words.units_noun,
         views_label=words.views_label,
@@ -1387,11 +1420,12 @@ def build_overview(
         value_category_bars=value_category_bars,
         value_type_bars=value_type_bars,
         type_bars=type_bars,
-        category_risers=category_risers,
-        category_fallers=category_fallers,
+        category_risers=tuple(CategoryMoverPresenter(row) for row in category_risers),
+        category_fallers=tuple(CategoryMoverPresenter(row) for row in category_fallers),
         web_coverage=web_coverage,
         matrix=matrix,
         catalogue=catalogue_presenter,
+        schema_version=coverage.schema_version,
         distinct_orders_available=orders_are_distinct,
         free_paid_available=mix.is_known,
         page_detail_complete=window.page_detail_complete,

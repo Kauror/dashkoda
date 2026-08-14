@@ -1,0 +1,34 @@
+{% comment %}
+One compact horizontal comparison: label, exact figure, and a bar.
+
+The bar length is an SVG geometry **attribute**, never a width inside a
+`style`. The Content Security Policy is `style-src 'self'` and the page tests
+assert that no `style="` reaches the document, so a proportion may only be drawn
+as geometry.
+
+The bar is never the only carrier of the quantity. Every row prints its exact
+value beside the label, so the section reads identically with images off, in a
+screen reader, and for anyone who cannot judge two similar lengths — which is
+also why the bar itself is `aria-hidden`.
+
+Expects: `rows` (a sequence of `page.BarRow`), and optionally `caption`.
+{% endcomment %}
+{% if rows %}
+  <ul class="flex min-w-0 flex-col gap-2">
+    {% for row in rows %}
+      <li class="flex min-w-0 flex-col gap-1">
+        <div class="flex min-w-0 items-baseline justify-between gap-3">
+          <span class="min-w-0 break-words text-sm text-text">
+            {% if row.href %}<a class="dk-link" href="{{ row.href }}">{{ row.label }}</a>{% else %}{{ row.label }}{% endif %}
+          </span>
+          <span class="shrink-0 text-sm font-semibold tabular-nums text-text">{{ row.value }}</span>
+        </div>
+        <svg viewBox="0 0 100 3" preserveAspectRatio="none" class="h-1 w-full" aria-hidden="true">
+          <rect x="0" y="0" width="100" height="3" rx="1.5" class="fill-elevated"/>
+          <rect x="0" y="0" width="{{ row.width|stringformat:'.2f' }}" height="3" rx="1.5" class="fill-brand"/>
+        </svg>
+        {% if row.has_note %}<p class="dk-meta">{{ row.note }}</p>{% endif %}
+      </li>
+    {% endfor %}
+  </ul>
+{% endif %}

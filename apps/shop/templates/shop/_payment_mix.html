@@ -1,0 +1,18 @@
+{% comment %}
+Ordered value by payment mode.
+
+This section states composition and nothing else. An invoice figure is value
+that was **ordered** on an invoice — Koda.ee marks an invoice as sent and never
+as paid, so whether it was settled is the accounting system's fact and this
+application does not have it. Nothing here may be worded as received, earned,
+outstanding or overdue.
+{% endcomment %}
+{% if overview.payment_mix.is_known %}
+  <section aria-labelledby="section-payment" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Tellitud väärtus makseviisi järgi" heading_id="section-payment" only %}
+    <div class="dk-section-body flex flex-col gap-3">
+      {% include "shop/_bars.html" with rows=overview.payment_mix.rows only %}
+      <p class="dk-meta">Näitab, kuidas tellitud väärtus jaguneb makseviisi järgi. See ei ütle, kas arve on tasutud — Koda.ee ei salvesta laekumist.</p>
+    </div>
+  </section>
+{% endif %}

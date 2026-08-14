@@ -1,0 +1,35 @@
+{% comment %}
+The member dimension, shown only when `member_semantics_verified` is true.
+
+The gate is not decoration. Drupal Commerce normally snapshots the billing
+profile onto the order, which would make the stored flag describe membership at
+the moment of the transaction — but that was never confirmed against this site.
+If profiles are instead reused and updated, the flag describes membership today
+and every historical split would be wrong.
+
+`Teadmata` stays visible when the gate is open. It is a real answer, not a
+rounding error, and collapsing it into either of the others would overstate
+whichever it joined.
+
+Historical member savings are absent by design and stay absent: the order line
+preserves the price paid but not the list price that stood that day, so
+"members saved €X" cannot be computed truthfully from this data.
+{% endcomment %}
+{% if overview.member_split.is_open and overview.member_split.rows %}
+  <section aria-labelledby="section-member" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Liikmed ja mitteliikmed" heading_id="section-member" only %}
+    <div class="dk-section-body flex flex-col gap-4">
+      <div>
+        <h3 class="mb-2 text-sm font-semibold text-text">Soetatud ühikud</h3>
+        {% include "shop/_bars.html" with rows=overview.member_split.rows only %}
+      </div>
+      {% if overview.member_split.value_rows %}
+        <div>
+          <h3 class="mb-2 text-sm font-semibold text-text">Tellitud väärtus</h3>
+          {% include "shop/_bars.html" with rows=overview.member_split.value_rows only %}
+        </div>
+      {% endif %}
+      <p class="dk-meta">Näidatud on liidetavad näitajad. Eri tellimuste arvu liikmestaatuse kaupa ei näidata, sest päevakokkuvõte ei kanna seda mõõdet.</p>
+    </div>
+  </section>
+{% endif %}

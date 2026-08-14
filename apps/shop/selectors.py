@@ -83,6 +83,10 @@ class ShopCoverage:
     coverage_end: date | None = None
     member_semantics_verified: bool = False
     public_listing_semantics_verified: bool = False
+    #: Which package contract published this dataset. Shown in the methodology
+    #: because it decides which dimensions exist at all: a 1.0 package carries
+    #: no distinct-order summaries and no free/paid classification.
+    schema_version: str = ""
 
     @property
     def has_data(self) -> bool:
@@ -99,6 +103,7 @@ def get_shop_coverage() -> ShopCoverage:
             "coverage_end",
             "member_semantics_verified",
             "public_listing_semantics_verified",
+            "schema_version",
         )
         .first()
     )
@@ -110,6 +115,7 @@ def get_shop_coverage() -> ShopCoverage:
         coverage_end=state.coverage_end,
         member_semantics_verified=state.member_semantics_verified,
         public_listing_semantics_verified=state.public_listing_semantics_verified,
+        schema_version=state.schema_version,
     )
 
 
