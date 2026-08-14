@@ -2,13 +2,15 @@ import { expect, test } from "@playwright/test";
 
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
+// The executive overview's sections, in reading order: status, exceptions,
+// near-term work, audience behaviour, provenance.
 const SECTIONS = [
-  "Põhinäitajad",
-  "Õigusloome",
-  "Liikmeskond",
-  "Tulevased sündmused",
-  "Viimased uudised",
-  "Kanalite statistika",
+  "Koja seis",
+  "Mis vajab tähelepanu?",
+  "Järgmised 30 päeva",
+  "Praegu huvi pakkuv",
+  "Kanalite auditoorium",
+  "Andmete seis",
 ];
 
 test("the shell renders every section with a truthful empty state", async ({ page }) => {
@@ -17,11 +19,16 @@ test("the shell renders every section with a truthful empty state", async ({ pag
   await signIn(page);
 
   for (const section of SECTIONS) {
-    // Level 2 pins this to the section headings. A headline cell now names its
-    // module too ("Õigusloome"), and that label is an h3 inside the strip.
+    // Level 2 pins this to the section headings. A pillar names its strategic
+    // area too ("Liikmeskond"), and that label is an h3 inside the card.
     await expect(page.getByRole("heading", { name: section, exact: true, level: 2 })).toBeVisible();
   }
-  await expect(page.getByText("Andmeallikas ei ole veel ühendatud.").first()).toBeVisible();
+  // With nothing imported, every pillar says so rather than showing a nought,
+  // and the exception section is silent rather than full of reassurance.
+  await expect(page.getByText("Andmeallikas ei ole ühendatud.").first()).toBeVisible();
+  await expect(
+    page.getByText("Olulisi muutusi või lähenevaid tähtaegu ei ole."),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 

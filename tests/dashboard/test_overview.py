@@ -9,12 +9,12 @@ from apps.dashboard.navigation import NAVIGATION, iter_items
 pytestmark = pytest.mark.django_db
 
 SECTION_TITLES = [
-    "Põhinäitajad",
-    "Õigusloome",
-    "Liikmeskond",
-    "Tulevased sündmused",
-    "Viimased uudised",
-    "Kanalite statistika",
+    "Koja seis",
+    "Mis vajab tähelepanu?",
+    "Järgmised 30 päeva",
+    "Praegu huvi pakkuv",
+    "Kanalite auditoorium",
+    "Andmete seis",
 ]
 
 
@@ -87,21 +87,37 @@ def test_the_sidebar_names_no_module_it_cannot_open(client, authenticate_viewer)
 
 
 def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
+    """An empty database produces no business figure anywhere on the page.
+
+    The scan can no longer be "the page contains no digit at all". The executive
+    overview carries two digits that are facts about the *page* rather than about
+    data — how many strategic areas it has, and the fixed thirty-day horizon in a
+    section title — and both are constants that exist before any source does.
+
+    So the invariant is stated where it belongs: every pillar is unavailable, and
+    it says so rather than showing a nought. A zero here would claim somebody
+    counted no members.
+    """
     authenticate_viewer(client)
 
-    content = client.get("/").content.decode()
-    # The whole page, with nothing cut out of it. This used to strip the
-    # connection-state strip first, because the check time it printed was a fact
-    # about the application rather than business data; that strip is gone, so
-    # the page must now be free of digits outright.
-    #
-    # Entities are decoded before the scan. `strip_tags` leaves `&#x27;` intact,
-    # and the digits inside a numeric entity would otherwise read as a passing
-    # page while a label such as "YouTube'i" was quietly contributing "27".
-    visible_text = html_module.unescape(strip_tags(content))
+    response = client.get("/")
+    content = response.content.decode()
+    page = response.context["page"]
 
+    assert page.pillars, "the page still describes its five areas with no data"
+    assert not any(pillar.is_available for pillar in page.pillars)
+    assert not page.signals, "no source can support a signal"
+    assert not page.upcoming
+    assert not page.available_interest
+
+    # Structural digits are allowed through by name; nothing else may appear.
+    visible_text = html_module.unescape(strip_tags(content))
+    for structural in (f"{len(page.pillars)} valdkonda", "Järgmised 30 päeva"):
+        assert structural in visible_text
+        visible_text = visible_text.replace(structural, "")
     assert re.search(r"\d", visible_text) is None, visible_text
-    assert "Andmeallikas ei ole veel ühendatud." in content
+
+    assert "Andmeallikas ei ole ühendatud." in content
     # The channel band words it differently: those figures are entered by hand,
     # so nobody has failed to connect anything — nobody has typed one in yet.
     assert "Andmed puuduvad." in content
