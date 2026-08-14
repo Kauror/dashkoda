@@ -69,6 +69,8 @@ def synthetic_programme(today: dt.date | None = None) -> list[dict]:
             source_year=old_year - 1,
             source_sheet=f"KOOD {old_year - 1}",
             source_row=2,
+            # Planned two months ahead, at the ordinary paid price.
+            added_date=_at(dt.date(old_year, 2, 10) - dt.timedelta(days=60)),
         ),
         synthetic_row(
             event_id="EVENT-8002",
@@ -82,6 +84,11 @@ def synthetic_programme(today: dt.date | None = None) -> list[dict]:
             event_type_label="Sünteetiline konverentsivorm",
             delivery_mode="online",
             source_row=3,
+            # A genuinely free event: the price is a stated zero, not a blank.
+            price_status="free",
+            member_price_eur=0,
+            nonmember_price_eur=0,
+            added_date=_at(dt.date(old_year, 5, 20) - dt.timedelta(days=20)),
         ),
         synthetic_row(
             event_id="EVENT-8003",
@@ -98,6 +105,7 @@ def synthetic_programme(today: dt.date | None = None) -> list[dict]:
             date_parse_status="parsed_range",
             review_required=True,
             source_row=4,
+            added_date=_at(dt.date(mid_year, 3, 4) - dt.timedelta(days=100)),
         ),
         synthetic_row(
             event_id="EVENT-8004",
@@ -116,6 +124,11 @@ def synthetic_programme(today: dt.date | None = None) -> list[dict]:
             review_required=True,
             warning_codes="date_unparsed",
             source_row=5,
+            # No date means no planning lead, and a price nobody recorded. The
+            # second must never be read as free.
+            price_status="missing",
+            member_price_eur=None,
+            nonmember_price_eur=None,
         ),
         synthetic_row(
             event_id="EVENT-8005",
@@ -133,6 +146,11 @@ def synthetic_programme(today: dt.date | None = None) -> list[dict]:
             source_year=today.year,
             source_sheet=f"KOOD {today.year}",
             source_row=6,
+            # A price that has not been set yet. Also not free.
+            price_status="tba",
+            member_price_eur=None,
+            nonmember_price_eur=None,
+            added_date=_at(today - dt.timedelta(days=25)),
         ),
         synthetic_row(
             event_id="EVENT-8006",
@@ -148,6 +166,10 @@ def synthetic_programme(today: dt.date | None = None) -> list[dict]:
             source_year=today.year,
             source_sheet=f"KOOD {today.year}",
             source_row=7,
+            # Entered into the programme five days *after* it ran. A negative
+            # lead is a real data-quality fact and must not be clamped to zero
+            # or averaged into the planning statistics.
+            added_date=_at(today - dt.timedelta(days=5)),
         ),
         synthetic_row(
             event_id="EVENT-8007",
