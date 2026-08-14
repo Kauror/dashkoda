@@ -11,11 +11,11 @@ table is **not** a fallback that appears when something breaks — it stays in t
 document, so a reader who never sees the canvas gets the same numbers, and a
 keyboard reader gets them at all.
 
-The dataclasses below deliberately mirror `apps.membership.charts` rather than
-importing it. They are the shape a shared template duck-types, and one dashboard
-reaching into another dashboard's presenter for a dataclass is how two pages end
-up unable to change independently. The duplication is four small frozen classes;
-the coupling would be permanent.
+The payload shape comes from `apps.core.chart_payload` — the template's
+contract written once, owned by neither dashboard. While the dashboards were
+built on parallel branches each carried its own copy rather than import a
+sibling's presenter; with the branches integrated, the copies were folded into
+that one definition.
 
 Chart grammar, following `docs/design-system.md`:
 
@@ -31,8 +31,7 @@ Chart grammar, following `docs/design-system.md`:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
+from apps.core.chart_payload import ChartPayload, Readout
 from apps.core.formatting import integer, percent
 
 GRID = {"left": 56, "right": 24, "top": 32, "bottom": 40, "containLabel": True}
@@ -49,44 +48,6 @@ LABEL_LAYOUT = {"hideOverlap": True}
 
 #: How many bars a horizontal ranking draws before it stops being readable.
 RANKING_LIMIT = 10
-
-
-@dataclass(frozen=True)
-class Readout:
-    """One figure in a chart's analytical header. Every string arrives formatted."""
-
-    label: str
-    value: str
-    note: str = ""
-    change: str = ""
-    change_label: str = ""
-    direction: str = ""
-
-    @property
-    def has_change(self) -> bool:
-        return bool(self.change)
-
-
-@dataclass(frozen=True)
-class ChartPayload:
-    """One chart plus the accessible alternative that always accompanies it."""
-
-    payload_id: str
-    title: str
-    option: dict
-    table_headers: tuple[str, ...]
-    table_rows: tuple[tuple, ...]
-    summary: str
-    empty_message: str = "Andmed puuduvad."
-    footnotes: tuple[str, ...] = field(default_factory=tuple)
-    question: str = ""
-    observation_label: str = ""
-    readouts: tuple[Readout, ...] = field(default_factory=tuple)
-    size: str = "medium"
-
-    @property
-    def has_data(self) -> bool:
-        return bool(self.table_rows)
 
 
 def _tip(title: str, rows: tuple[tuple[str, str], ...], note: str = "") -> dict:

@@ -5,13 +5,14 @@ what ECharts must not receive as option — the pre-rendered tooltips and the
 names of the axis spellings. `frontend/src/charts.js` documents that contract and
 is not changed by this module; the bundle it ships is reused as it stands.
 
-## Why a local payload type
+## The payload type
 
-`chart_figure.html` renders anything with these fields, and `apps.membership`
-holds the version the Liikmeskond page builds. Importing that one would couple
-two feature modules through a dataclass neither owns, so Koduleht declares its
-own with the same shape. The component's contract is the shared thing; the
-dataclass is not.
+`chart_figure.html` renders `apps.core.chart_payload.ChartPayload`, which is
+the template's contract written once and owned by neither feature module.
+While the dashboards were built on parallel branches each declared its own
+copy of the shape rather than import a sibling's; with the branches
+integrated, the copies were folded into that one definition. `WebsiteChart`
+below is this module's name for it.
 
 ## The drawing rules this module follows
 
@@ -29,9 +30,9 @@ dataclass is not.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import date
 
+from apps.core.chart_payload import ChartPayload, Readout
 from apps.core.formatting import (
     day_and_month,
     integer,
@@ -68,50 +69,15 @@ CATEGORY_LABEL_WIDTH = 260
 BAR_LABEL = {"fontSize": 12, "fontWeight": 600, "distance": 6}
 
 
-@dataclass(frozen=True)
-class Readout:
-    """One figure in a chart's analytical header, already spelled.
+#: This module's name for the shared payload the chart template renders. The
+#: shape lives in `apps.core.chart_payload`; the website keeps its own name for
+#: it because 29 signatures here and in `website_page` describe their charts
+#: with it, and its own wording for absence, stated per construction below.
+WebsiteChart = ChartPayload
 
-    `direction` is the non-colour signal and `change_label` is what a screen
-    reader receives instead of an arrow glyph it cannot describe.
-    """
-
-    label: str
-    value: str
-    change: str = ""
-    change_label: str = ""
-    direction: str = ""
-    note: str = ""
-
-    @property
-    def has_change(self) -> bool:
-        return bool(self.change)
-
-
-@dataclass(frozen=True)
-class WebsiteChart:
-    """One chart plus the accessible alternative that always accompanies it.
-
-    The table is not a fallback: it stays in the document for every reader, and
-    only the canvas is hidden when there is nothing to draw.
-    """
-
-    payload_id: str
-    title: str
-    option: dict
-    table_headers: tuple[str, ...]
-    table_rows: tuple[tuple, ...]
-    summary: str
-    empty_message: str = "Mõõtmisandmed puuduvad."
-    footnotes: tuple[str, ...] = field(default_factory=tuple)
-    question: str = ""
-    observation_label: str = ""
-    readouts: tuple[Readout, ...] = field(default_factory=tuple)
-    size: str = "medium"
-
-    @property
-    def has_data(self) -> bool:
-        return bool(self.table_rows)
+#: The website's empty-state line. GA4 charts are empty because measurement is
+#: missing, not because nothing happened, and the wording says which.
+EMPTY_MESSAGE = "Mõõtmisandmed puuduvad."
 
 
 def _bucket_label(day: date, grain: str) -> str:
@@ -290,6 +256,7 @@ def channel_sessions_chart(
 
     return WebsiteChart(
         payload_id="koduleht-kanalid",
+        empty_message=EMPTY_MESSAGE,
         title="Seansid kanalite kaupa",
         question="Kust külastajad tulid?",
         option=option,
@@ -374,6 +341,7 @@ def channel_engagement_chart(
 
     return WebsiteChart(
         payload_id="koduleht-kanalite-kaasatus",
+        empty_message=EMPTY_MESSAGE,
         title="Kaasatud seansside osakaal kanali kaupa",
         question="Millised kanalid toovad kaasatumaid seansse?",
         option=option,
@@ -465,6 +433,7 @@ def _composition_chart(
 
     return WebsiteChart(
         payload_id=payload_id,
+        empty_message=EMPTY_MESSAGE,
         title=title,
         question=question,
         option=option,
@@ -578,6 +547,7 @@ def top_pages_chart(rows: tuple, *, total_page_views: int | None) -> WebsiteChar
 
     return WebsiteChart(
         payload_id="koduleht-enim-vaadatud",
+        empty_message=EMPTY_MESSAGE,
         title="Enim vaadatud sisu",
         question="Mida perioodil kõige rohkem loeti?",
         option=option,
@@ -776,6 +746,7 @@ def weekday_chart(pattern: tuple[WeekdayAverage, ...], *, names: tuple[str, ...]
 
     return WebsiteChart(
         payload_id="koduleht-nadalapaevad",
+        empty_message=EMPTY_MESSAGE,
         title="Nädalapäevade muster",
         question="Kuidas jaguneb liiklus nädalapäevade vahel?",
         option=option,
