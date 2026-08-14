@@ -15,6 +15,7 @@ from django.core.management import call_command
 from django.urls import reverse
 
 from apps.core.feeds import FeedResult, advisory_lock
+from apps.core.formatting import integer
 from apps.events.collector import EventCollectionError
 from apps.events.sync import LOCK_NAME as EVENTS_LOCK
 from apps.events.sync import synchronize_events
@@ -287,7 +288,7 @@ def test_the_public_member_count_reaches_the_overview(viewer):
 
     body = viewer.get(reverse("home")).content.decode()
 
-    assert "3395" in body
+    assert integer(3395) in body
     assert "Liikmeid kokku" in body
 
 
@@ -325,17 +326,24 @@ def test_the_public_calendar_is_named_on_the_events_page_but_lists_nothing(viewe
     assert "https://www.koda.ee/et/sundmused/synthetic-0" not in body
 
 
-def test_the_overview_shows_the_two_public_sources_it_still_feeds(viewer):
-    """The member directory and the news feed. The public calendar feeds neither
-    an overview figure nor the overview's event preview any more."""
+def test_the_overview_shows_the_public_directory_and_no_calendar_figure(viewer):
+    """The member directory leads a pillar. The public calendar leads nothing.
+
+    The news feed no longer puts article titles on the front page. That is a
+    consequence of the page becoming an executive overview rather than a
+    preview of every module: a published article is not by itself news to a
+    board, and the front page's news panel is about what is being *read*, which
+    needs GA4 measurement that a catalogue sync does not provide. Article titles
+    live on `/uudised/`.
+    """
     synchronize_membership(collector=collector_returning(membership_collection(3395)))
     synchronize_news(collector=collector_returning(news_collection(3)))
     synchronize_events(collector=collector_returning(event_collection(3)))
 
     body = viewer.get(reverse("home")).content.decode()
 
-    assert "3395" in body
-    assert "Sünteetiline uudis" in body
+    assert integer(3395) in body
+    assert "Liikmeskond" in body
     assert "Sünteetiline sündmus" not in body
 
 
@@ -356,7 +364,7 @@ def test_a_failed_check_shows_previous_data_with_a_warning(viewer):
     body = viewer.get(reverse("home")).content.decode()
     freshness = viewer.get(reverse("dashboard-freshness")).content.decode()
 
-    assert "3395" in body, "the previous good number must still be shown"
+    assert integer(3395) in body, "the previous good number must still be shown"
     assert "Vananenud: 1" in freshness, "the failed check is disclosed"
     for page in (body, freshness):
         assert "Sünteetiline sisemine veateade" not in page, (

@@ -338,15 +338,29 @@ class ExecutiveOverviewPage:
         return tuple(item for item in self.interest if item.is_available)
 
     @property
-    def warning_count(self) -> int:
-        """Domains whose source state is worth disclosing in the header chip.
+    def has_any_source(self) -> bool:
+        """Whether any business source has published anything at all."""
+        return any(row.state != STATE_NOT_CONNECTED for row in self.data_status)
 
-        Counts data status rows carrying a limitation or a non-available state,
-        which is a fact about sources. It is deliberately **not** a business
-        KPI, and the header never prints a connected-source ratio.
+    @property
+    def warning_count(self) -> int:
+        """Sources worth disclosing in the header chip.
+
+        Counts *connected* sources whose state or limitation a reader should
+        know about before trusting a figure above. A source nobody has connected
+        yet is not a warning — it is an absence, and a fresh deployment
+        announcing "7 andmemärkust" would be reporting its own emptiness as
+        seven problems.
+
+        Deliberately **not** a business KPI. The header never prints a
+        connected-source ratio: how much plumbing is attached is not a measure
+        of how the Chamber is doing.
         """
         return sum(
-            1 for row in self.data_status if row.has_limitation or row.state != STATE_AVAILABLE
+            1
+            for row in self.data_status
+            if row.state != STATE_NOT_CONNECTED
+            and (row.has_limitation or row.state != STATE_AVAILABLE)
         )
 
 

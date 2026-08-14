@@ -38,11 +38,10 @@ prioritising this page exists to do for them.
     "Ühendatud allikaid 9/9" read as a score for a fact about plumbing.
     {% endcomment %}
     <p class="dk-meta mt-1">
-      {{ page.pillars|length }} valdkonda
-      {% if page.warning_count %}
-        · <a class="dk-link" href="#andmete-seis">{{ page.warning_count }} andmemärkust</a>
+      {% if page.has_any_source and page.warning_count %}
+        <a class="dk-link" href="#andmete-seis">{{ page.warning_count }} andmemärkust</a>
       {% else %}
-        · <a class="dk-link" href="#andmete-seis">Andmete kohta</a>
+        <a class="dk-link" href="#andmete-seis">Andmete kohta</a>
       {% endif %}
     </p>
   </header>
@@ -129,7 +128,7 @@ prioritising this page exists to do for them.
           {% endfor %}
         </ol>
       {% else %}
-        <p class="text-sm text-text-secondary">Lähima 30 päeva jooksul ei ole tähtaegu ega sündmusi.</p>
+        <p class="text-sm text-text-secondary">Lähiajal ei ole tähtaegu ega sündmusi.</p>
       {% endif %}
     </div>
   </section>
@@ -167,8 +166,15 @@ prioritising this page exists to do for them.
   </section>
 
   {# ---------------- Kanalite auditoorium ---------------- #}
-  <section aria-labelledby="kanalid" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kanalite auditoorium" heading_id="kanalid" description="Iga kanal eraldi. Neid ei liideta — sama inimene võib olla mitmes." only %}
+  {% comment %}
+  The heading keeps the id `section-channels`. The section was renamed from
+  `Kanalite statistika`, but the anchor is a contract other tests scope
+  themselves to — the band is the one place on the page where a hand-typed
+  figure must never borrow a synchronised feed's vocabulary, and that check
+  needs to address exactly this section.
+  {% endcomment %}
+  <section aria-labelledby="section-channels" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kanalite auditoorium" heading_id="section-channels" description="Iga kanal eraldi. Neid ei liideta — sama inimene võib olla mitmes." only %}
     <div class="dk-section-body">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {% for slot in page.channels %}

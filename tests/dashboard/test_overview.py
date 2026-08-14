@@ -90,12 +90,17 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     """An empty database produces no business figure anywhere on the page.
 
     The scan can no longer be "the page contains no digit at all". The executive
-    overview carries two digits that are facts about the *page* rather than about
-    data — how many strategic areas it has, and the fixed thirty-day horizon in a
-    section title — and both are constants that exist before any source does.
+    overview has a section titled `Järgmised 30 päeva`, and that thirty is a
+    constant in a heading rather than anything measured — it is on the page
+    before any source exists and does not move when one arrives.
 
-    So the invariant is stated where it belongs: every pillar is unavailable, and
-    it says so rather than showing a nought. A zero here would claim somebody
+    Nothing else may carry a digit. The header chip in particular must not:
+    a fresh deployment announcing "7 andmemärkust" would be reporting its own
+    emptiness as seven problems, so the count appears only once some source has
+    actually published.
+
+    The invariant itself is stated where it belongs — every pillar unavailable
+    and saying so, rather than showing a nought that would claim somebody
     counted no members.
     """
     authenticate_viewer(client)
@@ -109,12 +114,13 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     assert not page.signals, "no source can support a signal"
     assert not page.upcoming
     assert not page.available_interest
+    assert not page.has_any_source
 
-    # Structural digits are allowed through by name; nothing else may appear.
+    # The one structural digit is allowed through by name; nothing else may
+    # appear anywhere on the page.
     visible_text = html_module.unescape(strip_tags(content))
-    for structural in (f"{len(page.pillars)} valdkonda", "Järgmised 30 päeva"):
-        assert structural in visible_text
-        visible_text = visible_text.replace(structural, "")
+    assert "Järgmised 30 päeva" in visible_text
+    visible_text = visible_text.replace("Järgmised 30 päeva", "")
     assert re.search(r"\d", visible_text) is None, visible_text
 
     assert "Andmeallikas ei ole ühendatud." in content

@@ -10,7 +10,7 @@ import pytest
 from django.urls import reverse
 
 from apps.access.middleware import CSP
-from apps.core.formatting import GROUP_SEPARATOR
+from apps.core.formatting import GROUP_SEPARATOR, integer
 from apps.membership.bootstrap import ensure_membership_source
 from apps.membership.models import MembershipCountObservation, MembershipMetricConflict
 from apps.sources.services import build_import_run, register_external_reference
@@ -209,17 +209,16 @@ def test_overview_does_not_show_two_competing_totals(
     # months back from the newest observation's own date, which falls five days
     # after the older one and leaves a single point. One point is not a trend
     # and is not drawn, so the label this test is about would never appear.
-    body = viewer_client.get(
-        reverse("home"), {"alates": "2024-01-01", "kuni": "2025-01-15"}
-    ).content.decode()
+    body = viewer_client.get(reverse("home")).content.decode()
 
-    assert "3555" in body, "the public directory total leads the headline strip"
-    # The board report's own total is on the card as a drawn line, labelled
-    # with whose total it is, rather than as a printed figure —
-    # `tests/dashboard/test_overview_data.py` holds the card to exactly three
-    # printed figures. What matters here is that the two definitions are not
-    # conflated and that the strip states the public directory's count.
-    assert "Liikmeid kokku · koja aruanne" in body
+    assert integer(3555) in body, "the public directory total leads the pillar"
+    # The board report's own total is no longer drawn on the front page at all.
+    # The executive pillar takes only *ratios inside* that report — the paid
+    # share, the fee collection, the year's joins and removals — each naming the
+    # report as its source. So the two definitions cannot be conflated, because
+    # only one of them is stated as a total.
+    assert "Liikmeid kokku · koja aruanne" not in body
+    assert "Koja sisemine liikmeskonna aruanne" in body
 
     membership = viewer_client.get(reverse("membership")).content.decode()
 

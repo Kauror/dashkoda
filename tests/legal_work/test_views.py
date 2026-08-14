@@ -215,42 +215,52 @@ def test_the_page_loads_only_local_bundled_assets(client, authenticate_viewer, i
 
 
 def test_overview_keeps_its_empty_state_without_a_snapshot(client, authenticate_viewer):
+    """The Huvikaitse pillar says it has no source, and still offers the page.
+
+    The overview used to hide `Vaata õigusloomet` when there was nothing to
+    show. The executive overview keeps it: a pillar is a permanent part of the
+    page's structure, its route exists either way, and a reader who cannot see
+    where a strategic area lives learns less than one who arrives at an honest
+    empty page. What must never appear is a nought standing in for the count.
+    """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
 
-    assert "Andmeallikas ei ole veel ühendatud." in content
-    assert "Eelnõud ja arvamused ilmuvad siia pärast esimest edukat sünkroonimist." in content
-    # The card does not offer a way through to a page that has nothing on it.
-    assert "Vaata õigusloomet" not in content
+    assert "Huvikaitse" in content
+    assert "Andmeallikas ei ole ühendatud." in content
+    assert "Vaata õigusloomet" in content
+    assert "Arvamusi välja saadetud tänavu" not in content
 
 
 def test_overview_shows_real_legal_work_data_once_imported(
     client, authenticate_viewer, imported_snapshot
 ):
+    """The pillar carries the figure and the workbook's own reporting date.
+
+    The list of topics moved to the Õigusloome page — the front page states how
+    much work is being carried and links through, rather than previewing rows.
+    """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
 
-    assert "Sünteetiline avatud teema" in content
-    # The headline cell is named for the module and lists its counts; the count
-    # itself is what carries the wording "teemasid töös".
-    assert "Õigusloome" in content
-    assert "teemasid töös" in content
+    assert "Huvikaitse" in content
+    assert "Arvamusi välja saadetud tänavu" in content
+    assert "Teemasid töös" in content
     assert "Vaata õigusloomet" in content
     stated = imported_snapshot.reporting_date
-    assert f"{stated.day}.{stated:%m.%y}" in content
+    assert f"{stated:%d.%m.%Y}" in content
 
 
 def test_overview_discloses_a_failed_sync_alongside_old_data(
     client, authenticate_viewer, imported_snapshot, legal_work_source
 ):
-    """The failure is disclosed, and the last good data stays on the overview
-    rather than being withdrawn.
+    """The failure is disclosed, and the last good data is not withdrawn.
 
-    The connection strip left the overview in #104, so the stale count is now
-    served by `/dashboard/varskus/`. The overview keeping its figures is the
-    part that matters to a reader and is asserted here unchanged."""
+    The disclosure is on `/dashboard/varskus/` and in `Andmete seis`; the
+    figures staying put is the part that matters to a reader.
+    """
     state = get_feed_state(legal_work_source)
     state.last_result = SyncResult.FAILED
     state.save()
@@ -260,7 +270,8 @@ def test_overview_discloses_a_failed_sync_alongside_old_data(
     freshness = client.get("/dashboard/varskus/").content.decode()
 
     assert "Vananenud: 1" in freshness
-    assert "Sünteetiline avatud teema" in content
+    assert "Arvamusi välja saadetud tänavu" in content
+    assert "Vananenud pärast ebaõnnestunud uuendust" in content
 
 
 def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
@@ -270,7 +281,8 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
 
     The shell's own freshness region legitimately shows the current time — that
     is a fact about the application, not about the data — so this checks the
-    legal-work claim specifically.
+    legal-work claim specifically. The pillar states it twice over: as the
+    headline's as-of date, and as the period the year-to-date figure stops on.
     """
     authenticate_viewer(client)
 
@@ -278,5 +290,5 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
     reporting_date = imported_snapshot.reporting_date
 
     assert reporting_date != dt.date.today()
-    assert "Seisuga" in content
-    assert f"{reporting_date.day}.{reporting_date:%m.%y}" in content
+    assert "seis" in content
+    assert f"{reporting_date:%d.%m.%Y}" in content

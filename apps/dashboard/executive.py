@@ -92,6 +92,20 @@ SOURCE_SMAILY = "Smaily"
 
 NO_SOURCE_NOTE = "Andmeallikas ei ole ühendatud."
 
+#: The strategic area covering the website, the news and the newsletters.
+#:
+#: The brief proposed `Nähtavus ja teavitamine`. It is not used, because
+#: `Nähtavus` is a **retired product name**: the website surface became
+#: `Koduleht` when that dashboard was rebuilt, `/nahtavus/` survives only as a
+#: redirect, and `tests/visibility/test_pages.py` holds the front page to never
+#: showing the old word again. Reintroducing it here as a pillar heading would
+#: put a name on the main page that exists nowhere else in the product, and a
+#: reader following it would look for a `Nähtavus` dashboard that is gone.
+#:
+#: The two live product names say the same thing and match the card's own two
+#: drill links.
+VISIBILITY_PILLAR_LABEL = "Koduleht ja uudised"
+
 
 def build_executive_overview(*, legal_work, membership, news, events) -> ExecutiveOverviewPage:
     """Read every domain once and shape the whole page.
@@ -374,7 +388,7 @@ def _visibility_pillar(website, news) -> ExecutivePillar:
     if not website.has_headline:
         return ExecutivePillar(
             key="website",
-            label="Nähtavus ja teavitamine",
+            label=VISIBILITY_PILLAR_LABEL,
             question="Kui hästi Koda oma auditooriumideni jõuab?",
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
@@ -383,7 +397,7 @@ def _visibility_pillar(website, news) -> ExecutivePillar:
     period = f"viimased {website.days} mõõdetud päeva"
     return ExecutivePillar(
         key="website",
-        label="Nähtavus ja teavitamine",
+        label=VISIBILITY_PILLAR_LABEL,
         question="Kui hästi Koda oma auditooriumideni jõuab?",
         headline=ExecutiveMetric(
             label="Kodulehe seansid",
