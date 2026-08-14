@@ -25,31 +25,30 @@ The form is an ordinary GET and works with no JavaScript.
       {% if page.query.section %}<input type="hidden" name="sisu" value="{{ page.query.section }}">{% endif %}
       <div class="flex min-w-0 flex-1 flex-col gap-1">
         <label class="dk-meta" for="koduleht-otsing">Lehe nimi või aadress</label>
+        {% comment %}
+        htmx is an enhancement, never the mechanism. The form submits to the
+        page itself, so a reader with no JavaScript searches exactly as well;
+        what the attributes buy is the results region updating as they type.
+        {% endcomment %}
         <input class="dk-input" type="search" id="koduleht-otsing" name="otsing"
-               value="{{ page.query.search }}" maxlength="120" autocomplete="off">
+               value="{{ page.query.search }}" maxlength="120" autocomplete="off"
+               placeholder="nt liikmemaks või /et/uudised/…"
+               hx-get="{% url 'visibility-traffic-search' %}"
+               hx-trigger="input changed delay:250ms, search"
+               hx-target="#koduleht-otsingutulemused"
+               hx-swap="innerHTML"
+               hx-include="closest form"
+               hx-sync="this:replace"
+               hx-indicator="#koduleht-otsin">
       </div>
       <button class="dk-button dk-button-primary" type="submit">Otsi</button>
       {% if page.query.search %}
         <a class="dk-button dk-button-secondary" href="?{{ page.clear_search_query }}">Tühjenda</a>
       {% endif %}
+      <p id="koduleht-otsin" class="dk-indicator dk-meta" aria-hidden="true">Otsin…</p>
     </form>
 
-    {% if page.search %}
-      <p class="dk-meta" role="status">{{ page.search.summary }}</p>
-      {% include "visibility/koduleht/_table.html" with table=page.search_table only %}
-
-      {% if page.search.total_pages > 1 %}
-        <nav aria-label="Tulemuste lehed" class="flex flex-wrap items-center gap-3">
-          {% if page.search.has_previous %}
-            <a class="dk-button dk-button-secondary" href="?{{ page.search_previous_query }}">Eelmine</a>
-          {% endif %}
-          <span class="dk-meta">Lehekülg {{ page.search.page_number }} / {{ page.search.total_pages }}</span>
-          {% if page.search.has_next %}
-            <a class="dk-button dk-button-secondary" href="?{{ page.search_next_query }}">Järgmine</a>
-          {% endif %}
-        </nav>
-      {% endif %}
-    {% endif %}
+    {% include "visibility/koduleht/_search_results.html" with page=page only %}
   </div>
 </section>
 

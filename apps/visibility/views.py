@@ -28,6 +28,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET
 
 from apps.dashboard.freshness import current_freshness
+from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
 
 from .content_sections import PARAM_CONTENT
@@ -77,6 +78,67 @@ def koduleht(request):
             # door they cannot open. It sits in `Andmete kohta` now.
             "can_add_data": request.user.is_authenticated and request.user.is_staff,
         },
+    )
+
+
+#: The parameters Koduleht understands. A live-search fragment carries the
+#: reader's current query forward so a reload keeps the window and the view — and
+#: carries *only* these, because the value ends up in somebody's address bar.
+KODULEHT_PARAMS = (
+    PARAM_FOCUS,
+    PARAM_PERIOD,
+    PARAM_FROM,
+    PARAM_TO,
+    PARAM_METRIC,
+    PARAM_CONTENT,
+    PARAM_SEARCH,
+    PARAM_PAGE,
+    PARAM_DETAIL,
+)
+
+
+@require_GET
+def koduleht_search_fragment(request):
+    """The explorer's results region alone, for a reader typing in the box.
+
+    Answers the same query the form would submit and renders the same partial
+    the full page renders, so what a reader sees while typing and what they see
+    after a reload cannot drift apart.
+
+    A new term is a new question, so this always builds page one: `lk` is
+    neither read from the request nor carried into the pushed URL. Keeping it
+    would answer "Ühtegi lehte ei leitud" for every term matching fewer results
+    than the page the reader happened to be on.
+
+    A reader without JavaScript never reaches this: the form on the page submits
+    to the page itself.
+    """
+    page = build_website_page(
+        focus_key=FOCUS_PAGES,
+        period_key=request.GET.get(PARAM_PERIOD),
+        date_from=request.GET.get(PARAM_FROM),
+        date_to=request.GET.get(PARAM_TO),
+        section_key=request.GET.get(PARAM_CONTENT),
+        search=request.GET.get(PARAM_SEARCH),
+    )
+    return search_fragment(
+        request,
+        "visibility/koduleht/_search_results.html",
+        {"page": page},
+        pushed=push_url(
+            request,
+            path=reverse("visibility"),
+            allowed=KODULEHT_PARAMS,
+            updates={
+                PARAM_FOCUS: FOCUS_PAGES,
+                PARAM_SEARCH: page.query.search,
+                PARAM_PAGE: "",
+                # Selecting a page is a different question from searching for
+                # one, and a new term should not keep the old page open.
+                PARAM_DETAIL: "",
+            },
+            anchor="#section-otsing",
+        ),
     )
 
 

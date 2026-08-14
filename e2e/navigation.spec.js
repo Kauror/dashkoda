@@ -2,7 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import { signIn, watchConsole } from "./helpers.js";
 
-const ROUTED = ["Ülevaade", "Liikmeskond", "Õigusloome", "Sündmused", "Uudised", "Nähtavus"];
+const ROUTED = ["Ülevaade", "Liikmeskond", "Õigusloome", "Sündmused", "Uudised", "Koduleht"];
 
 const isDesktop = (page) => page.viewportSize().width >= 1024;
 

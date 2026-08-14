@@ -4,6 +4,7 @@ from .views import (
     campaign_history,
     campaign_history_search_fragment,
     koduleht,
+    koduleht_search_fragment,
     legacy_visibility,
 )
 
@@ -19,13 +20,23 @@ from .views import (
 # bookmarked the website page should arrive at it with their period and their
 # section intact rather than at a 404.
 #
-# The two `uudiskirjad/` routes are kept for the same reason: the send archive
-# is a news page now. `/nahtavus/otsi/sisu/` and `/nahtavus/otsi/uudiskirjad/`
-# are **not** kept — both were internal live-search fragments that nothing links
-# to and nobody bookmarks, and whose whole purpose was to push a `/nahtavus/`
-# URL that is now wrong.
+# The `otsi/` route answers a keystroke with the explorer's results region
+# alone. It is an ordinary viewer-protected `GET`, so a reader without
+# JavaScript never reaches it — the form on the page submits to the page itself.
+# It moved with its page: the old `/nahtavus/otsi/sisu/` and
+# `/nahtavus/otsi/uudiskirjad/` addresses are not kept, because both were
+# internal fragments nothing links to and nobody bookmarks, and whose whole
+# purpose was to push a URL that is now wrong.
+#
+# The two `uudiskirjad/` page routes are kept for the same reason `/nahtavus/`
+# is: the send archive is a news page now, and a saved bookmark should arrive.
 urlpatterns = [
     path("koduleht/", koduleht, name="visibility"),
+    path(
+        "koduleht/otsi/",
+        koduleht_search_fragment,
+        name="visibility-traffic-search",
+    ),
     path("nahtavus/", legacy_visibility, name="visibility-legacy"),
     path(
         "nahtavus/uudiskirjad/",

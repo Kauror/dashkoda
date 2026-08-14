@@ -21,7 +21,8 @@ from apps.visibility.manual import VisibilitySubmission, publish_submission
 NEW_URL = "/admin/data-entry/visibility/new/"
 LIST_URL = "/admin/data-entry/visibility/"
 HUB_URL = "/admin/data-entry/"
-PAGE_URL = "/nahtavus/"
+PAGE_URL = "/koduleht/"
+LEGACY_PAGE_URL = "/nahtavus/"
 
 
 @pytest.fixture
@@ -127,3 +128,101 @@ def days_ago(today):
         return today - timedelta(days=count)
 
     return _days_ago
+
+
+# ---------------------------------------------------------------------------
+# GA4 history
+# ---------------------------------------------------------------------------
+#
+# `test_ga4_selectors.py` grew its own copy of this before the Koduleht work
+# needed one too. This is the shared version, and it carries the two fields that
+# copy does not: engagement seconds, and the `has_channel_detail` flag that
+# separates "no channel rows were asked for" from "no channels had traffic".
+
+
+@pytest.fixture
+def ga4_provenance(db):
+    """The source, artifact and import run every synthetic GA4 day hangs off."""
+    from apps.sources.services import build_import_run, register_external_reference
+    from apps.visibility.bootstrap import ensure_ga4_source
+
+    source = ensure_ga4_source()
+    artifact = register_external_reference(
+        source=source,
+        external_reference="synthetic:koduleht",
+        original_name="synthetic.json",
+        mime_type="application/json",
+        sha256="d" * 64,
+        size_bytes=10,
+    )
+    run = build_import_run(
+        artifact=artifact,
+        importer_name="synthetic_koduleht_test",
+        schema_version="2.0",
+        dry_run=False,
+    )
+    return source, artifact, run
+
+
+@pytest.fixture
+def ga4_day(ga4_provenance):
+    """Publish one synthetic reporting day.
+
+    `pages` is `(path, views[, engagement_seconds[, active_users]])` and
+    `channels` is `(name, sessions[, engaged_sessions])`. Both detail flags
+    follow whether rows were given, which is the distinction the coverage object
+    reads: a day with no page rows was not measured at zero pages.
+
+    Pass `has_page_detail` or `has_channel_detail` explicitly to describe the day
+    that *was* queried and genuinely returned nothing.
+    """
+    from django.utils import timezone as django_timezone
+
+    from apps.visibility.models import Ga4ChannelDaily, Ga4DailySnapshot, Ga4PageDaily
+
+    counter = {"n": 0}
+    source, artifact, run = ga4_provenance
+
+    def _day(
+        report_date,
+        *,
+        current=True,
+        pages=(),
+        channels=(),
+        has_page_detail=None,
+        has_channel_detail=None,
+        **figures,
+    ):
+        counter["n"] += 1
+        snapshot = Ga4DailySnapshot.objects.create(
+            source=source,
+            artifact=artifact,
+            import_run=run,
+            report_date=report_date,
+            observed_at=django_timezone.now(),
+            checksum=f"{counter['n']:064d}",
+            is_current_for_date=current,
+            has_page_detail=bool(pages) if has_page_detail is None else has_page_detail,
+            has_channel_detail=bool(channels) if has_channel_detail is None else has_channel_detail,
+            **figures,
+        )
+        for path, views, *rest in pages:
+            Ga4PageDaily.objects.create(
+                snapshot=snapshot,
+                report_date=report_date,
+                path=path,
+                page_views=views,
+                user_engagement_seconds=rest[0] if rest else None,
+                active_users=rest[1] if len(rest) > 1 else None,
+            )
+        for name, sessions, *rest in channels:
+            Ga4ChannelDaily.objects.create(
+                snapshot=snapshot,
+                report_date=report_date,
+                channel=name,
+                sessions=sessions,
+                engaged_sessions=rest[0] if rest else None,
+            )
+        return snapshot
+
+    return _day

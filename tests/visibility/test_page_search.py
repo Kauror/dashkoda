@@ -406,18 +406,18 @@ def test_the_rendered_page_searches_when_asked(viewer_client, day):
     because every one of them called the builder directly.
 
     So this asserts through the view: the term must survive the request, and
-    the response must be in the other mode.
+    the response must be in the other mode. The page is Koduleht now and the
+    search lives in its `Lehed` view, but the lesson is unchanged.
     """
     day(START, pages=(("/et/pood", 900), ("/et/liikmed/liikmemaks", 5)))
 
     page = viewer_client.get(
-        reverse("visibility"), {"periood": "koik", "otsing": "liikmemaks"}
+        reverse("visibility"), {"fookus": "lehed", "periood": "koik", "otsing": "liikmemaks"}
     ).content.decode()
 
-    assert "Otsingu tulemused" in page
     assert "/et/liikmed/liikmemaks" in page
-    # The ranking's own heading is gone: this is not a Top 20 with a filter.
-    assert "Enim vaadatud sisu valitud perioodil" not in page
+    # Not a ranking with a filter over it: the busiest page is not in the answer.
+    assert "/et/pood" not in page
     # And the box still holds what was typed, so the term is visible.
     assert 'value="liikmemaks"' in page
 
@@ -425,14 +425,15 @@ def test_the_rendered_page_searches_when_asked(viewer_client, day):
 def test_the_rendered_page_carries_the_result_page_number(viewer_client, day):
     """`lk` reaches the traffic section, not only the campaign archive.
 
-    Both pages paginate under `lk`. The overview view has to read it for the
-    traffic section, and `views.py` imports the two modules' parameter names
-    under aliases precisely so the archive's cannot be used here by accident.
+    Both pages paginate under `lk`. The Koduleht view has to read it for the
+    explorer, and the parameter names are declared once in `website_page` so the
+    newsletter archive's cannot be used here by accident.
     """
     day(START, pages=[(f"/et/pood/toode-{index:02d}", 100 - index) for index in range(30)])
 
     second = viewer_client.get(
-        reverse("visibility"), {"periood": "koik", "otsing": "toode", "lk": "2"}
+        reverse("visibility"),
+        {"fookus": "lehed", "periood": "koik", "otsing": "toode", "lk": "2"},
     ).content.decode()
 
     assert "Lehekülg 2 / 2" in second
@@ -452,12 +453,13 @@ def test_a_search_that_finds_nothing_still_offers_the_way_back(viewer_client, da
     day(START, pages=(("/et/pood", 900),))
 
     page = viewer_client.get(
-        reverse("visibility"), {"periood": "koik", "otsing": "ei-ole-olemas"}
+        reverse("visibility"),
+        {"fookus": "lehed", "periood": "koik", "otsing": "ei-ole-olemas"},
     ).content.decode()
 
     assert "Ühtegi lehte ei leitud." in page
     assert 'name="otsing"' in page
-    assert "Tühjenda otsing" in page
+    assert "Tühjenda" in page
 
 
 # -- the selector's own contract ---------------------------------------------
