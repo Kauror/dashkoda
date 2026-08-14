@@ -15,7 +15,7 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "../helpers.js"
  * page title.
  */
 
-const ARCHIVE = 'section[aria-labelledby="section-news"]';
+const ARCHIVE = 'section[aria-labelledby="section-archive"]';
 
 const VIEWPORT_INDEPENDENT = "desktop";
 const oncePerRun = () =>
@@ -47,7 +47,7 @@ test("the removed status panel and KPI cards are gone", async ({ page }) => {
 test("the controls and the first article are near the top of the page", async ({ page }) => {
   oncePerRun();
   await signIn(page);
-  await page.goto("/uudised/?periood=koik");
+  await page.goto("/uudised/?fookus=arhiiv&periood=koik");
 
   await expect(page.getByRole("heading", { level: 1, name: "Uudised" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Avaldamisperiood" })).toBeVisible();
@@ -57,19 +57,24 @@ test("the controls and the first article are near the top of the page", async ({
    * The product requirement, measured rather than described. The old page put a
    * status panel and a KPI strip between the title and the first article; the
    * archive has to reach the news inside roughly a screen of the heading.
+   *
+   * The allowance rose from 320 when the five-item focus navigation and the
+   * source-freshness row moved above the archive's own controls. Those are the
+   * page's navigation rather than filler about the feed, and the requirement is
+   * still what it was: the news within about a screen of the title.
    */
   const gap = await page.evaluate(() => {
     const heading = document.querySelector("main h1");
     const firstRow = document.querySelector("main table tbody tr");
     return firstRow.getBoundingClientRect().top - heading.getBoundingClientRect().top;
   });
-  expect(gap).toBeLessThan(320);
+  expect(gap).toBeLessThan(420);
 });
 
 test("rows are compact and carry no article summary", async ({ page }) => {
   oncePerRun();
   await signIn(page);
-  await page.goto("/uudised/?periood=koik");
+  await page.goto("/uudised/?fookus=arhiiv&periood=koik");
 
   const heights = await page.evaluate(() =>
     Array.from(document.querySelectorAll("main table tbody tr")).map(
@@ -97,10 +102,10 @@ test("a period selects articles by publication date", async ({ page }) => {
   oncePerRun();
   await signIn(page);
 
-  await page.goto("/uudised/?periood=koik");
+  await page.goto("/uudised/?fookus=arhiiv&periood=koik");
   const all = await page.locator("main table tbody tr").count();
 
-  await page.goto("/uudised/?periood=30");
+  await page.goto("/uudised/?fookus=arhiiv&periood=30");
   const recent = await page.locator("main table tbody tr").count();
 
   expect(all).toBeGreaterThan(recent);
@@ -113,7 +118,7 @@ test("a period selects articles by publication date", async ({ page }) => {
 test("a custom range exposes its two date fields and applies them", async ({ page }) => {
   oncePerRun();
   await signIn(page);
-  await page.goto("/uudised/");
+  await page.goto("/uudised/?fookus=arhiiv");
 
   await page.getByRole("link", { name: "Kohandatud" }).click();
   const from = page.getByLabel("Alates");
@@ -123,7 +128,7 @@ test("a custom range exposes its two date fields and applies them", async ({ pag
 
   // A reversed pair is normalised by the server rather than refused, and the
   // fields then show the window that was actually applied.
-  await page.goto("/uudised/?periood=kohandatud&alates=2099-01-01&kuni=2020-01-01");
+  await page.goto("/uudised/?fookus=arhiiv&periood=kohandatud&alates=2099-01-01&kuni=2020-01-01");
   await expect(page.getByLabel("Alates")).toHaveValue("2020-01-01");
   await expect(page.getByLabel("Kuni")).toHaveValue("2099-01-01");
 });
@@ -133,7 +138,7 @@ test("the view column shows measured figures and a dash where nothing was measur
 }) => {
   oncePerRun();
   await signIn(page);
-  await page.goto("/uudised/?periood=koik");
+  await page.goto("/uudised/?fookus=arhiiv&periood=koik");
 
   const views = await page.evaluate(() =>
     Array.from(document.querySelectorAll("main table tbody tr")).map((row) =>
@@ -146,14 +151,16 @@ test("the view column shows measured figures and a dash where nothing was measur
   // a fabricated reading.
   expect(views.some((value) => value === "—")).toBe(true);
   expect(views).not.toContain("0");
-  // The unit is named once, in the heading — not on every row.
-  await expect(page.locator("main")).not.toContainText("lehevaatamist");
+  // The unit is named once, in the column heading — not on every row. Scoped
+  // to the archive: `Andmete kohta` spells the word once, deliberately, to
+  // say that a page view is not a reader.
+  await expect(page.locator(ARCHIVE)).not.toContainText("lehevaatamist");
 });
 
 test("pagination walks the archive and keeps the query", async ({ page }) => {
   oncePerRun();
   await signIn(page);
-  await page.goto("/uudised/?periood=koik&sort=vaadatud");
+  await page.goto("/uudised/?fookus=arhiiv&periood=koik&sort=vaadatud");
 
   const section = page.locator(ARCHIVE);
   await expect(section).toContainText(/Lehekülg 1 \/ [2-9]/);
@@ -172,7 +179,7 @@ test("pagination walks the archive and keeps the query", async ({ page }) => {
 test("an article title opens the original on Koda.ee", async ({ page }) => {
   oncePerRun();
   await signIn(page);
-  await page.goto("/uudised/?periood=koik");
+  await page.goto("/uudised/?fookus=arhiiv&periood=koik");
 
   const link = page.locator("main table tbody a").first();
   await expect(link).toHaveAttribute("target", "_blank");
@@ -190,7 +197,7 @@ test("the archive is readable without dragging it sideways", async ({ page }) =>
    * column wraps instead, and this is what says so.
    */
   await signIn(page);
-  await page.goto("/uudised/?periood=koik");
+  await page.goto("/uudised/?fookus=arhiiv&periood=koik");
 
   const scrolls = await page.evaluate(() => {
     const table = document.querySelector("main table");
@@ -204,9 +211,9 @@ test("the archive never widens the page", async ({ page }) => {
   await signIn(page);
 
   for (const url of [
-    "/uudised/",
-    "/uudised/?periood=koik&sort=vaadatud",
-    "/uudised/?periood=kohandatud&alates=2020-01-01&kuni=2030-01-01",
+    "/uudised/?fookus=arhiiv",
+    "/uudised/?fookus=arhiiv&periood=koik&sort=vaadatud",
+    "/uudised/?fookus=arhiiv&periood=kohandatud&alates=2020-01-01&kuni=2030-01-01",
   ]) {
     await page.goto(url);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
