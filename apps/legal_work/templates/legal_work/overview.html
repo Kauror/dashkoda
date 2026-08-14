@@ -90,7 +90,15 @@ dashboard overview. They stay on the default focus and keep their ids;
       {% if page.headlines %}
         <dl class="dk-kpi-strip">
           {% for headline in page.headlines %}
-            <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
+            {% comment %}
+            `relative` is load-bearing. The screen-reader note below is
+            absolutely positioned, and `dk-kpi-strip` is a static
+            `overflow-hidden` grid — so without a positioned ancestor the note's
+            containing block is the page, nothing clips it, and it settles
+            wherever its untruncated text ends, dragging the document sideways
+            with it. Positioning the cell makes the cell its containing block.
+            {% endcomment %}
+            <div class="relative flex flex-col gap-1 px-4 py-3 sm:px-5">
               <dt class="text-sm text-text-secondary">{{ headline.label }}</dt>
               <dd class="flex flex-wrap items-baseline gap-x-2">
                 <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ headline.value }}</span>
@@ -145,8 +153,14 @@ dashboard overview. They stay on the default focus and keep their ids;
         {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-insights" only %}
         <ul class="divide-y divide-border">
           {% for insight in page.insights %}
+            {% comment %}
+            The label is deliberately **not** `flex-none`. A flex item that
+            cannot shrink is sized to its max-content width, so a label like
+            "Tähtaeg möödas, arvamus ootel" refuses to wrap and pushes the row
+            past a 320px viewport. Both spans wrap; `min-w-0` lets them.
+            {% endcomment %}
             <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-              <span class="flex-none text-sm font-medium text-text">{{ insight.label }}</span>
+              <span class="min-w-0 text-sm font-medium text-text">{{ insight.label }}</span>
               <span class="min-w-0 flex-1 text-sm text-text-secondary">{{ insight.detail }}</span>
             </li>
           {% endfor %}

@@ -122,12 +122,19 @@ def test_an_unknown_focus_still_renders_the_overview(client, authenticate_viewer
 
 
 def test_the_navigation_marks_exactly_one_focus_as_current(client, authenticate_viewer, register):
-    """`aria-current` is what a screen reader uses; chip styling alone is not."""
+    """`aria-current` is what a screen reader uses; chip styling alone is not.
+
+    Scoped to the focus navigation. The dashboard shell marks its own active
+    module the same way, in both the sidebar and the drawer, so counting across
+    the whole document measures the shell rather than this control.
+    """
     authenticate_viewer(client)
 
     content = get(client, "arvamused")
+    nav = content.split('aria-label="Õigusloome vaated"', 1)[1].split("</nav>", 1)[0]
 
-    assert content.count('aria-current="page"') == 1
+    assert nav.count('aria-current="page"') == 1
+    assert "fookus=arvamused" in nav
 
 
 # --------------------------------------------------------------------------
