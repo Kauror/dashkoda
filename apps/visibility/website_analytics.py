@@ -52,16 +52,29 @@ from .ga4_selectors import current_channels, current_days, current_pages, only_r
 #:
 #: Expressed as a **rate** rather than as a count, because the same dashboard
 #: asks the question over thirty days and over three years, and a fixed count
-#: would either admit every page in the long window or exclude every page in the
-#: short one. One view a day is the smallest bar that keeps a page which was
-#: seen twice out of a ranking of what changed.
+#: would either admit every path in the long window or exclude every path in the
+#: short one.
 #:
-#: The site's measured history — 40 998 distinct paths and 1 429 700 page views
-#: across 1 151 days, read on 2026-08-11 and recorded in `content_ranking` — puts
-#: the mean path at about 35 views over three years, so this admits a small
-#: minority of paths by design. It is a starting rule and is stated in the
-#: methodology so it can be re-profiled against production rather than guessed
-#: at a second time.
+#: Chosen by profiling the production history read-only on 2026-08-14, not
+#: guessed. Over the thirty days to 2026-08-13 the property measured 14 029 page
+#: views across 1 586 rankable paths, and the **median rankable path had one
+#: view**: the distribution is a long tail of pages nobody read twice. One view a
+#: day is what separates the pages a reader could reason about from that tail,
+#: and it holds its shape at every offered window:
+#:
+#: | window | rankable paths | floor | eligible |
+#: | --- | --- | --- | --- |
+#: | 30 päeva | 1 586 | 30 | 57 |
+#: | 90 päeva | 3 277 | 90 | 80 |
+#: | 1 aasta | 8 482 | 365 | 140 |
+#: | Kõik | 11 520 | 1 155 | 119 |
+#:
+#: A fixed count could not do that: 30 views admits 57 pages over a month and
+#: essentially every page over three years.
+#:
+#: Every eligible page in all four windows carried an engagement reading, so the
+#: opportunity matrix has both dimensions for its whole population rather than
+#: for a subset of it.
 MIN_PAGE_VIEW_RATE_PER_DAY = 1.0
 
 #: The floor under that rate, so a two-day custom window still requires a page to
@@ -69,8 +82,13 @@ MIN_PAGE_VIEW_RATE_PER_DAY = 1.0
 MIN_PAGE_VIEWS_FLOOR = 10
 
 #: The same idea for acquisition channels, which are far fewer and much larger:
-#: a channel is a group of sessions, not one address, and one carrying five
-#: sessions a day is the smallest that can move without the movement being noise.
+#: a channel is a group of sessions, not one address.
+#:
+#: Profiled the same way. Over the thirty days to 2026-08-13 the property
+#: reported twelve channel groups, from Organic Search at 2 665 sessions down to
+#: Paid Other and Organic Video at one each. Five sessions a day — 150 over that
+#: window — admits the ten that could be said to have moved and excludes the two
+#: that cannot: a channel going from one session to nine is +800% and is not news.
 MIN_CHANNEL_SESSION_RATE_PER_DAY = 5.0
 MIN_CHANNEL_SESSIONS_FLOOR = 25
 

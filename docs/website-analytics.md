@@ -276,9 +276,30 @@ missing from the list.
 
 A page enters a movement or engagement ranking when it averaged at least **one
 view a day** across one of the two windows, floored at ten so a two-day custom
-range still requires more than a single read. Expressed as a rate rather than a
-count because the same dashboard asks the question over thirty days and over
-three years. A channel needs **five sessions a day**, floored at twenty-five.
+range still requires more than a single read. A channel needs **five sessions a
+day**, floored at twenty-five.
+
+Both are rates rather than counts, and both were profiled against the production
+history read-only on 2026-08-14 rather than guessed. Over the thirty days to
+2026-08-13 the property measured 14 029 page views across 1 586 rankable paths,
+and **the median rankable path had one view** — the distribution is a long tail
+of pages nobody read twice. The rate keeps its shape at every offered window,
+which a fixed count cannot:
+
+| window | rankable paths | floor | eligible |
+| --- | --- | --- | --- |
+| 30 päeva | 1 586 | 30 | 57 |
+| 90 päeva | 3 277 | 90 | 80 |
+| 1 aasta | 8 482 | 365 | 140 |
+| Kõik | 11 520 | 1 155 | 119 |
+
+Every eligible page in all four windows carried an engagement reading, so the
+opportunity matrix has both dimensions for its whole population.
+
+The same thirty days reported twelve channel groups, from Organic Search at
+2 665 sessions down to Paid Other and Organic Video at one each. The channel
+floor admits the ten that could be said to have moved and excludes the two that
+cannot.
 
 The opportunity matrix splits at the **medians of its own eligible population**
 rather than at numbers somebody chose, and publishes both thresholds under the
