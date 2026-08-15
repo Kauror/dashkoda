@@ -99,10 +99,28 @@ Three rules, and the first two are not stylistic:
 - **there is no seventh slot.** A seventh series folds into `Muu`, which every
   builder already does at `MIX_KEYS`.
 
-Axis labels take `--color-text-secondary` and gridlines `--color-border-strong`,
-both named by the chart theme rather than left to ECharts — whose defaults are
-written for a light background and put the labels at 3.47:1 while the grid sat
-at 13.67:1, the text you have to read fainter than the grid behind it.
+**Everything a chart draws in ink is named by the theme, because ECharts'
+defaults are written for a light background and several of them outrank the
+theme's own `textStyle`.** Leave any one of them unnamed and it renders in
+light-theme colours on this dark card — with no error, which is what makes the
+class worth stating as a rule rather than a list of past bugs:
+
+- **axis labels** take `--color-text-secondary`, **gridlines** and the axis line
+  `--color-border-strong`. Unnamed, `axisLabel`'s default put the labels at
+  3.47:1 while the grid sat at 13.67:1 — the text you have to read fainter than
+  the grid behind it;
+- **legend labels** take `--color-text-secondary` too, and a toggled-off swatch
+  `--color-text-muted`. Unnamed, `legend.textStyle` drew them at roughly 2.2:1
+  beside axis labels at 6.98:1 — and on a stacked chart the legend is the only
+  thing that says which colour is which series;
+- **the tooltip** takes `--color-elevated` with `--color-text` on it (13.28:1).
+  This one belongs to the theme rather than to a builder: it used to be set
+  where a payload carried server-rendered readouts, so the ten builders that ask
+  for no more than `{"trigger": "axis"}` kept the near-white default and drew a
+  white card on a dark page.
+
+A surface or an ink is theme-level. A formatter — what a tooltip *says* — stays
+with the chart that needs it.
 `tests/membership/test_chart_legibility.py` holds all of this as a contract.
 
 Contrast on `#101418`: primary text ≈ 15:1, secondary ≈ 7:1, metadata ≈ 5:1,
