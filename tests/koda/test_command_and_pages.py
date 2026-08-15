@@ -1,7 +1,9 @@
-"""The sync_koda_public command, and the pages the three feeds render.
+"""The sync_koda_public command, and the pages its feeds render.
 
 No HTTP happens here: the command's synchronise functions are patched with
-synthetic collectors.
+synthetic collectors. Every source the command knows must be wired in `wire`
+below — an unwired one would run its real collector and reach koda.ee from the
+test suite.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from apps.events.collector import EventCollectionError
 from apps.events.sync import LOCK_NAME as EVENTS_LOCK
 from apps.events.sync import synchronize_events
 from apps.membership.collector import MembershipCollectionError
+from apps.membership.directory_sync import synchronize_member_directory
 from apps.membership.sync import synchronize_membership
 from apps.news.collector import NewsCollectionError
 from apps.news.sync import synchronize_news
@@ -27,6 +30,7 @@ from apps.news.sync import synchronize_news
 from .conftest import (
     collector_raising,
     collector_returning,
+    directory_collection,
     event_collection,
     membership_collection,
     news_collection,
@@ -41,10 +45,11 @@ MODULE = "apps.core.management.commands.sync_koda_public"
 def wire(monkeypatch):
     """Point the command at synthetic collectors."""
 
-    def apply(*, membership=None, news=None, events=None):
+    def apply(*, membership=None, directory=None, news=None, events=None):
         import apps.core.management.commands.sync_koda_public as command_module
 
         membership = membership if membership is not None else membership_collection()
+        directory = directory if directory is not None else directory_collection(3)
         news = news if news is not None else news_collection(3)
         events = events if events is not None else event_collection(3)
 
@@ -59,17 +64,20 @@ def wire(monkeypatch):
 
             return run
 
-        monkeypatch.setitem(
-            command_module.SOURCES,
-            "membership",
-            ("lock.m", make(synchronize_membership, membership)),
+        wired = {
+            "membership": ("lock.m", make(synchronize_membership, membership)),
+            "directory": ("lock.d", make(synchronize_member_directory, directory)),
+            "news": ("lock.n", make(synchronize_news, news)),
+            "events": ("lock.e", make(synchronize_events, events)),
+        }
+        # Every source the command knows, or the unwired one performs a real
+        # fetch. Asserting the key sets match is what turns "somebody added a
+        # source" into a failing test rather than a network call.
+        assert set(wired) == set(command_module.SOURCES), (
+            "a source the command knows is not wired to a synthetic collector"
         )
-        monkeypatch.setitem(
-            command_module.SOURCES, "news", ("lock.n", make(synchronize_news, news))
-        )
-        monkeypatch.setitem(
-            command_module.SOURCES, "events", ("lock.e", make(synchronize_events, events))
-        )
+        for name, entry in wired.items():
+            monkeypatch.setitem(command_module.SOURCES, name, entry)
 
     return apply
 
@@ -95,9 +103,10 @@ def test_all_sources_succeed(wire):
     assert code == 0
     payload = json.loads(output.strip())
     assert payload["result"] == "succeeded"
-    assert set(payload["sources"]) == {"membership", "news", "events"}
+    assert set(payload["sources"]) == {"membership", "directory", "news", "events"}
     assert payload["sources"]["membership"]["result"] == FeedResult.IMPORTED
     assert payload["sources"]["membership"]["total_members"] == 3000
+    assert payload["sources"]["directory"]["entries"] == 3
     assert payload["sources"]["news"]["items"] == 3
     assert payload["sources"]["events"]["items"] == 3
 
@@ -151,7 +160,7 @@ def test_every_source_failing_returns_one(wire):
     assert json.loads(output.strip())["result"] == "failed"
 
 
-@pytest.mark.parametrize("source", ["membership", "news", "events"])
+@pytest.mark.parametrize("source", ["membership", "directory", "news", "events"])
 def test_a_single_source_can_be_run_alone(wire, source):
     wire()
 
@@ -172,10 +181,11 @@ def test_a_dry_run_publishes_nothing(wire):
     assert payload["dry_run"] is True
 
     from apps.events.models import EventSnapshot
-    from apps.membership.models import MembershipCountObservation
+    from apps.membership.models import MemberDirectoryEntry, MembershipCountObservation
     from apps.news.models import NewsSnapshot
 
     assert MembershipCountObservation.objects.count() == 0
+    assert MemberDirectoryEntry.objects.count() == 0
     assert NewsSnapshot.objects.count() == 0
     assert EventSnapshot.objects.count() == 0
 
@@ -186,7 +196,7 @@ def test_prose_output_names_each_source(wire):
     output, code = run()
 
     assert code == 0
-    for label in ("Liikmeskond", "Uudised", "Sündmused"):
+    for label in ("Liikmeskond", "Avaliku kataloogi kirjed", "Uudised", "Sündmused"):
         assert label in output
 
 
@@ -199,7 +209,7 @@ def test_an_unchanged_repeat_run_still_succeeds(wire):
     assert code == 0
     payload = json.loads(output.strip())
     assert payload["result"] == "succeeded"
-    for source in ("membership", "news", "events"):
+    for source in ("membership", "directory", "news", "events"):
         assert payload["sources"][source]["result"] == FeedResult.UNCHANGED
 
 
@@ -228,12 +238,18 @@ def test_a_locked_source_is_reported_and_the_run_is_degraded():
 
 
 def test_the_locks_are_distinct_per_source():
+    """Shared locks would undo the failure isolation the command is built on.
+
+    The member count and the directory register read the same endpoint and are
+    the pair most at risk of being given one lock by accident.
+    """
     from apps.events.sync import LOCK_NAME as events_lock
     from apps.legal_work.sync import ADVISORY_LOCK_NAMESPACE as legal_lock
+    from apps.membership.directory_sync import LOCK_NAME as directory_lock
     from apps.membership.sync import LOCK_NAME as membership_lock
     from apps.news.sync import LOCK_NAME as news_lock
 
-    assert len({events_lock, membership_lock, news_lock, legal_lock}) == 4
+    assert len({events_lock, membership_lock, directory_lock, news_lock, legal_lock}) == 5
 
 
 # -- the pages ----------------------------------------------------------

@@ -190,8 +190,21 @@ MEMBERSHIP_HISTORY_MAX_MEMBERS = 64
 # itself holds personal data and is never stored — only counts are.
 MEMBERSHIP_COMPOSITION_SOURCE_SLUG = "membership-roster-composition"
 
+# The member register: the roster's rows (manual CRM export import, a curated
+# subset of columns with no personal contacts) and the registration codes the
+# public directory publishes (collected from the same endpoint as the count,
+# under its own source so neither feed can touch the other). Neither is a
+# membership total; their counts appear only labelled with source and date.
+MEMBERSHIP_REGISTER_SOURCE_SLUG = "membership-member-register"
+KODA_MEMBER_DIRECTORY_SOURCE_SLUG = "koda-member-directory"
+
 KODA_NEWS_SOURCE_SLUG = "koda-public-news"
 KODA_EVENTS_SOURCE_SLUG = "koda-public-events"
+
+# The public site's origin. Used to turn a stored profile path back into a
+# link; the register keeps paths rather than URLs so the host lives in exactly
+# one place instead of in 3 400 rows.
+KODA_PUBLIC_BASE_URL = "https://www.koda.ee"
 
 KODA_MEMBERS_URL = "https://www.koda.ee/api/v1/company-list"
 KODA_NEWS_URL = "https://www.koda.ee/et/news/feed.xml"
