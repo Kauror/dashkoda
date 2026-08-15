@@ -113,6 +113,34 @@ def test_the_events_provenance_block_arrived(viewer_client):
     assert "Koda.ee avalik kalender" in content
 
 
+def test_andmete_seis_arrived_and_keeps_its_anchor(viewer_client):
+    """The other half of the move off Koja töölaud.
+
+    The `id` matters as much as the content: the overview's header chip still
+    counts the sources worth disclosing and deep-links straight here, so an
+    anchor that changed name would leave that chip pointing at nothing.
+    """
+    content = viewer_client.get(reverse("dashboard-admin")).content.decode()
+
+    assert 'id="andmete-seis"' in content
+    assert "Andmete seis" in content
+
+
+def test_the_overview_no_longer_carries_andmete_seis(viewer_client):
+    """Moved, not copied — and the chip that stayed points here.
+
+    A section deleted from one page and never rendered on the other would pass
+    the overview-side assertion just as well, which is why both are named.
+    """
+    overview = viewer_client.get(reverse("home")).content.decode()
+    main = overview.split("<main", 1)[1].split("</main>", 1)[0]
+
+    assert "Andmete seis" not in main
+    assert f'href="{reverse("dashboard-admin")}#andmete-seis"' in main
+    # The old in-page anchor would now be a link to nothing.
+    assert 'href="#andmete-seis"' not in main
+
+
 def test_an_empty_admin_section_counts_nothing(viewer_client):
     """An empty foundation states its emptiness; it does not count it.
 

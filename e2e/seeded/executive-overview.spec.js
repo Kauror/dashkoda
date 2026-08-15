@@ -156,9 +156,12 @@ test("a failed refresh keeps the figures and discloses itself", async ({ page })
    * halves matter and they pull in opposite directions: the data must not be
    * withdrawn, and the page must not pretend the source is current.
    */
-  const status = page.getByRole("region", { name: "Andmete seis" });
+  /* The disclosure moved to `/haldus/` on 2026-08-15 with `Andmete seis`; the
+     figures staying put on the overview is the half that must never move. Both
+     are checked, because a disclosure deleted from one page and never rendered
+     on the other would satisfy the overview half on its own. */
+  await expect(page.locator("main")).not.toContainText("Andmete seis");
 
-  await expect(status.getByText("Vananenud pärast ebaõnnestunud uuendust")).toBeVisible();
   // The pillar the failed feed contributes to still shows its figures. Its
   // caption `Kodulehe seansid` came off the card on 2026-08-15 with the rest of
   // the per-figure chrome, so what proves the data was not withdrawn is the
@@ -167,6 +170,10 @@ test("a failed refresh keeps the figures and discloses itself", async ({ page })
   const visibility = pillars.locator("article", { hasText: "Koduleht ja uudised" }).first();
   await expect(visibility.getByText("seanssi")).toBeVisible();
   await expect(visibility.getByText("Kodulehe seansid")).toHaveCount(0);
+
+  await page.goto("/haldus/");
+  const status = page.getByRole("region", { name: "Andmete seis" });
+  await expect(status.getByText("Vananenud pärast ebaõnnestunud uuendust")).toBeVisible();
 });
 
 test("the channel audiences are never totalled", async ({ page }) => {

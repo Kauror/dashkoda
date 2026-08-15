@@ -8,7 +8,7 @@ from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
 
-from .executive import build_executive_overview
+from .executive import build_data_status, build_executive_overview
 from .freshness import current_freshness
 from .navigation import NAVIGATION
 
@@ -82,7 +82,12 @@ def admin_area(request):
     and provenance notes mixed in among the figures a board member came for.
     This is where that material collects, one dashboard at a time.
 
-    **Sündmused is the first**, moved on 2026-08-15. Its `Andmete kohta` block
+    **Andmete seis** — every business source's own state, coverage and
+    limitation — left Koja töölaud on 2026-08-15 and is here now. The overview
+    keeps only the header chip that counts what is worth disclosing, and that
+    chip links here.
+
+    **Sündmused' provenance block** came the same day. Its `Andmete kohta`
     left every events focus and arrives here whole — the export's schema and
     generator versions, the coverage denominators, the Commerce join and the
     public Koda.ee calendar's own connection state. Nothing was summarised on
@@ -104,6 +109,7 @@ def admin_area(request):
         {
             "navigation": NAVIGATION,
             "active_nav": "admin",
+            "data_status": build_data_status(),
             "events_quality": build_coverage(programme.snapshot),
             "public_calendar": public_calendar,
             "public_upcoming_count": (

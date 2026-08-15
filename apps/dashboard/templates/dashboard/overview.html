@@ -10,7 +10,8 @@ Reading order, top to bottom:
   Järgmised 30 päeva   – the two domains that genuinely have dates
   Praegu huvi pakkuv   – four separate panels, four separate metrics
   Kanalite auditoorium – audiences, each on its own, never totalled
-  Andmete seis         – per-source state in each source's own vocabulary
+  (Andmete seis moved to `/haldus/` on 2026-08-15. The header chip still counts
+   the sources worth disclosing and links there.)
 
 The page holds layout and no business rule. Every number arrives formatted,
 compared and worded by `apps.dashboard.executive`, which in turn takes it from
@@ -35,10 +36,16 @@ prioritising this page exists to do for them.
     "Ühendatud allikaid 9/9" read as a score for a fact about plumbing.
     {% endcomment %}
     <p class="dk-meta mt-1">
+      {% comment %}
+      Points at `/haldus/` since 2026-08-15. `Andmete seis` used to sit at the
+      foot of this page and the chip was an in-page anchor; the section moved to
+      Admin with the rest of the maintainer material, and an anchor left behind
+      would be a link to nothing.
+      {% endcomment %}
       {% if page.has_any_source and page.warning_count %}
-        <a class="dk-link" href="#andmete-seis">{{ page.warning_count }} andmemärkust</a>
+        <a class="dk-link" href="{% url 'dashboard-admin' %}#andmete-seis">{{ page.warning_count }} andmemärkust</a>
       {% else %}
-        <a class="dk-link" href="#andmete-seis">Andmete kohta</a>
+        <a class="dk-link" href="{% url 'dashboard-admin' %}#andmete-seis">Andmete kohta</a>
       {% endif %}
     </p>
   </header>
@@ -264,30 +271,6 @@ prioritising this page exists to do for them.
     </div>
   </section>
 
-  {# ---------------- Andmete seis ---------------- #}
-  <section id="andmete-seis" aria-labelledby="andmete-seis-pealkiri" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="andmete-seis-pealkiri" only %}
-    <div class="dk-section-body">
-      <ul class="flex flex-col divide-y divide-border">
-        {% for row in page.data_status %}
-          <li class="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-            <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <span class="text-sm font-medium text-text">{{ row.domain_label }}</span>
-              <span class="dk-meta">{{ row.source_label }}</span>
-              {% include "dashboard/components/status_badge.html" with label=row.state_label variant=row.state_variant only %}
-            </div>
-            <p class="dk-meta flex flex-wrap gap-x-3 gap-y-1">
-              {% if row.as_of %}<span>Seis {{ row.as_of|date:"d.m.Y" }}</span>{% endif %}
-              {% if row.coverage %}<span>{{ row.coverage }}</span>{% endif %}
-            </p>
-            {% if row.has_limitation %}
-              <p class="text-sm text-text-secondary">{{ row.limitation }}</p>
-            {% endif %}
-          </li>
-        {% endfor %}
-      </ul>
-    </div>
-  </section>
 
 </div>
 {% endblock %}

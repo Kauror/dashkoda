@@ -10,9 +10,10 @@ workflows, with their own `is_staff` requirement and untouched by this.
 
 ## Filling up one dashboard at a time
 
-`Andmeallikad ja import` carries **Sündmused** since 2026-08-15 — its
-`Andmete kohta` block moved here whole from the events page. The other two
-sections are still destinations rather than reports, and the rest of the
+**Andmete seis** — every business source's state, coverage and limitation —
+moved here off Koja töölaud on 2026-08-15, and `Andmeallikad ja import` carries
+**Sündmused'** provenance block from the same day. `Andmekvaliteet` and
+`Tehniline info` are still destinations rather than reports, and the rest of the
 dashboards follow as each is moved deliberately.
 
 An empty section counts nothing. In particular there is no "0 probleemi": a
@@ -37,6 +38,17 @@ never be given.
       välja viiakse.
     </p>
   </header>
+
+  {% comment %}
+  `Andmete seis`, moved off Koja töölaud on 2026-08-15. It keeps its `id` so the
+  overview's header chip can still deep-link straight to it.
+  {% endcomment %}
+  <section id="andmete-seis" aria-labelledby="andmete-seis-pealkiri" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="andmete-seis-pealkiri" description="Iga allikas oma tempos, oma katvuse ja oma piirangutega." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/partials/_data_status.html" with data_status=data_status only %}
+    </div>
+  </section>
 
   {% include "dashboard/components/admin_section.html" with title="Andmekvaliteet" heading_id="section-andmekvaliteet" description="Puuduvad, vastuolulised ja kinni pidatud väärtused." note="Andmekvaliteedi kontrolle ei ole veel siia toodud." only %}
 

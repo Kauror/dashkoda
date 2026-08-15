@@ -1,0 +1,38 @@
+{% comment %}
+Per-source state, each in its own source's vocabulary.
+
+This was `Andmete seis` at the foot of Koja töölaud. The board moved it to
+`/haldus/` on 2026-08-15: a board member opening the overview is not the reader
+for connection states and coverage windows, and the header chip there still
+counts what is worth disclosing and links here.
+
+Body only — no `<section>` and no heading. `/haldus/` owns the heading this sits
+under, which is what keeps these rows at the right level rather than one too
+deep. The same arrangement the events provenance block uses.
+
+Nothing is summarised on the way: every source keeps its own state badge, its
+own as-of date, its own coverage span and its own limitation sentence. A
+diagnostic that lost half its detail in a move would be worse where it landed
+than where it started.
+
+Context:
+  data_status – an iterable of ExecutiveDataStatus
+{% endcomment %}
+<ul class="flex flex-col divide-y divide-border">
+  {% for row in data_status %}
+    <li class="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <span class="text-sm font-medium text-text">{{ row.domain_label }}</span>
+        <span class="dk-meta">{{ row.source_label }}</span>
+        {% include "dashboard/components/status_badge.html" with label=row.state_label variant=row.state_variant only %}
+      </div>
+      <p class="dk-meta flex flex-wrap gap-x-3 gap-y-1">
+        {% if row.as_of %}<span>Seis {{ row.as_of|date:"d.m.Y" }}</span>{% endif %}
+        {% if row.coverage %}<span>{{ row.coverage }}</span>{% endif %}
+      </p>
+      {% if row.has_limitation %}
+        <p class="text-sm text-text-secondary">{{ row.limitation }}</p>
+      {% endif %}
+    </li>
+  {% endfor %}
+</ul>
