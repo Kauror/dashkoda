@@ -4,6 +4,7 @@ import datetime as dt
 import re
 
 import pytest
+from django.urls import reverse
 
 from apps.legal_work.models import SyncResult
 from apps.legal_work.sections import LINKED_SECTIONS
@@ -254,10 +255,12 @@ def test_overview_shows_real_legal_work_data_once_imported(
     assert "Arvamusi välja saadetud tänavu" not in content
     assert "Teemasid töös" in content
     assert "Vaata õigusloomet" in content
-    # The workbook's own date still reaches the page — in `Andmete seis`, which
-    # is where the overview names a source at all now.
+    # The workbook's own date is claimed in `Andmete seis`, which moved to
+    # `/haldus/` on 2026-08-15. The overview no longer dates its own figures,
+    # so this reads it where it is now rather than pretending it is still here.
     stated = imported_snapshot.reporting_date
-    assert f"{stated:%d.%m.%Y}" in content
+    admin = client.get(reverse("dashboard-admin")).content.decode()
+    assert f"{stated:%d.%m.%Y}" in admin
 
 
 def test_overview_discloses_a_failed_sync_alongside_old_data(
@@ -280,7 +283,11 @@ def test_overview_discloses_a_failed_sync_alongside_old_data(
     # The figure stays put; only its caption went. That is the half this test is
     # about — a failed refresh must not withdraw the last good data.
     assert "arvamust sellel aastal" in content
-    assert "Vananenud pärast ebaõnnestunud uuendust" in content
+    # The disclosure itself is in `Andmete seis`, on `/haldus/` since
+    # 2026-08-15. Both halves are named: the figures stay, and the staleness is
+    # still stated somewhere a maintainer will find it.
+    admin = client.get(reverse("dashboard-admin")).content.decode()
+    assert "Vananenud pärast ebaõnnestunud uuendust" in admin
 
 
 def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
@@ -293,18 +300,18 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
     legal-work claim specifically.
 
     The pillar used to state it twice, as the headline's as-of date and as the
-    period the figure stops on. Both captions came off the card on 2026-08-15,
-    so `Andmete seis` is the one place the date is claimed now — which is the
-    point of asserting it here rather than trusting the card.
+    period the figure stops on. Both captions came off the card on 2026-08-15
+    and `Andmete seis` moved to `/haldus/` the same day, so that page is the one
+    place the date is claimed — which is where this now reads it.
     """
     authenticate_viewer(client)
 
-    content = client.get("/").content.decode()
+    admin = client.get(reverse("dashboard-admin")).content.decode()
     reporting_date = imported_snapshot.reporting_date
 
     assert reporting_date != dt.date.today()
-    assert "seis" in content
-    assert f"{reporting_date:%d.%m.%Y}" in content
+    assert "Seis" in admin
+    assert f"{reporting_date:%d.%m.%Y}" in admin
 
 
 # ---------------------------------------------------------------------------
