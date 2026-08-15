@@ -20,6 +20,7 @@ from apps.membership.focus import (
     FOCUS_KEYS,
     FOCUS_MOVEMENT,
     FOCUS_OVERVIEW,
+    FOCUS_REGISTER,
     PARAM_FOCUS,
     focus_links,
     resolve_focus,
@@ -102,6 +103,21 @@ def test_a_focus_link_does_not_carry_a_chart_toggle():
     assert "vaade" not in params
     assert "vordlus" not in params
     assert "otsus" not in params
+
+
+def test_the_register_focus_follows_the_composition_it_shares_a_source_with():
+    """The two read the same export: one counted, one listed.
+
+    The order is the page's reading order rather than an alphabet, so this pins
+    the pairing rather than the position.
+    """
+    keys = list(FOCUS_KEYS)
+    assert keys.index(FOCUS_REGISTER) == keys.index(FOCUS_COMPOSITION) + 1
+
+
+def test_the_register_focus_is_not_offered_before_a_roster_is_imported():
+    links = focus_links(FOCUS_OVERVIEW, available=frozenset({FOCUS_OVERVIEW}))
+    assert FOCUS_REGISTER not in {link.key for link in links}
 
 
 def test_focus_is_not_a_parameter_the_charts_already_use():

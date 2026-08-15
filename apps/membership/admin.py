@@ -27,6 +27,9 @@ from apps.membership.audit_actions import MembershipAudit
 
 from .models import (
     InternalMembershipObservation,
+    MemberDirectoryEntry,
+    MemberRegisterEntry,
+    MemberRegisterSnapshot,
     MembershipCountObservation,
     MembershipDataIssue,
     MembershipFeedState,
@@ -55,6 +58,59 @@ class MembershipFeedStateAdmin(ReadOnlyAdmin):
     list_display = ("source", "last_result", "last_checked_at", "last_successful_sync_at")
     list_filter = ("last_result",)
     list_select_related = ("source", "current_observation")
+
+
+@admin.register(MemberRegisterSnapshot)
+class MemberRegisterSnapshotAdmin(ReadOnlyAdmin):
+    """The imported roster readings. Written by the import command only."""
+
+    list_display = ("snapshot_date", "source_row_count", "is_current", "imported_at")
+    list_filter = ("is_current",)
+    date_hierarchy = "snapshot_date"
+    ordering = ("-snapshot_date", "-id")
+    list_select_related = ("source", "import_run")
+
+
+@admin.register(MemberRegisterEntry)
+class MemberRegisterEntryAdmin(ReadOnlyAdmin):
+    """The roster's rows, for inspection.
+
+    Searchable by the fields the page already searches, so a member can be
+    looked up here as well as on the dashboard. Read-only like everything else
+    in this admin: a correction is a new import, never an edit.
+    """
+
+    list_display = (
+        "name",
+        "legal_form",
+        "status_label",
+        "registry_code",
+        "county",
+        "employees",
+        "membership_start",
+    )
+    list_filter = ("status_key", "legal_form", "county")
+    search_fields = ("name", "registry_code", "county", "city", "nace_label")
+    ordering = ("name", "id")
+    list_select_related = ("snapshot",)
+
+
+@admin.register(MemberDirectoryEntry)
+class MemberDirectoryEntryAdmin(ReadOnlyAdmin):
+    """What the public directory publishes, as the collector reconciled it."""
+
+    list_display = (
+        "registry_code",
+        "profile_path",
+        "is_published",
+        "first_seen_at",
+        "last_seen_at",
+        "unpublished_at",
+    )
+    list_filter = ("is_published",)
+    search_fields = ("registry_code", "profile_path")
+    ordering = ("registry_code",)
+    list_select_related = ("source",)
 
 
 class MembershipSizeMovementInline(admin.TabularInline):

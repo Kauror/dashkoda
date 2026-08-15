@@ -73,6 +73,7 @@ from .focus import (
     FOCUS_GROWTH,
     FOCUS_MOVEMENT,
     FOCUS_OVERVIEW,
+    FOCUS_REGISTER,
     PARAM_FOCUS,
     focus_links,
     resolve_focus,
@@ -109,6 +110,14 @@ from .ranges import (
     resolve_window,
 )
 from .reconciliation import reconcile_history
+from .register_selectors import (
+    PAGE_SIZE,
+    compare_sources,
+    get_current_register_snapshot,
+    get_member_list,
+    get_register_snapshot_info,
+    status_options,
+)
 from .selectors import get_membership_summary
 
 
@@ -124,6 +133,13 @@ def membership_overview(request):
     # membership total — it describes what kinds of organisations the
     # membership is made of, not how many there are.
     composition = get_current_composition_snapshot()
+
+    # The register — the same roster export with its rows kept — read only for
+    # its date here, so the focus can be offered and the source line can state
+    # what the list describes. The rows themselves are read below, and only on
+    # the focus that draws them: a page of members is 25 rows and there is no
+    # reason for the overview to pay for them.
+    register_snapshot = get_current_register_snapshot()
 
     # The window comes from `ranges.py`, which the overview card also reads, so
     # the two pages describe the same window with the same words. Whatever the
@@ -237,6 +253,35 @@ def membership_overview(request):
         available.add(FOCUS_MOVEMENT)
     if composition is not None:
         available.add(FOCUS_COMPOSITION)
+    if register_snapshot is not None:
+        available.add(FOCUS_REGISTER)
+
+    # The list, its filters and the two-source comparison, built only for the
+    # focus that shows them. `otsing` and `staatus` are ordinary GET values and
+    # are resolved the same way every other control on this page is: an unknown
+    # status falls back to "all", and a page number past the end is clamped
+    # rather than raising, so a stale bookmark renders a page instead of a 404.
+    member_list = None
+    comparison = None
+    register_statuses = ()
+    if focus == FOCUS_REGISTER and register_snapshot is not None:
+        member_list = get_member_list(
+            snapshot=register_snapshot,
+            query=request.GET.get(PARAM_SEARCH, ""),
+            status=request.GET.get(PARAM_STATUS, ""),
+            page=_page_number(request.GET.get(PARAM_PAGE)),
+            page_size=PAGE_SIZE,
+        )
+        if member_list.page > member_list.page_count:
+            member_list = get_member_list(
+                snapshot=register_snapshot,
+                query=member_list.query,
+                status=member_list.status,
+                page=member_list.page_count,
+                page_size=PAGE_SIZE,
+            )
+        register_statuses = status_options(register_snapshot)
+        comparison = compare_sources(snapshot=register_snapshot)
 
     sections = _sections_for(
         focus,
@@ -301,7 +346,18 @@ def membership_overview(request):
                 latest=latest,
                 quality=quality,
                 composition_date=composition.snapshot_date if composition else None,
+                register_date=register_snapshot.snapshot_date if register_snapshot else None,
             ),
+            # The members list and what it is a reading of. Present only on the
+            # focus that draws them, so no other view can start rendering rows.
+            "member_list": member_list,
+            "register_snapshot": get_register_snapshot_info() if focus == FOCUS_REGISTER else None,
+            "register_statuses": register_statuses,
+            "register_search": PARAM_SEARCH,
+            "register_status_param": PARAM_STATUS,
+            "register_page_param": PARAM_PAGE,
+            # Two sources compared by identity, never merged into one number.
+            "source_comparison": comparison,
             # Each section carries only the controls that govern it. A section
             # with nothing to draw renders nothing.
             "sections": [section for section in sections if section.has_charts],
@@ -324,6 +380,11 @@ def _sections_for(focus, **ctx) -> list[AnalyticsSection]:
         FOCUS_GROWTH: _growth_sections,
         FOCUS_MOVEMENT: _movement_sections,
         FOCUS_COMPOSITION: _composition_sections,
+        # The members list draws no chart. It is a table, a search box and a
+        # comparison, all of which the template renders from context — so this
+        # focus contributes no analytical section and, because `sections` is
+        # empty, ships no chart JavaScript either.
+        FOCUS_REGISTER: _register_sections,
     }
     return builders[focus](**ctx)
 
@@ -369,6 +430,16 @@ def _overview_sections(*, trend, fee_rows, presets, has_range_choice, **_ignored
             show_custom_range=has_range_choice,
         )
     ]
+
+
+def _register_sections(**_ignored):
+    """No analytical section: the list focus is a table, not a chart.
+
+    Kept as an explicit builder rather than a missing key, so `_sections_for`
+    stays total over the focus vocabulary and a new focus cannot render the
+    previous one's charts by falling through.
+    """
+    return []
 
 
 def _growth_sections(
@@ -699,6 +770,26 @@ RECONCILIATION_LOOKBACK_YEARS = 7
 
 #: Which board decision the decision section describes.
 PARAM_DECISION = "otsus"
+
+#: The members list's own controls. Estonian keys like every other control on
+#: this page, and distinct from `otsing` on Nähtavus only in that they govern a
+#: different page — the word means the same thing in both.
+PARAM_SEARCH = "otsing"
+PARAM_STATUS = "staatus"
+PARAM_PAGE = "leht"
+
+
+def _page_number(raw: str | None) -> int:
+    """A page number, or the first page. An unreadable value is never an error.
+
+    Same rule as `_one_of` and `resolve_window`: a stale bookmark, a typo or a
+    truncated URL renders the list from the top rather than raising.
+    """
+    try:
+        return max(1, int(str(raw)))
+    except TypeError, ValueError:
+        return 1
+
 
 #: How many decisions the control offers. The list is a row of links, not a
 #: dropdown, so it has to stay readable; older decisions remain reachable by

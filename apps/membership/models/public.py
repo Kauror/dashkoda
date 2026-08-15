@@ -1,10 +1,16 @@
 """The total number of published Koda.ee member profiles, over time.
 
-**This app stores an aggregate and nothing else.** The public endpoint returns
-one row per member carrying a registration code and a profile URL; both are read
-in memory to count and to detect duplicates, and both are then discarded. There
-is no company model, no name field, no registration-code field and no member
-URL field anywhere in this app — an absent column cannot leak.
+**This module stores an aggregate and nothing else.** The public endpoint
+returns one row per member carrying a registration code and a profile URL; the
+count collector reads both in memory to count and to detect duplicates, and
+discards them. The count series has no row behind it and needs none.
+
+Row-level identity lives elsewhere since August 2026, as a separate product
+decision: `register.py` holds the roster's rows and the directory's published
+registration codes for the members-list page and its comparison. That module's
+docstring is where the boundary of that decision is written down; nothing about
+this count changed with it, and the count is still collected, stored and
+guarded exactly as before.
 
 There is also deliberately **no "new members this year" figure**. It is not an
 accepted DashKoda metric, so it exists in no model, no field, no selector and no

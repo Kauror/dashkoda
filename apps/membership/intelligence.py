@@ -679,20 +679,29 @@ def build_source_stamps(
     latest: ObservationPoint | None,
     quality: InternalQualitySummary,
     composition_date: date | None = None,
+    register_date: date | None = None,
 ) -> tuple[SourceStamp, ...]:
     """What each source is as of, listed only where a source exists.
 
     One freshness date for the whole page would be a claim no membership
     dashboard can make: the board report, the roster snapshot and the annual
-    history are three sources read on three different days. Naming them
-    separately is the only honest option, and a source that has not been
-    imported is simply not listed.
+    history are sources read on different days. Naming them separately is the
+    only honest option, and a source that has not been imported is simply not
+    listed.
+
+    The register and the composition are usually two imports of the *same*
+    export, so an identical pair of dates is stated once. They are separate
+    stamps when they differ, which is exactly the case a reader needs to see:
+    it means the list on the page and the charts beside it describe two
+    different days.
     """
     stamps: list[SourceStamp] = []
     if latest is not None:
         stamps.append(SourceStamp("Sisemine aruanne", long_date(latest.observation_date)))
     if composition_date is not None:
         stamps.append(SourceStamp("Koosseis", long_date(composition_date)))
+    if register_date is not None and register_date != composition_date:
+        stamps.append(SourceStamp("Nimekiri", long_date(register_date)))
     if quality.earliest_observation_date and quality.latest_observation_date:
         stamps.append(
             SourceStamp(

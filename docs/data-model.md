@@ -125,8 +125,10 @@ registration-only reference exactly as before.
 
 Several producers of the second shape exist, each with its own fixed non-secret
 label: `onedrive-public:oigusloome` for the legal-work workbook,
-`koda-public:company-list`, `koda-public:news-feed` and `koda-public:events` for
-the three public Koda.ee feeds, `manual:membership-report` for a typed board
+`koda-public:company-list`, `koda-public:company-list-entries`,
+`koda-public:news-feed` and `koda-public:events` for the public Koda.ee feeds,
+`roster:member-register` for a hand-imported member list,
+`manual:membership-report` for a typed board
 report, and `manual:smaily-audience`, `manual:facebook-followers`,
 `manual:linkedin-followers`, `manual:instagram-followers` and
 `manual:youtube-subscribers` for the typed audience figures. Because no file is
@@ -354,7 +356,7 @@ DashKoda does not parse legacy DOC, DOCX, PPTX or PDF files. Turning those into 
 canonical CSV package is separate data-preparation work that happens outside this
 application, and the original documents never enter it.
 
-Two membership datasets exist and they are deliberately not one:
+Two membership *totals* exist and they are deliberately not one:
 
 | | `koda-public-members` | `membership-internal-board-reports` |
 | --- | --- | --- |
@@ -366,6 +368,16 @@ Two membership datasets exist and they are deliberately not one:
 No selector, template or query joins them. See
 [internal-membership-history.md](internal-membership-history.md) for the full
 model, the quality policy and the manual workflow.
+
+Three further membership sources exist and none of them is a total:
+`membership-roster-composition` holds aggregate buckets from a roster export
+([membership-composition.md](membership-composition.md)), while
+`membership-member-register` and `koda-member-directory` hold the roster's own
+rows and the registration codes the public directory publishes
+([member-register.md](member-register.md)). The register is the one place in
+this app that stores row-level member data, under a documented column boundary;
+its comparison with the directory is an identity comparison and produces no
+combined membership figure.
 
 ## Manually observed audience sizes
 

@@ -28,7 +28,13 @@ from apps.event_programme.models import (
 from apps.events.models import EventItem, EventSnapshot
 from apps.legal_work import e2e_seed as legal_work_seed
 from apps.legal_work.models import LegalWorkItem, LegalWorkSnapshot
-from apps.membership.models import InternalMembershipObservation, MembershipCountObservation
+from apps.membership.models import (
+    InternalMembershipObservation,
+    MemberDirectoryEntry,
+    MemberRegisterEntry,
+    MemberRegisterSnapshot,
+    MembershipCountObservation,
+)
 from apps.news.models import NewsItem, NewsSnapshot
 from apps.sources.models import ImportRun, ImportStatus
 from apps.visibility import e2e_seed as visibility_seed
@@ -86,6 +92,7 @@ def test_the_seed_publishes_every_wired_module():
     assert EventSnapshot.objects.filter(is_current=True).count() == 1
     assert NewsSnapshot.objects.filter(is_current=True).count() == 1
     assert MembershipCountObservation.objects.filter(is_current=True).count() == 1
+    assert MemberRegisterSnapshot.objects.filter(is_current=True).count() == 1
 
     assert LegalWorkItem.objects.count() >= 20
     # More than one page of 50, so the programme table's pagination is exercised.
@@ -95,6 +102,20 @@ def test_the_seed_publishes_every_wired_module():
     # Six board reports, so both overview trend lines have enough points.
     assert InternalMembershipObservation.objects.count() == 6
     assert VisibilityObservation.objects.exists()
+    # More than one page of members, so the list's pager is exercised, and two
+    # sources that deliberately disagree, so the comparison has both of its
+    # difference lists to draw.
+    assert MemberRegisterEntry.objects.count() > 25
+    assert MemberDirectoryEntry.objects.filter(is_published=True).exists()
+
+    roster_codes = set(MemberRegisterEntry.objects.values_list("registry_code", flat=True))
+    directory_codes = set(
+        MemberDirectoryEntry.objects.filter(is_published=True).values_list(
+            "registry_code", flat=True
+        )
+    )
+    assert roster_codes - directory_codes, "seed a member the directory does not publish"
+    assert directory_codes - roster_codes, "seed a published code the roster does not have"
 
 
 def test_every_import_run_the_seed_created_reached_a_successful_terminal_state():

@@ -97,6 +97,10 @@ class Command(BaseCommand):
             # all in a seeded environment. It is a separate source from the
             # two above and is never added to either.
             membership_seed.seed_composition(today),
+            # The roster's rows and the directory's published codes, so the
+            # Liikmete nimekiri focus and the two-source comparison are drawn
+            # at all. The two are seeded deliberately disagreeing.
+            membership_seed.seed_register(today),
             visibility_seed.seed_manual(today),
             # After the news and the events: the page rows resolve their titles
             # from those catalogues, and a ranking seeded first would show paths

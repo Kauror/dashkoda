@@ -1,9 +1,10 @@
 # Public Koda.ee feeds
 
-Three public, anonymous, read-only sources from the Chamber's own website: the
-size of the member directory, the news feed, and the events calendar. They are
-collected once each morning by a scheduled command and published as immutable
-records, exactly like the legal-work workbook.
+Four public, anonymous, read-only sources from the Chamber's own website: the
+size of the member directory, the registration codes that directory publishes,
+the news feed, and the events calendar. They are collected once each morning by
+a scheduled command and published as immutable records, exactly like the
+legal-work workbook.
 
 ```text
 public koda.ee endpoint
@@ -20,17 +21,32 @@ public koda.ee endpoint
 
 No credential exists for any of them. **No raw response is ever retained.**
 
-## The three sources
+## The four sources
 
 | Source | Endpoint | Slug | Reference |
 | --- | --- | --- | --- |
 | member count | `/api/v1/company-list` | `koda-public-members` | `koda-public:company-list` |
+| directory entries | `/api/v1/company-list` | `koda-member-directory` | `koda-public:company-list-entries` |
 | news | `/et/news/feed.xml` | `koda-public-news` | `koda-public:news-feed` |
 | events | `/et/sundmused` | `koda-public-events` | `koda-public:events` |
 
 Deliberately **not** used: the homepage membership counter, `#yearly`,
 `#overall`, `/et/uudised/rss.xml` (a second, malformed RSS document), any events
 RSS feed, the shop page, Drupal administration and any authenticated endpoint.
+
+### Why the company list is read twice
+
+The first two rows are the same endpoint under two sources, fetched twice per
+run. Nothing extra is asked of koda.ee — the list has always carried a
+registration code and a profile URL per row, and the count discards them after
+counting. What differs is what the product keeps.
+
+They are separate because the count is a settled aggregate series with its own
+guarantees, and sharing one response would join their failure domains: a
+schema change or a bug on the row-level side could then stop the member count
+being published. Each has its own advisory lock, import run, transaction and
+feed state, so one can fail all week without the other noticing. The row-level
+register is documented in [member-register.md](member-register.md).
 
 ## The events calendar is a supplementary source
 
