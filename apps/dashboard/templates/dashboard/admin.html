@@ -8,18 +8,17 @@ same PIN as every other one; it grants nothing, edits nothing and accepts no
 input. `/admin/` remains Django's admin site and the staff data-entry
 workflows, with their own `is_staff` requirement and untouched by this.
 
-## Deliberately empty
+## Filling up one dashboard at a time
 
-The three sections below are destinations, not reports. DashKoda's data-quality
-notes, source coverage, import status and provenance detail are still on the
-dashboards where they were written, and they move here one at a time in later
-work — a warning is only worth relocating once somebody has checked which page
-still needs it.
+`Andmeallikad ja import` carries **Sündmused** since 2026-08-15 — its
+`Andmete kohta` block moved here whole from the events page. The other two
+sections are still destinations rather than reports, and the rest of the
+dashboards follow as each is moved deliberately.
 
-So nothing here counts anything. In particular there is no "0 probleemi": a
+An empty section counts nothing. In particular there is no "0 probleemi": a
 figure like that would be this page describing checks that have not been moved
 yet as checks that found nothing, which is the one reading a maintainer must
-never be given. A quiet page is the honest state of this work.
+never be given.
 {% endcomment %}
 
 {% block title %}Admin – DashKoda{% endblock %}
@@ -34,14 +33,25 @@ never be given. A quiet page is the honest state of this work.
       kontrollid, mis ei pea olema tavakasutaja põhivaadetes.
     </p>
     <p class="dk-meta max-w-prose">
-      Leht on praegu tühi. Kontrollid tuuakse siia järk-järgult koos sellega, kui
-      need põhivaadetest välja viiakse.
+      Kontrollid tuuakse siia järk-järgult koos sellega, kui need põhivaadetest
+      välja viiakse.
     </p>
   </header>
 
   {% include "dashboard/components/admin_section.html" with title="Andmekvaliteet" heading_id="section-andmekvaliteet" description="Puuduvad, vastuolulised ja kinni pidatud väärtused." note="Andmekvaliteedi kontrolle ei ole veel siia toodud." only %}
 
-  {% include "dashboard/components/admin_section.html" with title="Andmeallikad ja import" heading_id="section-andmeallikad" description="Allikate kaetus, viimased impordid ja nende seis." note="Allikate ja impordi ülevaadet ei ole veel siia toodud." only %}
+  {% comment %}
+  The first real section. Sündmused' own `Andmete kohta` block moved here whole
+  on 2026-08-15; the heading belongs to this page so the block's internal `<h3>`
+  rows sit at the right level, and the next dashboard's block joins it inside
+  this same section rather than starting a fourth.
+  {% endcomment %}
+  <section aria-labelledby="section-andmeallikad" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Andmeallikad ja import" heading_id="section-andmeallikad" description="Allikate kaetus, viimased impordid ja nende seis." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/partials/_events_data_quality.html" with quality=events_quality public_calendar=public_calendar public_upcoming_count=public_upcoming_count only %}
+    </div>
+  </section>
 
   {% include "dashboard/components/admin_section.html" with title="Tehniline info" heading_id="section-tehniline" description="Päritolu, seosed ja muu hooldajale mõeldud taust." note="Tehnilist infot ei ole veel siia toodud." only %}
 

@@ -1,10 +1,14 @@
 {% comment %}
-Andmete kohta — provenance, coverage and limits.
+The event programme's provenance, coverage and limits — on `/haldus/`.
 
-Present on every focus and folded away by default. A dashboard should not open
-with pipeline diagnostics, and it should never hide them either: every
-denominator any figure on this page divides by is written out here, so a reader
-who wants to check a share against its population can.
+This was `Andmete kohta` at the foot of every Sündmused focus. The board moved
+it here on 2026-08-15: it is pipeline diagnostics, and a manager opening the
+events dashboard is not the reader for it. Nothing was dropped in the move, so
+every denominator any Sündmused figure divides by is still written out — it is
+one page along rather than under the charts.
+
+It is the first real content on the Admin page. The other dashboards' blocks
+follow as each is moved deliberately.
 
 The public Koda.ee calendar lives here as the secondary connection it is. It
 answers "what did we announce publicly", the programme answers "what did the
@@ -19,11 +23,14 @@ Context:
   public_upcoming_count – its own upcoming count, or None
 {% endcomment %}
 
-<section aria-labelledby="section-quality" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Andmete kohta" heading_id="section-quality" description="Allikas, katvus ja see, mida need andmed ei tõesta." only %}
-  <div class="dk-section-body">
-    <details class="text-sm">
-      <summary class="cursor-pointer text-text-secondary">
+{% comment %}
+Body only — no `<section>` and no heading of its own. `/haldus/` owns the
+`Andmeallikad ja import` heading this sits under, which is what keeps the
+block's own `<h3>` rows at the right level instead of one too deep.
+{% endcomment %}
+<details class="text-sm">
+  <summary class="cursor-pointer text-text-secondary">
+    Sündmused ·
         {% if not quality.export_refreshed_at %}
           Sündmuseprogrammi ei ole veel imporditud
         {% elif quality.review_required %}
@@ -32,9 +39,9 @@ Context:
           Andmed korras
         {% endif %}
         {% if quality.export_refreshed_at %}· allikas seisuga {{ quality.export_refreshed_at|date:"j.m.Y" }}{% endif %}
-      </summary>
+  </summary>
 
-      <div class="mt-4 flex flex-col gap-5">
+  <div class="mt-4 flex flex-col gap-5">
 
         {% if quality.export_refreshed_at %}
         <div class="flex flex-col gap-2">
@@ -130,7 +137,5 @@ Context:
           </p>
         </div>
 
-      </div>
-    </details>
   </div>
-</section>
+</details>

@@ -30,18 +30,21 @@ const oncePerRun = () =>
     "viewport-independent; runs once on the desktop project",
   );
 
-/* The five focus views this file covers: the query value, its chip label, and a
-   heading only that view shows. The register has its own file. */
+/* The three analytical focus views this file covers: the query value, its chip
+   label, and a heading only that view shows. The register has its own file.
+
+   `Huvi` and `Planeerimine` were the other two and came off on 2026-08-15.
+   `Maht ja kalender` no longer names itself in a heading — its summary strip
+   went too — so the volume view is identified by the section that stayed. */
 const FOCUS = [
   ["ulevaade", "Ülevaade", "Mida korraldame?"],
-  ["maht", "Maht ja kalender", "Maht ja kalender"],
+  ["maht", "Maht ja kalender", "Kvartalid"],
   ["formaadid", "Formaadid ja teemad", "Programmi seis"],
-  ["huvi", "Huvi", "Mõõdetavus"],
-  ["planeerimine", "Planeerimine", "Planeerimisvaru"],
 ];
 
-/* Where a chart is drawn, and therefore where the bundle has to load. */
-const CHART_FOCUS = ["maht", "formaadid", "huvi", "planeerimine"];
+/* Where a chart is drawn, and therefore where the bundle has to load. Ülevaade
+   is among them since `Hinnastruktuur` moved onto it. */
+const CHART_FOCUS = ["ulevaade", "maht", "formaadid"];
 
 /* Navigation only. `signIn` is **not** idempotent — it fills a PIN field that a
    signed-in session no longer has — so a test that visits several focus views
@@ -133,32 +136,30 @@ test("the period control says it selects by the event's own date", async ({ page
   await expect(page.getByText(/oma alguskuupäeva/)).toBeVisible();
 });
 
-test("the provenance block is present on every focus and folded", async ({ page }) => {
+test("the provenance block is on no focus, and is on /haldus/", async ({ page }) => {
   oncePerRun();
   await signIn(page);
 
+  /* It was folded away at the foot of every focus until 2026-08-15, when the
+     board moved it to Admin. Both halves are checked here: gone from each view,
+     and actually rendered where it went — deleting it from one page and never
+     wiring it into the other would satisfy the first half alone. */
   for (const [focus] of FOCUS) {
     await visit(page, focus);
-
-    /* Located by the section, not by `hasText: "Andmete kohta"`. That string is
-       the section's `h2`, which sits *outside* the disclosure — the filter
-       matched nothing and the failure looked like a missing block rather than a
-       mis-aimed locator. */
-    const details = page.locator('section[aria-labelledby="section-quality"] details');
-    await expect(details).toHaveCount(1);
-    // A dashboard should not open with pipeline diagnostics, and should never
-    // hide them either.
-    await expect(details).not.toHaveAttribute("open", /.*/);
-
-    /* Folded, but the denominators and the limits are one click away. By role
-       rather than by text: `getByText` matches an ancestor whose content merely
-       contains the string as well as the heading itself, which is two elements
-       and a strict-mode error. */
-    await details.locator("summary").click();
-    await expect(
-      page.getByRole("heading", { name: "Mida need andmed ei tõesta", exact: true }),
-    ).toBeVisible();
+    await expect(page.locator("details")).toHaveCount(0);
+    await expect(page.locator("main")).not.toContainText("Andmete kohta");
   }
+
+  await page.goto("/haldus/");
+  const details = page.locator('section[aria-labelledby="section-andmeallikad"] details');
+  await expect(details).toHaveCount(1);
+  // Still folded: Admin is where the diagnostics live, not where they shout.
+  await expect(details).not.toHaveAttribute("open", /.*/);
+
+  await details.locator("summary").click();
+  await expect(
+    page.getByRole("heading", { name: "Mida need andmed ei tõesta", exact: true }),
+  ).toBeVisible();
 });
 
 test("no focus claims attendance, capacity or satisfaction", async ({ page }) => {

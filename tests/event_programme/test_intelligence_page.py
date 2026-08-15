@@ -14,10 +14,8 @@ import pytest
 from django.urls import reverse
 
 from apps.event_programme.intelligence import (
-    FOCUS_ATTENTION,
     FOCUS_FORMATS,
     FOCUS_OVERVIEW,
-    FOCUS_PLANNING,
     FOCUS_REGISTER,
     FOCUS_VALUES,
     FOCUS_VOLUME,
@@ -66,7 +64,7 @@ def test_parse_focus_never_raises():
 
 
 def test_only_the_register_builds_a_programme_page(viewer_client, programme):
-    """Six analyses on one route only works if five of them cost nothing."""
+    """Four analyses on one route only works if three of them cost nothing."""
     assert _get(viewer_client, fookus=FOCUS_OVERVIEW).context["page"] is None
     assert _get(viewer_client, fookus=FOCUS_REGISTER).context["page"] is not None
 
@@ -74,11 +72,11 @@ def test_only_the_register_builds_a_programme_page(viewer_client, programme):
 @pytest.mark.parametrize(
     ("focus", "expects_bundle"),
     [
-        (FOCUS_OVERVIEW, False),
+        # `Ülevaade` draws since `Hinnastruktuur` moved onto it, and the
+        # fixture programme carries prices — so the bundle belongs there now.
+        (FOCUS_OVERVIEW, True),
         (FOCUS_VOLUME, True),
         (FOCUS_FORMATS, True),
-        (FOCUS_ATTENTION, True),
-        (FOCUS_PLANNING, True),
         (FOCUS_REGISTER, False),
     ],
 )
@@ -139,9 +137,9 @@ def test_focus_links_carry_the_period(viewer_client, programme):
 
 
 def test_year_links_carry_the_focus(viewer_client, programme):
-    page = _get(viewer_client, fookus=FOCUS_PLANNING).context["intelligence"]
+    page = _get(viewer_client, fookus=FOCUS_FORMATS).context["intelligence"]
     for link in page.year_links:
-        assert f"fookus={FOCUS_PLANNING}" in link.url
+        assert f"fookus={FOCUS_FORMATS}" in link.url
 
 
 # ---------------------------------------------------------------------------
@@ -150,77 +148,40 @@ def test_year_links_carry_the_focus(viewer_client, programme):
 
 
 def test_the_overview_answers_the_five_second_questions(viewer_client, programme):
+    """Two figures since 2026-08-15, each naming its own scope.
+
+    The programme count and the median planning lead were struck, and the two
+    that stayed lost their captions — so what proves a figure reached the page
+    is the unit beside it, which is now the only thing that says what it counts.
+    """
     overview = _get(viewer_client, fookus=FOCUS_OVERVIEW).context["intelligence"].overview
-    labels = [figure.label for figure in overview.headline]
-    assert "Sündmusi programmis" in labels
-    assert "Algab lähiajal" in labels
+    units = [figure.unit for figure in overview.headline]
+
+    assert len(overview.headline) == 2
+    assert any("järgmise" in unit for unit in units)
+    assert any("toimunud" in unit for unit in units)
+    # No caption survives, so none may be rendered.
+    assert all(not figure.label for figure in overview.headline)
     assert overview.types.has_data
     assert overview.delivery.has_data
 
 
-def test_the_headline_names_the_grain(viewer_client, programme):
-    """A reader must not have to guess whether a count is events or sessions."""
+def test_the_struck_headline_figures_are_gone(viewer_client, programme):
     html = _get(viewer_client, fookus=FOCUS_OVERVIEW).content.decode()
-    assert "mitte toimumiskord" in html
+
+    for struck in ("Sündmusi programmis", "Mediaan planeerimisvaru", "Algab lähiajal"):
+        assert struck not in html
+    # `Seisuga:` came off these cards with the captions.
+    assert "Seisuga" not in html
 
 
-def test_an_upcoming_event_without_a_page_is_surfaced(viewer_client, publish_programme):
-    """The actionable signal: something starts soon and nothing links to it.
+def test_the_overview_carries_hinnastruktuur(viewer_client, programme):
+    """The one section kept out of `Planeerimine` when that focus came off."""
+    response = _get(viewer_client, fookus=FOCUS_OVERVIEW)
+    overview = response.context["intelligence"].overview
 
-    Published here rather than taken from the shared fixture, whose upcoming
-    event does carry a link — the notice has to be provoked to be tested.
-    """
-    from django.utils import timezone
-
-    from .workbook_factory import synthetic_row
-
-    today = timezone.localdate()
-    publish_programme(
-        rows=[
-            synthetic_row(
-                event_id="E-1",
-                service_code="1",
-                event_name="Sünteetiline lingita tulev sündmus",
-                start_date=dt.datetime.combine(today + dt.timedelta(days=6), dt.time()),
-                event_status="upcoming",
-                source_row=2,
-            )
-        ]
-    )
-    overview = _get(viewer_client, fookus=FOCUS_OVERVIEW).context["intelligence"].overview
-    texts = " ".join(notice.text for notice in overview.notices)
-    assert "avaliku koda.ee lehega" in texts
-
-
-def test_a_linked_upcoming_event_raises_no_notice(viewer_client, publish_programme):
-    from django.utils import timezone
-
-    from .conftest import SYNTHETIC_URL
-    from .workbook_factory import synthetic_row
-
-    today = timezone.localdate()
-    publish_programme(
-        rows=[
-            synthetic_row(
-                event_id="E-1",
-                service_code="1",
-                start_date=dt.datetime.combine(today + dt.timedelta(days=6), dt.time()),
-                event_status="upcoming",
-                public_url=SYNTHETIC_URL,
-                public_link_status="linked_embedded_latest",
-                source_row=2,
-            )
-        ]
-    )
-    overview = _get(viewer_client, fookus=FOCUS_OVERVIEW).context["intelligence"].overview
-    texts = " ".join(notice.text for notice in overview.notices)
-    assert "avaliku koda.ee lehega" not in texts
-
-
-def test_undated_events_are_disclosed_on_the_overview(viewer_client, programme):
-    overview = _get(viewer_client, fookus=FOCUS_OVERVIEW).context["intelligence"].overview
-    texts = " ".join(notice.text for notice in overview.notices)
-    assert "kuupäeva ei õnnestunud" in texts
+    assert overview.price_chart is not None
+    assert "Hinnastruktuur" in response.content.decode()
 
 
 # ---------------------------------------------------------------------------
@@ -260,14 +221,23 @@ def test_ordered_value_is_never_called_revenue(viewer_client, programme, focus):
 
 
 # ---------------------------------------------------------------------------
-# Data quality block
+# Data quality block — on /haldus/ now
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.parametrize("focus", FOCUS_VALUES)
-def test_provenance_is_on_every_focus(viewer_client, programme, focus):
+def test_provenance_is_on_no_focus(viewer_client, programme, focus):
+    """It was on every one of them until 2026-08-15.
+
+    The board moved it to `/haldus/`: it is pipeline diagnostics, and a manager
+    opening this dashboard is not its reader. `tests/dashboard/test_admin_area.py`
+    proves it arrived, which is the half that matters — a block deleted from one
+    page and never rendered on the other would pass this assertion too.
+    """
     html = _get(viewer_client, fookus=focus).content.decode()
-    assert "Andmete kohta" in html
+
+    assert "Andmete kohta" not in html
+    assert "Mida need andmed ei tõesta" not in html
 
 
 def test_the_quality_block_states_its_denominators(viewer_client, programme):

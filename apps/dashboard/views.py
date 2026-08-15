@@ -1,7 +1,9 @@
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
+from apps.event_programme.intelligence import build_coverage
 from apps.event_programme.selectors import get_event_programme_summary
+from apps.events.selectors import count_upcoming_within, get_event_summary
 from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
@@ -74,25 +76,42 @@ def admin_area(request):
     and accepts no input. Django's admin site and the staff data-entry
     workflows keep `/admin/` and their own `is_staff` requirement, untouched.
 
-    ## Why it exists before it has content
+    ## What is here
 
     The dashboards carry data-quality warnings, source coverage, import status
     and provenance notes mixed in among the figures a board member came for.
-    That material has to go somewhere before it can be taken out of those pages,
-    and moving it needs a destination that already exists, is already routed and
-    is already in the shell. This is that destination.
+    This is where that material collects, one dashboard at a time.
 
-    It is deliberately empty. Each section states what it is for and shows
-    nothing else — no invented count, no fabricated warning and above all no
-    "0 probleemi", which would be this page reporting its own emptiness as a
-    clean bill of health for checks that are not running yet. The material
-    arrives one diagnostic at a time in later work; until then a quiet page is
-    the honest one.
+    **Sündmused is the first**, moved on 2026-08-15. Its `Andmete kohta` block
+    left every events focus and arrives here whole — the export's schema and
+    generator versions, the coverage denominators, the Commerce join and the
+    public Koda.ee calendar's own connection state. Nothing was summarised on
+    the way: a diagnostic that lost half its numbers in a move would be worse
+    where it landed than where it started.
+
+    The other two sections are still empty, and say so rather than counting to
+    zero. `0 probleemi` beside a check nobody has moved yet would report the
+    absence of the check as the absence of problems.
+
+    This page still grants nothing and accepts no input. The events block reads
+    the same selectors the events page read.
     """
+    programme = get_event_programme_summary()
+    public_calendar = get_event_summary()
     return render(
         request,
         "dashboard/admin.html",
-        {"navigation": NAVIGATION, "active_nav": "admin"},
+        {
+            "navigation": NAVIGATION,
+            "active_nav": "admin",
+            "events_quality": build_coverage(programme.snapshot),
+            "public_calendar": public_calendar,
+            "public_upcoming_count": (
+                count_upcoming_within(public_calendar.snapshot)
+                if public_calendar.has_data
+                else None
+            ),
+        },
     )
 
 

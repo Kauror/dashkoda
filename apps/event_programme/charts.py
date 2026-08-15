@@ -491,129 +491,6 @@ def mix_over_time_chart(
 # ---------------------------------------------------------------------------
 
 
-def planning_bands_chart(planning) -> ChartPayload:
-    """How far ahead are events entered into the programme?
-
-    A distribution rather than one average, because "median 36 days" hides that
-    the programme contains both events arranged in a week and missions arranged
-    two years out. Neither is a mistake, and the bands are named without a
-    judgement attached.
-    """
-    if not planning.has_data:
-        return _empty(
-            "events-planning-bands",
-            "Planeerimisvaru jaotus",
-            "Planeerimisandmeid ei ole piisavalt.",
-        )
-    rows = planning.bands
-    drawn = list(reversed(rows))
-    tooltips = {
-        row.key: _tip(
-            row.label,
-            (("Sündmusi", integer(row.count)), ("Osakaal", percent(row.share))),
-        )
-        for row in rows
-    }
-    option = {
-        "grid": dict(GRID_RANKING),
-        "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
-        "legend": {"show": False},
-        "xAxis": {"type": "value", "show": False},
-        "yAxis": {"type": "category", "data": [row.label for row in drawn]},
-        "series": [
-            {
-                "name": "Sündmusi",
-                "type": "bar",
-                "data": [{"value": row.count, "tip": row.key} for row in drawn],
-                "label": {"show": True, "position": "right", **BAR_LABEL},
-                "labelLayout": dict(LABEL_LAYOUT),
-                "barMaxWidth": 22,
-            }
-        ],
-        "dashkoda": {"tooltip": tooltips},
-    }
-    return ChartPayload(
-        payload_id="events-planning-bands",
-        title="Planeerimisvaru jaotus",
-        question="Kui vara sündmused programmi lisatakse?",
-        option=option,
-        table_headers=("Planeerimisvaru", "Sündmusi", "Osakaal"),
-        table_rows=tuple((row.label, integer(row.count), percent(row.share)) for row in rows),
-        summary=(
-            "Horisontaalne tulpdiagramm: planeerimisvaru jaotus "
-            f"{integer(planning.measured)} sündmuse kohta."
-        ),
-        footnotes=(
-            "Lühike varu ei tähenda halba planeerimist — osa sündmusi lepitakse "
-            "teadlikult kokku kiiresti.",
-        ),
-        size="categorical",
-    )
-
-
-def planning_by_type_chart(planning) -> ChartPayload:
-    """Which formats need the most lead time?
-
-    Only event types with enough events to have a median worth comparing. A
-    category represented by two events is left out rather than ranked, because a
-    "median" of two is one number wearing a statistic's authority.
-    """
-    rows = planning.by_type
-    if not rows:
-        return _empty(
-            "events-planning-type",
-            "Mediaan planeerimisvaru tüübi järgi",
-            "Ükski sündmuse tüüp ei ole võrdluseks piisavalt suur.",
-        )
-    drawn = list(reversed(rows))
-    tooltips = {
-        row.key: _tip(
-            row.label,
-            (
-                ("Mediaan planeerimisvaru", f"{integer(round(row.median))} päeva"),
-                ("Sündmusi", integer(row.count)),
-            ),
-        )
-        for row in rows
-    }
-    option = {
-        "grid": dict(GRID_RANKING),
-        "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
-        "legend": {"show": False},
-        "xAxis": {"type": "value", "show": False},
-        "yAxis": {"type": "category", "data": [row.label for row in drawn]},
-        "series": [
-            {
-                "name": "Päeva",
-                "type": "bar",
-                "data": [{"value": round(row.median), "tip": row.key} for row in drawn],
-                "label": {"show": True, "position": "right", **BAR_LABEL},
-                "labelLayout": dict(LABEL_LAYOUT),
-                "barMaxWidth": 22,
-            }
-        ],
-        "dashkoda": {"tooltip": tooltips},
-    }
-    return ChartPayload(
-        payload_id="events-planning-type",
-        title="Mediaan planeerimisvaru tüübi järgi",
-        question="Millised formaadid vajavad kõige rohkem ettevalmistusaega?",
-        option=option,
-        table_headers=("Tüüp", "Mediaan (päeva)", "Sündmusi"),
-        table_rows=tuple(
-            (row.label, integer(round(row.median)), integer(row.count)) for row in rows
-        ),
-        summary=("Horisontaalne tulpdiagramm: mediaan planeerimisvaru sündmuse tüübi järgi."),
-        footnotes=("Näidatud on ainult tüübid, mille kohta on vähemalt 8 sündmust.",),
-        size="categorical",
-    )
-
-
-# ---------------------------------------------------------------------------
-# Attention
-# ---------------------------------------------------------------------------
-
-
 def attention_ranking_chart(
     rows: tuple[tuple[str, int], ...],
     *,
@@ -676,8 +553,6 @@ __all__ = [
     "events_by_month_chart",
     "events_by_year_chart",
     "mix_over_time_chart",
-    "planning_bands_chart",
-    "planning_by_type_chart",
     "ranking_chart",
     "seasonality_chart",
 ]
