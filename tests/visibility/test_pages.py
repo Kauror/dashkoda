@@ -300,17 +300,21 @@ def test_the_band_names_the_newsletters_nobody_has_entered(submit, viewer_client
 
 
 def test_the_newsletter_card_links_to_the_page_that_shows_newsletters(submit, viewer_client):
-    """`Uudiskirjade tulemused` is on Uudised.
+    """`Uudiskirjade tulemused` is on Otsepostitused.
 
-    This card pointed at the website page for as long as it took anybody to
-    notice — a link to a page whose newsletters had already moved.
+    This card has been left pointing at the wrong page twice: at the website
+    page after the newsletters left it, and at Uudised after they left there.
+    Each time it stayed a working link to a page that no longer showed the
+    subject, which is why the assertion names the destination rather than only
+    checking that some href exists.
     """
     submit(newsletter_eteataja=1200)
 
     page = body(viewer_client.get(reverse("home")))
     heading = _card_heading(page, "Uudiskirjad")
 
-    assert f'href="{reverse("news")}"' in heading
+    assert f'href="{reverse("mailings")}"' in heading
+    assert f'href="{reverse("news")}"' not in heading
 
 
 def test_the_website_card_links_to_koduleht(submit, viewer_client, ga4_day, today, days_ago):

@@ -29,6 +29,18 @@ from apps.dashboard.navigation import NAVIGATION, iter_items
 pytestmark = pytest.mark.django_db
 
 
+@pytest.fixture
+def viewer_client(client, authenticate_viewer):
+    """A client holding the viewer PIN.
+
+    `tests/dashboard/` has no `viewer_client` of its own — the fixture is
+    declared per package, in the conftest of each domain suite — so it is
+    declared here rather than reaching into another package's conftest.
+    """
+    authenticate_viewer(client)
+    return client
+
+
 def test_haldus_resolves_and_is_not_the_django_admin():
     assert reverse("dashboard-admin") == "/haldus/"
     assert resolve("/haldus/").view_name == "dashboard-admin"

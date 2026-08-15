@@ -60,7 +60,7 @@ from .website_period import build_comparison, get_period_coverage, parse_period
 SESSION_CHANGE_PCT = 15.0
 
 #: How many issues the newsletter engagement figure is weighted over — the
-#: selector's own default, so this figure and the Uudiskirjad page cannot
+#: selector's own default, so this figure and the Otsepostitused page cannot
 #: state different rates for the same letter.
 NEWSLETTER_ISSUES = DEFAULT_AGGREGATE_ISSUES
 

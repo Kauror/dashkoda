@@ -53,10 +53,6 @@ VISIBILITY_URL = "/koduleht/"
 #: soon as `data` is passed.
 ARCHIVE = {"fookus": "arhiiv"}
 
-#: The focus Uudised no longer has. Kept as a literal so the redirect tests can
-#: ask for it by the exact string a saved bookmark carries.
-RETIRED_FOCUS = {"fookus": "uudiskirjad"}
-
 #: The section headings each page is asserted to hold or not hold.
 CARD_HEADING = "Uudiskirjad"
 SECTION_HEADING = "Uudiskirjade tulemused"

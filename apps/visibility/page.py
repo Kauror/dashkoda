@@ -260,9 +260,14 @@ def build_channel_band(
     after the website page became Koduleht the four social cards pointed at a
     page that deliberately shows no social figures at all.
 
-    So: the website card goes to Koduleht, the newsletter card to Uudised where
-    `Uudiskirjade tulemused` lives, and the social cards nowhere — see
+    So: the website card goes to Koduleht, the newsletter card to Otsepostitused
+    where `Uudiskirjade tulemused` lives, and the social cards nowhere — see
     `_social_slot` for why nowhere is the honest answer rather than a gap.
+
+    The newsletter card has been re-aimed twice, both times one release behind
+    the material: it pointed at the website page after the newsletters left it,
+    and at Uudised after they left there. The rule it keeps breaking is that a
+    card links to wherever its own subject is rendered *now*.
 
     `include_newsletter` is turned off by a page that shows the newsletter
     material itself one section further on, so its band does not repeat a card
@@ -274,7 +279,7 @@ def build_channel_band(
     return (
         _website_slot(ga4_status, traffic),
         *(
-            (build_newsletter_slot(summary.newsletter, detail_url=reverse("news")),)
+            (build_newsletter_slot(summary.newsletter, detail_url=reverse("mailings")),)
             if include_newsletter
             else ()
         ),

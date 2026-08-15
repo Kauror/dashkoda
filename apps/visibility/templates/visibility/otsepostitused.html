@@ -50,10 +50,21 @@ Context: page, newsletters, newsletter_slot, active_section
   The audiences, from the same `ChannelSlot` the overall dashboard's band
   renders. Rendered unflushed so it draws its own card border rather than
   relying on a strip.
+
+  The `<h2>` is load-bearing rather than decorative. `channel_card` opens at
+  `<h3>`, which is right on the overview where the band sits under
+  `Kanalite auditoorium`; with the card first on this page it followed the `<h1>`
+  directly and skipped a level. That skip was on the old `fookus=uudiskirjad`
+  view too and nothing caught it, because only `/uudised/` itself was in the
+  seeded page list — adding this page put the check on it.
   {% endcomment %}
-  <div id="newsletter-audience">
-    {% include "dashboard/components/channel_card.html" with slot=newsletter_slot only %}
-  </div>
+  <section aria-labelledby="section-nimekirjad" id="newsletter-audience">
+    <h2 id="section-nimekirjad" class="text-sm font-medium text-text">Nimekirjad</h2>
+    <p class="dk-meta mt-1">Kui paljuni iga uudiskiri ulatub. Nimekirju ei liideta.</p>
+    <div class="mt-3">
+      {% include "dashboard/components/channel_card.html" with slot=newsletter_slot only %}
+    </div>
+  </section>
 
   {% comment %}
   Subscriber history is deliberately not drawn. Collection began on 2026-08-10
