@@ -84,13 +84,22 @@ test("the attention section renders exactly one of its two valid states", async 
   // Bounded: an exception list, not another dashboard.
   expect(rowCount).toBeLessThanOrEqual(5);
 
-  // Urgency is a word before it is a colour, so it survives greyscale, a
-  // printer and a reader who cannot separate the two warning tones. Every row
-  // carries one, not just the first.
-  const priorities = ["Kiireloomuline", "Tähelepanu", "Tähelepanuväärne"];
+  /*
+   * Urgency is a word before it is a colour, so it survives greyscale, a
+   * printer and a reader who cannot separate the two warning tones. Every row
+   * carries one, not just the first.
+   *
+   * Compared case-insensitively because `.dk-badge` is `uppercase`, and
+   * `innerText` returns text as CSS transformed it — so the rendered word is
+   * `KIIRELOOMULINE` while the template and the presenter both say
+   * `Kiireloomuline`. Matching the styled casing here would tie this assertion
+   * to a CSS declaration it is not about.
+   */
+  const priorities = ["kiireloomuline", "tähelepanu", "tähelepanuväärne"];
   const texts = await rows.allInnerTexts();
   for (const text of texts) {
-    expect(priorities.some((word) => text.includes(word))).toBe(true);
+    const haystack = text.toLocaleLowerCase("et");
+    expect(priorities.some((word) => haystack.includes(word))).toBe(true);
     // And evidence beneath the claim: a headline with no measurement under it
     // is an assertion the reader cannot check.
     expect(text.trim().split("\n").length).toBeGreaterThan(1);
