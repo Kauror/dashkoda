@@ -35,9 +35,55 @@ const token = (name, fallback) => {
   return value || fallback;
 };
 
+/** The registered ECharts theme's name. One theme, re-registered per mount. */
+const THEME_NAME = "dashkoda";
+
+/**
+ * Axis styling, applied to every axis of every chart.
+ *
+ * ECharts' own defaults are written for a light background and **override the
+ * theme's `textStyle`** for axis labels specifically. On this surface that put
+ * the labels at `#6E7079` — 3.47:1, under the 4.5:1 a reader needs — while the
+ * gridline default `#E0E6F1` landed at 13.67:1. The result was exactly
+ * backwards: the text you have to read was the faintest thing on the card and
+ * the grid behind it was the loudest.
+ *
+ * So both are named here rather than left to ECharts. Labels take the same
+ * secondary ink as the rest of the interface (6.98:1) and the grid drops to
+ * `border-strong` (1.86:1) — visible when you look for it, gone when you are
+ * reading the data. The axis line and ticks go with it: a category axis whose
+ * labels are legible does not also need a rule under them.
+ */
+const AXIS_BASE = () => ({
+  axisLabel: { color: token("--color-text-secondary", "#9aa7b4") },
+  axisLine: { lineStyle: { color: token("--color-border-strong", "#3d4954") } },
+  axisTick: { show: false },
+  splitLine: { lineStyle: { color: token("--color-border-strong", "#3d4954") } },
+});
+
 /**
  * Theme derived from the design-system tokens so charts cannot drift away from
  * the rest of the interface.
+ *
+ * ## The categorical order
+ *
+ * Six slots, in a fixed order, and **the order is the accessibility mechanism
+ * rather than decoration** — it is what keeps every neighbouring pair apart for
+ * a colour-blind reader. Do not reorder it, and do not append a seventh: a
+ * seventh series folds into `Muu`, which is what the builders already do.
+ *
+ * It replaced a five-slot list that reused `success`, `warning` and `danger` as
+ * series 3, 4 and 5. That was wrong twice over. Those are **status** colours,
+ * reserved for saying a thing is good or wrong, and a chart that spends them on
+ * "the third category" leaves nothing to say it with. And slots 1 and 2 were
+ * both blue — `brand` against `info` measured ΔE 7.8 for a reader with full
+ * colour vision, against a floor of 15, and 2.5 under tritanopia. They were not
+ * hard to tell apart; for some readers they were the same colour.
+ *
+ * The Chamber blue stays slot 1 — it is the CVI brand and this is the Chamber's
+ * dashboard. The rest are stepped for a dark surface. The set is validated:
+ * every adjacent pair clears the CVD and normal-vision floors, every slot sits
+ * in the dark lightness band, and all six clear 3:1 against the card.
  */
 export function chartTheme() {
   return {
@@ -49,11 +95,16 @@ export function chartTheme() {
     backgroundColor: "transparent",
     color: [
       token("--color-brand", "#009fda"),
-      token("--color-info", "#5fb3e8"),
-      token("--color-success", "#4fbf95"),
-      token("--color-warning", "#e3ac4e"),
-      token("--color-danger", "#ef7d6e"),
+      token("--color-series-2", "#d95926"),
+      token("--color-series-3", "#199e70"),
+      token("--color-series-4", "#c98500"),
+      token("--color-series-5", "#d55181"),
+      token("--color-series-6", "#9085e9"),
     ],
+    categoryAxis: AXIS_BASE(),
+    valueAxis: AXIS_BASE(),
+    timeAxis: AXIS_BASE(),
+    logAxis: AXIS_BASE(),
   };
 }
 
@@ -260,7 +311,23 @@ export function mountChart(figure) {
    * perceive. Correct drawing is worth more than an optimisation nobody asked
    * for on a chart this size.
    */
-  const instance = echarts.init(canvas, null, { renderer: "canvas" });
+  /*
+   * Registered as a real theme rather than spread into `setOption`.
+   *
+   * That distinction is load-bearing. `textStyle`, `color` and `backgroundColor`
+   * are valid *option* keys, so spreading them worked and hid the fact that the
+   * rest of a theme is not: `categoryAxis`, `valueAxis` and their siblings are
+   * only read when ECharts resolves a registered theme, and passed to
+   * `setOption` they are inert. Axis styling written that way would apply to
+   * nothing and report no error — the failure is silence, not a stack trace.
+   *
+   * Re-registered per mount rather than once at module load, for the same
+   * reason the label helpers are functions: the values come from live CSS
+   * custom properties, and freezing them at import would outlast a theme change.
+   * `registerTheme` overwrites by name, so this is idempotent.
+   */
+  echarts.registerTheme(THEME_NAME, chartTheme());
+  const instance = echarts.init(canvas, THEME_NAME, { renderer: "canvas" });
   /*
    * `dashkoda` carries what ECharts must not receive as option: the
    * server-rendered tooltip readouts, keyed by the `tip` each datum holds. It is
@@ -385,7 +452,6 @@ export function mountChart(figure) {
    * page. The reader's preference is the last word, so it is written last.
    */
   instance.setOption({
-    ...chartTheme(),
     ...option,
     animation: option.animation !== false && !prefersReducedMotion(),
   });
