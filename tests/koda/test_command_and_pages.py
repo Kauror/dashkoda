@@ -288,8 +288,11 @@ def test_the_public_member_count_reaches_the_overview(viewer):
 
     body = viewer.get(reverse("home")).content.decode()
 
+    # The count and the unit that names it. `Liikmeid kokku` was the caption
+    # under the figure and came off the card on 2026-08-15 with the rest of the
+    # per-figure chrome; the headline reads `3 395 liiget` on its own now.
     assert integer(3395) in body
-    assert "Liikmeid kokku" in body
+    assert "liiget" in body
 
 
 def test_the_news_page_lists_items(viewer):

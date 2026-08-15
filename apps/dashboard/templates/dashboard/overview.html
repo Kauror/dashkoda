@@ -29,9 +29,6 @@ prioritising this page exists to do for them.
   {# ---------------- Page header ---------------- #}
   <header class="flex flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text">Koja töölaud</h1>
-    <p class="text-sm text-text-secondary">
-      Liikmed, mõju, kaasamine ja nähtavus ühes vaates.
-    </p>
     {% comment %}
     A source-state chip, not a KPI. It counts sources with something to
     disclose, and says nothing about how the Chamber is doing — the old
@@ -49,7 +46,7 @@ prioritising this page exists to do for them.
   {# ---------------- Koja seis ---------------- #}
   <section aria-labelledby="koja-seis" class="flex flex-col gap-3">
     <h2 id="koja-seis" class="text-lg font-semibold text-text">Koja seis</h2>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
       {% for pillar in page.pillars %}
         {% include "dashboard/components/executive_pillar.html" with pillar=pillar only %}
       {% endfor %}
@@ -58,7 +55,7 @@ prioritising this page exists to do for them.
 
   {# ---------------- Mis vajab tähelepanu? ---------------- #}
   <section aria-labelledby="tahelepanu" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Mis vajab tähelepanu?" heading_id="tahelepanu" description="Ainult see, mis on mõõdetult muutunud või lähipäevil ees." only %}
+    {% include "dashboard/components/section_header.html" with title="Mis vajab tähelepanu?" heading_id="tahelepanu" only %}
     <div class="dk-section-body">
       {% if page.has_signals %}
         <ul class="flex flex-col divide-y divide-border">
@@ -76,13 +73,14 @@ prioritising this page exists to do for them.
                 <span class="dk-meta">{{ entry.domain_label }}</span>
               </div>
               <p class="text-sm font-medium break-words text-text">{{ entry.headline }}</p>
-              <p class="text-sm break-words text-text-secondary">{{ entry.evidence }}</p>
-              <p class="dk-meta flex flex-wrap items-center gap-x-3 gap-y-1">
-                {% if entry.as_of %}<span>Seis {{ entry.as_of|date:"d.m.Y" }}</span>{% endif %}
-                {% if entry.has_link %}
+              {% if entry.evidence %}
+                <p class="text-sm break-words text-text-secondary">{{ entry.evidence }}</p>
+              {% endif %}
+              {% if entry.has_link %}
+                <p class="dk-meta">
                   <a class="dk-link" href="{{ entry.href }}">Vaata {{ entry.domain_label|lower }}</a>
-                {% endif %}
-              </p>
+                </p>
+              {% endif %}
             </li>
           {% endfor %}
         </ul>
@@ -101,7 +99,7 @@ prioritising this page exists to do for them.
 
   {# ---------------- Järgmised 30 päeva ---------------- #}
   <section aria-labelledby="jargmised-30" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Järgmised 30 päeva" heading_id="jargmised-30" description="Õigusloome tähtajad ja kavandatud sündmused." only %}
+    {% include "dashboard/components/section_header.html" with title="Järgmised 30 päeva" heading_id="jargmised-30" only %}
     <div class="dk-section-body">
       {% if page.has_upcoming %}
         <ol class="flex flex-col divide-y divide-border">
@@ -143,7 +141,7 @@ prioritising this page exists to do for them.
 
   {# ---------------- Praegu huvi pakkuv ---------------- #}
   <section aria-labelledby="huvi-pakkuv" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Praegu huvi pakkuv" heading_id="huvi-pakkuv" description="Neli eri mõõdikut, igaüks oma perioodiga. Neid ei võrrelda omavahel." only %}
+    {% include "dashboard/components/section_header.html" with title="Praegu huvi pakkuv" heading_id="huvi-pakkuv" only %}
     <div class="dk-section-body">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {% for item in page.interest %}
@@ -163,7 +161,9 @@ prioritising this page exists to do for them.
                 <span class="font-semibold tabular-nums">{{ item.metric_value }}</span>
                 <span class="text-text-secondary">{{ item.metric_label }}</span>
               </p>
-              <p class="dk-meta">{{ item.period }}{% if item.context %} · {{ item.context }}{% endif %}</p>
+              {% if item.period or item.context %}
+                <p class="dk-meta">{% if item.period %}{{ item.period }}{% endif %}{% if item.period and item.context %} · {% endif %}{% if item.context %}{{ item.context }}{% endif %}</p>
+              {% endif %}
             {% else %}
               <p class="text-sm text-text-secondary">{{ item.unavailable_note }}</p>
             {% endif %}
@@ -182,7 +182,7 @@ prioritising this page exists to do for them.
   needs to address exactly this section.
   {% endcomment %}
   <section aria-labelledby="section-channels" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kanalite auditoorium" heading_id="section-channels" description="Iga kanal eraldi. Neid ei liideta — sama inimene võib olla mitmes." only %}
+    {% include "dashboard/components/section_header.html" with title="Kanalite auditoorium" heading_id="section-channels" only %}
     <div class="dk-section-body">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {% for slot in page.channels %}
@@ -194,7 +194,7 @@ prioritising this page exists to do for them.
 
   {# ---------------- Andmete seis ---------------- #}
   <section id="andmete-seis" aria-labelledby="andmete-seis-pealkiri" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="andmete-seis-pealkiri" description="Iga allikas oma tempos. Kuukiri ei ole vananenud sellepärast, et ta ei ole eilne." only %}
+    {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="andmete-seis-pealkiri" only %}
     <div class="dk-section-body">
       <ul class="flex flex-col divide-y divide-border">
         {% for row in page.data_status %}

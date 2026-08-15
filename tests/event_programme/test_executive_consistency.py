@@ -96,4 +96,4 @@ def test_the_change_is_the_difference_of_the_two_domain_counts(summary):
     # One event by 10 August in each year: no movement, and the sentence says
     # so rather than inventing a direction.
     assert executive.change == 0
-    assert executive.meaning == "Sündmusi on sama ajaks täpselt sama palju kui eelmisel aastal."
+    assert executive.meaning == "Täpselt sama palju kui eelmisel aastal samaks ajaks."

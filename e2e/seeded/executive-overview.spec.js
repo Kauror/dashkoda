@@ -21,18 +21,15 @@ test("the executive status fills with figures rather than empty states", async (
 
   const status = page.getByRole("region", { name: "Koja seis" });
 
-  // Five strategic areas, each answering its own question. The Nähtavus pillar
-  // is `Koduleht ja uudised`: the old product name is retired and must not come
-  // back on the front page.
-  for (const pillar of [
-    "Liikmeskond",
-    "Huvikaitse",
-    "Kaasamine",
-    "Koduleht ja uudised",
-    "Digiteenused",
-  ]) {
+  // Four strategic areas. The Nähtavus pillar is `Koduleht ja uudised` — the
+  // old product name is retired and must not come back on the front page — and
+  // Digiteenused is deliberately absent: the board removed the card on
+  // 2026-08-15, while the shop keeps its interest panel, its signals and its
+  // Andmete seis row.
+  for (const pillar of ["Liikmeskond", "Huvikaitse", "Kaasamine", "Koduleht ja uudised"]) {
     await expect(status.getByRole("heading", { name: pillar, level: 3 })).toBeVisible();
   }
+  await expect(status.getByRole("heading", { name: "Digiteenused", level: 3 })).toHaveCount(0);
 
   // Not a single pillar may be showing the unconnected state.
   await expect(page.getByText("Andmeallikas ei ole ühendatud.")).toHaveCount(0);
@@ -40,15 +37,23 @@ test("the executive status fills with figures rather than empty states", async (
 });
 
 test("the membership pillar leads with the public directory count", async ({ page }) => {
+  /*
+   * The card prints one total and no captions. The question lines and the
+   * period · source · seis rows came off every pillar on 2026-08-15, so what
+   * holds the "never two unlabelled totals" rule now is that the directory
+   * count is the only member total on the card at all — the report contributes
+   * ratios and a joined/removed pair, and Andmete seis says which source is
+   * which.
+   */
   const status = page.getByRole("region", { name: "Koja seis" });
   const pillar = status.locator("article", { hasText: "Liikmeskond" }).first();
 
-  await expect(pillar.getByText("Liikmeid kokku")).toBeVisible();
-  await expect(pillar.getByText("Koda.ee liikmekataloog")).toBeVisible();
-  // The board report contributes ratios, each naming itself as their source —
-  // never a second total under the same words.
-  await expect(pillar.getByText("Koja sisemine liikmeskonna aruanne").first()).toBeVisible();
-  await expect(pillar.getByText("Liikmeid kokku · koja aruanne")).toHaveCount(0);
+  await expect(pillar.getByText("liiget")).toBeVisible();
+  await expect(pillar.getByText("Tasunud liikmete osakaal")).toBeVisible();
+  // The struck chrome must stay gone.
+  await expect(pillar.getByText("Liikmeid kokku")).toHaveCount(0);
+  await expect(pillar.getByText("Koda.ee liikmekataloog")).toHaveCount(0);
+  await expect(pillar.getByText("Koja sisemine liikmeskonna aruanne")).toHaveCount(0);
 });
 
 test("the attention section renders exactly one of its two valid states", async ({ page }) => {
@@ -100,8 +105,9 @@ test("the attention section renders exactly one of its two valid states", async 
   for (const text of texts) {
     const haystack = text.toLocaleLowerCase("et");
     expect(priorities.some((word) => haystack.includes(word))).toBe(true);
-    // And evidence beneath the claim: a headline with no measurement under it
-    // is an assertion the reader cannot check.
+    // A badge line and a headline at minimum. Evidence is optional per signal
+    // since the board struck the sentences that restated their headlines, so
+    // two lines is the floor rather than three.
     expect(text.trim().split("\n").length).toBeGreaterThan(1);
   }
 });
@@ -153,10 +159,14 @@ test("a failed refresh keeps the figures and discloses itself", async ({ page })
   const status = page.getByRole("region", { name: "Andmete seis" });
 
   await expect(status.getByText("Vananenud pärast ebaõnnestunud uuendust")).toBeVisible();
-  // The pillar the failed feed contributes to still shows its figures.
+  // The pillar the failed feed contributes to still shows its figures. Its
+  // caption `Kodulehe seansid` came off the card on 2026-08-15 with the rest of
+  // the per-figure chrome, so what proves the data was not withdrawn is the
+  // unit beside the number.
   const pillars = page.getByRole("region", { name: "Koja seis" });
   const visibility = pillars.locator("article", { hasText: "Koduleht ja uudised" }).first();
-  await expect(visibility.getByText("Kodulehe seansid")).toBeVisible();
+  await expect(visibility.getByText("seanssi")).toBeVisible();
+  await expect(visibility.getByText("Kodulehe seansid")).toHaveCount(0);
 });
 
 test("the channel audiences are never totalled", async ({ page }) => {

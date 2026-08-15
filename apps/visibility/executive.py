@@ -105,31 +105,21 @@ class WebsiteExecutive:
 
     @property
     def meaning(self) -> str:
-        """Sessions and engagement in one sentence, each with its own basis.
+        """The sessions sentence, and only sessions.
 
-        Engagement is stated as a level rather than as a movement: the rate's
-        own change is a percentage-point figure the pillar has no room for, and
-        two percentages moving in one sentence is how a reader ends up
-        subtracting one from the other.
+        The engagement clause it used to end with was the same figure the
+        `Kaasatuse määr` fact states one row below, and the board struck the
+        repeat. One sentence, one measure.
         """
         if not self.has_headline:
             return ""
         change = self.change_pct
         if change is None:
-            if self.engagement_rate is None:
-                return f"Seansse oli {integer(self.sessions)} viimasel mõõdetud perioodil."
-            return (
-                f"Seansse oli {integer(self.sessions)}, "
-                f"kaasatuse määr {percent(self.engagement_rate * 100)}."
-            )
-        word = "kasvasid" if change > 0 else "langesid" if change < 0 else "püsisid"
+            return f"Seansse oli {integer(self.sessions)} viimasel mõõdetud perioodil."
         if change == 0:
-            body = "Seansid püsisid eelmise võrdlusperioodiga samal tasemel"
-        else:
-            body = f"Seansid {word} {percent(abs(change))} võrreldes eelmise sama pika perioodiga"
-        if self.engagement_rate is None:
-            return f"{body}."
-        return f"{body}; kaasatuse määr {percent(self.engagement_rate * 100)}."
+            return "Seansid püsisid eelmise võrdlusperioodiga samal tasemel."
+        word = "kasvasid" if change > 0 else "langesid"
+        return f"Seansid {word} {percent(abs(change))} võrreldes eelmise sama pika perioodiga."
 
 
 def get_website_executive() -> WebsiteExecutive:
