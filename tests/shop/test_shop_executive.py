@@ -1,4 +1,4 @@
-"""When the Digiteenused pillar may compare a period with the one before.
+"""When the shop executive summary may compare a period with the one before.
 
 `derive_period_pair` is the E-pood page's one rule for "compared with what",
 and it refuses a previous window that would reach before Commerce coverage

@@ -254,11 +254,13 @@ def test_no_sentence_makes_a_causal_claim():
 
 
 def test_the_shop_pillar_excludes_event_registrations():
-    """Kaasamine counts the programme; Digiteenused counts Commerce without it.
+    """Kaasamine counts the programme; the shop figures count Commerce without it.
 
-    If `EVENT_REGISTRATION` were in this tuple the same registrations would
-    contribute to two pillars at once, and the page would be presenting one set
-    of rows as two separate strategic contributions.
+    The Digiteenused card is gone, but the shop still reaches this page — its
+    interest panel, its signals and its `Andmete seis` row — and every one of
+    those reads `NON_EVENT_TYPES`. If `EVENT_REGISTRATION` were in this tuple
+    the same registrations would contribute to two sections at once, and the
+    page would be presenting one set of rows as two separate contributions.
     """
     assert ProductType.EVENT_REGISTRATION not in NON_EVENT_TYPES
     assert ProductType.DOCUMENT in NON_EVENT_TYPES
@@ -331,7 +333,16 @@ def test_a_metric_cannot_be_built_without_a_period():
 
 
 @pytest.mark.django_db
-def test_every_pillar_states_a_period_a_source_and_its_own_question():
+def test_every_pillar_carries_a_period_and_a_source_in_its_data():
+    """Provenance stays in the data even though the card no longer prints it.
+
+    The board struck the question lines and the period/source rows off the
+    cards on 2026-08-15, and the Digiteenused card with them — four pillars
+    now, and the shop keeps its interest panel, its signals and its
+    `Andmete seis` row. What must not follow the chrome out is the metadata:
+    `Andmete seis` and the domain pages are built from these same objects, so
+    a metric that lost its period would be a figure nobody can check anywhere.
+    """
     from apps.dashboard.executive import build_executive_overview
     from apps.event_programme.selectors import get_event_programme_summary
     from apps.legal_work.selectors import get_legal_work_summary
@@ -345,9 +356,14 @@ def test_every_pillar_states_a_period_a_source_and_its_own_question():
         events=get_event_programme_summary(),
     )
 
-    assert len(page.pillars) == 5
+    assert len(page.pillars) == 4
+    assert [pillar.key for pillar in page.pillars] == [
+        "membership",
+        "legal_work",
+        "events",
+        "website",
+    ]
     for pillar in page.pillars:
-        assert pillar.question.endswith("?")
         assert pillar.links, "every pillar offers a next step"
         if pillar.headline is not None:
             assert pillar.headline.period

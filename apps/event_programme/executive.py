@@ -109,18 +109,24 @@ class EventsExecutive:
 
     @property
     def meaning(self) -> str:
-        """The like-for-like sentence, at the grain the label states."""
+        """The like-for-like sentence, without the opener it used to carry.
+
+        "Sündmusi on sama ajaks" repeated what the headline already says, and
+        the board struck it. The zero-baseline branch keeps the count in the
+        sentence, because a comparison with no percentage needs something
+        concrete to hang on.
+        """
         if not self.has_headline or self.change is None:
             return ""
         if self.events_ytd_previous == 0:
             return (
-                f"Sündmusi on tänavu {integer(self.events_ytd)}; "
-                "eelmisel aastal ei olnud selleks ajaks ühtegi."
+                "Eelmisel aastal ei olnud selleks ajaks ühtegi sündmust; "
+                f"tänavu on {integer(self.events_ytd)}."
             )
         if self.change == 0:
-            return "Sündmusi on sama ajaks täpselt sama palju kui eelmisel aastal."
+            return "Täpselt sama palju kui eelmisel aastal samaks ajaks."
         word = "rohkem" if self.change > 0 else "vähem"
-        return f"Sündmusi on sama ajaks {percent(abs(self.change_pct))} {word} kui eelmisel aastal."
+        return f"{percent(abs(self.change_pct))} {word} kui eelmisel aastal."
 
 
 def get_events_executive(summary: EventProgrammeSummary) -> EventsExecutive:
@@ -190,10 +196,10 @@ def _signals(upcoming, *, observed_at) -> tuple[DomainSignal, ...]:
                 f"{integer(len(unlinked))} tulemas olevat sündmust ei ole seotud "
                 "avaliku sündmuse lehega."
             ),
-            evidence=(
-                f"Järgmisena algavast {integer(len(upcoming))} sündmusest "
-                f"{integer(len(unlinked))} ei õnnestunud siduda Koda.ee sündmuse lehega."
-            ),
+            # No evidence sentence. It restated the headline with the cohort
+            # size added, and the board struck it; the headline carries the
+            # count and the Sündmused page carries the detail.
+            evidence="",
             priority=SignalPriority.NOTABLE,
             direction=SignalDirection.NONE,
             as_of=observed_at.date() if hasattr(observed_at, "date") else observed_at,

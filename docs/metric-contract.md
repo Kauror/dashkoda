@@ -93,11 +93,19 @@ with the address** — same selectors, same windows, same weighting.
 
 ## Executive overview (`/`)
 
-Five pillars, disjoint by construction: Kaasamine reads the programme workbook
-and no Commerce; Digiteenused reads Commerce minus `EVENT_REGISTRATION`; news
-reading is stated as a share of site reading, never added. Nothing sums across
-pillars and no composite score exists. Signals arrive decided (wording,
-priority, threshold) from the domains; the page collects, dedupes, sorts and
-limits. The timeline holds the only two dated lanes (legal deadlines, scheduled
-events). `Andmete seis` speaks per business source in that source's own
-vocabulary; a stale-after-failure feed keeps its last-good figures and says so.
+Four pillars, disjoint by construction: Kaasamine reads the programme workbook
+and no Commerce; news reading is stated as a share of site reading, never
+added. The Digiteenused pillar card was removed at the board's request on
+2026-08-15 — the shop keeps its interest panel, its signals and its
+`Andmete seis` row, and everything shop-related that remains reads Commerce
+minus `EVENT_REGISTRATION`, so the no-double-counting rule survives the card.
+Nothing sums across pillars and no composite score exists. Signals arrive
+decided (wording, priority, threshold) from the domains; the page collects,
+dedupes, sorts and limits — an evidence sentence is optional per signal since
+the board struck the ones that restated their headlines. The timeline holds the
+only two dated lanes (legal deadlines, scheduled events). `Andmete seis` speaks
+per business source in that source's own vocabulary; a stale-after-failure feed
+keeps its last-good figures and says so — and since the board struck the
+per-figure source captions off the pillar cards, it is also the **only** place
+the overview names a source at all. The metric definitions above did not move:
+`ExecutiveMetric` still carries `period`, `source` and `as_of` in data.
