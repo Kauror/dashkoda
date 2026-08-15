@@ -55,14 +55,19 @@ test("the workbook programme is the page's primary content", async ({ page }) =>
 
   await expect(page.getByRole("heading", { name: "Sündmuste programm" })).toBeVisible();
 
-  /* The public calendar is named once, as the secondary connection it is, inside
-     the provenance block at the foot. Folded by default — a dashboard should not
-     open with pipeline diagnostics — so the block is opened to read it. */
-  const provenance = page.locator('section[aria-labelledby="section-quality"] details');
+  /* The provenance block that used to sit folded at the foot of this page moved
+     to `/haldus/` on 2026-08-15, and the public calendar — the secondary
+     connection it named — went with it. Both halves are checked: gone from
+     here, and still named there. */
+  await expect(page.locator('section[aria-labelledby="section-quality"]')).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("Koda.ee avalik kalender");
+  expect(errors).toEqual([]);
+
+  await page.goto("/haldus/");
+  const provenance = page.locator('section[aria-labelledby="section-andmeallikad"] details');
   await expect(provenance).toHaveCount(1);
   await provenance.locator("summary").click();
   await expect(page.getByRole("heading", { name: "Koda.ee avalik kalender" })).toBeVisible();
-  expect(errors).toEqual([]);
 });
 
 test("historical rows are visible across every year", async ({ page }) => {

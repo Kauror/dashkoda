@@ -127,14 +127,14 @@ test("every chart keeps its data table in the document", async ({ page }) => {
   }
 });
 
-test("the period control says it selects by the event's own date", async ({ page }) => {
-  oncePerRun();
-  await open_(page, "ulevaade");
+/* The period control used to carry a paragraph saying it selects by the event's
+   own start date, and a spec asserting it. The board struck the paragraph on
+   2026-08-15, so there is nothing left on the page for that spec to read and it
+   was removed rather than pointed somewhere it would pass without meaning it.
 
-  // One control that silently meant three different periods at once is the
-  // confusion this dashboard is built to avoid, so it says which it means.
-  await expect(page.getByText(/oma alguskuupäeva/)).toBeVisible();
-});
+   The selection itself is unchanged — `?year=` is still an event cohort, still
+   resolved from the start date, and `test_intelligence_page.py` pins that. What
+   is gone is the sentence explaining it to a reader. */
 
 test("the provenance block is on no focus, and is on /haldus/", async ({ page }) => {
   oncePerRun();
@@ -146,7 +146,10 @@ test("the provenance block is on no focus, and is on /haldus/", async ({ page })
      wiring it into the other would satisfy the first half alone. */
   for (const [focus] of FOCUS) {
     await visit(page, focus);
-    await expect(page.locator("details")).toHaveCount(0);
+    /* Scoped to the provenance section. Every chart figure carries a `details`
+       of its own — the accessible data table — so counting them all here would
+       be counting the wrong thing on exactly the views that draw. */
+    await expect(page.locator('section[aria-labelledby="section-quality"]')).toHaveCount(0);
     await expect(page.locator("main")).not.toContainText("Andmete kohta");
   }
 
