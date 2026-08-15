@@ -42,12 +42,7 @@ from django.utils import timezone
 from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
 from apps.core.formatting import integer, percent
 
-from .analytics import (
-    count_completed_in_year,
-    count_year_to_date,
-    delivery_mode_distribution,
-    population,
-)
+from .analytics import count_completed_in_year, count_year_to_date
 from .public_links import attach_public_links
 from .selectors import (
     NEAR_TERM_DAYS,
@@ -72,8 +67,6 @@ class EventsExecutive:
     starting_soon: int | None = None
     completed_ytd: int | None = None
     #: The delivery mode the current year's programme used most, and its share.
-    top_delivery_mode: str = ""
-    top_delivery_share_pct: int | None = None
     #: The next scheduled events, public links already attached, soonest first.
     #: One bounded read serving four consumers: the pillar fact, the unlinked
     #: signal, the "coming interest" panel and the shared timeline.
@@ -139,41 +132,17 @@ def get_events_executive(summary: EventProgrammeSummary) -> EventsExecutive:
     upcoming = attach_public_links(
         list(get_upcoming_programme_events(snapshot, limit=TIMELINE_LIMIT))
     )
-    mode, share = _top_delivery_mode(snapshot, year=today.year)
     return EventsExecutive(
         events_ytd=count_year_to_date(snapshot, year=today.year, today=today),
         events_ytd_previous=count_year_to_date(snapshot, year=today.year - 1, today=today),
         starting_soon=count_events_starting_within(snapshot),
         completed_ytd=count_completed_in_year(snapshot, year=today.year, today=today),
-        top_delivery_mode=mode,
-        top_delivery_share_pct=share,
         # `get_upcoming_programme_events` orders by start date, so the first
         # row is the soonest and the timeline can clip without re-sorting.
         upcoming=tuple(upcoming),
         observed_at=summary.observed_at,
         signals=_signals(upcoming, observed_at=summary.observed_at),
     )
-
-
-def _top_delivery_mode(snapshot, *, year: int) -> tuple[str, int | None]:
-    """The current year's most-used delivery mode, and its share.
-
-    The unclassified row is excluded from the contest but **not** from the
-    share's denominator, which `Category.share` already takes against the whole
-    population. So a year that classified a third of its events reports the
-    leading mode with the modest share it genuinely holds, rather than a share
-    of the classified subset dressed up as a share of the programme.
-
-    Empty when nothing is classified: a "most common" drawn from an
-    unclassified population names whichever label the coverage gap left
-    standing.
-    """
-    distribution = delivery_mode_distribution(population(snapshot, year=year))
-    rows = [row for row in distribution.rows if row.count and not row.is_unknown]
-    if not rows:
-        return "", None
-    leader = max(rows, key=lambda row: row.count)
-    return leader.label, leader.share_pct
 
 
 def _signals(upcoming, *, observed_at) -> tuple[DomainSignal, ...]:

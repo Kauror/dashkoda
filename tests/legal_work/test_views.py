@@ -230,7 +230,7 @@ def test_overview_keeps_its_empty_state_without_a_snapshot(client, authenticate_
     assert "Huvikaitse" in content
     assert "Andmeallikas ei ole ühendatud." in content
     assert "Vaata õigusloomet" in content
-    assert "Arvamusi välja saadetud tänavu" not in content
+    assert "arvamust sellel aastal" not in content
 
 
 def test_overview_shows_real_legal_work_data_once_imported(
@@ -246,9 +246,15 @@ def test_overview_shows_real_legal_work_data_once_imported(
     content = client.get("/").content.decode()
 
     assert "Huvikaitse" in content
-    assert "Arvamusi välja saadetud tänavu" in content
+    # `Arvamusi välja saadetud tänavu` was the caption under the figure. It came
+    # off the card on 2026-08-15 and the window moved into the unit, so the
+    # headline states its own scope: `165 arvamust sellel aastal`.
+    assert "arvamust sellel aastal" in content
+    assert "Arvamusi välja saadetud tänavu" not in content
     assert "Teemasid töös" in content
     assert "Vaata õigusloomet" in content
+    # The workbook's own date still reaches the page — in `Andmete seis`, which
+    # is where the overview names a source at all now.
     stated = imported_snapshot.reporting_date
     assert f"{stated:%d.%m.%Y}" in content
 
@@ -270,7 +276,9 @@ def test_overview_discloses_a_failed_sync_alongside_old_data(
     freshness = client.get("/dashboard/varskus/").content.decode()
 
     assert "Vananenud: 1" in freshness
-    assert "Arvamusi välja saadetud tänavu" in content
+    # The figure stays put; only its caption went. That is the half this test is
+    # about — a failed refresh must not withdraw the last good data.
+    assert "arvamust sellel aastal" in content
     assert "Vananenud pärast ebaõnnestunud uuendust" in content
 
 
@@ -281,8 +289,12 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
 
     The shell's own freshness region legitimately shows the current time — that
     is a fact about the application, not about the data — so this checks the
-    legal-work claim specifically. The pillar states it twice over: as the
-    headline's as-of date, and as the period the year-to-date figure stops on.
+    legal-work claim specifically.
+
+    The pillar used to state it twice, as the headline's as-of date and as the
+    period the figure stops on. Both captions came off the card on 2026-08-15,
+    so `Andmete seis` is the one place the date is claimed now — which is the
+    point of asserting it here rather than trusting the card.
     """
     authenticate_viewer(client)
 

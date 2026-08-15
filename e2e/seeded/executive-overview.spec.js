@@ -159,10 +159,14 @@ test("a failed refresh keeps the figures and discloses itself", async ({ page })
   const status = page.getByRole("region", { name: "Andmete seis" });
 
   await expect(status.getByText("Vananenud pärast ebaõnnestunud uuendust")).toBeVisible();
-  // The pillar the failed feed contributes to still shows its figures.
+  // The pillar the failed feed contributes to still shows its figures. Its
+  // caption `Kodulehe seansid` came off the card on 2026-08-15 with the rest of
+  // the per-figure chrome, so what proves the data was not withdrawn is the
+  // unit beside the number.
   const pillars = page.getByRole("region", { name: "Koja seis" });
   const visibility = pillars.locator("article", { hasText: "Koduleht ja uudised" }).first();
-  await expect(visibility.getByText("Kodulehe seansid")).toBeVisible();
+  await expect(visibility.getByText("seanssi")).toBeVisible();
+  await expect(visibility.getByText("Kodulehe seansid")).toHaveCount(0);
 });
 
 test("the channel audiences are never totalled", async ({ page }) => {
