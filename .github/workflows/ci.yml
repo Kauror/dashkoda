@@ -293,13 +293,28 @@ jobs:
 
   # Browser acceptance against the Compose development runtime, at every
   # configured viewport.
+  #
+  # Sharded two ways because this job is the pipeline's critical path: the six
+  # integrated dashboards put the two suites at ~13 minutes of browser time on
+  # top of ~5 minutes of stack setup. Each shard is a complete, independent
+  # world — its own runner, its own Compose stack, its own database, its own
+  # seed — running half of Playwright's file × viewport matrix, so the
+  # empty-then-seeded stage separation is exactly what it was on one runner.
+  # `fail-fast: false` because one shard's failure cancelling the other would
+  # hide half the verdict, and a cancelled job reads as nothing rather than
+  # as a result.
   browser-e2e:
-    name: Browser end-to-end
+    name: Browser end-to-end (${{ matrix.shard }}/2)
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     # 40, not 25: the six integrated dashboards grew the seeded suite past the
     # old cap, and a job the cap always cancels reports nothing at all — every
     # browser verdict on dashboard-next was "cancelled at 25m22s" rather than
-    # pass or fail. The cap still exists to catch a genuine hang.
+    # pass or fail. Generous for a half-suite shard on purpose: the cap exists
+    # to catch a genuine hang, not to race the suite.
     timeout-minutes: 40
     env:
       # The browser drives the app over plain HTTP on loopback, so this run
@@ -342,7 +357,7 @@ jobs:
       # invents nothing when no source is connected, and it asserts that no
       # digit reaches the shell.
       - name: Run browser smoke suite against an empty database
-        run: npm run e2e
+        run: npm run e2e -- --shard=${{ matrix.shard }}/2
 
       - name: Publish synthetic content
         run: |
@@ -354,13 +369,13 @@ jobs:
       - name: Run browser suite against seeded content
         env:
           DASHKODA_E2E_SEEDED: "1"
-        run: npm run e2e
+        run: npm run e2e -- --shard=${{ matrix.shard }}/2
 
       - name: Upload browser smoke artifacts
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: playwright
+          name: playwright-shard-${{ matrix.shard }}
           path: |
             screenshots/
             playwright-report/
