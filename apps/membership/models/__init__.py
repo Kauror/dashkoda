@@ -10,8 +10,18 @@ The split into a package is deliberate: the public model is small and settled,
 the internal dataset is seven models with their own vocabularies, and keeping
 them in one file would have produced the repository's longest module by a wide
 margin.
+
+`composition` is a third dataset again: aggregate counts derived from the member
+roster. It is not a third membership total and is never charted beside either of
+the other two — it describes what kinds of organisations the membership is made
+of, not how many there are.
 """
 
+from .composition import (
+    CompositionSnapshotImmutable,
+    MembershipCompositionSnapshot,
+    MembershipCompositionValue,
+)
 from .internal import (
     BATCH_REASON_ORDER,
     EMPLOYEE_SIZE_BANDS,
@@ -50,6 +60,10 @@ from .public import (
 )
 
 __all__ = [
+    # Aggregate composition of the member roster. No row-level identity.
+    "CompositionSnapshotImmutable",
+    "MembershipCompositionSnapshot",
+    "MembershipCompositionValue",
     # Public Koda.ee member directory.
     "MembershipCountObservation",
     "MembershipFeedState",

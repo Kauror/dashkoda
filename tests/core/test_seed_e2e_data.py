@@ -183,11 +183,19 @@ def test_the_seeded_programme_covers_every_shape_the_page_has_to_render():
         EventStatus.UPCOMING,
         EventStatus.DATE_UNKNOWN,
     }
+    # All three stated modes **and** the blank one. A delivery mode the source
+    # never stated is `Määramata`, never `Kohapeal`, and the dashboard has to be
+    # able to show that on a real seeded row rather than only in a unit test.
     assert {item.delivery_mode for item in items} == {
         DeliveryMode.ONSITE,
         DeliveryMode.ONLINE,
         DeliveryMode.HYBRID,
+        "",
     }
+    assert {item.price_status for item in items} >= {"paid", "free", "missing", "tba"}
+    assert items.filter(planning_lead_days__gt=0).exists(), "a planned event"
+    assert items.filter(planning_lead_days__lt=0).exists(), "a retroactively entered event"
+    assert items.filter(added_date=None).exists(), "an event with no planning data"
     assert len({item.tag_key for item in items}) >= 3
     assert len({item.event_type_key for item in items}) >= 2
     assert items.filter(start_date=None).exists(), "an undated record"
@@ -253,7 +261,10 @@ def test_the_seeded_event_programme_workbook_satisfies_the_real_contract(tmp_pat
 
     assert len(parsed.rows) > 50
     assert parsed.dated_event_count == len(parsed.rows) - 1
-    assert parsed.linked_public_url_count == 1
+    # Several linked events now, because the cross-domain joins need them: GA4
+    # files traffic under a path, the shop files its event product under a path,
+    # and the programme's own `public_url` is what ties an event to both.
+    assert parsed.linked_public_url_count > 1
     assert parsed.review_required_count == 1
 
 
@@ -415,22 +426,51 @@ def test_the_seed_connects_the_website_section():
     assert get_connection_status().is_connected
     days = Ga4DailySnapshot.objects.filter(is_current_for_date=True)
     assert days.count() == visibility_seed.ANALYTICS_DAYS
-    assert days.filter(has_page_detail=True).count() == visibility_seed.ANALYTICS_DAYS
     assert Ga4PageDaily.objects.exists()
     assert Ga4ChannelDaily.objects.exists()
 
+    # Not every day: a handful are seeded with the site figures and no detail
+    # rows, because a day whose page detail was never queried is not a day with
+    # no pages, and the partial-coverage handling — the refused content
+    # comparison, the note that says why — is unreachable from a browser
+    # otherwise.
+    assert days.filter(has_page_detail=True).count() == (
+        visibility_seed.ANALYTICS_DAYS - len(visibility_seed.ANALYTICS_DAYS_WITHOUT_PAGE_DETAIL)
+    )
+    assert days.filter(has_channel_detail=True).count() == (
+        visibility_seed.ANALYTICS_DAYS - len(visibility_seed.ANALYTICS_DAYS_WITHOUT_CHANNEL_DETAIL)
+    )
+    # A day marked as carrying no detail carries none, rather than being marked
+    # and quietly holding rows anyway.
+    for snapshot in days.filter(has_page_detail=False):
+        assert not snapshot.pages.exists()
+
 
 def test_the_seeded_site_total_is_the_sum_of_its_page_rows():
-    """What makes "excluded from a list, never from a total" checkable here."""
+    """What makes "excluded from a list, never from a total" checkable here.
+
+    Only on the days whose page detail was collected. On the few days the seed
+    publishes without it the site figures are still real — that is the whole
+    point of them: a day GA4 reported but whose per-page breakdown was never
+    queried has traffic, and a seed that zeroed it would be describing an outage
+    rather than partial coverage.
+    """
     from django.db.models import Sum
 
     from apps.visibility.models import Ga4DailySnapshot, Ga4PageDaily
 
     run_seed()
 
-    for snapshot in Ga4DailySnapshot.objects.filter(is_current_for_date=True):
+    detailed = Ga4DailySnapshot.objects.filter(is_current_for_date=True, has_page_detail=True)
+    for snapshot in detailed:
         rows = Ga4PageDaily.objects.filter(snapshot=snapshot).aggregate(total=Sum("page_views"))
         assert snapshot.page_views == rows["total"]
+
+    for snapshot in Ga4DailySnapshot.objects.filter(
+        is_current_for_date=True, has_page_detail=False
+    ):
+        assert snapshot.page_views
+        assert snapshot.sessions
 
 
 def test_the_seeded_ranking_excludes_utility_paths_but_keeps_their_traffic():
@@ -523,3 +563,61 @@ def test_a_second_seed_publishes_no_new_reporting_day():
     run_seed()
 
     assert Ga4DailySnapshot.objects.count() == before
+
+
+# -- the degraded source state ------------------------------------------
+
+
+def test_the_seed_leaves_one_source_stale_after_a_failed_check():
+    """The browser suite must meet a source showing older data after a failure.
+
+    A seed built only from happy paths can never produce this state, and it is
+    one the main page has to get right in two places at once: the pillar keeps
+    its figures rather than withdrawing them, and `Andmete seis` says why they
+    are older than they look.
+    """
+    from apps.news.selectors import get_news_summary
+
+    run_seed()
+
+    summary = get_news_summary()
+
+    assert summary.is_stale_after_failure, "the seeded failure must be visible as staleness"
+    # And nothing was withdrawn to produce it. A seed that deleted content to
+    # simulate a failure would be exercising the wrong branch entirely.
+    assert summary.has_data
+    assert NewsItem.objects.count() >= 10
+
+
+def test_only_one_source_is_left_stale():
+    """One is a state to draw; several would be a suite that cannot tell them apart."""
+    from apps.event_programme.selectors import get_event_programme_summary
+    from apps.legal_work.selectors import get_legal_work_summary
+    from apps.membership.selectors import get_membership_summary
+    from apps.news.selectors import get_news_summary
+
+    run_seed()
+
+    summaries = [
+        get_legal_work_summary(),
+        get_membership_summary(),
+        get_news_summary(),
+        get_event_programme_summary(),
+    ]
+
+    assert sum(1 for summary in summaries if summary.is_stale_after_failure) == 1
+
+
+def test_marking_the_failure_is_idempotent():
+    """Re-running the whole seed leaves the same single failed state.
+
+    Every other builder is idempotent over its own content identity, and this
+    one has to be too, or a second run would either clear the failure or stack
+    another onto a different source.
+    """
+    from apps.news.selectors import get_news_summary
+
+    run_seed()
+    run_seed()
+
+    assert get_news_summary().is_stale_after_failure

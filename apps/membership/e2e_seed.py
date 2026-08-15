@@ -264,3 +264,160 @@ def seed_decision_batches(today: dt.date) -> str:
             )
         seeded += 1
     return f"juhatuse otsuste partiid: {seeded}"
+
+
+def seed_composition(today: dt.date) -> str:
+    """Synthetic aggregate composition, so the browser suite can see the view.
+
+    Written straight into the composition models rather than through the roster
+    importer, because the importer's input is a member list and no member list —
+    not even an invented one — belongs in a seed that runs on every branch.
+    There is no company name here to be synthetic *about*: the models hold size
+    classes, counties, sectors, tenure bands and joining years, and those are
+    exactly what is written.
+
+    Before this existed the composition focus was not offered at all in a seeded
+    environment, so a green browser suite proved only that the parts worked
+    rather than that anything reached them — the same blind spot that once hid
+    the decision section on this page.
+    """
+    from apps.membership.bootstrap import ensure_membership_composition_source
+    from apps.membership.composition import (
+        MEMBERSHIP_COMPOSITION_MAPPING_VERSION,
+        MEMBERSHIP_SECTOR_MAPPING_VERSION,
+        Dimension,
+        Population,
+        category_label,
+    )
+    from apps.membership.composition_import import IMPORTER_NAME, SCHEMA_VERSION
+    from apps.membership.models import (
+        MembershipCompositionSnapshot,
+        MembershipCompositionValue,
+    )
+    from apps.sources.services import (
+        build_import_run,
+        complete_import_run,
+        register_external_reference,
+        start_import_run,
+    )
+
+    snapshot_date = today - dt.timedelta(days=14)
+    source = ensure_membership_composition_source()
+
+    if MembershipCompositionSnapshot.objects.filter(source=source, is_current=True).exists():
+        return "liikmeskonna koosseis: juba olemas"
+
+    # A fixed synthetic digest. It is not the hash of anything, and it is
+    # obviously not one: an invented reading needs an identity, not a claim that
+    # some file produced it.
+    digest = "e2e" + "0" * 61
+
+    artifact = register_external_reference(
+        source=source,
+        external_reference=f"roster:membership-composition:{digest}",
+        sha256=digest,
+        size_bytes=1024,
+        mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+    run = build_import_run(
+        artifact=artifact,
+        importer_name=IMPORTER_NAME,
+        schema_version=SCHEMA_VERSION,
+        dry_run=False,
+    )
+    start_import_run(run)
+
+    # Counts that add to the same total in every dimension, because a dimension
+    # whose parts did not reconcile with its denominator is exactly what the
+    # importer refuses and the page should never have to render.
+    total = 400
+    recent = 40
+    plan: dict[str, dict[str, tuple[int, int]]] = {
+        Dimension.STATUS: {
+            "regular": (380, 38),
+            "suspended": (12, 1),
+            "supporter": (8, 1),
+        },
+        Dimension.LEGAL_FORM: {"ou": (300, 32), "as": (86, 7), "mtu": (14, 1)},
+        Dimension.EMPLOYEE_SIZE: {
+            "employees_0": (6, 1),
+            "employees_1_9": (188, 21),
+            "employees_10_49": (132, 12),
+            "employees_50_249": (56, 5),
+            "employees_250_plus": (18, 1),
+        },
+        Dimension.REGION: {
+            "harjumaa": (250, 26),
+            "tartumaa": (60, 6),
+            "parnumaa": (34, 4),
+            "ida-virumaa": (28, 2),
+            "saaremaa": (18, 1),
+            "unknown": (10, 1),
+        },
+        Dimension.SECTOR: {
+            "G": (120, 10),
+            "C": (96, 5),
+            "M": (54, 9),
+            "F": (40, 4),
+            "J": (34, 8),
+            "H": (26, 2),
+            "N": (18, 1),
+            "unknown": (12, 1),
+        },
+        Dimension.TENURE_BAND: {
+            "under_1": (40, 40),
+            "years_1_2": (52, 0),
+            "years_3_5": (74, 0),
+            "years_6_10": (86, 0),
+            "years_11_20": (78, 0),
+            "years_20_plus": (70, 0),
+        },
+        Dimension.JOIN_COHORT: {
+            str(snapshot_date.year - offset): (count, recent if offset == 0 else 0)
+            for offset, count in enumerate((40, 44, 38, 42, 36, 40, 34, 30, 28, 26))
+        },
+    }
+    # The oldest cohorts, folded into one bucket the chart will draw as "enne".
+    plan[Dimension.JOIN_COHORT][str(snapshot_date.year - 22)] = (42, 0)
+
+    snapshot = MembershipCompositionSnapshot.objects.create(
+        source=source,
+        import_run=run,
+        snapshot_date=snapshot_date,
+        source_sha256=digest,
+        source_row_count=total,
+        mapping_version=MEMBERSHIP_COMPOSITION_MAPPING_VERSION,
+        sector_mapping_version=MEMBERSHIP_SECTOR_MAPPING_VERSION,
+        median_tenure_days=3650,
+        coverage_pct={dimension: "100.0" for dimension in plan},
+        is_current=True,
+    )
+
+    rows = []
+    for dimension, categories in plan.items():
+        for key, (overall, recent_count) in categories.items():
+            rows.append(
+                MembershipCompositionValue(
+                    snapshot=snapshot,
+                    population=Population.ALL_CURRENT,
+                    dimension=dimension,
+                    category_key=key,
+                    category_label=category_label(dimension, key),
+                    member_count=overall,
+                )
+            )
+            if recent_count:
+                rows.append(
+                    MembershipCompositionValue(
+                        snapshot=snapshot,
+                        population=Population.RECENT_JOINERS,
+                        dimension=dimension,
+                        category_key=key,
+                        category_label=category_label(dimension, key),
+                        member_count=recent_count,
+                    )
+                )
+    MembershipCompositionValue.objects.bulk_create(rows, batch_size=200)
+    complete_import_run(run, rows_added=len(rows) + 1)
+
+    return f"liikmeskonna koosseis: {total} liiget, {recent} hiljuti liitunut"

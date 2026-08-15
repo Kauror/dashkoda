@@ -296,7 +296,11 @@ jobs:
   browser-e2e:
     name: Browser end-to-end
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    # 40, not 25: the six integrated dashboards grew the seeded suite past the
+    # old cap, and a job the cap always cancels reports nothing at all — every
+    # browser verdict on dashboard-next was "cancelled at 25m22s" rather than
+    # pass or fail. The cap still exists to catch a genuine hang.
+    timeout-minutes: 40
     env:
       # The browser drives the app over plain HTTP on loopback, so this run
       # uses the development settings module. The production-settings smoke

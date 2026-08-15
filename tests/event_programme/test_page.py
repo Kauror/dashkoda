@@ -24,6 +24,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
 
+from apps.event_programme.intelligence import FOCUS_REGISTER
 from apps.event_programme.models import EventProgrammeItem
 from apps.event_programme.selectors import PAGE_SIZE, get_current_event_programme_snapshot
 
@@ -40,10 +41,34 @@ PROGRAMME_ROWS = 9
 NAME_CELL = 1
 
 
+class RegisterClient:
+    """A viewer that always asks for the register.
+
+    `/sundmused/` now opens on `Ülevaade`, and the register is one of six focus
+    views. Every test in this module is about the register, so the focus travels
+    with the request here rather than being repeated in forty-nine call sites —
+    and a test that forgot it would assert against the overview and fail in a
+    way that looks like a data problem.
+    """
+
+    def __init__(self, client):
+        self._client = client
+
+    def get(self, path, data=None, **extra):
+        return self._client.get(path, {"fookus": FOCUS_REGISTER, **(data or {})}, **extra)
+
+
 @pytest.fixture
 def viewer(client, authenticate_viewer):
     authenticate_viewer(client)
-    return client
+    return RegisterClient(client)
+
+
+@pytest.fixture
+def viewer_client(client, authenticate_viewer):
+    """Overrides the package fixture: this module always means the register."""
+    authenticate_viewer(client)
+    return RegisterClient(client)
 
 
 @pytest.fixture
@@ -66,6 +91,10 @@ def section(response, heading_id: str) -> str:
 
 def programme_section(response) -> str:
     return section(response, "section-programme")
+
+
+def programme_filters(response) -> str:
+    return section(response, "section-filters")
 
 
 def table_body(response) -> str:
@@ -213,39 +242,54 @@ def test_each_filter_narrows_the_table(viewer, programme, query, expected):
     assert set(rendered_codes(response)) == expected
 
 
-@pytest.mark.parametrize("param", ["event_type", "delivery_mode"])
-def test_a_withdrawn_filter_cannot_be_switched_on_from_the_query_string(viewer, programme, param):
-    """Tüüp and Toimumisviis are gone from the page, controls and columns alike.
+@pytest.mark.parametrize(
+    ("param", "value", "expected"),
+    [("event_type", "conference", {"8002", "8007"}), ("delivery_mode", "hybrid", {"8003", "8007"})],
+)
+def test_the_analytical_filters_narrow_the_table(viewer, programme, param, value, expected):
+    """Tüüp and Toimumisviis are back, with somewhere on screen to say they are on.
 
-    The selector can still filter on either, and a query string is the one way
-    left to ask for it. The page does not ask: a filter that narrows the table
-    with nowhere on screen to say it is on would leave a reader looking at a
-    short list for no visible reason.
+    They were withdrawn when the page had no control for either: a filter that
+    narrows the table from a query string with nothing visible saying so leaves a
+    reader looking at a short list for no reason. The analytical views give both
+    a legitimate use — a reader who has just seen that a third of the programme
+    is one type wants the register to show exactly those — so the controls are
+    under `Täpsem valik` and are counted in its badge.
     """
-    values = {"event_type": "conference", "delivery_mode": "hybrid"}
+    response = viewer.get(PAGE_URL, {"year": "all", param: value})
 
-    response = viewer.get(PAGE_URL, {"year": "all", param: values[param]})
+    assert set(rendered_codes(response)) == expected
+    assert "aktiivne" in programme_filters(response)
 
-    assert len(rendered_codes(response)) == PROGRAMME_ROWS
 
-
-def test_the_table_no_longer_carries_the_type_mode_or_code_columns(viewer, programme):
+def test_the_table_carries_the_analytical_columns_but_no_internal_code(viewer, programme):
     response = viewer.get(PAGE_URL, {"year": "all"})
     head = programme_section(response).split("<thead>", 1)[1].split("</thead>", 1)[0]
 
-    for heading in ("Tüüp", "Toimumisviis", "Teenuse kood"):
-        assert heading not in head
-    for heading in ("Kuupäev", "Sündmus", "Silt", "Seisund"):
+    for heading in ("Kuupäev", "Sündmus", "Tüüp", "Teema", "Viis", "Seisund"):
         assert heading in head
+    assert "Teenuse kood" not in head
+    # Registration columns exist only where the Commerce export carries
+    # event-registration products. It carries none, so the column is absent
+    # rather than a wall of dashes claiming to be a measurement.
+    assert "Registreerimis" not in head
 
 
-def test_the_filter_block_no_longer_offers_type_or_delivery_mode(viewer, programme):
+def test_the_filter_block_offers_every_dimension_the_analyses_show(viewer, programme):
+    """A dimension a reader can see in a chart has to be askable of the register."""
     page = body(viewer.get(PAGE_URL))
 
-    assert 'name="event_type"' not in page
-    assert 'name="delivery_mode"' not in page
-    assert 'name="tag"' in page, "the filters that stayed still render"
-    assert 'name="status"' in page
+    for control in (
+        "q",
+        "year",
+        "month",
+        "quarter",
+        "tag",
+        "event_type",
+        "delivery_mode",
+        "status",
+    ):
+        assert f'name="{control}"' in page, control
 
 
 def test_a_service_code_is_still_searchable_without_its_column(viewer, programme):
@@ -266,15 +310,20 @@ def test_the_page_no_longer_carries_the_export_connection_strip(viewer, programm
     assert "Viimane edukas sünkroonimine" not in page
 
 
-def test_the_figure_strip_no_longer_counts_events_with_a_public_page(viewer, programme):
-    """It described the workbook's link column rather than the programme, and
-    the Avalik leht filter is where a reader acts on it."""
-    page = body(viewer.get(PAGE_URL))
-    figures = page.split('id="section-figures"', 1)[1].split("</section>", 1)[0]
+def test_the_register_carries_no_figure_strip_of_its_own(viewer, programme):
+    """Headline counts belong to Ülevaade; the register lists rows.
 
-    assert "Avaliku lehega" not in figures
-    assert "Sündmusi perioodil" in figures
-    assert 'name="public_link"' in page, "the filter it duplicated is still offered"
+    The strip used to sit above this table and now would repeat, on every
+    register render, three counts the overview already states — including one
+    the table states for itself two lines below. What the register keeps is the
+    filter a reader acts on.
+    """
+    page = body(viewer.get(PAGE_URL))
+
+    assert 'id="section-figures"' not in page
+    assert "Sündmusi perioodil" not in strip_tags(page)
+    assert 'name="public_link"' in page, "the link filter is still offered"
+    assert "Vastavaid sündmusi" in strip_tags(page), "the table states its own count"
 
 
 def test_the_month_filter_narrows_the_table(viewer, programme):
@@ -566,32 +615,59 @@ def test_the_query_count_does_not_grow_with_the_number_of_rows(viewer, publish_p
     # English "behind" and would fail on an ordinary code comment one day.
     ["liikmehind", "hinnad", "€", "osaleja", "osalejaid", "registreeri", "kohad täis", "soodus"],
 )
-def test_no_price_or_participant_information_reaches_the_page(viewer, programme, forbidden):
-    assert forbidden not in text_of(viewer.get(PAGE_URL)).casefold()
+def test_no_price_or_participant_information_reaches_the_register(viewer, programme, forbidden):
+    """The register lists events. It is not where a price or a headcount appears.
+
+    Scoped to the register's own two sections rather than to the document,
+    because the provenance block at the foot **does** use these words — to say
+    the figures do not exist. A sentence stating that this dashboard has no
+    participant count is not participant information, and forbidding the word
+    everywhere would forbid the disclosure.
+    """
+    surface = programme_filters(viewer.get(PAGE_URL)) + programme_section(viewer.get(PAGE_URL))
+    assert forbidden not in strip_tags(surface).casefold()
 
 
-def test_no_price_or_participant_field_exists_on_the_model():
-    """The columns are parsed past, never parsed in.
+def test_the_page_discloses_that_attendance_is_not_available(viewer, programme):
+    """The other half of the rule above: absence is stated, not left to be assumed."""
+    page = text_of(viewer.get(PAGE_URL))
+    assert "Ükski allikas ei ütle, kui palju inimesi sündmusel osales." in page
 
-    A field that does not exist cannot leak, cannot be added to a template by
-    accident and needs no migration to remove.
+
+def test_no_participant_or_capacity_field_exists_on_the_model():
+    """Attendance and capacity have no source, so they have no field.
+
+    The normalised price pair, the price status and the two planning columns
+    *are* stored now — profiled against the real export first — but nothing
+    about who came or how many could. A field that does not exist cannot leak
+    and cannot be added to a template by accident.
     """
     from apps.event_programme.models import EventProgrammeItem
 
     names = {field.name for field in EventProgrammeItem._meta.get_fields()}
     for forbidden in (
-        "member_price_eur",
-        "nonmember_price_eur",
+        # Still discarded: raw echoes, discounts, groups and the later prices.
+        "member_price_raw",
+        "nonmember_price_raw",
         "later_member_price_eur",
         "later_nonmember_price_eur",
-        "price_status",
         "discount_code",
+        "discount_raw",
+        "group_raw",
+        "group_secondary_raw",
+        # Never available at all.
         "participant_count",
         "registration_count",
         "attendee_count",
+        "capacity",
+        "seats_available",
     ):
         assert forbidden not in names, forbidden
-    assert not any("price" in name or "participant" in name for name in names)
+    assert not any("participant" in name or "attendee" in name for name in names)
+    assert not any(name.endswith("_raw") for name in names)
+    # What is stored, so a future deletion is a deliberate decision.
+    assert {"member_price_eur", "nonmember_price_eur", "price_status"} <= names
+    assert {"added_date", "planning_lead_days"} <= names
 
 
 def test_the_page_shows_no_internal_row_number_or_warning_code(viewer, programme):

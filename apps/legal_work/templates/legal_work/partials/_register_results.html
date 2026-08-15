@@ -1,0 +1,144 @@
+{% comment %}
+The register's rows, with each record's own drill-down.
+
+Rendered by both the full page and the live-search fragment, so what a reader
+sees while typing and what they see after a reload cannot drift apart.
+
+Each row is a `<details>` rather than a second page: the record's fields are
+already loaded, so opening one costs nothing, and the reader keeps their place
+in the list. Only fields a lawyer would recognise from the workbook are drawn —
+`source_row`, snapshot ids and matcher internals belong to the admin, not here.
+
+Context:
+  register – a RegisterView from `apps.legal_work.register`
+{% endcomment %}
+
+<p class="dk-meta" role="status">{{ register.summary }}</p>
+
+{% if register.has_records %}
+  <ul class="flex flex-col divide-y divide-border border-t border-border">
+    {% for record in register.records %}
+      <li>
+        <details class="group">
+          {% comment %}
+          The summary carries the whole row so the list reads without opening
+          anything. It wraps rather than truncating: a legislative title is the
+          one thing a reader is scanning for.
+          {% endcomment %}
+          <summary class="flex cursor-pointer flex-col gap-1 py-3">
+            <span class="text-sm font-medium break-words text-text">{{ record.item.topic }}</span>
+            <span class="dk-meta flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span class="tabular-nums">{{ record.item.source_year }}</span>
+              {% if record.item.act_type %}<span>{{ record.item.act_type }}</span>{% endif %}
+              {% if record.item.stage %}<span>{{ record.item.stage }}</span>{% endif %}
+              {% if record.item.sent_date %}
+                <span class="tabular-nums">Välja {{ record.item.sent_date|date:"j.m.y" }}</span>
+              {% elif record.item.deadline_date %}
+                <span class="tabular-nums">Tähtaeg {{ record.item.deadline_date|date:"j.m.y" }}</span>
+              {% endif %}
+            </span>
+          </summary>
+
+          <div class="flex flex-col gap-3 pb-4">
+            {% comment %}
+            `Sisse → Tähtaeg → Välja`, carrying only the steps that actually
+            happened. A missing date is left out rather than drawn as an empty
+            slot: the register genuinely does not know when some matters
+            arrived, and a placeholder would read as a date nobody recorded.
+            {% endcomment %}
+            {% if record.timeline %}
+              <ol class="flex flex-wrap items-center gap-x-2 gap-y-1">
+                {% for label, day in record.timeline %}
+                  <li class="flex items-center gap-2">
+                    {% if not forloop.first %}<span class="dk-meta" aria-hidden="true">→</span>{% endif %}
+                    <span class="flex flex-col">
+                      <span class="text-micro font-semibold tracking-wide text-text-muted uppercase">{{ label }}</span>
+                      <time class="text-sm tabular-nums text-text" datetime="{{ day|date:'Y-m-d' }}">{{ day|date:"j.m.Y" }}</time>
+                    </span>
+                  </li>
+                {% endfor %}
+              </ol>
+            {% endif %}
+
+            <dl class="grid grid-cols-1 gap-x-6 gap-y-2 sm:grid-cols-2">
+              <div class="flex flex-wrap items-baseline gap-x-2">
+                <dt class="dk-meta">Kirje</dt>
+                <dd class="text-sm break-words text-text-secondary">{{ record.item.record_id }}</dd>
+              </div>
+              <div class="flex flex-wrap items-baseline gap-x-2">
+                <dt class="dk-meta">Saaja</dt>
+                <dd class="text-sm break-words text-text-secondary">{{ record.item.recipient|default:"—" }}</dd>
+              </div>
+              <div class="flex flex-wrap items-baseline gap-x-2">
+                <dt class="dk-meta">Saatmise olek</dt>
+                <dd class="text-sm text-text-secondary">{{ record.item.get_sent_status_display }}</dd>
+              </div>
+              <div class="flex flex-wrap items-baseline gap-x-2">
+                <dt class="dk-meta">Avatud</dt>
+                <dd class="text-sm text-text-secondary">{% if record.item.is_open %}Jah{% else %}Ei{% endif %}</dd>
+              </div>
+              {% if record.item.next_step %}
+                <div class="flex flex-wrap items-baseline gap-x-2 sm:col-span-2">
+                  <dt class="dk-meta">Järgmiseks</dt>
+                  <dd class="text-sm break-words text-text-secondary">{{ record.item.next_step }}</dd>
+                </div>
+              {% endif %}
+              {% comment %}
+              `default_if_none`, not `default`: a reported 0 is a real answer —
+              nobody responded — and must stay distinguishable from a topic
+              where the question was never tracked, which is the em dash.
+              {% endcomment %}
+              <div class="flex flex-wrap items-baseline gap-x-2">
+                <dt class="dk-meta">Tagasisidet andis</dt>
+                <dd class="text-sm tabular-nums text-text-secondary">{{ record.item.feedback_member_count|default_if_none:"—" }}</dd>
+              </div>
+              <div class="flex flex-wrap items-baseline gap-x-2">
+                <dt class="dk-meta">Küsiti otse</dt>
+                <dd class="text-sm tabular-nums text-text-secondary">{{ record.item.feedback_requested_member_count|default_if_none:"—" }}</dd>
+              </div>
+            </dl>
+
+            {% comment %}
+            One address, chosen by the record's own status: the Chamber's
+            opinion once it has been sent, the live consultation while the
+            matter is still open and unanswered. Showing a consultation beside
+            an answered matter would invite comment on a draft Koda has already
+            responded to. When no trustworthy match exists there is no link and
+            no guess.
+            {% endcomment %}
+            {% if record.has_resource %}
+              <p class="text-sm">
+                <a class="dk-link" href="{{ record.resource_url }}" target="_blank" rel="noopener noreferrer">
+                  {% if record.resource_is_opinion %}Koja arvamus{% else %}Avalik konsultatsioon{% endif %}<span class="sr-only"> (avaneb uuel vahelehel)</span>
+                </a>
+              </p>
+            {% endif %}
+
+            {% if record.has_warnings %}
+              <p class="dk-meta">
+                Lähteandmetes on selle kirje kohta märkusi. Neid ei parandata siin;
+                vaata <a class="dk-link-quiet" href="#section-data-state">Andmete seis</a>.
+              </p>
+            {% endif %}
+          </div>
+        </details>
+      </li>
+    {% endfor %}
+  </ul>
+
+  {% if register.has_previous or register.has_next %}
+    <nav class="flex items-center justify-between gap-3 pt-3" aria-label="Registri lehed">
+      {% if register.has_previous %}
+        <a class="dk-button dk-button-secondary" href="?{{ register.previous_query }}#section-register">Eelmine</a>
+      {% else %}
+        <span></span>
+      {% endif %}
+      <span class="dk-meta tabular-nums">Lehekülg {{ register.page_number }} / {{ register.total_pages }}</span>
+      {% if register.has_next %}
+        <a class="dk-button dk-button-secondary" href="?{{ register.next_query }}#section-register">Järgmine</a>
+      {% else %}
+        <span></span>
+      {% endif %}
+    </nav>
+  {% endif %}
+{% endif %}

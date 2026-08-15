@@ -184,6 +184,12 @@ MEMBERSHIP_HISTORY_MAX_UNCOMPRESSED_BYTES = 100 * 1024 * 1024
 MEMBERSHIP_HISTORY_MAX_MEMBER_BYTES = 25 * 1024 * 1024
 MEMBERSHIP_HISTORY_MAX_MEMBERS = 64
 
+# Aggregate composition of the member roster. A third membership source, and
+# again never merged with the other two: it describes what kinds of
+# organisations the membership is made of, not how many there are. The roster
+# itself holds personal data and is never stored — only counts are.
+MEMBERSHIP_COMPOSITION_SOURCE_SLUG = "membership-roster-composition"
+
 KODA_NEWS_SOURCE_SLUG = "koda-public-news"
 KODA_EVENTS_SOURCE_SLUG = "koda-public-events"
 

@@ -26,6 +26,12 @@ SHOP_EVENT_INDEX = 3
 SHOP_FIRST_PRODUCT_ID = 900001
 SHOP_EVENT_PRODUCT_ID = 909001
 SHOP_PHYSICAL_PRODUCT_ID = 909002
+#: A second registration for the **same** seminar — an early-bird row beside a
+#: full-price one, which is how Koda.ee sells a single event through two
+#: Commerce products. It maps to the same event page as `SHOP_EVENT_PRODUCT_ID`,
+#: so any aggregate that sums per-product view figures instead of deduplicating
+#: canonical paths counts that page's traffic twice and shows it here.
+SHOP_EVENT_SHARED_PRODUCT_ID = 909003
 
 #: The one product a search test looks up by name. Sits beyond the first page of
 #: the ranking on purpose: searching the visible rows would find it anyway, and
@@ -99,6 +105,22 @@ def _shop_products(observed_on: dt.date) -> list[dict]:
     )
     rows.append(
         {
+            "source_product_id": str(SHOP_EVENT_SHARED_PRODUCT_ID),
+            "product_type": "event_registration",
+            "title": "Sünteetiline koolitus – varajane registreerimine",
+            "category_term_id": "160",
+            "category_name": "Koolitused",
+            "published": "true",
+            "publicly_listed": "true",
+            "list_price_current_net": "58.0000",
+            "member_price_current_net": "29.0000",
+            "members_only": "false",
+            "connected_event_node_id": "777001",
+            "observed_on": observed_on.isoformat(),
+        }
+    )
+    rows.append(
+        {
             "source_product_id": str(SHOP_PHYSICAL_PRODUCT_ID),
             "product_type": "physical_product",
             "title": "Sünteetiline füüsiline toode",
@@ -139,6 +161,16 @@ def _shop_paths(observed_on: dt.date) -> list[dict]:
     rows.append(
         {
             "source_product_id": str(SHOP_EVENT_PRODUCT_ID),
+            "page_role": "event",
+            "canonical_path": f"/et/sundmused/sunteetiline-{SHOP_EVENT_INDEX}",
+            "observed_on": observed_on.isoformat(),
+        }
+    )
+    # The same canonical event page as the full-price registration above. Two
+    # products, one page: the aggregate must count its views once.
+    rows.append(
+        {
+            "source_product_id": str(SHOP_EVENT_SHARED_PRODUCT_ID),
             "page_role": "event",
             "canonical_path": f"/et/sundmused/sunteetiline-{SHOP_EVENT_INDEX}",
             "observed_on": observed_on.isoformat(),
@@ -200,8 +232,22 @@ def _shop_facts(coverage_start: dt.date, coverage_end: dt.date) -> list[dict]:
         "member",
         "bank_or_card",
         4,
-        9,  # one order, several participants: units and orders differ on purpose
+        # Several registrations across fewer orders: units and orders differ on
+        # purpose. They are registrations, never attendees — the shop dataset
+        # records that a registration completed and nothing about who came.
+        9,
         351,
+    )
+    # The early-bird registration for the *same* seminar, so the shared event
+    # page carries two products' acquisitions and one page's traffic.
+    add(
+        coverage_end - dt.timedelta(days=6),
+        SHOP_EVENT_SHARED_PRODUCT_ID,
+        "non_member",
+        "invoice",
+        2,
+        3,
+        174,
     )
     add(
         coverage_end - dt.timedelta(days=7),

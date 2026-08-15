@@ -934,6 +934,23 @@ def previous_window(start: date, end: date) -> tuple[date, date]:
     return previous_end - timedelta(days=length - 1), previous_end
 
 
+def previous_traffic_within(start: date, end: date, coverage: Coverage) -> NewsTrafficSummary:
+    """The preceding equal window's traffic, only when it was wholly measured.
+
+    A previous window that reaches before collection began would be a partial
+    sum standing in for a full one, and a change computed against it would
+    describe the collector's history rather than the readers'. That window is
+    refused, not clipped — an empty summary says "no comparison" and nothing
+    else. This is the one rule for whether news reading may be compared with
+    the window before, used by the news page and the executive overview alike,
+    so the two cannot disagree about when a comparison is honest.
+    """
+    previous_start, previous_end = previous_window(start, end)
+    if coverage.earliest is None or previous_start < coverage.earliest:
+        return NewsTrafficSummary()
+    return news_traffic(start=previous_start, end=previous_end)
+
+
 def catalogue_facts(coverage: Coverage | None = None) -> dict:
     """The aggregate description of what the catalogue holds.
 

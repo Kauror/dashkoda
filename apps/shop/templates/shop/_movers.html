@@ -7,8 +7,12 @@ Context:
 
 The change is the headline and the percentage is the aside, because a list
 ordered by percentage is a list of the smallest products in the catalogue: one
-unit becoming four is +300%. A product with no previous activity says `uus`
-rather than an infinity.
+unit becoming four is +300%.
+
+A product with no previous activity says `uus perioodil` rather than an
+infinity — and deliberately not `uus toode`. Purchase activity does not
+establish when a product launched; a template with no acquisitions last quarter
+may have been in the catalogue for five years.
 {% endcomment %}
 {% if movers %}
   <ol class="flex flex-col gap-1.5">
@@ -20,7 +24,7 @@ rather than an infinity.
         </span>
         <span class="flex-none text-right">
           <span class="text-sm font-semibold tabular-nums text-text">{{ mover.change_label }}</span>
-          {% if mover.context %}<span class="block dk-meta tabular-nums">{{ mover.context }}</span>{% endif %}
+          {% if mover.context %}<span class="block dk-meta tabular-nums"{% if mover.context_title %} title="{{ mover.context_title }}"{% endif %}>{{ mover.context }}</span>{% endif %}
         </span>
       </li>
     {% endfor %}

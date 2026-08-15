@@ -192,6 +192,15 @@ NEVER_PRUNED: dict[str, str] = {
         "what it held last year, so a pruned reading is not re-collectable from "
         "anywhere — deleting one destroys that day permanently."
     ),
+    "membership.MembershipCompositionSnapshot": (
+        "The only record of what the membership was made of on that date. The "
+        "roster it comes from is exported by hand from a live system that "
+        "reports what the Chamber has today and nothing about what it had two "
+        "years ago, so a pruned snapshot is not re-collectable from anywhere — "
+        "and the aggregates are all that survives a source this application is "
+        "forbidden to keep. A superseded snapshot is provenance for the "
+        "correction that replaced it."
+    ),
     "shop.ShopProductSnapshot": (
         "The E-pood catalogue's observation history, not a rolling feed. One "
         "row per product per observation date, and the *older* ones are what "

@@ -88,19 +88,19 @@ test("every chart keeps its accessible table alongside the drawing", async ({ pa
 
   /*
    * The rule is a pairing: a drawing never appears without a readable
-   * equivalent beside it. It used to be asserted as "Nähtavus has at least one
-   * table", which held only because the social sparklines were on that page.
-   * They were struck out by the board, and for a while afterwards the seed
-   * published no GA4 history at all, so Nähtavus drew nothing here — a count
-   * would pass or fail on which sections happen to exist rather than on the
-   * guarantee. The seed publishes analytics again, so the traffic chart is back
-   * and this loop now has something to check on Nähtavus too; the shape of the
-   * test stays as it is, because that is what keeps it honest either way.
+   * equivalent beside it. It used to be asserted as "the website page has at
+   * least one table", which held only because the social sparklines were on
+   * that page. They were struck out by the board, and for a while afterwards
+   * the seed published no GA4 history at all, so the page drew nothing here — a
+   * count would pass or fail on which sections happen to exist rather than on
+   * the guarantee. The seed publishes analytics again and Koduleht draws
+   * several charts, so this loop has something to check there too; the shape of
+   * the test stays as it is, because that is what keeps it honest either way.
    *
    * So: assert the pairing wherever something is drawn, and assert it on a page
    * the seed does populate, or the test proves nothing.
    */
-  for (const path of ["/nahtavus/", "/liikmeskond/"]) {
+  for (const path of ["/koduleht/", "/liikmeskond/"]) {
     await page.goto(path);
     const drawings = await page.locator('main [role="img"]').count();
     const captions = await page.locator("main table caption").count();
@@ -116,16 +116,23 @@ test("every chart keeps its accessible table alongside the drawing", async ({ pa
   expect(await page.locator('main [role="img"]').count()).toBeGreaterThan(0);
 });
 
-test("the overview membership chart draws with several seeded readings", async ({ page }) => {
-  oncePerRun();
-  const errors = watchConsole(page);
+/*
+ * The overview no longer draws the membership chart, so the test that stood
+ * here is gone rather than retargeted.
+ *
+ * The full trend moved to `/liikmeskond/` with the range control that governs
+ * it, and the test immediately above already requires that page to have drawn
+ * something — so the assertion this one made is still enforced, at the address
+ * where the chart now lives.
+ *
+ * What the executive pillar may draw is a two-point sparkline of the *public
+ * directory* count, and only when two comparable readings exist. The seed
+ * publishes one current public observation, so on seeded content there is
+ * legitimately no line to find: one reading is not a trend, and drawing it
+ * would be inventing a slope. Asserting a polyline on `/` would therefore have
+ * been asserting a defect.
+ */
 
-  await signIn(page);
-
-  const polylines = page.locator("main svg polyline, main svg path");
-  expect(await polylines.count()).toBeGreaterThan(0);
-  expect(errors).toEqual([]);
-});
 
 test("an explicit zero reads differently from a missing value", async ({ page }) => {
   /*

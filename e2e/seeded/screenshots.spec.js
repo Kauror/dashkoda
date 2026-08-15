@@ -17,15 +17,21 @@ import { signIn } from "../helpers.js";
  */
 const shot = (testInfo, name) => `screenshots/${testInfo.project.name}-seeded-${name}.png`;
 
-test("capture the visibility page with analytics", async ({ page }, testInfo) => {
+test("capture the Koduleht overview with analytics", async ({ page }, testInfo) => {
   await signIn(page);
-  await page.goto("/nahtavus/");
+  await page.goto("/koduleht/");
   await page.screenshot({ path: shot(testInfo, "visibility"), fullPage: true });
 });
 
-test("capture the content ranking and the page search", async ({ page }, testInfo) => {
+test("capture the content view with its rankings", async ({ page }, testInfo) => {
   await signIn(page);
-  await page.goto("/nahtavus/?periood=koik&otsing=sunteetiline");
+  await page.goto("/koduleht/?fookus=sisu&periood=koik");
+  await page.screenshot({ path: shot(testInfo, "visibility-content"), fullPage: true });
+});
+
+test("capture the page explorer mid-search", async ({ page }, testInfo) => {
+  await signIn(page);
+  await page.goto("/koduleht/?fookus=lehed&periood=koik&otsing=sunteetiline");
   await page.screenshot({ path: shot(testInfo, "visibility-search"), fullPage: true });
 });
 

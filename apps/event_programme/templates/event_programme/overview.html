@@ -1,263 +1,103 @@
 {% extends "dashboard/shell.html" %}
-{% load membership_format %}
+{% load static %}
 
 {% comment %}
-Sündmused page.
+Sündmused — the event intelligence dashboard.
 
 The Chamber's own event programme, from the canonical Excel export: the whole
-available history in one current snapshot, filtered server-side. Every figure and
-every row comes from that snapshot.
+available history in one current snapshot. Every figure and every row on this
+page comes from that one snapshot; rows from several snapshots are never
+combined to reconstruct a past.
 
-Three rules this template keeps:
+One route, six focus views, chosen by `?fookus=`. The header, the year control
+and the provenance block are constant; the analytical surface between them
+changes. An unknown focus falls back to `Ülevaade` rather than producing an
+error page.
 
-- an event with no `public_url` renders its name as plain text. No dead anchor,
-  no fabricated address, and the row is never hidden;
-- an event with no start date says "Kuupäev teadmata". `source_year` is the
-  annual sheet the row sat on, not a date, and is never shown as one;
-- filtering is a plain GET form with real `<select>` controls, so the page works
-  with JavaScript unavailable. Pagination links are ordinary anchors carrying the
-  active filters.
+The measurement object is one **canonical programme event** — one service code,
+one row of `DASH_EVENTS`. It is not a session and not a calendar day, and the
+page says so where a reader might otherwise assume otherwise.
 
-Internal row numbers and warning-code arrays stay out of the table; they are
-inspected in the read-only admin.
+What this page never shows, because no source establishes it: attendance,
+participants, capacity, fill rate, no-show rate or satisfaction. Page views are
+page views, not people; Commerce registration units are transactions, not
+attendees.
 {% endcomment %}
 
 {% block title %}Sündmused – DashKoda{% endblock %}
 
+{% block extra_head %}
+  {% comment %}
+  The chart bundle loads only for the focus views that draw something. The
+  overview and the register are read without ECharts, and shipping a large
+  module to a page with no canvas on it is a cost with no reader at the other
+  end.
+  {% endcomment %}
+  {% if intelligence.draws_charts %}
+    <script type="module" src="{% static 'build/charts.js' %}"></script>
+  {% endif %}
+{% endblock %}
+
 {% block content %}
 <div class="flex flex-col gap-6">
 
-  {% comment %}
-  The export's connection state used to sit under the title as its own strip:
-  synchronised-at, checked-at and whether anything had changed. The board asked
-  for it off this page. Nothing about the data's provenance is claimed instead —
-  every figure and the table still carry the export's own as-of date, and the
-  shell's freshness row still speaks for the module — so the page states less
-  about the feed's plumbing without stating anything untrue about the data.
-  {% endcomment %}
   <header class="flex flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Sündmused</h1>
+    {% if summary.observed_at %}
+      <p class="dk-meta">Koja sündmuseprogramm seisuga {{ summary.observed_at|date:"j.m.Y" }}</p>
+    {% endif %}
   </header>
 
-  {% if page.has_data %}
+  {% if intelligence.has_data %}
 
     {% comment %}
-    Three figures, so three columns — not the strip's default four.
+    Focus navigation and the period control, together, because the two are the
+    page's whole state. Both are ordinary links carrying server-resolved values
+    — never the incoming query string copied forward — so every view is
+    bookmarkable and no unvalidated input is reflected into an href.
 
-    An empty grid track is not blank here: `dk-kpi-strip` paints `bg-border`
-    behind its cells and separates them by a pixel, so the fourth column showed
-    as a grey block the width of a card beside `Algas hiljuti`. Three divides
-    three; two does not, which is why `sm` is overridden as well.
+    The year is an **event cohort**: `2026` means events whose own start date
+    falls in 2026. It never means "measured in 2026". Windows for traffic and
+    for Commerce are chosen by the analyses that use them and are labelled
+    there.
     {% endcomment %}
-    <section aria-labelledby="section-figures" class="dk-section">
-      <h2 id="section-figures" class="sr-only">Näitajad</h2>
-      <div class="dk-kpi-strip sm:grid-cols-1 md:grid-cols-3 xl:grid-cols-3">
-        {% for figure in page.figures %}
-          {% include "dashboard/components/kpi_card.html" with label=figure.label value=figure.value comparison_period=figure.note as_of=summary.observed_at|date:"j.m.y" flush=True only %}
+    <nav aria-label="Sündmuste vaated" class="flex flex-col gap-3 border-b border-border pb-3">
+      <ul class="flex flex-wrap items-center gap-2">
+        {% for link in intelligence.focus_links %}
+          <li>
+            <a class="dk-chip{% if link.is_active %} dk-chip-active{% endif %}"
+               href="{{ link.url }}"
+               {% if link.is_active %}aria-current="page"{% endif %}>{{ link.label }}</a>
+          </li>
         {% endfor %}
-      </div>
-    </section>
-
-    <section aria-labelledby="section-filters" class="dk-section">
-      <h2 id="section-filters" class="sr-only">Filtrid</h2>
-      <div class="dk-section-body flex flex-col gap-4">
-
-        {% comment %}
-        The whole filter form is live, not just the search box: a year, a tag or
-        a status is the same question asked a different way, and a page where
-        typing filters instantly but choosing a month needs a button press is a
-        page that has two rules.
-
-        The trigger sits on the form rather than on nine controls: `input`
-        (debounced) covers the search box, `change` covers every select. A text
-        input also fires `change` when it loses focus, so blurring the box after
-        typing can spend one extra request — the same GET, the same rows, and
-        `hx-sync` keeps it from overlapping. Suppressing it would cost a
-        per-control trigger and buy nothing a reader can see.
-
-        `hx-target` is the rows only. The form must stay put: replacing it would
-        take the caret out of the search box and close any select mid-choice.
-
-        Without the bundle every one of these is an ordinary field and
-        `Filtreeri` submits them, which is why the button stays.
-        {% endcomment %}
-        <form method="get"
-              class="flex flex-col gap-4"
-              hx-get="{% url 'event-programme-search' %}"
-              hx-trigger="input changed delay:250ms, change"
-              hx-target="#programme-results"
-              hx-swap="innerHTML"
-              hx-sync="this:replace"
-              hx-indicator="#programme-filtering">
-          {% comment %}
-          The ordering is chosen by the chips below, which are links rather than
-          fields. It travels here as a hidden input so that changing a filter —
-          by typing or by submitting — keeps the order the reader chose. Without
-          it a keystroke would send a form with no `sort`, and the rows would
-          silently fall back to chronological while the chip still said
-          `Vaadatuimad`.
-          {% endcomment %}
-          <input type="hidden" name="sort" value="{{ page.filters.sort }}">
-
-          {% comment %}
-          The two controls that answer almost every visit stay on screen; the
-          six that are asked for rarely fold into the disclosure below.
-
-          Eight controls in a four-column grid was two full rows of label-plus-
-          field before the programme itself began, and the table is what the
-          page is for. Nothing is removed and nothing is renamed — a folded
-          `<details>` keeps its fields in the DOM, so they still submit, htmx
-          still includes them, and a reader without JavaScript can still open it.
-          {% endcomment %}
-          <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-
-            <div class="flex min-w-0 flex-col gap-1 xl:col-span-2">
-              <label for="filter-q" class="dk-meta">Otsi nimest või koodist</label>
-              <input id="filter-q" type="search" name="q" value="{{ page.filters.q }}" class="dk-input" autocomplete="off">
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-year" class="dk-meta">Aasta</label>
-              <select id="filter-year" name="year" class="dk-input">
-                <option value="{{ page.all_years_value }}"{% if page.all_years_selected %} selected{% endif %}>{{ page.all_years_label }}</option>
-                {% for year in page.options.years %}
-                  <option value="{{ year }}"{% if year == page.filters.year %} selected{% endif %}>{{ year }}</option>
-                {% endfor %}
-              </select>
-            </div>
-          </div>
-
-          {% comment %}
-          Open whenever one of its own filters is set, and counted in the
-          summary either way. A collapsed control hiding an applied filter is
-          how a reader ends up mistrusting a row count they cannot explain.
-          {% endcomment %}
-          <details class="flex flex-col gap-3"{% if page.has_refinements %} open{% endif %}>
-            <summary class="dk-link w-fit cursor-pointer text-sm">
-              Täpsem valik{% if page.refinement_count %} <span class="dk-meta">· {{ page.refinement_count }} aktiivne</span>{% endif %}
-            </summary>
-            <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-month" class="dk-meta">Kuu</label>
-              <select id="filter-month" name="month" class="dk-input">
-                <option value="">Kõik kuud</option>
-                {% for option in page.options.months %}
-                  <option value="{{ option.value }}"{% if option.value == page.filters.month %} selected{% endif %}>{{ option.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-quarter" class="dk-meta">Kvartal</label>
-              <select id="filter-quarter" name="quarter" class="dk-input">
-                <option value="">Kõik kvartalid</option>
-                {% for option in page.options.quarters %}
-                  <option value="{{ option.value }}"{% if option.value == page.filters.quarter %} selected{% endif %}>{{ option.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-tag" class="dk-meta">Silt</label>
-              <select id="filter-tag" name="tag" class="dk-input">
-                <option value="">Kõik sildid</option>
-                {% for option in page.options.tags %}
-                  <option value="{{ option.value }}"{% if option.value == page.filters.tag %} selected{% endif %}>{{ option.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-status" class="dk-meta">Seisund</label>
-              <select id="filter-status" name="status" class="dk-input">
-                <option value="">Kõik seisundid</option>
-                {% for option in page.options.statuses %}
-                  <option value="{{ option.value }}"{% if option.value == page.filters.status %} selected{% endif %}>{{ option.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-link" class="dk-meta">Avalik leht</label>
-              <select id="filter-link" name="public_link" class="dk-input">
-                {% for option in page.public_link_options %}
-                  <option value="{{ option.value }}"{% if option.value == page.filters.public_link %} selected{% endif %}>{{ option.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            <div class="flex min-w-0 flex-col gap-1">
-              <label for="filter-review" class="dk-meta">Andmekvaliteet</label>
-              <select id="filter-review" name="review" class="dk-input">
-                {% for option in page.review_options %}
-                  <option value="{{ option.value }}"{% if option.value == page.filters.review %} selected{% endif %}>{{ option.label }}</option>
-                {% endfor %}
-              </select>
-            </div>
-
-            </div>
-          </details>
-
-          <div class="flex flex-wrap items-center gap-3">
-            <button type="submit" class="dk-button dk-button-primary">Filtreeri</button>
-            <a href="{{ page.clear_url }}" class="dk-button dk-button-secondary">Eemalda filtrid</a>
-            <p class="dk-meta">Valitud periood: {{ page.period_label }}</p>
-            <p id="programme-filtering" class="dk-indicator dk-meta" aria-hidden="true">Filtreerin…</p>
-          </div>
-        </form>
-
-        {% if page.quality %}
-          <div class="flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-border pt-3">
-            {% comment %}
-            Records the default period cannot show. An undated event carries no
-            year, so saying how many there are — and linking across every year —
-            keeps the default from quietly shrinking the programme.
-            {% endcomment %}
-            {% for link in page.quality %}
-              <a href="{{ link.url }}" class="dk-link text-sm tabular-nums">{{ link.label }}: {{ link.value }}</a>
-            {% endfor %}
-          </div>
-        {% endif %}
-
-      </div>
-    </section>
-
-    <section aria-labelledby="section-programme" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Sündmuste programm" heading_id="section-programme" only %}
-      {% comment %}
-      Ordering is a link, not a control that holds state in the browser: every
-      choice is an address a reader can bookmark, share and go back through, and
-      it carries the filters that were already applied.
-
-      Chronological stays the default. Ranking by traffic answers a different
-      question and should be asked for.
-      {% endcomment %}
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-2 px-4 pt-3 sm:px-5">
-        <span class="dk-meta">Järjestus:</span>
-        {% for option in page.sort_options %}
-          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-             href="{{ option.url }}"
-             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+      </ul>
+      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <span class="dk-meta">Periood:</span>
+        {% for link in intelligence.year_links %}
+          <a class="dk-chip{% if link.is_active %} dk-chip-active{% endif %}"
+             href="{{ link.url }}"
+             {% if link.is_active %}aria-current="true"{% endif %}>{{ link.label }}</a>
         {% endfor %}
-        {% comment %}
-        Said once, under the control, rather than on every row: what the column
-        counts, and — for events older than the measurement — how far back the
-        measurement goes.
-        {% endcomment %}
         <p class="dk-meta w-full">
-          Vaatamised on sündmuse avaliku koda.ee lehe Google Analyticsi lehevaatamised.{% if page.coverage_start %} Google Analytics andmed alates {{ page.coverage_start|date:"d.m.Y" }}.{% endif %}
+          Periood valib sündmused nende <strong>oma alguskuupäeva</strong> järgi. Lehevaatamiste ja
+          registreerimiste ajaaknad on eraldi ja on nimetatud seal, kus neid kasutatakse.
         </p>
       </div>
+    </nav>
 
-      {% comment %}
-      The swapped region. `aria-live="polite"` tells a screen reader that rows
-      arrived without a page change.
-      {% endcomment %}
-      <div id="programme-results" aria-live="polite">
-        {% include "event_programme/partials/_programme_results.html" with page=page only %}
-      </div>
-    </section>
+    {% if intelligence.overview %}
+      {% include "event_programme/partials/_focus_overview.html" with view=intelligence.overview page=intelligence only %}
+    {% elif intelligence.volume %}
+      {% include "event_programme/partials/_focus_volume.html" with view=intelligence.volume page=intelligence only %}
+    {% elif intelligence.formats %}
+      {% include "event_programme/partials/_focus_formats.html" with view=intelligence.formats page=intelligence only %}
+    {% elif intelligence.attention %}
+      {% include "event_programme/partials/_focus_attention.html" with view=intelligence.attention page=intelligence only %}
+    {% elif intelligence.planning %}
+      {% include "event_programme/partials/_focus_planning.html" with view=intelligence.planning page=intelligence only %}
+    {% elif page %}
+      {% include "event_programme/partials/_focus_register.html" with page=page only %}
+    {% endif %}
 
   {% else %}
 
@@ -270,21 +110,14 @@ inspected in the read-only admin.
 
   {% endif %}
 
-  <section aria-labelledby="section-public-calendar" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Koda.ee avalik kalender" heading_id="section-public-calendar" only %}
-    <div class="dk-section-body flex flex-col gap-2">
-      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
-        {% include "dashboard/components/status_badge.html" with label=public_calendar.state_label variant=public_calendar.state_variant only %}
-        {% if public_upcoming_count is not None %}
-          <p class="text-sm text-text-secondary tabular-nums">
-            Avalikus kalendris eelseisvaid sündmusi lähikuul: <span class="font-semibold text-text">{{ public_upcoming_count }}</span>
-          </p>
-        {% else %}
-          <p class="text-sm text-text-secondary">Avalikku kalendrit ei ole veel edukalt kogutud.</p>
-        {% endif %}
-      </div>
-    </div>
-  </section>
+  {% comment %}
+  Outside the branch on purpose. The public Koda.ee calendar is a connection of
+  its own with its own schedule, so it keeps being named and keeps stating its
+  own count even on a day the programme has never imported — the two feeds fail
+  independently and a page that hid one because the other was empty would be
+  reporting a connection state it had not checked.
+  {% endcomment %}
+  {% include "event_programme/partials/_data_quality.html" with quality=intelligence.quality public_calendar=public_calendar public_upcoming_count=public_upcoming_count only %}
 
 </div>
 {% endblock %}

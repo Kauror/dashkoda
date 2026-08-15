@@ -52,10 +52,22 @@ click, with the term and every other filter kept.
       <caption class="sr-only">Koja sündmuste programm valitud filtritega</caption>
       <thead>
         <tr>
+          {% comment %}
+          Responsive prioritisation: the date, the name, the traffic and the
+          state are the register's job and stay at every width. Type, theme and
+          delivery mode are the analytical columns and fold away below `lg`,
+          where a seven-column table would otherwise force the reader to scroll
+          sideways to read a row they can already see the important half of.
+          {% endcomment %}
           <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kuupäev</th>
           <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Sündmus</th>
+          <th scope="col" class="hidden border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase lg:table-cell">Tüüp</th>
+          <th scope="col" class="hidden border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase lg:table-cell">Teema</th>
+          <th scope="col" class="hidden border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase lg:table-cell">Viis</th>
           <th scope="col" class="border-b border-border px-4 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Vaatamised</th>
-          <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Silt</th>
+          {% if page.shows_registrations %}
+            <th scope="col" class="border-b border-border px-4 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Registreerimis&shy;ühikud</th>
+          {% endif %}
           <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Seisund</th>
         </tr>
       </thead>
@@ -88,6 +100,16 @@ click, with the term and every other filter kept.
                 {{ item.event_name }}
               {% endif %}
             </td>
+            <td class="hidden border-b border-border px-4 py-2 text-text-secondary lg:table-cell">{{ item.event_type_label|default:"—" }}</td>
+            <td class="hidden border-b border-border px-4 py-2 text-text-secondary lg:table-cell">{{ item.tag_label|default:"—" }}</td>
+            {% comment %}
+            A blank delivery mode renders as an em dash, never as `Kohapeal`.
+            The source has not said, and filling it in would put a claim on the
+            row that nobody made.
+            {% endcomment %}
+            <td class="hidden border-b border-border px-4 py-2 text-text-secondary lg:table-cell">
+              {% if item.delivery_mode %}{{ item.get_delivery_mode_display }}{% else %}<span class="text-text-muted">—</span>{% endif %}
+            </td>
             {% comment %}
             Total measured views for this event's public page — all of
             GA4's coverage, not a period.
@@ -99,7 +121,20 @@ click, with the term and every other filter kept.
             <td class="border-b border-border px-4 py-2 text-right whitespace-nowrap tabular-nums text-text-secondary">
               {% if item.page_views %}{{ item.page_views.total|group_thousands }}{% else %}<span class="text-text-muted">—</span>{% endif %}
             </td>
-            <td class="border-b border-border px-4 py-2 text-text-secondary">{{ item.tag_label|default:"—" }}</td>
+            {% if page.shows_registrations %}
+              {% comment %}
+              E-poe registreerimisühikud — a quantity on completed Commerce
+              order lines sold through this event's page. Not participants and
+              not attendance: nothing in DashKoda knows who turned up.
+
+              An em dash where the event's page carries no registration product,
+              because "never sold through the shop" and "sold nothing" are
+              different facts.
+              {% endcomment %}
+              <td class="border-b border-border px-4 py-2 text-right whitespace-nowrap tabular-nums text-text-secondary">
+                {% if item.registrations %}{{ item.registrations.units_label }}{% else %}<span class="text-text-muted">—</span>{% endif %}
+              </td>
+            {% endif %}
             <td class="border-b border-border px-4 py-2">
               <span class="flex flex-wrap items-center gap-1.5">
                 {% include "dashboard/components/status_badge.html" with label=item.get_event_status_display variant="neutral" only %}

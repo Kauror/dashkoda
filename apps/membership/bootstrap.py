@@ -1,8 +1,10 @@
-"""Idempotent registration of the two membership data sources.
+"""Idempotent registration of the three membership data sources.
 
-They are registered separately and stay separate. The public directory count and
-the Chamber's internal board-report history answer different questions, and
-nothing in the application treats one as a continuation of the other.
+They are registered separately and stay separate. The public directory count,
+the Chamber's internal board-report history and the roster composition answer
+different questions, and nothing in the application treats one as a
+continuation of another. The first two are membership *totals* that must never
+be merged; the third is not a total at all.
 """
 
 from django.conf import settings
@@ -62,4 +64,34 @@ def ensure_internal_membership_source(*, actor=None, correlation_id=None):
         expected_update_frequency=UpdateFrequency.MONTHLY,
         stale_after_days=None,
         description=INTERNAL_SOURCE_DESCRIPTION,
+    )
+
+
+COMPOSITION_SOURCE_NAME = "Liikmeskonna koosseis (liikmete nimekiri)"
+COMPOSITION_SOURCE_DESCRIPTION = (
+    "Koja liikmete nimekirjast tuletatud koondnäitajad: suurusklassid, maakonnad, "
+    "tegevusalad, liikmestaaž ja liitumisaastad. Salvestatakse ainult kokkuvõtlikud "
+    "arvud — ühtegi ettevõtte nime, registrikoodi, aadressi ega kontakti ei "
+    "salvestata ega logita. See ei ole liikmete arvu näitaja ega ole võrreldav "
+    "Koda.ee avaliku liikmekataloogi ega juhatuse aruannete arvudega."
+)
+
+
+def ensure_membership_composition_source(*, actor=None, correlation_id=None):
+    """Register the roster-composition source.
+
+    No staleness threshold. The roster is exported by hand when someone needs
+    one, so there is no schedule to fall behind and marking it stale would
+    report a fault that does not exist.
+    """
+    return ensure_data_source(
+        slug=settings.MEMBERSHIP_COMPOSITION_SOURCE_SLUG,
+        actor=actor,
+        correlation_id=correlation_id,
+        name=COMPOSITION_SOURCE_NAME,
+        source_type=SourceType.DOCUMENT,
+        authority_tier=AuthorityTier.PRIMARY,
+        expected_update_frequency=UpdateFrequency.IRREGULAR,
+        stale_after_days=None,
+        description=COMPOSITION_SOURCE_DESCRIPTION,
     )

@@ -5,9 +5,14 @@ Context:
   rows – a tuple of OpportunityPresenter
 
 Every row here has a real denominator: the selector refuses to classify a
-product whose product page has fewer measured views than the stated threshold,
-because below it a single acquisition moves the rate more than the rate is
-worth.
+product whose **acquisition page** has fewer measured views than the stated
+threshold, because below it a single acquisition moves the rate more than the
+rate is worth.
+
+Which page that is depends on the product family — the event page for a
+registration, the product page for a template — and `web_effectiveness` makes
+that choice. A product whose acquisition page is missing has no rate and
+appears in neither list, rather than being ranked on some other page's traffic.
 {% endcomment %}
 {% if rows %}
   <ol class="flex flex-col gap-1.5">

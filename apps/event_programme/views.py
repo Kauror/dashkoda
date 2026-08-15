@@ -24,14 +24,23 @@ from apps.dashboard.navigation import NAVIGATION
 # feed with separate snapshots; nothing below merges it into the programme.
 from apps.events.selectors import count_upcoming_within, get_event_summary
 
+from .intelligence import FOCUS_REGISTER, build_intelligence_page
 from .page import build_programme_page
 from .selectors import get_event_programme_summary
 
 
 @require_GET
 def event_programme_overview(request):
+    """One route, six focus views.
+
+    The register is the only focus that costs a paginated query over the whole
+    programme, so it is the only one that builds a `ProgrammePage`. A reader on
+    `Ülevaade` pays for the overview and nothing else, which is the property
+    that lets this page carry six analyses without becoming six pages.
+    """
     summary = get_event_programme_summary()
     public_calendar = get_event_summary()
+    intelligence = build_intelligence_page(summary, request.GET)
     return render(
         request,
         "event_programme/overview.html",
@@ -42,7 +51,12 @@ def event_programme_overview(request):
             # programme is loaded exactly once per request.
             "freshness": current_freshness(summary),
             "summary": summary,
-            "page": build_programme_page(summary, request.GET),
+            "intelligence": intelligence,
+            "page": (
+                build_programme_page(summary, request.GET)
+                if intelligence.focus == FOCUS_REGISTER
+                else None
+            ),
             "public_calendar": public_calendar,
             "public_upcoming_count": (
                 count_upcoming_within(public_calendar.snapshot)
@@ -62,15 +76,21 @@ PROGRAMME_FIELDS = (
     "month",
     "quarter",
     "tag",
+    "event_type",
+    "delivery_mode",
     "status",
     "public_link",
     "review",
     "sort",
 )
 
-#: Everything this page understands, `page` included. Only these reach a pushed
-#: URL, because that value ends up in somebody's address bar.
-PROGRAMME_PARAMS = (*PROGRAMME_FIELDS, "page")
+#: Everything this page understands, `page` and the focus included. Only these
+#: reach a pushed URL, because that value ends up in somebody's address bar.
+#:
+#: `fookus` is here so a live filter cannot navigate the reader off the
+#: register: without it the pushed URL would drop the focus and the next full
+#: page load would open the overview with a filter set and nowhere showing it.
+PROGRAMME_PARAMS = (*PROGRAMME_FIELDS, "fookus", "page")
 
 
 @require_GET
@@ -100,6 +120,9 @@ def programme_search_fragment(request):
             # the reader's current URL: unlike the other four searches, this one
             # can *clear* a filter, and a key absent from the submission has to
             # disappear from the address bar rather than survive in it.
-            updates={key: params.get(key, "") for key in PROGRAMME_FIELDS} | {"page": ""},
+            updates=(
+                {key: params.get(key, "") for key in PROGRAMME_FIELDS}
+                | {"fookus": FOCUS_REGISTER, "page": ""}
+            ),
         ),
     )

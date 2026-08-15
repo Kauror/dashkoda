@@ -44,11 +44,95 @@ PARAM_SEARCH = "otsing"
 PARAM_SORT = "sort"
 PARAM_PAGE = "lk"
 PARAM_MEMBER = "liikmestaatus"
+PARAM_FOCUS = "fookus"
+#: The trend's metric. Estonian like every other parameter this page owns, so
+#: the query string reads in one language.
+PARAM_METRIC = "naitaja"
 
 CUSTOM_KEY = "kohandatud"
 ALL_KEY = "koik"
 
 MAX_SEARCH_LENGTH = 120
+
+
+# ---------------------------------------------------------------------------
+# Focus
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class Focus:
+    """One analytical view of the same dataset, at one URL.
+
+    E-pood stays a single route. A focus is a *lens* over the period and filters
+    already chosen, not a separate page with separate state — which is what lets
+    a reader change the product type on `Ostud` and find the same type still
+    selected when they move to `Nähtavus`.
+    """
+
+    key: str
+    label: str
+    #: What this view answers, shown under the heading rather than as a tooltip.
+    question: str
+
+
+FOCUS_OVERVIEW = "ulevaade"
+FOCUS_PURCHASES = "ostud"
+FOCUS_PRODUCTS = "tooted"
+FOCUS_VISIBILITY = "nahtavus"
+FOCUS_VALUE = "vaartus"
+
+FOCUSES: tuple[Focus, ...] = (
+    Focus(
+        key=FOCUS_OVERVIEW,
+        label="Ülevaade",
+        question="Mis e-poes toimub ja mis väärib tähelepanu?",
+    ),
+    Focus(
+        key=FOCUS_PURCHASES,
+        label="Ostud",
+        question="Kuidas soetamise aktiivsus ajas muutub?",
+    ),
+    Focus(
+        key=FOCUS_PRODUCTS,
+        label="Tooted",
+        question="Millised tooted ja kategooriad e-poodi tegelikult kannavad?",
+    ),
+    Focus(
+        key=FOCUS_VISIBILITY,
+        label="Nähtavus",
+        question="Mis saab tähelepanu, mis soetatakse ja kus on tõendatud võimalus?",
+    ),
+    Focus(
+        key=FOCUS_VALUE,
+        label="Tellitud väärtus",
+        question="Kui palju väärtust on e-poe kaudu tellitud ja millest see koosneb?",
+    ),
+)
+
+DEFAULT_FOCUS = FOCUSES[0]
+
+_FOCUS_BY_KEY = {focus.key: focus for focus in FOCUSES}
+
+
+def parse_focus(raw: str | None) -> Focus:
+    """The requested view, or the overview. An unknown key is never an error."""
+    return _FOCUS_BY_KEY.get((raw or "").strip(), DEFAULT_FOCUS)
+
+
+# ---------------------------------------------------------------------------
+# Trend metric
+# ---------------------------------------------------------------------------
+
+METRIC_UNITS = "soetatud"
+METRIC_ORDERS = "tellimused"
+METRIC_VALUE = "vaartus"
+METRIC_KEYS = (METRIC_UNITS, METRIC_ORDERS, METRIC_VALUE)
+
+
+def parse_metric(raw: str | None) -> str:
+    """Which series the trend draws. Defaults to acquired units."""
+    return core_parse_sort(raw, allowed=METRIC_KEYS, default=METRIC_UNITS)
 
 
 @dataclass(frozen=True)
@@ -171,14 +255,23 @@ def build_query(
     sort: str = "",
     member_status: str = "",
     page: int | None = None,
+    focus: str = "",
+    metric: str = "",
 ) -> str:
     """One URL's worth of validated state.
 
     Every control links through here, which is what makes the controls compose:
-    changing the period keeps the type, the categories and the search, and
-    paging keeps all of them.
+    changing the period keeps the type, the categories and the search, changing
+    the focus keeps all of those, and paging keeps everything.
+
+    The default focus and the default metric are omitted rather than written
+    out, so the plain `/epood/` address stays the canonical one and a shared
+    link carries only what the sharer actually changed.
     """
-    parts = [f"{PARAM_PERIOD}={quote(period_key)}"]
+    parts = []
+    if focus and focus != DEFAULT_FOCUS.key:
+        parts.append(f"{PARAM_FOCUS}={quote(focus)}")
+    parts.append(f"{PARAM_PERIOD}={quote(period_key)}")
     if period_key == CUSTOM_KEY:
         if start is not None:
             parts.append(f"{PARAM_FROM}={start:%Y-%m-%d}")
@@ -194,6 +287,8 @@ def build_query(
         parts.append(f"{PARAM_SORT}={quote(sort)}")
     if member_status:
         parts.append(f"{PARAM_MEMBER}={quote(member_status)}")
+    if metric and metric != METRIC_UNITS:
+        parts.append(f"{PARAM_METRIC}={quote(metric)}")
     if page and page > 1:
         parts.append(f"{PARAM_PAGE}={page}")
     return "&".join(parts)
@@ -261,8 +356,24 @@ def parse_sort(raw: str | None) -> str:
 __all__ = [
     "ALL_KEY",
     "CUSTOM_KEY",
+    "DEFAULT_FOCUS",
     "DEFAULT_PERIOD",
+    "FOCUSES",
+    "FOCUS_OVERVIEW",
+    "FOCUS_PRODUCTS",
+    "FOCUS_PURCHASES",
+    "FOCUS_VALUE",
+    "FOCUS_VISIBILITY",
     "MAX_SEARCH_LENGTH",
+    "METRIC_KEYS",
+    "METRIC_ORDERS",
+    "METRIC_UNITS",
+    "METRIC_VALUE",
+    "PARAM_FOCUS",
+    "PARAM_METRIC",
+    "Focus",
+    "parse_focus",
+    "parse_metric",
     "PARAM_CATEGORY",
     "PARAM_FROM",
     "PARAM_MEMBER",

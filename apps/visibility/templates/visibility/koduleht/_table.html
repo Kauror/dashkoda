@@ -1,0 +1,53 @@
+{% comment %}
+One small analytical table, from a `TableView` whose every cell is already a
+finished string. This template chooses layout and nothing else — no filter here
+decides how a share, a percentage-point movement or a signed count is written,
+because that decision lives in `apps.visibility.website_page` beside the one the
+chart tooltips use.
+
+The table owns its own horizontal scroll container, so a wide table never makes
+the page itself scroll sideways on a phone. Nothing inside it is `sr-only`: an
+absolutely-positioned note settles at its untruncated text width and widens the
+whole document while the table scrolls correctly inside its wrapper and looks
+innocent — this codebase's recurring layout bug.
+
+Context:
+  table – a TableView
+{% endcomment %}
+{% if table.has_rows %}
+  <div class="w-full overflow-x-auto">
+    <table class="w-full min-w-max border-collapse text-sm">
+      <caption class="sr-only">{{ table.caption }}</caption>
+      <thead>
+        <tr>
+          {% for header in table.headers %}
+            <th scope="col"
+                class="border-b border-border px-3 py-2 text-micro font-semibold tracking-wide text-text-muted uppercase {% if forloop.first %}text-left{% else %}text-right{% endif %}">
+              {{ header }}
+            </th>
+          {% endfor %}
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in table.rows %}
+          <tr>
+            <th scope="row" class="border-b border-border px-3 py-2 text-left font-medium text-text">
+              {% if row.href %}
+                <a class="dk-link" href="?{{ row.href }}">{{ row.label }}</a>
+              {% else %}
+                {{ row.label }}
+              {% endif %}
+              {% if row.badge %}<span class="dk-badge dk-badge-neutral">{{ row.badge }}</span>{% endif %}
+              {% if row.note %}<span class="dk-meta block break-all">{{ row.note }}</span>{% endif %}
+            </th>
+            {% for cell in row.values %}
+              <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ cell }}</td>
+            {% endfor %}
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+{% elif table.empty_message %}
+  <p class="dk-meta">{{ table.empty_message }}</p>
+{% endif %}

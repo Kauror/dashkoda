@@ -11,15 +11,19 @@ from .models import MemberStatus, ProductType
 from .page import build_overview, build_product_detail
 from .periods import (
     PARAM_CATEGORY,
+    PARAM_FOCUS,
     PARAM_FROM,
     PARAM_MEMBER,
+    PARAM_METRIC,
     PARAM_PAGE,
     PARAM_PERIOD,
     PARAM_SEARCH,
     PARAM_SORT,
     PARAM_TO,
     PARAM_TYPE,
+    parse_focus,
     parse_int_list,
+    parse_metric,
     parse_page,
     parse_search,
     parse_sort,
@@ -42,8 +46,10 @@ def shop_overview(request):
     """Which E-pood products are acquired, and how that relates to traffic.
 
     Every parameter is validated before it reaches a selector: an unreadable
-    period, a reversed range, an unknown product type, a rotted page number and
-    an oversized search term each resolve to something renderable.
+    period, a reversed range, an unknown product type, an unknown focus, a
+    rotted page number and an oversized search term each resolve to something
+    renderable. An unrecognised focus lands on the overview rather than raising,
+    so a shared link that outlives a rename still opens the page.
     """
     overview = build_overview(
         period_key=request.GET.get(PARAM_PERIOD),
@@ -55,6 +61,8 @@ def shop_overview(request):
         search=parse_search(request.GET.get(PARAM_SEARCH)),
         sort=parse_sort(request.GET.get(PARAM_SORT)),
         page=parse_page(request.GET.get(PARAM_PAGE)),
+        focus=parse_focus(request.GET.get(PARAM_FOCUS)),
+        metric=parse_metric(request.GET.get(PARAM_METRIC)),
     )
     return render(
         request,

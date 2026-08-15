@@ -1,0 +1,78 @@
+{% extends "dashboard/shell.html" %}
+{% load static %}
+
+{% comment %}
+Koduleht — how Koda.ee is used, what changed, and how much of it can be trusted.
+
+Everything here comes from `apps.visibility.website_page.build_website_page`,
+which reads PostgreSQL through the app's own selectors. The template lays out
+and holds no analytical rule: a figure it prints was decided in Python, and a
+figure it does not print was withheld there.
+
+Four things are deliberate and should stay that way:
+
+  - **the social channel band is not on this page.** Koduleht answers questions
+    about the website. The four hand-entered social figures are untouched —
+    their models, history and admin entry are exactly as they were, and the
+    overall DashKoda overview still shows them through `build_channel_band`;
+  - **a missing comparison is a statement, not a gap.** Where a delta is absent
+    the headline carries the reason in its note, because a number on a dashboard
+    is read long before its footnote is;
+  - **every chart keeps its table.** The table is not a fallback: it stays in
+    the document for every reader, and only the canvas is hidden when there is
+    nothing to draw;
+  - **each focus view is a real URL.** The controls are ordinary GET links
+    carrying the whole state, so a view is bookmarkable, shareable and
+    reload-safe, and none of it needs JavaScript.
+{% endcomment %}
+
+{% block title %}{{ page.title }} – DashKoda{% endblock %}
+
+{% block extra_head %}
+  {% comment %}
+  The chart bundle loads only when the current view has something to draw.
+  `page.charts` is the one expression that answers that — a second,
+  differently-named context key is how a page once shipped every section and no
+  chart JavaScript at all.
+  {% endcomment %}
+  {% if page.charts %}
+    <script type="module" src="{% static 'build/charts.js' %}"></script>
+  {% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col gap-6">
+
+  {% include "visibility/koduleht/_header.html" with page=page only %}
+
+  {% if not page.has_data %}
+    <section aria-labelledby="section-empty" class="dk-section">
+      <h2 id="section-empty" class="sr-only">Mõõtmisandmed</h2>
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Google Analyticsi andmeid ei ole veel kogutud." detail="Kui kogumine on seadistatud ja käivitunud, ilmuvad siia päevade kaupa mõõdetud näitajad." only %}
+      </div>
+    </section>
+  {% else %}
+    {% if page.focus.key == "ulevaade" %}
+      {% include "visibility/koduleht/_overview.html" with page=page only %}
+    {% elif page.focus.key == "liiklus" %}
+      {% include "visibility/koduleht/_traffic.html" with page=page only %}
+    {% elif page.focus.key == "sisu" %}
+      {% include "visibility/koduleht/_content.html" with page=page only %}
+    {% elif page.focus.key == "kanalid" %}
+      {% include "visibility/koduleht/_channels.html" with page=page only %}
+    {% elif page.focus.key == "lehed" %}
+      {% include "visibility/koduleht/_pages.html" with page=page only %}
+    {% endif %}
+  {% endif %}
+
+  {% comment %}
+  Outside the branch above on purpose. A page with nothing collected is exactly
+  when a reader most needs to know what is measured, what is missing and why the
+  page is empty — and it is the only place the operator's manual-entry link
+  lives now, so hiding it with the analysis would take that away too.
+  {% endcomment %}
+  {% include "visibility/koduleht/_methodology.html" with page=page can_add_data=can_add_data only %}
+
+</div>
+{% endblock %}

@@ -10,6 +10,7 @@ import pytest
 from django.urls import reverse
 
 from apps.access.middleware import CSP
+from apps.core.formatting import GROUP_SEPARATOR, integer
 from apps.membership.bootstrap import ensure_membership_source
 from apps.membership.models import MembershipCountObservation, MembershipMetricConflict
 from apps.sources.services import build_import_run, register_external_reference
@@ -74,8 +75,11 @@ def test_internal_section_shows_after_import(viewer_client, public_observation, 
     body = _page(viewer_client)
 
     assert "Sisemine liikmeskonna aruanne" in body
-    assert "15.01.25" in body
-    assert "3300" in body
+    # The headline strip states the source's own date in full and groups the
+    # thousand, which the raw model value did not. Both are the design system's
+    # formatters rather than this page's choice.
+    assert "15.01.2025" in body
+    assert f"3{GROUP_SEPARATOR}300" in body
 
 
 def test_the_page_never_claims_the_definitions_match(
@@ -133,7 +137,8 @@ def test_every_chart_has_a_table_alternative(viewer_client, imported_package):
 
 
 def test_monthly_chart_omits_a_conflict_instead_of_charting_zero(viewer_client, imported_package):
-    body = _page(viewer_client)
+    # Recruitment lives under `fookus=kasv`; the overview draws the stock trend.
+    body = viewer_client.get(reverse("membership"), {"fookus": "kasv"}).content.decode()
     match = re.search(
         r'<script id="internal-membership-monthly" type="application/json">(.*?)</script>',
         body,
@@ -204,17 +209,16 @@ def test_overview_does_not_show_two_competing_totals(
     # months back from the newest observation's own date, which falls five days
     # after the older one and leaves a single point. One point is not a trend
     # and is not drawn, so the label this test is about would never appear.
-    body = viewer_client.get(
-        reverse("home"), {"alates": "2024-01-01", "kuni": "2025-01-15"}
-    ).content.decode()
+    body = viewer_client.get(reverse("home")).content.decode()
 
-    assert "3555" in body, "the public directory total leads the headline strip"
-    # The board report's own total is on the card as a drawn line, labelled
-    # with whose total it is, rather than as a printed figure —
-    # `tests/dashboard/test_overview_data.py` holds the card to exactly three
-    # printed figures. What matters here is that the two definitions are not
-    # conflated and that the strip states the public directory's count.
-    assert "Liikmeid kokku · koja aruanne" in body
+    assert integer(3555) in body, "the public directory total leads the pillar"
+    # The board report's own total is no longer drawn on the front page at all.
+    # The executive pillar takes only *ratios inside* that report — the paid
+    # share, the fee collection, the year's joins and removals — each naming the
+    # report as its source. So the two definitions cannot be conflated, because
+    # only one of them is stated as a total.
+    assert "Liikmeid kokku · koja aruanne" not in body
+    assert "Koja sisemine liikmeskonna aruanne" in body
 
     membership = viewer_client.get(reverse("membership")).content.decode()
 
@@ -240,3 +244,99 @@ def test_range_control_only_accepts_known_values(viewer_client, imported_package
 
         assert response.status_code == 200
         assert "DROP TABLE" not in response.content.decode()
+
+
+def test_the_headline_strip_answers_four_questions_not_nine(viewer_client, imported_package):
+    """The redesign's central claim, asserted against the rendered page.
+
+    Nine equally weighted figures asked the reader to decide which mattered.
+    These are server-render facts, so they are pinned here rather than in the
+    browser suite: a Playwright assertion about how many `<div>`s a list holds
+    proves the same thing more slowly and in a place it cannot be debugged.
+    """
+    body = _page(viewer_client)
+
+    assert "Peamised näitajad" in body
+    for label in (
+        "Liikmeid kokku",
+        "Liitumised ja väljaarvamised",
+        "Tasunute osakaal",
+        "Liikmemaksu laekumine",
+    ):
+        assert label in body, f"headline missing: {label}"
+
+
+def test_the_suspended_count_moved_out_of_the_headline_strip(viewer_client, imported_package):
+    """It is a secondary status and belongs beside the movement it describes."""
+    body = _page(viewer_client)
+
+    assert "Sel aastal" in body
+    assert "Peatatud liikmeid" in body
+    # It is inside the current-year block, which follows the headline strip.
+    assert body.index("Peatatud liikmeid") > body.index("Liikmemaksu laekumine")
+
+
+def test_the_difference_is_never_presented_as_a_net_membership_change(
+    viewer_client, imported_package
+):
+    """`new_members_ytd` and `removed_members_ytd` are two reported counts.
+
+    Subtracting them gives the gap between two reports, not the movement of the
+    membership stock, and the page must not claim otherwise.
+
+    `liikmeskonna muutus` is checked rather than merely forbidden, because the
+    page uses the phrase once — to deny it. Every occurrence must be that
+    denial; an affirmative use would be the defect this test exists to catch.
+    """
+    body = _page(viewer_client).casefold()
+
+    assert "netokasv" not in body
+    assert "netomuutus" not in body
+    assert body.count("liikmeskonna muutus") == body.count("mitte liikmeskonna muutus")
+    assert "liitumiste ja väljaarvamiste vahe" in body
+
+
+def test_an_unknown_focus_renders_the_overview_rather_than_raising(viewer_client, imported_package):
+    for raw in ("koosseiss", "growth", "../etc", ""):
+        response = viewer_client.get(reverse("membership"), {"fookus": raw})
+
+        assert response.status_code == 200
+        assert "Peamised näitajad" in response.content.decode()
+
+
+def test_each_focus_draws_only_its_own_sections(viewer_client, imported_package):
+    """A focus is a different page, not a scroll position.
+
+    Recruitment is the section this asserts on because the approved package
+    always carries monthly values, so it is drawn whenever the focus that owns
+    it is asked for and never when it is not. The decision section needs a
+    schema 2.0 package and has its own tests.
+    """
+    overview = _page(viewer_client)
+    growth = viewer_client.get(reverse("membership"), {"fookus": "kasv"}).content.decode()
+
+    assert "section-recruitment" not in overview
+    assert "section-recruitment" in growth
+    # The overview leads with the figures instead.
+    assert "section-headlines" in overview
+    assert "section-headlines" not in growth
+
+
+def test_every_range_preset_keeps_the_reader_on_its_focus(viewer_client, imported_package):
+    """`RangePreset.query` carries only the two dates.
+
+    Without `fookus` prepended, a preset clicked on any focus but the first
+    drops the reader back to the overview — a control that appears to navigate
+    away from the chart it governs. Checked over every rendered preset rather
+    than one, because the defect would be per-link.
+    """
+    body = viewer_client.get(reverse("membership"), {"fookus": "kasv"}).content.decode()
+
+    # Only the links that return the reader to a section: presets and chart
+    # toggles both carry a fragment, and the focus navigation deliberately does
+    # not — a link *to* the overview carrying `fookus=ulevaade` is correct, and
+    # matching it here would assert the opposite of the rule.
+    hrefs = re.findall(r'href="\?([^"]*alates=[^"]*)#section-[^"]*"', body)
+    assert hrefs, "the growth focus rendered no in-section links to check"
+    for href in hrefs:
+        assert "fookus=kasv" in href, href

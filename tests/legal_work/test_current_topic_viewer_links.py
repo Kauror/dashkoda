@@ -357,16 +357,19 @@ def test_a_record_with_no_link_is_plain_text_in_every_list(viewer, three_list_it
     assert plain_renderings(markup, three_list_item.topic) == 2
 
 
-def test_the_overview_card_links_the_same_record_as_the_legal_page(
-    viewer, three_list_item, candidate
-):
+def test_a_matched_topic_is_linked_on_the_legal_page(viewer, three_list_item, candidate):
+    """The resolved public address reaches the page that lists the topic.
+
+    This used to assert the same for the front page, which previewed the topics
+    in a card. The executive overview does not list them — it states how much
+    work is being carried and links to Õigusloome — so there is one rendering
+    of this record left to hold to the matched address, and it is here.
+    """
     force_decision(three_list_item, decision=MatchDecision.MATCHED, candidate=candidate)
 
     legal_page = page(viewer, LEGAL_URL)
-    overview = page(viewer, OVERVIEW_URL)
 
     assert linked_renderings(legal_page, three_list_item.topic, candidate.canonical_url) >= 1
-    assert linked_renderings(overview, three_list_item.topic, candidate.canonical_url) >= 1
 
 
 # -- what the viewer must never see -----------------------------------------

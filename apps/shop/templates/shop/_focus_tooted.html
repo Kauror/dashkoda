@@ -1,0 +1,135 @@
+{% comment %}
+`Tooted` — which products and categories actually carry the shop.
+
+Concentration is stated as two figures rather than one. The top-ten share says
+how top-heavy demand is; the long-tail count says how many products a reader
+would have to care about to cover most of it. Neither is called good or bad — a
+catalogue of contract templates is *expected* to be concentrated, and the
+number is a description, not a verdict.
+
+Unit concentration and value concentration are kept apart on purpose: the
+products people take most often and the products carrying the most ordered
+value are different questions, and a single "top products" list would quietly
+answer only one of them.
+{% endcomment %}
+
+{# --- categories --- #}
+{% if overview.category_bars %}
+  <section aria-labelledby="section-categories" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kategooriad" heading_id="section-categories" only %}
+    <div class="dk-section-body flex flex-col gap-3">
+      {% include "shop/_bars.html" with rows=overview.category_bars only %}
+      <details class="text-sm text-text-secondary">
+        <summary class="cursor-pointer text-text">Vaata andmeid</summary>
+        <div class="mt-3 w-full min-w-0 overflow-x-auto">
+          <table class="w-full border-collapse text-sm">
+            <caption class="sr-only">Kategooriad valitud perioodil</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kategooria</th>
+                <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">{{ overview.units_label }}</th>
+                <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Väärtus</th>
+                <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Vaatamised</th>
+                <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">/ 100</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for row in overview.categories %}
+                <tr>
+                  <th scope="row" class="border-b border-border px-2 py-1.5 text-left font-normal break-words text-text">{{ row.name }} <span class="dk-meta">{{ row.product_count }} toodet</span></th>
+                  <td class="border-b border-border px-2 py-1.5 text-right tabular-nums text-text">{{ row.units }}</td>
+                  <td class="border-b border-border px-2 py-1.5 text-right tabular-nums text-text-secondary">{{ row.value }}</td>
+                  <td class="border-b border-border px-2 py-1.5 text-right tabular-nums text-text-secondary">{{ row.views }}</td>
+                  <td class="border-b border-border px-2 py-1.5 text-right tabular-nums text-text-secondary">{{ row.rate }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </details>
+      <p class="dk-meta">Kategoriseerimata tooted on eraldi real „Kategooriata“, mitte välja jäetud. Vaatamised loetakse ostulehtede kaupa üks kord, seega ühist lehte jagavaid tooteid ei loeta kaks korda.</p>
+    </div>
+  </section>
+{% endif %}
+
+{# --- concentration --- #}
+{% if overview.concentration_note or overview.long_tail_note %}
+  <section aria-labelledby="section-concentration" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Nõudluse koondumine" heading_id="section-concentration" only %}
+    <div class="dk-section-body flex flex-col gap-2">
+      {% if overview.concentration_note %}<p class="text-sm text-text">{{ overview.concentration_note }}</p>{% endif %}
+      {% if overview.long_tail_note %}<p class="text-sm text-text">{{ overview.long_tail_note }}</p>{% endif %}
+      {% if overview.value_concentration_note %}<p class="text-sm text-text-secondary">{{ overview.value_concentration_note }}</p>{% endif %}
+      <p class="dk-meta">Koondumine on kirjeldus, mitte hinnang. Lepingunäidiste valik on oma olemuselt koondunud.</p>
+    </div>
+  </section>
+{% endif %}
+
+{# --- movers, products and categories --- #}
+{% if overview.comparison_available %}
+  <section aria-labelledby="section-productmovers" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-productmovers" only %}
+    <div class="dk-section-body flex flex-col gap-5">
+      <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <div class="min-w-0">
+          <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem kasvanud tooted</h3>
+          {% include "shop/_movers.html" with movers=overview.risers only %}
+        </div>
+        <div class="min-w-0">
+          <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem langenud tooted</h3>
+          {% include "shop/_movers.html" with movers=overview.fallers only %}
+        </div>
+      </div>
+      {% if overview.category_risers or overview.category_fallers %}
+        <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div class="min-w-0">
+            <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem kasvanud kategooriad</h3>
+            {% include "shop/_category_movers.html" with movers=overview.category_risers only %}
+          </div>
+          <div class="min-w-0">
+            <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem langenud kategooriad</h3>
+            {% include "shop/_category_movers.html" with movers=overview.category_fallers only %}
+          </div>
+        </div>
+      {% endif %}
+      <p class="dk-meta">Järjestatud absoluutse muutuse järgi, mitte protsendi järgi: ühelt neljale kasvanud toode ei ole perioodi lugu. „Uus perioodil“ tähendab, et eelmisel perioodil soetusi ei olnud — mitte et toode oleks uus.</p>
+    </div>
+  </section>
+{% endif %}
+
+{# --- current catalogue, present tense --- #}
+{% if overview.catalogue.has_products %}
+  <section aria-labelledby="section-catalogue" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Praegune tootevalik" heading_id="section-catalogue" only %}
+    <div class="dk-section-body flex flex-col gap-3">
+      <dl class="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        <div>
+          <dt class="text-sm text-text-secondary">Tooteid valikus</dt>
+          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.catalogue.products }}</dd>
+        </div>
+        <div>
+          <dt class="text-sm text-text-secondary">Hinnaga</dt>
+          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.catalogue.with_list_price }}</dd>
+        </div>
+        <div>
+          <dt class="text-sm text-text-secondary">Liikme hinnaga</dt>
+          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.catalogue.with_member_price }}</dd>
+        </div>
+        <div>
+          <dt class="text-sm text-text-secondary">Ostulehega</dt>
+          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.catalogue.with_acquisition_path }}</dd>
+        </div>
+      </dl>
+      {% include "shop/_bars.html" with rows=overview.catalogue.by_type only %}
+      {% if overview.catalogue.listing_gate_open %}
+        <p class="dk-meta">E-poes nähtavaid tooteid: {{ overview.catalogue.publicly_listed }}.</p>
+      {% else %}
+        <p class="dk-meta">„E-poes nähtav“ ei ole näidatud: allikas ei ole kinnitanud, et Drupalis avaldatud toode on ka avalikus e-poes nimekirjas. Avaldatud tooteid on {{ overview.catalogue.published }}.</p>
+      {% endif %}
+      <p class="dk-meta">See on viimase impordi hetkeseis, mitte ajalugu. Praegused hinnad ei selgita varasemat tellitud väärtust.</p>
+    </div>
+  </section>
+{% endif %}
+
+{# --- the explorer --- #}
+{% include "shop/_explorer.html" %}

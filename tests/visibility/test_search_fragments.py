@@ -1,4 +1,4 @@
-"""The live-search fragment on the Nähtavus page.
+"""The live-search fragment on the Koduleht page.
 
 It answers a keystroke with the results region and nothing else. What this holds
 is the contract that makes that safe to ship:
@@ -39,21 +39,22 @@ def test_the_traffic_fragment_is_a_fragment_and_resets_the_page(viewer_client):
     # `lk` neither reaches the builder nor the address bar: a new term is a new
     # question, and page 4 of a two-row result answers "nothing found".
     assert "lk=" not in response.headers["HX-Push-Url"]
-    assert response.headers["HX-Push-Url"].endswith("#section-traffic")
+    assert response.headers["HX-Push-Url"].endswith("#section-otsing")
 
 
 def test_the_traffic_fragment_pushes_the_page_it_belongs_to(viewer_client):
-    """Nähtavus keeps its own fragment, and its own URL state.
+    """Koduleht keeps its own fragment, and its own URL state.
 
     Stated explicitly because the other two fragments moved: what makes this one
     a visibility route is that the address it puts in the reader's bar is the
-    visibility page's.
+    Koduleht page's — `/koduleht/`, in the view that answers a page search.
     """
     pushed = viewer_client.get(reverse(TRAFFIC_SEARCH), {"otsing": "liikmemaks"}).headers[
         "HX-Push-Url"
     ]
 
     assert pushed.startswith(reverse("visibility"))
+    assert "fookus=lehed" in pushed
 
 
 # -- it is an ordinary protected route ---------------------------------------

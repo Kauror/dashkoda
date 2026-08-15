@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import datetime as dt
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 
 from openpyxl import load_workbook
@@ -126,10 +127,30 @@ EVENTS_COLUMNS = (
     "export_refreshed_at",
 )
 
-# What DashKoda keeps. Pricing, discounts, the ``*_raw`` echo columns and the
-# planning-lead figures are deliberately absent from the model as well as the
-# interface: the product does not need them, and a field that does not exist
-# cannot leak. They are parsed past, not parsed in.
+# What DashKoda keeps.
+#
+# The ``*_raw`` echo columns, the discount pair and the internal group columns
+# stay deliberately absent from the model as well as the interface: the product
+# does not need them, their business meaning has never been established, and a
+# field that does not exist cannot leak. They are parsed past, not parsed in.
+#
+# The five **normalised** planning and price columns are stored, and that is a
+# deliberate reversal of the first implementation. They were profiled against
+# the real export before the fields were added:
+#
+# - ``added_date`` on 1 183 of 1 190 rows, spread across every source year in
+#   proportion to that year's event count — so it is a real per-event date
+#   rather than a backfill stamped on the day somebody built the sheet;
+# - ``planning_lead_days`` on 1 151 rows, and equal to
+#   ``start_date - added_date`` on **every** row where both exist. The
+#   generator's own arithmetic is therefore reproduced rather than replaced;
+# - ``price_status`` on 100% of rows in every source year, which is what makes
+#   "free" a stated fact instead of an absent price read as zero;
+# - the two current price columns, on 96% and 94% of rows.
+#
+# ``later_member_price_eur`` and ``later_nonmember_price_eur`` are still
+# discarded: 3.4% coverage and no documented meaning for "later" is not enough
+# to put a number on a screen.
 STORED_COLUMNS = (
     "event_id",
     "service_code",
@@ -147,6 +168,11 @@ STORED_COLUMNS = (
     "event_type_label",
     "delivery_mode",
     "include_status",
+    "member_price_eur",
+    "nonmember_price_eur",
+    "price_status",
+    "added_date",
+    "planning_lead_days",
     "public_url",
     "public_link_status",
     "source_year",
@@ -250,6 +276,18 @@ class WorkbookRow:
     event_type_label: str
     delivery_mode: str
     include_status: str
+    # The event's current list prices and the generator's own statement about
+    # them. `price_status` is authoritative: a null price with status `free` is
+    # a free event, and a null price with status `missing`, `tba` or `review` is
+    # an unknown one. The two are never collapsed.
+    member_price_eur: Decimal | None
+    nonmember_price_eur: Decimal | None
+    price_status: str
+    # When the event entered the operational programme, and the generator's own
+    # `start_date - added_date`. Negative values are real and are kept: an event
+    # entered after it ran is a data-entry fact, not something to clamp to zero.
+    added_date: dt.date | None
+    planning_lead_days: int | None
     public_url: str
     public_link_status: str
     source_year: int
@@ -318,6 +356,41 @@ def _as_int(value, *, column: str, row_number: int, allow_none: bool = False) ->
             f"Reas {row_number} ei ole veerg {column!r} täisarv vaid {type(value).__name__}."
         )
     return value
+
+
+def _as_money(value, *, column: str, row_number: int) -> Decimal | None:
+    """A parsed euro amount, or None when the generator left the cell empty.
+
+    Only the **normalised** price columns come through here, and they are
+    numeric by contract — the generator has already read whatever the
+    operational sheet said and either produced a number or left the cell blank
+    and said so in ``price_status``. Text is therefore a contract break rather
+    than something to interpret: a price this importer tried to read out of
+    ``"al. 50€"`` would be a number nobody verified.
+
+    Zero is a value, not a blank. It is what the generator writes for a free
+    event, and `price_status` is what says so.
+    """
+    if _is_blank(value):
+        return None
+    if isinstance(value, bool):
+        raise WorkbookContractError(
+            f"Reas {row_number} ei ole veerg {column!r} arv vaid tõeväärtus."
+        )
+    if not isinstance(value, (int, float, Decimal)):
+        raise WorkbookContractError(
+            f"Reas {row_number} ei ole veerg {column!r} arv vaid {type(value).__name__}."
+        )
+    try:
+        # Via `str`, so 40.0 does not arrive as 40.000000000000001.
+        amount = Decimal(str(value))
+    except InvalidOperation as error:  # pragma: no cover - guarded above
+        raise WorkbookContractError(
+            f"Reas {row_number} ei ole veerg {column!r} loetav arv."
+        ) from error
+    if amount < 0:
+        raise WorkbookContractError(f"Reas {row_number} on veerg {column!r} negatiivne.")
+    return amount.quantize(Decimal("0.01"))
 
 
 def _as_bool(value, *, column: str, row_number: int) -> bool:
@@ -576,6 +649,20 @@ def _parse_rows(sheet, header_row: int) -> tuple[WorkbookRow, ...]:
                 event_type_label=_text(cell("event_type_label")),
                 delivery_mode=_text(cell("delivery_mode")),
                 include_status=_text(cell("include_status")),
+                member_price_eur=_as_money(
+                    cell("member_price_eur"), column="member_price_eur", row_number=offset
+                ),
+                nonmember_price_eur=_as_money(
+                    cell("nonmember_price_eur"), column="nonmember_price_eur", row_number=offset
+                ),
+                price_status=_text(cell("price_status")),
+                added_date=_as_date(cell("added_date"), column="added_date", row_number=offset),
+                planning_lead_days=_as_int(
+                    cell("planning_lead_days"),
+                    column="planning_lead_days",
+                    row_number=offset,
+                    allow_none=True,
+                ),
                 public_url=_text(cell("public_url"), limit=MAX_URL_LENGTH),
                 public_link_status=_text(cell("public_link_status")),
                 source_year=_as_int(cell("source_year"), column="source_year", row_number=offset),

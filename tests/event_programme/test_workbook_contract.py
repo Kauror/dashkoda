@@ -73,15 +73,29 @@ def test_warning_codes_become_a_list(tmp_path):
     assert first.warning_codes == ["price_unparsed", "date_shifted"]
 
 
-def test_no_price_column_survives_parsing():
-    """Pricing is verified in the header and then discarded.
+def test_only_the_normalised_price_columns_survive_parsing():
+    """The current price pair and its status are stored; nothing else about money is.
 
-    A field that does not exist cannot reach a model, a template or an export.
+    The raw echoes, the discount pair and the **later** price pair are verified
+    in the header — so a generator change cannot pass unnoticed — and then
+    discarded. A field that does not exist cannot reach a model, a template or an
+    export, and the later prices reach 3.4% coverage with no documented meaning.
     """
-    assert "member_price_eur" in EVENTS_COLUMNS
-    assert not any("price" in name for name in STORED_COLUMNS)
+    assert "member_price_raw" in EVENTS_COLUMNS
+    assert set(name for name in STORED_COLUMNS if "price" in name) == {
+        "member_price_eur",
+        "nonmember_price_eur",
+        "price_status",
+    }
+    assert not any("later" in name for name in STORED_COLUMNS)
     assert not any("discount" in name for name in STORED_COLUMNS)
     assert not any(name.endswith("_raw") for name in STORED_COLUMNS)
+    assert not any(name.startswith("group") for name in STORED_COLUMNS)
+
+
+def test_planning_columns_are_stored_as_the_source_wrote_them():
+    assert "added_date" in STORED_COLUMNS
+    assert "planning_lead_days" in STORED_COLUMNS
 
 
 @pytest.mark.parametrize("missing_sheet", [EVENTS_SHEET, OCCURRENCES_SHEET])

@@ -1,0 +1,179 @@
+{% comment %}
+Andmete kohta — available, not intrusive.
+
+A `<details>` at the foot of every view, closed by default. It carries the
+provenance and the arithmetic a reader needs to decide how much to trust the page
+above it: what was collected, what was missing, and which figures add and which
+do not.
+
+The operator's link to manual data entry lives here too. It is no longer a
+primary Koduleht action — the four hand-entered social figures are not what this
+page is about — but the workflow is untouched, and staff who need it should not
+have to remember the admin URL.
+{% endcomment %}
+<section aria-labelledby="section-andmed" class="dk-section" id="section-andmed">
+  {% include "dashboard/components/section_header.html" with title="Andmete kohta" heading_id="section-andmed" only %}
+  <div class="dk-section-body">
+    <details class="text-sm">
+      <summary class="cursor-pointer text-text-secondary">Kaetus, mõisted ja allikas</summary>
+      <div class="mt-4 flex flex-col gap-5">
+
+        {% comment %}
+        Only once something has been collected. A coverage table reading zero
+        across every row describes nothing — the page above it already says the
+        source has produced no days — and a column of zeros beside words like
+        "puuduvaid päevi" reads as a measurement rather than as an absence.
+        {% endcomment %}
+        {% if page.has_data %}
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-semibold text-text">Kaetus</h3>
+          <dl class="grid gap-x-8 gap-y-2 sm:grid-cols-2">
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Mõõtmine algab</dt>
+              <dd class="tabular-nums text-text">{{ page.coverage.earliest|date:"d.m.Y"|default:"–" }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Viimane kogutud päev</dt>
+              <dd class="tabular-nums text-text">{{ page.coverage.latest|date:"d.m.Y"|default:"–" }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Valitud periood</dt>
+              <dd class="tabular-nums text-text">{{ page.period.range_label|default:"–" }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Võrdlusperiood</dt>
+              <dd class="tabular-nums text-text">{{ page.comparison.range_label|default:"–" }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Perioodi päevi</dt>
+              <dd class="tabular-nums text-text">{{ page.period_coverage.expected_days }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Kogutud päevi</dt>
+              <dd class="tabular-nums text-text">{{ page.period_coverage.snapshot_days }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Puuduvaid päevi</dt>
+              <dd class="tabular-nums text-text">{{ page.period_coverage.missing_count }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Lehekaupa kogutud päevi</dt>
+              <dd class="tabular-nums text-text">{{ page.period_coverage.days_with_page_detail }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Kanalite kaupa kogutud päevi</dt>
+              <dd class="tabular-nums text-text">{{ page.period_coverage.days_with_channel_detail }}</dd>
+            </div>
+            <div class="flex justify-between gap-4 border-b border-border pb-1">
+              <dt class="text-text-secondary">Kaasatuse ajaga päevi</dt>
+              <dd class="tabular-nums text-text">{{ page.period_coverage.days_with_engagement_seconds }}</dd>
+            </div>
+          </dl>
+          {% if not page.comparison.is_available and page.comparison.unavailable_reason %}
+            <p class="dk-meta">{{ page.comparison.unavailable_reason }}</p>
+          {% endif %}
+        </div>
+        {% endif %}
+
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-semibold text-text">Mis liidetakse ja mis mitte</h3>
+          <p class="text-text-secondary">
+            Seansid, lehevaatamised ja kaasatud seansid on sündmuste arvud: need kuuluvad ühte
+            päeva ja päevade summa on perioodi summa.
+          </p>
+          <p class="text-text-secondary">
+            Aktiivsed kasutajad on <strong>erinevad inimesed</strong>. Esmaspäeva 400 ja teisipäeva
+            380 ei ole 780 — suur osa on samad inimesed. Päevade kaupa loendatud erinevaid inimesi ei
+            saa perioodi arvuks liita, nii et kuvatakse kõige aktiivsem üksik päev ja seda ka
+            öeldakse. „Perioodi kasutajate arvu“ selles rakenduses ei ole.
+          </p>
+          <p class="text-text-secondary">
+            <strong>Uusi kasutajaid</strong> kogutakse, kuid perioodi summana ei kuvata. Selle
+            liitmine päevade kaupa võib anda soovitud suuruse, kuid seda ei ole selle property
+            vastu tõendatud, ja siin rakenduses kontrollitakse näitaja tähendus enne avaldamist.
+          </p>
+          <p class="text-text-secondary">
+            Puuduv väärtus ei ole null. Kogumata päev ei ole nullliiklusega päev, ja leht ilma
+            mõõdetud reata ei ole leht, mille liiklus mõõdeti nulliks.
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-semibold text-text">Näitajate definitsioonid</h3>
+          <dl class="flex flex-col gap-1 text-text-secondary">
+            <div><dt class="inline font-medium text-text">Kaasatud seansside osakaal:</dt>
+              <dd class="inline">kaasatud seansid jagatud seanssidega samadel päevadel. Päevaste
+                protsentide keskmist ei võeta.</dd></div>
+            <div><dt class="inline font-medium text-text">Kaasatuse aeg / seanss:</dt>
+              <dd class="inline">kaasatuse sekundid jagatud nende samade päevade seanssidega, kus
+                sekundid olid mõõdetud.</dd></div>
+            <div><dt class="inline font-medium text-text">Lehevaatamisi seansi kohta:</dt>
+              <dd class="inline">lehevaatamised jagatud seanssidega. See ei ole erinevate lehtede
+                arv seansis.</dd></div>
+            <div><dt class="inline font-medium text-text">Kanali osakaal:</dt>
+              <dd class="inline">kanali seansid jagatud kogu kodulehe seanssidega, mitte kuvatud
+                kanalite summaga.</dd></div>
+            <div><dt class="inline font-medium text-text">Vaadatud sisu jaotus:</dt>
+              <dd class="inline">osakaal järjestatavaks sisuks loetud lehtede vaatamistest. Keelte
+                avalehed, ostukorv, siseotsing, Drupali node-aadressid ja veadokumendid jäävad
+                sellest nimekirjast välja — kuid mitte kodulehe kogusummadest.</dd></div>
+            <div><dt class="inline font-medium text-text">Sisukeel:</dt>
+              <dd class="inline">vaadatud lehe keeleversioon aadressi järgi. Mitte külastaja
+                rahvus, riik ega eelistatud keel.</dd></div>
+            <div><dt class="inline font-medium text-text">Kaasatuse aeg / lehevaatamine:</dt>
+              <dd class="inline">GA4 <code>userEngagementDuration</code> jagatud nende ridade
+                vaatamistega, kus kestus oli mõõdetud. See ei ole „lehel viibitud aeg“.</dd></div>
+            <div><dt class="inline font-medium text-text">Kokku mõõdetud:</dt>
+              <dd class="inline">vaatamised GA4 kaetuse sees. Enne mõõtmise algust avaldatud lehe
+                puhul ei ole see kogu eluaja arv.</dd></div>
+          </dl>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-semibold text-text">Millal võrdlust ei näidata</h3>
+          <p class="text-text-secondary">
+            Võrdlusperiood on vahetult eelnev sama pikk vahemik, ilma kattumiseta. Muutust
+            kuvatakse ainult siis, kui mõlemad perioodid on selle andmetaseme kohta piisavalt
+            kaetud — kodulehe näitajad vajavad päevaseid ridu, sisu võrdlus lehekaupa ridu ja
+            kanalite võrdlus kanalite kaupa ridu. Täielikku perioodi ei võrrelda poolikuga:
+            selline vahe kirjeldaks kogumist, mitte kodulehte.
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-semibold text-text">Mida need andmed ei ütle</h3>
+          <ul class="flex list-disc flex-col gap-1 pl-5 text-text-secondary">
+            <li>perioodi kordumatute kasutajate arvu;</li>
+            <li>külastajate demograafiat, riiki ega seadmeid;</li>
+            <li>maandumislehti ega liikluse allikat täpsemalt kui kanalirühm;</li>
+            <li>uudiskirja mõju kodulehe liiklusele;</li>
+            <li>eesmärke ega konversioone — neid ei koguta;</li>
+            <li>e-poe äritulemusi: tellimusi, käivet ega tooteid. Need on E-poe töölaual.</li>
+          </ul>
+          <p class="dk-meta">
+            Kodulehe kogusummad sisaldavad ka poelehtede liiklust — see on osa kodulehe
+            kasutusest ja seda ei lahutata maha.
+          </p>
+        </div>
+
+        <div class="flex flex-col gap-2">
+          <h3 class="text-sm font-semibold text-text">Allikas</h3>
+          <p class="text-text-secondary">
+            Google Analytics 4, üks lugemisõigusega teenusekonto, kogutud ajastatud käsuga.
+            Iga aruandepäev salvestatakse muutumatu redaktsioonina; arvestusse läheb ainult
+            kehtiv redaktsioon. Ükski leht ei pöördu joonistamise ajal Google'i poole ja ühtegi
+            üksikut külastajat ei salvestata.
+          </p>
+          {% if can_add_data %}
+            <p class="dk-meta">
+              Käsitsi sisestatavad sotsiaalmeedia näitajad ei kuulu Koduleheks, kuid nende
+              sisestamine töötab endiselt:
+              <a class="dk-link" href="{% url 'visibility-admin-entry-new' %}">Lisa andmed</a>.
+            </p>
+          {% endif %}
+        </div>
+
+      </div>
+    </details>
+  </div>
+</section>

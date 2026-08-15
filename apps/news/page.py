@@ -602,11 +602,11 @@ def build_overview(
         if reading.has_window
         else analytics.NewsTrafficSummary()
     )
-    previous_traffic = analytics.NewsTrafficSummary()
-    if reading.has_window:
-        previous_start, previous_end = analytics.previous_window(reading.start, reading.end)
-        if coverage.earliest is not None and previous_start >= coverage.earliest:
-            previous_traffic = analytics.news_traffic(start=previous_start, end=previous_end)
+    previous_traffic = (
+        analytics.previous_traffic_within(reading.start, reading.end, coverage)
+        if reading.has_window
+        else analytics.NewsTrafficSummary()
+    )
 
     cohorts = analytics.benchmark_cohorts(coverage=coverage)
 
@@ -928,6 +928,7 @@ def build_newsletters(*, newsletter_key: str, sends_limit: int = 24) -> dict:
     """
     from apps.visibility.smaily_segments import NEWSLETTERS
     from apps.visibility.smaily_selectors import (
+        DEFAULT_AGGREGATE_ISSUES,
         get_campaign_performance,
         get_newsletter_aggregate,
     )
@@ -943,8 +944,12 @@ def build_newsletters(*, newsletter_key: str, sends_limit: int = 24) -> dict:
             "selected_newsletter": "",
         }
 
-    recent = get_newsletter_aggregate(newsletter_key, limit=12)
-    previous = get_newsletter_aggregate(newsletter_key, limit=12, offset=12)
+    # One block size for both slices, so "the twelve before" is always the
+    # same twelve the recent figure is quoted over.
+    recent = get_newsletter_aggregate(newsletter_key, limit=DEFAULT_AGGREGATE_ISSUES)
+    previous = get_newsletter_aggregate(
+        newsletter_key, limit=DEFAULT_AGGREGATE_ISSUES, offset=DEFAULT_AGGREGATE_ISSUES
+    )
     sends = [
         send
         for send in get_campaign_performance(metric=newsletter_key, limit=sends_limit)
@@ -972,7 +977,7 @@ def _newsletter_summary(metric: str) -> dict:
     """
     from apps.visibility.smaily_selectors import get_newsletter_aggregate
 
-    aggregate = get_newsletter_aggregate(metric, limit=12)
+    aggregate = get_newsletter_aggregate(metric)
     return {
         "metric": metric,
         "label": aggregate.label,

@@ -262,8 +262,26 @@
       sm:grid-cols-2 xl:grid-cols-4;
   }
 
+  /* `relative` is load-bearing, not decoration.
+
+     The strip is `overflow-hidden` and `static`, and an absolutely positioned
+     box is only clipped by an ancestor's `overflow` when that ancestor is in
+     its containing-block chain. A visually-hidden note inside a cell —
+     `sr-only` is `position: absolute` — therefore had no containing block at
+     all: it settled at the full width of its spoken text and dragged the
+     document sideways, while the strip itself looked perfectly correct.
+
+     Four dashboards met this independently and three shipped their own local
+     `relative` before it was understood as one defect: Nähtavus lost 324
+     pixels to it, and Uudised, Koduleht and Õigusloome each rediscovered it in
+     CI. Positioning every cell makes each one the containing block for its own
+     note, so the strip's own `overflow-hidden` clips it and the next headline
+     that needs a screen-reader note cannot reintroduce the bug.
+
+     `e2e/seeded/layout.spec.js` asserts the shape rather than the symptom,
+     across every routed page, which is what keeps this honest. */
   .dk-kpi-strip > * {
-    @apply bg-surface;
+    @apply relative bg-surface;
   }
 
   /* The six-slot communication-channel band. Three columns from `lg` upward

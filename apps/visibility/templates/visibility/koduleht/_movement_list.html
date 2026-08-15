@@ -1,0 +1,20 @@
+{% comment %}
+One side of the movement analysis — pages that gained, or pages that lost.
+
+Neutral wording on both sides. A fall is not a failure: an event ended, a topic
+left the news, a campaign finished. The heading says what was measured and the
+reader decides what it means.
+
+Context:
+  title – required
+  table – a TableView, or None
+  empty – what to say when there is nothing in it
+{% endcomment %}
+<div class="flex min-w-0 flex-col gap-2">
+  <h3 class="text-sm font-semibold text-text">{{ title }}</h3>
+  {% if table.has_rows %}
+    {% include "visibility/koduleht/_table.html" with table=table only %}
+  {% else %}
+    <p class="dk-meta">{{ empty }}</p>
+  {% endif %}
+</div>

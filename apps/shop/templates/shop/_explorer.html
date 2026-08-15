@@ -1,0 +1,83 @@
+{% comment %}
+The whole-population product explorer.
+
+Search, sorting and paging all run on the server across every product in scope,
+never across the rows currently on screen — a product ranked #347 is exactly the
+kind somebody looks up, and a client-side filter would answer only for the
+twenty-five already rendered.
+
+Five columns, and the category rides inside the product cell as muted secondary
+text rather than taking a column of its own. On a phone that is the difference
+between a readable table and seven numeric columns nobody can scan; the table
+scrolls inside its own wrapper so the page never scrolls sideways.
+
+Sorting lives on the headers, so the control sits on the thing it orders.
+`aria-sort` carries the state for a screen reader; the arrow is the visual echo
+of it rather than the only signal.
+{% endcomment %}
+<section id="tooted" aria-labelledby="section-products" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Kõik tooted" heading_id="section-products" only %}
+  <div class="dk-section-body flex flex-col gap-3">
+    <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <p class="dk-meta">{{ overview.result_summary }}</p>
+      <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
+        <input type="hidden" name="periood" value="{{ overview.period.key }}">
+        <input type="hidden" name="fookus" value="{{ overview.focus }}">
+        {% if overview.period.period.is_custom %}
+          <input type="hidden" name="alates" value="{{ overview.period.start|date:'Y-m-d' }}">
+          <input type="hidden" name="kuni" value="{{ overview.period.end|date:'Y-m-d' }}">
+        {% endif %}
+        <label for="otsing" class="sr-only">Otsi toodet</label>
+        <input type="search" id="otsing" name="otsing" value="{{ overview.search }}"
+               maxlength="120" placeholder="Otsi toodet, teed või ID-d…" class="dk-input w-full min-w-0 sm:w-64">
+        <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+      </form>
+    </div>
+
+    {% if overview.has_rows %}
+      <div class="w-full min-w-0 overflow-x-auto">
+        <table class="w-full border-collapse text-sm">
+          <caption class="sr-only">E-poe tooted valitud perioodil</caption>
+          <thead>
+            <tr>
+              {% for option in overview.sort_options %}
+                <th scope="col" class="border-b border-border px-2 py-1.5 text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3 {% if forloop.first %}w-full text-left{% else %}text-right{% endif %}"
+                    {% if option.is_active %}aria-sort="descending"{% endif %}>
+                  <a class="hover:underline" href="?{{ option.query }}">{{ option.label }}{% if option.is_active %} ↓{% endif %}</a>
+                </th>
+              {% endfor %}
+            </tr>
+          </thead>
+          <tbody>
+            {% for row in overview.products %}
+              <tr>
+                <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal break-all sm:px-3 sm:break-words">
+                  <a class="dk-link" href="{% url 'shop-product' row.source_product_id %}">{{ row.title }}</a>
+                  <span class="block dk-meta">{{ row.category_name }}</span>
+                </th>
+                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text sm:px-3">{{ row.units }}</td>
+                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.value }}</td>
+                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.product_views }}</td>
+                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.rate }}</td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      {% if overview.total_pages > 1 %}
+        <nav aria-label="Toodete leheküljed" class="flex flex-wrap items-center justify-between gap-3">
+          {% if overview.has_previous %}
+            <a class="dk-button dk-button-secondary" href="?{{ overview.previous_query }}">Eelmine</a>
+          {% else %}<span></span>{% endif %}
+          <span class="dk-meta">Lehekülg {{ overview.page }} / {{ overview.total_pages }}</span>
+          {% if overview.has_next %}
+            <a class="dk-button dk-button-secondary" href="?{{ overview.next_query }}">Järgmine</a>
+          {% else %}<span></span>{% endif %}
+        </nav>
+      {% endif %}
+    {% else %}
+      {% include "dashboard/components/empty_state.html" with message="Valitud tingimustel tooteid ei ole." only %}
+    {% endif %}
+  </div>
+</section>

@@ -29,8 +29,9 @@ upcoming events, and never overrides it. See
 [docs/event-programme-feed.md](docs/event-programme-feed.md).
 
 The four **social** follower counts — Facebook, LinkedIn, Instagram and YouTube
-— are **entered by hand** by a staff user and shown at `/nahtavus/` and in the
-overview's channel band. Nothing collects them: there is no social integration,
+— are **entered by hand** by a staff user and shown in the overview's channel
+band. (`/nahtavus/` itself is now a redirect: the website surface became
+**Koduleht** at `/koduleht/`.) Nothing collects them: there is no social integration,
 no credential and no scheduled job, and no model field is capable of holding an
 individual follower. See
 [docs/visibility-manual-entry.md](docs/visibility-manual-entry.md).
@@ -242,6 +243,9 @@ Sources, one document each:
   the manual export contract and the two withheld dimensions
 - [docs/visibility-manual-entry.md](docs/visibility-manual-entry.md) — the
   hand-entered social audience figures and the staff data-entry hub
+- [docs/metric-contract.md](docs/metric-contract.md) — the integrated metric
+  contract: every major figure's definition, grain, time basis, missing
+  behaviour, comparison rule and executive use, in one table
 
 The legal-work catalogues and matchers:
 

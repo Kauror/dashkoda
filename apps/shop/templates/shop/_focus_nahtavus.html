@@ -1,0 +1,88 @@
+{% comment %}
+`Nähtavus` — what gets attention, what gets acquired, and where the evidence
+supports doing something about it.
+
+Two things this view states rather than assumes.
+
+The **overlap window**. Commerce history begins in 2020 and GA4's in 2023, and
+GA4 keeps collecting after a manual export stops — so every figure here is
+computed inside the interval both sources cover, and the interval is printed.
+A reader should never have to work out why the web numbers span less history
+than the orders.
+
+The **coverage**. A product with no acquisition page and a product whose page
+exists but was never measured are different situations, and neither is a
+product with zero views. They are counted separately, because only the second
+might be measured next month.
+{% endcomment %}
+
+<section aria-labelledby="section-webhead" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Nähtavus ja soetamine" heading_id="section-webhead" only %}
+  <div class="dk-section-body flex flex-col gap-4">
+    {% if overview.window.has_web %}
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <p class="text-sm text-text-secondary">{{ overview.views_label }}</p>
+          <p class="text-metric font-semibold tabular-nums text-text">{{ overview.product_views }}</p>
+        </div>
+        <div>
+          <p class="text-sm text-text-secondary">{{ overview.rate_label }}</p>
+          <p class="text-metric font-semibold tabular-nums text-text">{{ overview.rate }}</p>
+        </div>
+      </div>
+      <p class="dk-meta">Tellimused {{ overview.coverage_label }}. Veebivõrdlus {{ overview.web_interval_label }} — ühiseid näitajaid arvutatakse ainult kattuval perioodil.</p>
+
+      {% if overview.web_coverage.has_population %}
+        <div class="flex flex-col gap-1">
+          <p class="text-sm text-text">{{ overview.web_coverage.summary }}</p>
+          <p class="dk-meta">
+            Ostulehte ei ole määratud: {{ overview.web_coverage.without_path }} tootel.
+            Ostuleht on olemas, kuid mõõdetud andmeid ei ole: {{ overview.web_coverage.without_measurement }} tootel.
+            Mõõtmata leht ei ole null vaatamist.
+          </p>
+        </div>
+      {% endif %}
+    {% else %}
+      {% include "dashboard/components/empty_state.html" with message="Veebivõrdlus ei ole selle perioodi kohta võimalik." detail="Valitud periood jääb väljapoole mõõdetud veebistatistikat või imporditud tellimusi." only %}
+    {% endif %}
+  </div>
+</section>
+
+{% if overview.window.has_web %}
+  {% if overview.weak_acquisition or overview.strong_acquisition %}
+    <section aria-labelledby="section-opportunity" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Kus tasub vaadata" heading_id="section-opportunity" only %}
+      <div class="dk-section-body flex flex-col gap-4">
+        <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          <div class="min-w-0">
+            <h3 class="mb-2 text-sm font-semibold text-text">Palju vaatamisi, nõrk soetamise määr</h3>
+            {% include "shop/_opportunities.html" with rows=overview.weak_acquisition only %}
+          </div>
+          <div class="min-w-0">
+            <h3 class="mb-2 text-sm font-semibold text-text">Tugev soetamise määr</h3>
+            {% include "shop/_opportunities.html" with rows=overview.strong_acquisition only %}
+          </div>
+        </div>
+        <p class="dk-meta">Mõlemasse nimekirja pääsevad ainult tooted, millel on vähemalt {{ overview.opportunity_threshold }} mõõdetud vaatamist. Kolme vaatamise ja ühe soetusega toode ei ole 33 soetust 100 vaatamise kohta. Tugev määr ei tähenda, et toode oleks strateegiliselt kõige väärtuslikum.</p>
+      </div>
+    </section>
+  {% endif %}
+
+  {% if overview.matrix.is_available %}
+    <section aria-labelledby="section-matrix" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Tähelepanu ja soetamine" heading_id="section-matrix" only %}
+      <div class="dk-section-body flex flex-col gap-3">
+        <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {% for cell in overview.matrix.cells %}
+            <div class="min-w-0 rounded-lg border border-border p-3">
+              <h3 class="text-sm font-semibold text-text">{{ cell.label }}</h3>
+              <p class="text-metric font-semibold tabular-nums text-text">{{ cell.count }}</p>
+              <p class="dk-meta">toodet</p>
+            </div>
+          {% endfor %}
+        </div>
+        <p class="dk-meta">Jaotus käib mõõdetud toodete mediaani järgi: {{ overview.matrix.median_views }} vaatamist ja {{ overview.matrix.median_rate }} soetust 100 vaatamise kohta. Mediaan on valitud selleks, et piir oleks samast andmestikust tuletatav ja seletatav, mitte häälestatud konstant. Mõõtmata tooted ei ole siin, sest mõõtmata toode ei ole vähese vaatamisega toode.</p>
+      </div>
+    </section>
+  {% endif %}
+{% endif %}

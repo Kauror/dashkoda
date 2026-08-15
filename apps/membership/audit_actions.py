@@ -14,6 +14,14 @@ from django.db import models
 
 
 class MembershipAudit(models.TextChoices):
+    COMPOSITION_IMPORTED = (
+        "membership.composition_imported",
+        "Liikmeskonna koosseis imporditud",
+    )
+    COMPOSITION_UNCHANGED = (
+        "membership.composition_unchanged",
+        "Liikmeskonna koosseis: muutusteta",
+    )
     HISTORY_FAILED = "membership.history_failed", "Liikmeskonna ajaloo import ebaõnnestus"
     HISTORY_IMPORTED = "membership.history_imported", "Liikmeskonna ajalugu imporditud"
     HISTORY_UNCHANGED = "membership.history_unchanged", "Liikmeskonna ajalugu: muutusteta"

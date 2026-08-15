@@ -24,6 +24,7 @@ replace the manual package later without any of them changing.
 | `ShopProductSnapshot` | catalogue metadata observed on one day | one current per (product, day) |
 | `ShopProductPage` | one public path in one role | one current per (product, role) |
 | `ShopDailyFact` | one day × product × member status × payment class | one current per cell |
+| `ShopDailySummary` | how many **distinct** orders one day carried, per product type | one current per (day, type) |
 | `ShopSourceState` | what the dataset covers and which semantics are trusted | one current |
 
 Published rows are immutable. A correction inserts a **new current row** naming
@@ -99,11 +100,42 @@ So the two surfaces name it differently, and the difference is not cosmetic:
 | `/epood/` overview | **Tellimusridu** | the sum spans products, so an order is counted once per product it contained |
 | `/epood/toode/<id>/` | **Tellimused** | the sum spans one product's cells, so each order appears once |
 
-On the first real dataset that is **5 551 order lines against 4 052 distinct
-orders** — calling the overview figure "orders" would overstate it by 37%.
+On the published dataset that is **5 551 order lines against 4 009 distinct
+orders** — calling the overview figure "orders" overstates it by 38.5%. Both
+figures were measured against the live database on 2026-08-14; the earlier
+estimates in this file and in `models.py` predated `ShopDailySummary`, so the
+order side of them was never counted.
 
-A true distinct-order count across products is not derivable from this grain and
-would need an order-level dimension the aggregate deliberately does not carry.
+### Where the distinct count comes from
+
+`ShopDailyFact` cannot answer it, so schema 2.0 packages carry
+`ShopDailySummary`: the count is computed at import, where the order
+identifiers still exist, and only the total survives. No order number, order ID
+or customer field is stored anywhere.
+
+Its grain is **day × product type**, plus a blank-type row carrying the true
+total across every type. Both are needed because an order containing a document
+and a physical product belongs to two type rows but is one order — so the type
+rows are never added together.
+
+There is deliberately **no category, member or product dimension**. One order
+routinely spans categories, so a per-category distinct count could not be summed
+into anything.
+
+This gives the interface a rule it must follow rather than a number it may
+always use:
+
+| Selection | Order figure |
+| --- | --- |
+| all products | `Tellimused` — the blank-type summary row |
+| one product type | `Tellimused` — that type's summary row |
+| a category, member status or search | **`Tellimusridu`** — order lines, relabelled |
+| one product, on its own page | `Tellimused` — the sum runs over one product's cells |
+
+`selectors.distinct_orders_supported()` decides this before the query runs, and
+the label follows the metric. Showing the type-wide count beside one category's
+units and value would put two populations in one row with nothing on screen
+saying so, and `tests/shop/test_shop_order_semantics.py` holds the rule.
 
 ### Acquisitions, not downloads
 
@@ -199,11 +231,35 @@ Whenever the web window is narrower than the Commerce one — the ordinary case,
 Commerce history beginning in 2020 and GA4's in 2023 — the page states the
 interval the web figures actually cover.
 
+### Which page the rate divides by
+
+`apps/shop/web_effectiveness.py` owns this decision and nothing else may make
+it. Before it existed every surface reached for `PageRole.PRODUCT`, which gave
+event registrations no rate at all — an event product's only public address is
+its event page.
+
+| Product family | Acquisition page | Why |
+| --- | --- | --- |
+| `document` | `PRODUCT` | `/et/pood/…` carries the buy action; `/et/tooriistad/…` only explains |
+| `event_registration` | `EVENT` | the public event page *is* the registration page |
+| `physical_product` | `PRODUCT` | the shop product page carries the buy action |
+
+**No substitution.** A product whose denominator role is absent has no rate.
+Dividing by the information page instead would not blur the answer — that page
+carries roughly a hundred times less traffic, so it would invert the ranking.
+
+**A shared page counts once.** `ShopProductPage` does not guarantee one product
+per canonical path: an early-bird and a full-price registration for one seminar
+legitimately share an event page. Aggregates therefore resolve unique
+denominator paths first and add each path's views once, while every product's
+acquisitions still count — the page sold both. Per product, that shared page
+remains that product's own denominator.
+
 ### The rate
 
 ```text
-Oste 100 tootelehe vaatamise kohta
-  = 100 × units in the web window ÷ product-page views in the same window
+Soetamisi 100 ostulehe vaatamise kohta
+  = 100 × units in the web window ÷ acquisition-page views in the same window
 ```
 
 It is `—`, never infinity and never zero, when the product has no product-page
@@ -299,11 +355,31 @@ Three outcomes:
 
 ## The pages
 
-`/epood/` — the overview: source disclosure, coverage-anchored period presets,
-product-type and category filters, the three Commerce figures plus product-page
-views, a monthly series, a category table and a searchable product ranking.
-Search runs over the whole product population, matching title, canonical path or
+`/epood/` — one route in five analytical states, selected by `?fookus=` and
+defaulting to the overview. An unknown value resolves to the overview rather
+than raising, so a link that outlives a rename still opens.
+
+| Focus | Answers |
+| --- | --- |
+| `ulevaade` | what is happening, and what deserves attention |
+| `ostud` | how acquisition activity develops over time |
+| `tooted` | which products and categories carry the shop |
+| `nahtavus` | what gets attention, what gets acquired, where the evidence supports acting |
+| `vaartus` | what value has been ordered, and what it is made of |
+
+Every control composes through `periods.build_query`, so changing the focus
+keeps the period, product type, categories and search — and the URL stays
+bookmarkable, shareable and reload-safe because the state lives in it. Search
+runs over the whole product population, matching title, canonical path or
 Commerce ID.
+
+Two rules the interface follows throughout. The generic word for a unit is
+**`Soetatud`**, not `Ostetud`, because a large share of the templates are free
+and an event registration is not a purchase; each family may narrow it, so an
+event says `Registreerimised` — never `Osalejad`, which is not a fact this
+dataset holds. And the attention list in `Tasub vaadata` is built from explicit
+thresholds on measured figures: no composite score, and no sentence about *why*
+anything moved.
 
 `/epood/toode/<commerce id>/` — one product: its Commerce figures, both
 page-view counts, the information → product → acquisition steps for a template
