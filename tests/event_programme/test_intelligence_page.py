@@ -248,15 +248,25 @@ def test_the_quality_block_states_its_denominators(viewer_client, programme):
 
 
 def test_the_public_calendar_is_secondary_and_not_subtracted(viewer_client, programme):
-    """The two sources count different things over different periods."""
-    html = _get(viewer_client, fookus=FOCUS_OVERVIEW).content.decode()
-    assert "Koda.ee avalik kalender" in html
-    assert "ei ole avaldamata sündmuste arv" in html
+    """The two sources count different things over different periods.
+
+    The rule did not change on 2026-08-15; the page it is stated on did. The
+    events dashboard no longer names the calendar at all, and `/haldus/` carries
+    the whole statement — including that the gap between the two counts is not a
+    count of unpublished events, which is the reading this exists to forbid.
+    """
+    assert (
+        "Koda.ee avalik kalender" not in _get(viewer_client, fookus=FOCUS_OVERVIEW).content.decode()
+    )
+
+    admin = viewer_client.get(reverse("dashboard-admin")).content.decode()
+    assert "Koda.ee avalik kalender" in admin
+    assert "ei ole avaldamata sündmuste arv" in admin
 
 
 def test_the_page_states_that_occurrences_are_not_sessions(viewer_client, programme):
-    html = _get(viewer_client, fookus=FOCUS_OVERVIEW).content.decode()
-    assert "korduvad lähteread" in html
+    """Also moved with the provenance block, and still stated in full."""
+    assert "korduvad lähteread" in viewer_client.get(reverse("dashboard-admin")).content.decode()
 
 
 # ---------------------------------------------------------------------------

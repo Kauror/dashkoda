@@ -308,22 +308,30 @@ def test_the_news_page_lists_items(viewer):
     assert "https://www.koda.ee/et/uudised/synthetic-0" in body
 
 
-def test_the_public_calendar_is_named_on_the_events_page_but_lists_nothing(viewer):
+def test_the_public_calendar_is_named_on_haldus_but_lists_nothing(viewer):
     """`/sundmused/` is the workbook programme's page.
 
-    The public calendar is a secondary connection there: its state and its own
-    count of publicly announced upcoming events are stated, and none of its rows,
-    titles, locations or URLs reaches the page.
+    The public calendar is a secondary connection, and where it is *named* moved
+    to `/haldus/` on 2026-08-15 with the rest of the provenance block. What has
+    not changed is the rule that matters: its state and its own count of
+    publicly announced upcoming events are all that is ever stated, and none of
+    its rows, titles, locations or URLs reaches any page.
     """
     synchronize_events(collector=collector_returning(event_collection(3)))
 
-    body = viewer.get(reverse("events")).content.decode()
+    events_page = viewer.get(reverse("events")).content.decode()
+    admin = viewer.get(reverse("dashboard-admin")).content.decode()
 
-    assert "Koda.ee avalik kalender" in body
-    assert "Avalikus kalendris eelseisvaid sündmusi lähikuul" in body
-    assert "Sünteetiline sündmus 0" not in body
-    assert "Sünteetiline saal" not in body
-    assert "https://www.koda.ee/et/sundmused/synthetic-0" not in body
+    assert "Koda.ee avalik kalender" not in events_page
+    assert "Koda.ee avalik kalender" in admin
+    assert "Avalikus kalendris eelseisvaid sündmusi lähikuul" in admin
+    for leaked in (
+        "Sünteetiline sündmus 0",
+        "Sünteetiline saal",
+        "https://www.koda.ee/et/sundmused/synthetic-0",
+    ):
+        assert leaked not in admin, f"the calendar leaked a row into Admin: {leaked}"
+        assert leaked not in events_page, f"the calendar leaked a row into Sündmused: {leaked}"
 
 
 def test_the_overview_shows_the_public_directory_and_no_calendar_figure(viewer):

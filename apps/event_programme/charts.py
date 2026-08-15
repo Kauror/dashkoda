@@ -401,8 +401,11 @@ def mix_over_time_chart(
     *,
     payload_id: str,
     title: str,
-    question: str,
     keys: tuple[tuple[str, str], ...],
+    # Optional, as it is on `ranking_chart`. A chart whose title already asks
+    # the question does not need it asked twice, and the board struck both of
+    # these on 2026-08-15.
+    question: str = "",
     footnotes: tuple[str, ...] = (),
 ) -> ChartPayload:
     """A 100% stacked bar per year: how a mix has shifted, without a level claim.
