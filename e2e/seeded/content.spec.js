@@ -288,13 +288,21 @@ test("a chart with no server-built readout still states its value separately", a
   const tooltip = await hoverUntilTooltip(page, canvas);
   expect(tooltip, "no point on the chart produced a tooltip").not.toBeNull();
 
-  // The category names the row; the series and its figure are separate cells.
+  /*
+   * The contract, and the whole of it: the category names the row, and the
+   * series and its figure are separate elements. Being separate elements is
+   * what makes the run-together impossible — a text assertion cannot express
+   * that, which is why this is asserted structurally.
+   *
+   * Nothing here may assert that a label does *not* end in a digit: the series
+   * on this chart are named `2025` and `2026`. An earlier version did, and
+   * failed on correct output.
+   */
   await expect(tooltip.locator(".dk-chart-tooltip-title")).not.toBeEmpty();
   const label = tooltip.locator("dt").first();
   const value = tooltip.locator("dd").first();
   await expect(label).not.toBeEmpty();
   await expect(value).toHaveText(/^\d/);
-
-  // The defect itself: a figure glued to the end of its own label.
-  await expect(label).not.toHaveText(/\d$/);
+  expect(await label.evaluate((node) => node.tagName)).toBe("DT");
+  expect(await value.evaluate((node) => node.tagName)).toBe("DD");
 });
