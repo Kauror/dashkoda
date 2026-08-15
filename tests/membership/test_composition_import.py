@@ -328,6 +328,31 @@ def test_reimporting_the_identical_file_changes_nothing(tmp_path):
 
 
 @pytest.mark.django_db
+def test_the_documented_dry_run_then_import_sequence_succeeds(tmp_path):
+    """A dry run must not block the live import of the very same file.
+
+    The command's own help tells the operator to validate with `--dry-run`
+    first. The dry run registers the artifact for provenance; the live import
+    of the identical bytes has to reuse that artifact rather than refuse to
+    register it a second time — which is exactly how the first production
+    roster import failed.
+    """
+    from apps.membership.models import MembershipCompositionSnapshot
+    from apps.sources.models import SourceArtifact
+
+    path = write_roster(tmp_path / "roster.xlsx")
+    rehearsal = import_composition_snapshot(path, snapshot_date=SNAPSHOT, dry_run=True)
+    result = import_composition_snapshot(path, snapshot_date=SNAPSHOT, dry_run=False)
+
+    assert rehearsal.dry_run is True
+    assert result.unchanged is False
+    assert result.values_written > 0
+    assert MembershipCompositionSnapshot.objects.filter(is_current=True).count() == 1
+    # One artifact for one checksum, however many runs consumed it.
+    assert SourceArtifact.objects.filter(sha256=result.source_sha256).count() == 1
+
+
+@pytest.mark.django_db
 def test_a_different_roster_will_not_import_over_an_existing_one_by_accident(tmp_path):
     import_composition_snapshot(
         write_roster(tmp_path / "first.xlsx"), snapshot_date=SNAPSHOT, dry_run=False
