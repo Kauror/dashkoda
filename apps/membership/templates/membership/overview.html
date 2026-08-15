@@ -267,7 +267,15 @@ by a rule written for this one.
         <form method="get" action="{% url 'membership' %}#section-register"
               class="flex flex-wrap items-end gap-x-3 gap-y-2">
           <input type="hidden" name="fookus" value="{{ focus }}">
-          <label class="flex flex-col gap-1">
+          {% comment %}
+          `min-w-0` on both labels and a width cap on both controls. A flex item
+          defaults to `min-width: auto`, so it refuses to shrink below its
+          content's minimum — and a native `select`'s minimum is its longest
+          option, which is built from data here ("Toetaja liige (8)"). Without
+          both, the widest status label decides whether this page scrolls
+          sideways at 320px, which is not a thing the data should get to decide.
+          {% endcomment %}
+          <label class="flex min-w-0 flex-col gap-1">
             <span class="dk-meta">Otsi</span>
             <input type="search"
                    name="{{ register_search }}"
@@ -276,9 +284,9 @@ by a rule written for this one.
                    class="dk-input w-72 max-w-full">
           </label>
           {% if register_statuses %}
-            <label class="flex flex-col gap-1">
+            <label class="flex min-w-0 flex-col gap-1">
               <span class="dk-meta">Staatus</span>
-              <select name="{{ register_status_param }}" class="dk-input">
+              <select name="{{ register_status_param }}" class="dk-input w-full max-w-full">
                 <option value="">Kõik</option>
                 {% for key, label, count in register_statuses %}
                   <option value="{{ key }}" {% if member_list.status == key %}selected{% endif %}>

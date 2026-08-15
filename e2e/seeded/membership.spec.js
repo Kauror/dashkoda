@@ -525,8 +525,11 @@ test("the two sources are compared without producing one merged total", async ({
   await expect(
     section.getByRole("heading", { name: "Ainult nimekirjas" }),
   ).toBeVisible();
+  // The heading is wordier than the count label above it on purpose, and the
+  // two must not be assumed identical: "Ainult kataloogis" is the count, while
+  // the list over the members themselves says which catalogue.
   await expect(
-    section.getByRole("heading", { name: "Ainult kataloogis" }),
+    section.getByRole("heading", { name: "Ainult avalikus kataloogis" }),
   ).toBeVisible();
 
   await expect(
