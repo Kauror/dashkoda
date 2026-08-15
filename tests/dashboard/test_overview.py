@@ -8,13 +8,15 @@ from apps.dashboard.navigation import NAVIGATION, iter_items, parent_key
 
 pytestmark = pytest.mark.django_db
 
+#: `Andmete seis` was the seventh and moved to `/haldus/` on 2026-08-15. The
+#: overview keeps only the header chip that counts what is worth disclosing;
+#: `tests/dashboard/test_admin_area.py` proves the section arrived.
 SECTION_TITLES = [
     "Koja seis",
     "Mis vajab tähelepanu?",
     "Järgmised 30 päeva",
     "Praegu huvi pakkuv",
     "Kanalite auditoorium",
-    "Andmete seis",
 ]
 
 

@@ -65,9 +65,13 @@ from apps.core.formatting import (
     signed_percent,
 )
 from apps.event_programme.executive import NEAR_TERM_DAYS, get_events_executive
+from apps.event_programme.selectors import get_event_programme_summary
 from apps.legal_work.executive import URGENT_DAYS, get_legal_work_executive
+from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.executive import get_membership_executive
+from apps.membership.selectors import get_membership_summary
 from apps.news.executive import get_news_executive
+from apps.news.selectors import get_news_summary
 from apps.shop.executive import get_shop_executive
 from apps.visibility.executive import get_website_executive
 from apps.visibility.page import build_channel_band
@@ -617,6 +621,30 @@ def _shop_panel(shop) -> ExecutiveInterestItem:
 # ---------------------------------------------------------------------------
 # Andmete seis
 # ---------------------------------------------------------------------------
+
+
+def build_data_status() -> tuple[ExecutiveDataStatus, ...]:
+    """Every source row, read on its own.
+
+    `/haldus/` renders this section since 2026-08-15 and has no page-wide read to
+    borrow from, so it asks for the rows directly. The overview keeps building
+    them inside `build_executive_overview` off the reads it already has — it
+    still needs the count for its header chip — and both go through the same
+    `_data_status`, so the two can never disagree about what a source's state is.
+    """
+    legal_work = get_legal_work_summary()
+    membership = get_membership_summary()
+    news = get_news_summary()
+    events = get_event_programme_summary()
+    return _data_status(
+        legal_work=legal_work,
+        membership=membership,
+        membership_exec=get_membership_executive(),
+        news=news,
+        events=events,
+        website_exec=get_website_executive(),
+        shop_exec=get_shop_executive(),
+    )
 
 
 def _data_status(

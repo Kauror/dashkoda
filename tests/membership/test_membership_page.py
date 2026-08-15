@@ -218,7 +218,11 @@ def test_overview_does_not_show_two_competing_totals(
     # report as its source. So the two definitions cannot be conflated, because
     # only one of them is stated as a total.
     assert "Liikmeid kokku · koja aruanne" not in body
-    assert "Koja sisemine liikmeskonna aruanne" in body
+    # The report is named in `Andmete seis`, which moved to `/haldus/` on
+    # 2026-08-15. It is still named — one page along — which is what keeps the
+    # two definitions from being conflated.
+    admin = viewer_client.get(reverse("dashboard-admin")).content.decode()
+    assert "Koja sisemine liikmeskonna aruanne" in admin
 
     membership = viewer_client.get(reverse("membership")).content.decode()
 

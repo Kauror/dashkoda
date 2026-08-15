@@ -3,14 +3,14 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
 // The executive overview's sections, in reading order: status, exceptions,
-// near-term work, audience behaviour, provenance.
+// near-term work, audience behaviour. Provenance was the fifth — `Andmete seis`
+// — and moved to `/haldus/` on 2026-08-15.
 const SECTIONS = [
   "Koja seis",
   "Mis vajab tähelepanu?",
   "Järgmised 30 päeva",
   "Praegu huvi pakkuv",
   "Kanalite auditoorium",
-  "Andmete seis",
 ];
 
 test("the shell renders every section with a truthful empty state", async ({ page }) => {
