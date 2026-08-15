@@ -1,6 +1,7 @@
 """The Õigusloome page and the overview integration."""
 
 import datetime as dt
+import re
 
 import pytest
 
@@ -372,9 +373,17 @@ def test_an_overview_row_without_a_resolved_address_is_plain_text(
     assert all(not row.public_url for row in rows)
     assert all(not row.is_linked for row in rows)
 
+    # The two `<ul>` lists only. Slicing to the section's own footer keeps the
+    # `Vaata õigusloomet` anchor, whose opening tag sits before its text — a
+    # property of the markup, not of any row, and what made the first version
+    # of this assertion fail.
     section = client.get("/").content.decode().split('id="oigusloome"', 1)[1]
     section = section.split("Praegu huvi pakkuv", 1)[0]
-    assert "<a" not in section.split("Vaata õigusloomet", 1)[0], "an unmatched topic became a link"
+    lists = re.findall(r"<ul[ >].*?</ul>", section, flags=re.S)
+
+    assert lists, "the section rendered no list to inspect"
+    for markup in lists:
+        assert "<a" not in markup, "an unmatched topic became a link"
 
 
 def test_a_sent_row_never_offers_a_consultation_link(
