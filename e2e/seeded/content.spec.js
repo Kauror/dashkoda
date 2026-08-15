@@ -199,30 +199,94 @@ test("a seeded list is long enough to have exercised scrolling", async ({
   expect(await rows.count()).toBeGreaterThanOrEqual(4);
 });
 
+/**
+ * Every mounted chart on the page that asks for a tooltip but ships no
+ * server-built readout — the charts that fall through to the browser default.
+ */
+const bareReadoutCharts = (page) =>
+  page.evaluate(() =>
+    Array.from(document.querySelectorAll("[data-chart]"))
+      .map((figure) => figure.dataset.chartPayload)
+      .filter((id) => {
+        const block = document.getElementById(id || "");
+        if (!block) return false;
+        let payload;
+        try {
+          payload = JSON.parse(block.textContent);
+        } catch {
+          return false;
+        }
+        const mounted = document.querySelector(
+          `[data-chart-payload="${id}"] canvas`,
+        );
+        return Boolean(
+          mounted && payload.tooltip && !payload.dashkoda?.tooltip,
+        );
+      }),
+  );
+
+/*
+ * Sweep the plot rather than hovering its middle.
+ *
+ * `trigger: "item"` only fires while the pointer is actually over a mark, so a
+ * horizontal ranking chart with a few short bars has plenty of canvas that
+ * answers nothing — the middle included. The first version of this test hovered
+ * the centre and failed for that reason rather than for the defect.
+ */
+async function hoverUntilTooltip(page, canvas) {
+  const box = await canvas.boundingBox();
+  for (const fy of [0.3, 0.5, 0.7, 0.15, 0.85]) {
+    for (const fx of [0.2, 0.35, 0.5, 0.65, 0.8]) {
+      await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy);
+      const tooltip = page.locator(".dk-chart-tooltip").first();
+      if (await tooltip.isVisible()) return tooltip;
+    }
+  }
+  return null;
+}
+
 test("a chart with no server-built readout still states its value separately", async ({
   page,
 }) => {
   oncePerRun();
   /*
-   * Õigusloome is where the fourteen charts that ship no `dashkoda.tooltip`
-   * live, so they fell through to ECharts' own default: one run of text per
-   * row, which rendered as `Eesti seisukoht3` — the label and its figure with
-   * nothing between them. The value was correct and unreadable, the same defect
-   * class as the white tooltip panel and the dim legend before it.
+   * Õigusloome is where the charts that ship no `dashkoda.tooltip` live, so they
+   * fell through to ECharts' own default: one run of text per row, which
+   * rendered as `Eesti seisukoht3` — the label and its figure with nothing
+   * between them. The value was correct and unreadable, the same defect class as
+   * the white tooltip panel and the dim legend before it.
    *
-   * Asserted through the DOM the fallback builds rather than through the text,
-   * because "label and value are separate elements" is the actual contract; a
-   * text assertion would pass on any string that happened to contain a space.
+   * Asserted through the DOM the fallback builds rather than through its text,
+   * because "the label and the value are separate elements" is the actual
+   * contract; a text assertion would pass on any string containing a space.
    */
   await signIn(page);
-  await page.goto("/oigusloome/");
 
-  const canvas = page.locator("[data-chart-canvas] canvas").first();
-  const box = await canvas.boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  /*
+   * Which view carries such a chart depends on what the seed published, so the
+   * test finds one rather than assuming a page. `toovoog` is tried first
+   * because its charts trigger on the axis, which any point in the plot
+   * reaches.
+   */
+  let bare = [];
+  for (const view of [
+    "/oigusloome/?fookus=toovoog",
+    "/oigusloome/",
+    "/oigusloome/?fookus=aktiivsed",
+    "/oigusloome/?fookus=arvamused",
+  ]) {
+    await page.goto(view);
+    bare = await bareReadoutCharts(page);
+    if (bare.length > 0) break;
+  }
+  expect(
+    bare.length,
+    "no seeded chart ships without a server-built readout",
+  ).toBeGreaterThan(0);
 
-  const tooltip = page.locator(".dk-chart-tooltip").first();
-  await expect(tooltip).toBeVisible({ timeout: 5000 });
+  const canvas = page.locator(`[data-chart-payload="${bare[0]}"] canvas`);
+  const tooltip = await hoverUntilTooltip(page, canvas);
+  expect(tooltip, "no point on the chart produced a tooltip").not.toBeNull();
 
   // The category names the row; the series and its figure are separate cells.
   await expect(tooltip.locator(".dk-chart-tooltip-title")).not.toBeEmpty();
