@@ -192,83 +192,20 @@ async function freshnessOffset(page) {
   return footer.y - card.y;
 }
 
-test("the legal card keeps its height when the shorter tab is selected", async ({ page }) => {
-  await signIn(page);
-  await page.goto("/");
+/*
+ * The three tests that stood here measured the overview's legal preview card:
+ * that selecting its shorter tab did not collapse the card, and that the
+ * reserved list height was seven of its own rows rather than a guessed number.
+ *
+ * That card no longer exists. When the main page became an executive overview
+ * it stopped previewing rows from any domain — `#panel-open`, `#panel-sent` and
+ * `dk-preview-reserve` appear in no template — so there is no tabbed card whose
+ * height could collapse and no reserve to measure.
+ *
+ * Nothing was lost that these tests were protecting. The equal-height problem
+ * belonged to two preview lists sharing a grid row; the Õigusloome page lists
+ * the topics now, in a full section that is not paired with anything and has no
+ * reserve. The pillar that replaced the card is asserted in
+ * `e2e/seeded/executive-overview.spec.js`.
+ */
 
-  const openRows = page.locator("#panel-open li");
-  const sentRows = page.locator("#panel-sent li");
-  await expect(openRows).toHaveCount(7);
-
-  /*
-   * This used to require the sent tab to be shorter than the open one, because
-   * the legal-work seed carried six sent records in total.
-   *
-   * That seed now publishes a multi-year opinion history, so the latest-sent
-   * preview is always full at the limit and no shorter tab exists to select.
-   * The height assertions below are what this test is for and they are
-   * unchanged; what is gone is the guarantee that they are exercised against a
-   * genuinely shorter panel. If a shorter-tab fixture is wanted back, it needs
-   * a preview whose source is not the seeded legal register.
-   */
-  const sent = await sentRows.count();
-  expect(sent).toBeGreaterThan(0);
-
-  const before = await cardHeight(page);
-  const footerBefore = await freshnessOffset(page);
-
-  await page.getByRole("tab", { name: "Välja läinud" }).click();
-  await expect(sentRows.first()).toBeVisible();
-
-  expect(Math.abs((await cardHeight(page)) - before)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
-  expect(Math.abs((await freshnessOffset(page)) - footerBefore)).toBeLessThanOrEqual(
-    HEIGHT_TOLERANCE,
-  );
-});
-
-test("the legal card keeps its height on the way back to the fuller tab", async ({ page }) => {
-  await signIn(page);
-  await page.goto("/");
-
-  await page.getByRole("tab", { name: "Välja läinud" }).click();
-  await expect(page.locator("#panel-sent li").first()).toBeVisible();
-  const shortTab = await cardHeight(page);
-
-  await page.getByRole("tab", { name: "Töös" }).click();
-  await expect(page.locator("#panel-open li").first()).toBeVisible();
-
-  expect(Math.abs((await cardHeight(page)) - shortTab)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
-});
-
-test("the reserved list height is seven real rows, not a guessed number", async ({ page }) => {
-  /*
-   * What makes the reserve survive a tab holding three records, or none: it is
-   * the height of seven of this card's own rows. Measuring it against the rows
-   * the browser actually drew is what keeps the CSS honest if the row is ever
-   * restyled.
-   */
-  await signIn(page);
-  await page.goto("/");
-
-  const reserved = await page.locator("#panel-open").evaluate((node) => {
-    const declared = getComputedStyle(node).minHeight;
-    return declared.endsWith("px") ? parseFloat(declared) : NaN;
-  });
-  expect(Number.isNaN(reserved)).toBe(false);
-
-  const sevenRows = await page.locator("#panel-open li").evaluateAll((nodes) => {
-    const rows = nodes.slice(0, 7);
-    const first = rows[0].getBoundingClientRect();
-    const last = rows[rows.length - 1].getBoundingClientRect();
-    return last.bottom - first.top;
-  });
-
-  expect(Math.abs(reserved - sevenRows)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
-  // Both tabs reserve it, or switching still jumps.
-  const sentReserved = await page
-    .locator("#panel-sent")
-    .evaluate((node) => parseFloat(getComputedStyle(node).minHeight));
-  expect(Math.abs(sentReserved - reserved)).toBeLessThanOrEqual(HEIGHT_TOLERANCE);
-
-  await expectNoHorizontalOverflow(page);
-});

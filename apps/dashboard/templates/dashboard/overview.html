@@ -75,8 +75,8 @@ prioritising this page exists to do for them.
                 </span>
                 <span class="dk-meta">{{ entry.domain_label }}</span>
               </div>
-              <p class="text-sm font-medium text-text">{{ entry.headline }}</p>
-              <p class="text-sm text-text-secondary">{{ entry.evidence }}</p>
+              <p class="text-sm font-medium break-words text-text">{{ entry.headline }}</p>
+              <p class="text-sm break-words text-text-secondary">{{ entry.evidence }}</p>
               <p class="dk-meta flex flex-wrap items-center gap-x-3 gap-y-1">
                 {% if entry.as_of %}<span>Seis {{ entry.as_of|date:"d.m.Y" }}</span>{% endif %}
                 {% if entry.has_link %}
@@ -113,13 +113,14 @@ prioritising this page exists to do for them.
               </time>
               <span class="dk-badge dk-badge-neutral shrink-0">{{ item.domain_label }}</span>
               {% comment %}
-              `break-words` is load-bearing: at 320px the date and badge leave
-              this span little over 100px, and one long Estonian token painted
-              past its own box is enough to scroll the whole page sideways —
-              the row itself never leaves the viewport, so nothing else shows
-              it. `min-w-0` alone does not stop it.
+              `break-words` is load-bearing at 320 px, not decoration. The date
+              and the domain badge are both `shrink-0`, so everything the row
+              cannot fit has to come out of this cell — and a legal topic or an
+              event title is one long Estonian compound that has no space to
+              wrap at. Without it the link runs eleven pixels past the viewport
+              and takes the whole page sideways with it.
               {% endcomment %}
-              <span class="min-w-0 flex-1 break-words text-sm text-text">
+              <span class="min-w-0 flex-1 text-sm break-words text-text">
                 {% if item.has_link %}
                   <a class="dk-link" href="{{ item.url }}"{% if item.is_external %} rel="noopener noreferrer" target="_blank"{% endif %}>
                     {{ item.title }}{% if item.is_external %}<span class="sr-only"> (avaneb uuel vahelehel)</span>{% endif %}

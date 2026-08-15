@@ -116,16 +116,23 @@ test("every chart keeps its accessible table alongside the drawing", async ({ pa
   expect(await page.locator('main [role="img"]').count()).toBeGreaterThan(0);
 });
 
-test("the overview membership chart draws with several seeded readings", async ({ page }) => {
-  oncePerRun();
-  const errors = watchConsole(page);
+/*
+ * The overview no longer draws the membership chart, so the test that stood
+ * here is gone rather than retargeted.
+ *
+ * The full trend moved to `/liikmeskond/` with the range control that governs
+ * it, and the test immediately above already requires that page to have drawn
+ * something — so the assertion this one made is still enforced, at the address
+ * where the chart now lives.
+ *
+ * What the executive pillar may draw is a two-point sparkline of the *public
+ * directory* count, and only when two comparable readings exist. The seed
+ * publishes one current public observation, so on seeded content there is
+ * legitimately no line to find: one reading is not a trend, and drawing it
+ * would be inventing a slope. Asserting a polyline on `/` would therefore have
+ * been asserting a defect.
+ */
 
-  await signIn(page);
-
-  const polylines = page.locator("main svg polyline, main svg path");
-  expect(await polylines.count()).toBeGreaterThan(0);
-  expect(errors).toEqual([]);
-});
 
 test("an explicit zero reads differently from a missing value", async ({ page }) => {
   /*
