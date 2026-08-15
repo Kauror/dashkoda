@@ -1,19 +1,25 @@
-"""Which of the five Uudised views a reader is looking at.
+"""Which of the four Uudised views a reader is looking at.
 
-The page answers five different questions and used to answer them in one
-scroll — an archive table with newsletter statistics beneath it. That works for
-"find me the article about excise duty" and works badly for "how are we doing",
-because the answer to the second was somewhere in the middle of the first.
+The page answers four different questions and used to answer them in one
+scroll — an archive table with statistics beneath it. That works for "find me
+the article about excise duty" and works badly for "how are we doing", because
+the answer to the second was somewhere in the middle of the first.
 
-So the page carries a **focus**: five ordinary `GET` links, each a real URL that
+So the page carries a **focus**: four ordinary `GET` links, each a real URL that
 can be bookmarked, shared and reached with the browser's back button. No SPA, no
 tab state in JavaScript, no fragment that has to be re-fetched.
 
     /uudised/                     → Ülevaade      (the default)
     /uudised/?fookus=moju         → Uudiste mõju
     /uudised/?fookus=avaldamine   → Avaldamine
-    /uudised/?fookus=uudiskirjad  → Uudiskirjad
     /uudised/?fookus=arhiiv       → Arhiiv
+
+`fookus=uudiskirjad` was the fifth. The newsletters are `Otsepostitused` now,
+at their own address under Koduleht, and this page no longer has a view of
+them — so the key is not in `FOCUSES` and resolves like any other unknown
+value. `apps/news/views.py` intercepts it before that happens and redirects,
+so a saved link arrives at the page that answers it instead of silently
+landing on the overview.
 
 An unreadable focus resolves to the overview rather than to a 404: a focus is a
 lens on one page, and a rotted bookmark should still show the news.
@@ -28,9 +34,9 @@ default ordering.
 ## What each focus carries
 
 Every focus link carries the **whole** validated page state. The archive's period
-and the newsletter the reader chose survive a trip through the publishing view
-and are still in force on the way back, which is what makes the five links a
-navigation rather than five separate pages that forget each other.
+survives a trip through the publishing view and is still in force on the way
+back, which is what makes the four links a navigation rather than four separate
+pages that forget each other.
 
 What is never carried is `request.GET` itself. The state is rebuilt from resolved
 values by `apps/news/periods.py`, so a hand-typed parameter this page does not
@@ -47,8 +53,12 @@ PARAM_FOCUS = "fookus"
 FOCUS_OVERVIEW = "ulevaade"
 FOCUS_IMPACT = "moju"
 FOCUS_PUBLISHING = "avaldamine"
-FOCUS_NEWSLETTERS = "uudiskirjad"
 FOCUS_ARCHIVE = "arhiiv"
+
+#: The retired newsletter focus. Kept as a name so `views.py` can recognise an
+#: old link and redirect it to `Otsepostitused`; it is deliberately **not** in
+#: `FOCUSES`, so it is not offered, not rendered and not reachable as a view.
+LEGACY_FOCUS_NEWSLETTERS = "uudiskirjad"
 
 
 @dataclass(frozen=True)
@@ -80,11 +90,6 @@ FOCUSES: tuple[Focus, ...] = (
         key=FOCUS_PUBLISHING,
         label="Avaldamine",
         question="Kui palju ja mida me avaldame.",
-    ),
-    Focus(
-        key=FOCUS_NEWSLETTERS,
-        label="Uudiskirjad",
-        question="Kui suured on uudiskirjade nimekirjad ja kuidas saadetisi loetakse.",
     ),
     Focus(
         key=FOCUS_ARCHIVE,
@@ -145,9 +150,9 @@ __all__ = [
     "FOCUSES",
     "FOCUS_ARCHIVE",
     "FOCUS_IMPACT",
-    "FOCUS_NEWSLETTERS",
     "FOCUS_OVERVIEW",
     "FOCUS_PUBLISHING",
+    "LEGACY_FOCUS_NEWSLETTERS",
     "PARAM_FOCUS",
     "Focus",
     "FocusOption",

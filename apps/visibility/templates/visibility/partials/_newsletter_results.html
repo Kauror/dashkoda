@@ -69,7 +69,7 @@ sends when they are looking at matches from 2019.
     them ask again.
     {% endcomment %}
     <p>
-      <a class="dk-link text-sm" href="{% url 'news-newsletter-history' %}?{{ newsletters.archive_query }}">
+      <a class="dk-link text-sm" href="{% url 'mailings-history' %}?{{ newsletters.archive_query }}">
         {% if newsletters.is_searching %}
           Vaata kõiki tulemusi arhiivis ({{ newsletters.total_sends }})
         {% else %}

@@ -17,7 +17,6 @@ from apps.news.categories import NewsCategory
 from apps.news.focus import (
     FOCUS_ARCHIVE,
     FOCUS_IMPACT,
-    FOCUS_NEWSLETTERS,
     FOCUS_OVERVIEW,
     FOCUS_PUBLISHING,
     FOCUSES,
@@ -59,7 +58,7 @@ def test_every_focus_renders_with_no_data_whatsoever(viewer_client, focus):
     assert "Uudised" in response.content.decode()
 
 
-@pytest.mark.parametrize("focus", [one.key for one in FOCUSES if one.key != FOCUS_NEWSLETTERS])
+@pytest.mark.parametrize("focus", [one.key for one in FOCUSES])
 def test_every_focus_renders_with_articles_but_no_analytics(viewer_client, focus):
     """The other half-connected state: a catalogue and no measurement.
 

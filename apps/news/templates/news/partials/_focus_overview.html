@@ -5,7 +5,10 @@ Ordered so the first screen answers what somebody opens a communications
 dashboard to ask, before offering anything to investigate:
 
   four measures → what changed → what is being read → what started well
-  → the newsletters → what might be worth a look
+  → what might be worth a look
+
+The newsletter strip that used to close this view went with the rest of the
+Smaily material to `Otsepostitused`; this view is about articles throughout.
 
 Context: page, reading_state
 {% endcomment %}
@@ -100,47 +103,6 @@ readership to the next, is the mistake this page is built to avoid.
     {% include "news/partials/_article_list.html" with rows=page.first_week empty="Ühelgi hiljutisel uudisel ei ole veel täielikku esimest nädalat mõõdetud." only %}
   </section>
 </div>
-
-{% comment %}
-The newsletters, as a compact strip rather than a second set of hero cards. Each
-list stands under its own name and **nothing is totalled**: three lists whose
-overlap nobody has measured do not add up to a number of people.
-{% endcomment %}
-<section aria-labelledby="section-newsletters" class="dk-section dk-section-body">
-  <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-    <h2 id="section-newsletters" class="text-sm font-medium text-text">Uudiskirjad</h2>
-    <a class="dk-link-quiet text-sm" href="?fookus=uudiskirjad">Vaata uudiskirju →</a>
-  </div>
-  <p class="dk-meta mt-1">Viimase 12 saadetise kaalutud määrad. Nimekirju ei liideta.</p>
-
-  {% if page.newsletter_comparison %}
-    <dl class="mt-3 flex flex-col divide-y divide-border">
-      {% for row in page.newsletter_comparison %}
-        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
-          <dt class="min-w-0 text-sm font-medium text-text">{{ row.label }}</dt>
-          <dd class="flex flex-wrap items-baseline gap-x-3 tabular-nums">
-            {% if row.open_rate %}
-              <span class="text-sm text-text">{{ row.open_rate }} avamine</span>
-              <span class="dk-meta">·</span>
-              <span class="text-sm text-text">{{ row.click_rate }} klikk</span>
-              <span class="dk-meta">{{ row.delivered }} kättetoimetatud</span>
-            {% else %}
-              {% comment %}
-              No measured sends is not a zero open rate. It is a newsletter
-              nothing has been read for yet, and it says so.
-              {% endcomment %}
-              <span class="dk-meta">mõõdetud saadetisi pole</span>
-            {% endif %}
-          </dd>
-        </div>
-      {% endfor %}
-    </dl>
-  {% endif %}
-
-  <a class="dk-link-quiet mt-3 inline-block text-sm" href="?fookus=uudiskirjad">
-    Uudiskirjade nimekirjad ja tulemused
-  </a>
-</section>
 
 {% if page.signals %}
   <section aria-labelledby="section-signals" class="dk-section dk-section-body">

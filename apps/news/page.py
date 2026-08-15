@@ -1,14 +1,20 @@
 """What the Uudised page says, assembled per focus.
 
 `views.py` reads query parameters and renders; this module decides what the page
-holds. The split matters because the page has five faces and each reads a
+holds. The split matters because the page has four faces and each reads a
 different amount: the overview must not pay for the publishing view's monthly
-series, and the archive must not pay for the newsletter aggregates.
+series, and the archive must not pay for the impact view's cohort medians.
 
-**Every focus builds only what it renders.** That is the same rule the newsletter
-half already followed — building the whole `VisibilityPage` to reach one card
-would run the GA4 traffic queries and every social metric on a page showing none
-of them — applied to this page's own five views.
+**Every focus builds only what it renders.** Building all four would run three
+views' worth of queries behind whichever one is on screen.
+
+## Newsletters are not here
+
+They were, as a fifth focus. The Smaily material is now `Otsepostitused` at
+`/otsepostitused/`, composed by `apps.visibility.mailings_page` — which is the
+app that owned the models, the collectors and the selectors all along. This
+module holds no newsletter builder, and `build_overview` no longer closes with
+a comparison strip: one concept, one home.
 
 ## Numbers arrive formatted
 
@@ -33,6 +39,7 @@ from datetime import date, timedelta
 
 from django.utils import timezone
 
+from apps.core.change import ChangeRow, direction_of, share_percent
 from apps.core.formatting import (
     integer,
     percent,
@@ -48,7 +55,6 @@ from .categories import NewsCategory
 from .focus import (
     FOCUS_ARCHIVE,
     FOCUS_IMPACT,
-    FOCUS_NEWSLETTERS,
     FOCUS_OVERVIEW,
     FOCUS_PUBLISHING,
     PARAM_FOCUS,
@@ -70,29 +76,6 @@ NO_COMPARISON = "võrdlust pole"
 
 #: Shown in place of a number that was never measured.
 NO_VALUE = "—"
-
-
-def share_percent(fraction: float | None, *, places: int = 1) -> str:
-    """A fraction as a percentage. `0.097` → `9,7%`."""
-    if fraction is None:
-        return ""
-    return percent(fraction * 100, places=places)
-
-
-def direction_of(value: float | int | None) -> str:
-    """The non-colour signal beside a change.
-
-    A change distinguished only by hue does not exist for a reader who cannot
-    separate the hues, so every change carries a glyph and a spoken label as
-    well. `flat` is a real answer and is not dressed as either direction.
-    """
-    if value is None:
-        return ""
-    if value > 0:
-        return "up"
-    if value < 0:
-        return "down"
-    return "flat"
 
 
 @dataclass(frozen=True)
@@ -125,22 +108,6 @@ class Headline:
     @property
     def has_change(self) -> bool:
         return bool(self.change)
-
-
-@dataclass(frozen=True)
-class ChangeRow:
-    """One line of `Mis muutus?`.
-
-    Deterministic and arithmetic: a measure, its two windows and the difference.
-    Nothing here is generated prose and nothing interprets.
-    """
-
-    label: str
-    current: str
-    previous: str
-    change: str
-    direction: str
-    note: str = ""
 
 
 @dataclass(frozen=True)
@@ -542,15 +509,6 @@ class NewsPage:
     series_end: date | None = None
     grain: str = ""
 
-    #: `fookus=uudiskirjad`
-    newsletter_comparison: tuple = field(default_factory=tuple)
-    newsletter_recent: object | None = None
-    newsletter_previous: object | None = None
-    newsletter_changes: tuple[ChangeRow, ...] = field(default_factory=tuple)
-    newsletter_sends: object | None = None
-    newsletter_rankings: dict = field(default_factory=dict)
-    selected_newsletter: str = ""
-
     #: Facts about the catalogue and the coverage, for `Andmete kohta`.
     facts: dict = field(default_factory=dict)
 
@@ -565,10 +523,6 @@ class NewsPage:
     @property
     def is_publishing(self) -> bool:
         return self.focus.key == FOCUS_PUBLISHING
-
-    @property
-    def is_newsletters(self) -> bool:
-        return self.focus.key == FOCUS_NEWSLETTERS
 
     @property
     def is_archive(self) -> bool:
@@ -629,17 +583,15 @@ def build_overview(
         annotation=analytics.FIRST_WINDOW_ANNOTATION,
     )
 
-    from apps.visibility.smaily_segments import NEWSLETTERS
-
+    # The newsletter comparison strip that used to close this view moved to
+    # `/otsepostitused/` with the rest of the Smaily material. It is not
+    # summarised here in its place: a second copy of three rates on a page whose
+    # subject is articles is exactly the duplication that move was for.
     return {
         "headlines": tuple(headline for headline in headlines if headline is not None),
         "changes": _changes(traffic, previous_traffic, period),
         "most_read": most_read,
         "first_week": first_week,
-        # Each newsletter's own recent performance, on its own line. Three
-        # aggregate queries, and no fourth row summing them: the lists overlap by
-        # an amount nobody has measured.
-        "newsletter_comparison": tuple(_newsletter_summary(spec.metric) for spec in NEWSLETTERS),
         "signals": _opportunities(
             coverage=coverage,
             reading=reading,
@@ -914,150 +866,6 @@ def build_publishing(*, period: ResolvedPeriod, coverage: Coverage, state: str =
     }
 
 
-def build_newsletters(*, newsletter_key: str, sends_limit: int = 24) -> dict:
-    """The newsletter view, composed from `apps.visibility`.
-
-    Smaily stays owned by Visibility — its models, its collectors, its selectors
-    and its rate definitions. What this app owns is the *composition*: which
-    newsletter is on screen, what is placed beside what, and the comparison
-    against the preceding sends.
-
-    Audiences are never totalled. Three lists whose overlap nobody has measured
-    do not add up to a number of people, and a sum would silently assert that the
-    overlap is zero.
-    """
-    from apps.visibility.smaily_segments import NEWSLETTERS
-    from apps.visibility.smaily_selectors import (
-        DEFAULT_AGGREGATE_ISSUES,
-        get_campaign_performance,
-        get_newsletter_aggregate,
-    )
-
-    from . import charts
-
-    if not newsletter_key:
-        return {
-            "newsletter_comparison": tuple(
-                _newsletter_summary(spec.metric) for spec in NEWSLETTERS
-            ),
-            "newsletter_sends": None,
-            "selected_newsletter": "",
-        }
-
-    # One block size for both slices, so "the twelve before" is always the
-    # same twelve the recent figure is quoted over.
-    recent = get_newsletter_aggregate(newsletter_key, limit=DEFAULT_AGGREGATE_ISSUES)
-    previous = get_newsletter_aggregate(
-        newsletter_key, limit=DEFAULT_AGGREGATE_ISSUES, offset=DEFAULT_AGGREGATE_ISSUES
-    )
-    sends = [
-        send
-        for send in get_campaign_performance(metric=newsletter_key, limit=sends_limit)
-        if send.has_statistics
-    ]
-    sends.reverse()
-
-    return {
-        "newsletter_comparison": tuple(_newsletter_summary(spec.metric) for spec in NEWSLETTERS),
-        "newsletter_recent": recent,
-        "newsletter_previous": previous,
-        "newsletter_changes": _newsletter_changes(recent, previous),
-        "newsletter_sends": charts.newsletter_rates(sends) if sends else None,
-        "newsletter_rankings": _newsletter_rankings(newsletter_key),
-        "selected_newsletter": newsletter_key,
-    }
-
-
-def _newsletter_summary(metric: str) -> dict:
-    """One newsletter's own line in the comparison. Never added to another's.
-
-    The label comes from the visibility registry through the aggregate, which is
-    the one place a newsletter is named; `smaily_segments` maps segments to
-    newsletters and does not carry display text.
-    """
-    from apps.visibility.smaily_selectors import get_newsletter_aggregate
-
-    aggregate = get_newsletter_aggregate(metric)
-    return {
-        "metric": metric,
-        "label": aggregate.label,
-        "open_rate": share_percent(aggregate.open_rate),
-        "click_rate": share_percent(aggregate.click_rate),
-        "campaigns": aggregate.campaigns,
-        "delivered": integer(aggregate.delivered) if aggregate.delivered else "",
-    }
-
-
-def _newsletter_changes(recent, previous) -> tuple[ChangeRow, ...]:
-    """Recent sends against the block before them, on weighted rates only.
-
-    Never the mean of per-send percentages: a send to 755 people and one to
-    20 616 are not two equally weighted observations, and averaging the
-    percentages would drag the headline towards whichever list is smallest.
-    Summed counts over summed counts is the only aggregate quoted.
-    """
-    if not recent.has_data or not previous.has_data:
-        return ()
-    rows = []
-    for label, current_value, earlier_value in (
-        ("Avamismäär", recent.open_rate, previous.open_rate),
-        ("Klikimäär", recent.click_rate, previous.click_rate),
-        ("Klikke avajate seas", recent.click_to_open_rate, previous.click_to_open_rate),
-    ):
-        if current_value is None or earlier_value is None:
-            continue
-        difference = (current_value - earlier_value) * 100
-        rows.append(
-            ChangeRow(
-                label=label,
-                current=share_percent(current_value),
-                previous=share_percent(earlier_value),
-                change=percentage_points(difference),
-                direction=direction_of(difference),
-            )
-        )
-    if recent.delivered and previous.delivered:
-        difference = recent.delivered - previous.delivered
-        rows.append(
-            ChangeRow(
-                label="Kättetoimetatud",
-                current=integer(recent.delivered),
-                previous=integer(previous.delivered),
-                change=signed_integer(difference),
-                direction=direction_of(difference),
-            )
-        )
-    return tuple(rows)
-
-
-def _newsletter_rankings(metric: str, *, limit: int = 5) -> dict:
-    """The strongest sends by rate, with the audience size beside each.
-
-    A rate without its denominator misleads: 62% of 30 recipients and 41% of
-    20 000 are not the same achievement, and only one of them is a newsletter.
-    Sends from other newsletters are not in here — `Muu` least of all, which is
-    not a newsletter but every other kind of letter the Chamber has ever sent.
-    """
-    from apps.visibility.smaily_selectors import get_campaign_performance
-
-    measured = [
-        send
-        for send in get_campaign_performance(metric=metric, limit=200)
-        if send.has_statistics and send.delivered
-    ]
-    by_open = sorted(
-        (send for send in measured if send.open_rate is not None),
-        key=lambda send: send.open_rate,
-        reverse=True,
-    )[:limit]
-    by_click = sorted(
-        (send for send in measured if send.click_rate is not None),
-        key=lambda send: send.click_rate,
-        reverse=True,
-    )[:limit]
-    return {"by_open": tuple(by_open), "by_click": tuple(by_click)}
-
-
 def build_news_page(
     *,
     focus_key: str | None = None,
@@ -1066,15 +874,14 @@ def build_news_page(
     date_from: str | None = None,
     date_to: str | None = None,
     lens_key: str | None = None,
-    newsletter_key: str = "",
     state: str = "",
     today: date | None = None,
 ) -> NewsPage:
     """Assemble whichever focus was asked for, **and only that one**.
 
     Each branch runs the queries its own view renders and no others. Building all
-    five would put the publishing series, the newsletter aggregates and three
-    cohort medians on every render of a page showing one of them.
+    four would put the publishing series and three cohort medians on every render
+    of a page showing one of them.
     """
     coverage = get_coverage()
     focus = parse_focus(focus_key)
@@ -1104,8 +911,6 @@ def build_news_page(
         )
     elif focus.key == FOCUS_PUBLISHING:
         page.update(build_publishing(period=period, coverage=coverage, state=state))
-    elif focus.key == FOCUS_NEWSLETTERS:
-        page.update(build_newsletters(newsletter_key=newsletter_key))
 
     return NewsPage(**page)
 
@@ -1120,17 +925,13 @@ __all__ = [
     "NO_VALUE",
     "PARAM_LENS",
     "ArticleRow",
-    "ChangeRow",
     "Headline",
     "LensOption",
     "NewsPage",
     "Signal",
     "build_impact",
     "build_news_page",
-    "build_newsletters",
     "build_overview",
     "build_publishing",
-    "direction_of",
     "parse_lens",
-    "share_percent",
 ]

@@ -196,7 +196,7 @@ def test_a_template_deleted_later_clears_the_dead_address():
 
 def test_a_preview_renders_as_an_external_link(viewer_client):
     collect((campaign_row(15, subject="Avatav uudiskiri"),))
-    page = viewer_client.get(reverse("news-newsletter-history")).content.decode()
+    page = viewer_client.get(reverse("mailings-history")).content.decode()
 
     assert GOOD in page
     assert 'target="_blank"' in page
@@ -206,7 +206,7 @@ def test_a_preview_renders_as_an_external_link(viewer_client):
 
 def test_a_campaign_without_a_preview_renders_its_row_but_no_link(viewer_client):
     collect((campaign_row(16, preview="", template_id="", subject="Kustutatud malliga"),))
-    page = viewer_client.get(reverse("news-newsletter-history")).content.decode()
+    page = viewer_client.get(reverse("mailings-history")).content.decode()
 
     assert "Kustutatud malliga" in page
     # The subject is present as plain text, and no anchor points at a preview.

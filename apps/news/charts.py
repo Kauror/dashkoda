@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import date
 
 from apps.core.chart_payload import ChartPayload, Readout
-from apps.core.formatting import integer, month_name, percent, short_date
+from apps.core.formatting import integer, month_name, short_date
 
 #: Chart geometry, shared so the news charts cannot drift apart from each other.
 GRID = {"left": 56, "right": 24, "top": 32, "bottom": 40, "containLabel": True}
@@ -210,78 +210,10 @@ def first_month_distribution(values: list[int], stats) -> ChartPayload:
     )
 
 
-def newsletter_rates(sends) -> ChartPayload:
-    """Open and click rate per send, on one percentage axis.
-
-    Delivered volume is deliberately **not** drawn here as a second axis. Two
-    units on one plot make the shape a function of the scaling, and the volume is
-    already stated per send in the table below and in the rankings beside it.
-    """
-    labels = [short_date(send.completed_at) for send in sends]
-    opens = [
-        round(send.open_rate * 100, 1) if send.open_rate is not None else None for send in sends
-    ]
-    clicks = [
-        round(send.click_rate * 100, 1) if send.click_rate is not None else None for send in sends
-    ]
-
-    def line(name: str, values: list) -> dict:
-        return {
-            "name": name,
-            "type": "line",
-            "data": values,
-            "smooth": False,
-            "showSymbol": True,
-            "symbolSize": 6,
-            # A gap is a gap: ECharts must not bridge a send whose figures are
-            # missing, because the bridge would look like a measurement.
-            "connectNulls": False,
-        }
-
-    option = {
-        "grid": GRID,
-        "xAxis": _axis(labels),
-        "yAxis": {"type": "value", "splitLine": {"show": True}, "min": 0},
-        "series": [line("Avamismäär", opens), line("Klikimäär", clicks)],
-        "legend": {"show": True, "bottom": 0},
-        "tooltip": {"trigger": "axis"},
-        "animation": True,
-    }
-    rows = tuple(
-        (
-            short_date(send.completed_at),
-            send.name,
-            integer(send.delivered) if send.delivered is not None else "–",
-            percent(send.open_rate * 100) if send.open_rate is not None else "–",
-            percent(send.click_rate * 100) if send.click_rate is not None else "–",
-        )
-        for send in sends
-    )
-    return ChartPayload(
-        payload_id="newsletter-rates",
-        title="Uudiskirja avamis- ja klikimäär",
-        question="Kas saadetisi loetakse ja klikitakse rohkem või vähem kui varem?",
-        option=option,
-        table_headers=("Saadetud", "Pealkiri", "Kättetoimetatud", "Avamismäär", "Klikimäär"),
-        table_rows=rows,
-        summary=(
-            f"Joondiagramm {integer(len(sends))} saadetise avamis- ja klikimäärast, "
-            "mõlemad protsendina kättetoimetatutest."
-        ),
-        empty_message="Sellel uudiskirjal ei ole veel mõõdetud saadetisi.",
-        footnotes=(
-            "Avamismäär ja klikimäär on osakaal kättetoimetatud kirjadest. "
-            "Kättetoimetatud maht on tabelis, mitte teisel teljel.",
-        ),
-        size="medium",
-    )
-
-
 __all__ = [
     "DISTRIBUTION_BANDS",
     "ChartPayload",
     "Readout",
     "first_month_distribution",
-    "newsletter_rates",
     "publishing_cadence",
 ]

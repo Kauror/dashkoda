@@ -298,7 +298,7 @@ def test_the_page_shows_every_kind_and_links_to_the_archive(viewer_client):
 
 def test_the_archive_page_renders(viewer_client):
     collect()
-    page = viewer_client.get(reverse("news-newsletter-history")).content.decode()
+    page = viewer_client.get(reverse("mailings-history")).content.decode()
 
     assert "Saadetud uudiskirjad" in page
     assert "Kutse ärifoorumile" in page

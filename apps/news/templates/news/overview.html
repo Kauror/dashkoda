@@ -4,15 +4,18 @@
 {% comment %}
 The news intelligence dashboard.
 
-Five focus views over one address. The shell here is the part every focus
+Four focus views over one address. The shell here is the part every focus
 shares — the heading, the source freshness, the focus navigation and the
 methodology disclosure — and each focus contributes its own partial.
 
 The page used to open on the archive table, which answered "find me the article
 about excise duty" and answered "how are we doing" somewhere in the middle of
-it. The archive has not gone anywhere; it is now the fifth focus, where an exact
+it. The archive has not gone anywhere; it is now the last focus, where an exact
 lookup belongs, and the first screen answers the questions somebody opens a
 communications dashboard with.
+
+The newsletters were a fifth focus and are `Otsepostitused` now, at their own
+address under Koduleht. Nothing on this page renders one.
 
 Three presentational rules carry the density:
 
@@ -33,10 +36,10 @@ should stay that way.
 {% block extra_head %}
   {% comment %}
   The chart bundle loads only for the two focus views that draw something. The
-  overview, the newsletter comparison and the archive ship no chart JavaScript
-  at all — it is over a megabyte and none of them has a canvas.
+  overview and the archive ship no chart JavaScript at all — it is over a
+  megabyte and neither has a canvas.
   {% endcomment %}
-  {% if page.cadence or page.distribution or page.newsletter_sends %}
+  {% if page.cadence or page.distribution %}
     <script type="module" src="{% static 'build/charts.js' %}"></script>
   {% endif %}
 {% endblock %}
@@ -48,10 +51,9 @@ should stay that way.
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Uudised</h1>
 
     {% comment %}
-    One quiet metadata row. Each source states its own freshness because they
-    genuinely differ — the catalogue is read hourly, GA4 lags by a day and
-    Smaily campaign figures settle over a fortnight — and one combined date
-    would be wrong for at least two of them.
+    One quiet metadata row. Each source states its own freshness because the two
+    genuinely differ — the catalogue is read hourly and GA4 lags by a day — and
+    one combined date would be wrong for at least one of them.
     {% endcomment %}
     <p class="dk-meta flex flex-wrap items-center gap-x-2 gap-y-1">
       {% if page.facts.latest %}
@@ -69,8 +71,8 @@ should stay that way.
   {% comment %}
   The focus navigation. Ordinary links, each a real URL carrying the whole page
   state, so back and forward work and a colleague can be sent the exact view.
-  It scrolls rather than wraps on a narrow screen, so the five stay on one line
-  and the reader can see there are five.
+  It scrolls rather than wraps on a narrow screen, so the four stay on one line
+  and the reader can see there are four.
   {% endcomment %}
   <nav aria-label="Vaade" class="-mx-4 min-w-0 overflow-x-auto px-4 sm:mx-0 sm:px-0">
     <ul class="flex w-max gap-2 sm:w-auto sm:flex-wrap">
@@ -94,8 +96,6 @@ should stay that way.
     {% include "news/partials/_focus_impact.html" with page=page reading_state=reading_state only %}
   {% elif page.is_publishing %}
     {% include "news/partials/_focus_publishing.html" with page=page only %}
-  {% elif page.is_newsletters %}
-    {% include "news/partials/_focus_newsletters.html" with page=page newsletters=newsletters newsletter_slot=newsletter_slot only %}
   {% elif page.is_archive %}
     {% include "news/partials/_focus_archive.html" with archive=archive only %}
   {% endif %}

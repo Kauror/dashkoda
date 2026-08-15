@@ -3,27 +3,36 @@
 {% comment %}
 Every completed Smaily send, filterable by type and searchable by subject.
 
-The archive behind the Uudised page's most-recent list. It exists as its own
-page because fourteen years of campaigns is not a section: rendering three
-thousand rows into Uudised would make every visit pay for history almost nobody
-wants on that visit.
+The second of the two Otsepostitused views, and the archive behind the
+overview's most-recent list. It is its own route because fourteen years of
+campaigns is not a section: rendering three thousand rows into the overview
+would make every visit pay for history almost nobody wants on that visit.
 
 The search is a plain GET form. Without JavaScript it submits and reloads, which
 is the whole interaction — there is nothing here that needs scripting.
+
+Context: history, active_section
 {% endcomment %}
+
+{% block title %}Otsepostitused – DashKoda{% endblock %}
 
 {% block content %}
 <div class="flex flex-col gap-5">
-  <div class="flex flex-col gap-1">
+  {% comment %}
+  `Saadetud uudiskirjad` rather than `Otsepostitused`: the section is
+  Otsepostitused and the objects in this table are individual newsletters, which
+  is the noun that names them. The section navigation below carries the reader
+  back to the overview, so no separate return link is needed.
+  {% endcomment %}
+  <header class="flex min-w-0 flex-col gap-2">
     <h1 class="text-2xl font-semibold tracking-tight text-text">Saadetud uudiskirjad</h1>
     <p class="text-sm text-text-secondary">
       Kõik Smailyst välja saadetud kampaaniad. Mustandid ja tühistatud kampaaniad
       siia ei jõua.
     </p>
-    <p>
-      <a class="dk-link text-sm" href="{% url 'news' %}">← Tagasi uudiste lehele</a>
-    </p>
-  </div>
+  </header>
+
+  {% include "visibility/partials/_mailings_nav.html" with active_section=active_section only %}
 
   <section aria-labelledby="section-history" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Kõik saadetised" heading_id="section-history" only %}
@@ -63,7 +72,7 @@ is the whole interaction — there is nothing here that needs scripting.
                  placeholder="Pealkirja osa…"
                  autocomplete="off"
                  class="dk-input min-w-0"
-                 hx-get="{% url 'news-newsletter-history-search' %}"
+                 hx-get="{% url 'mailings-history-search' %}"
                  hx-trigger="input changed delay:250ms, search"
                  hx-target="#history-results"
                  hx-swap="innerHTML"

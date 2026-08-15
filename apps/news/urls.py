@@ -1,37 +1,46 @@
 from django.urls import path
 
 from .views import (
-    news_newsletter_search_fragment,
+    legacy_newsletter_history,
+    legacy_newsletter_history_search,
+    legacy_newsletter_search,
     news_overview,
     news_search_fragment,
-    newsletter_history,
-    newsletter_history_search_fragment,
 )
 
-# The `otsi/` routes answer a keystroke with the results region alone. They are
-# ordinary viewer-protected GETs; a reader without JavaScript never reaches them,
-# because the forms on the pages above submit to the pages themselves.
+# The `otsi/` route answers a keystroke with the results region alone. It is an
+# ordinary viewer-protected GET; a reader without JavaScript never reaches it,
+# because the form on the page above submits to the page itself.
 #
-# The two newsletter routes are news routes because that is where a reader now
-# finds the newsletters. What they render still belongs to `apps.visibility` —
-# the presenters, the templates and every Smaily query are that app's — and the
-# old `/nahtavus/uudiskirjad/` addresses still resolve by redirecting here.
+# ## The newsletter routes are redirects now
+#
+# The newsletters were a focus of this page and a page beneath it. They are
+# `Otsepostitused` at `/otsepostitused/`, served by `apps.visibility`, which
+# owned the models, the collector and every Smaily query all along. Nothing in
+# this app renders a newsletter any more.
+#
+# The three addresses below are kept because they are real bookmarks — one of
+# them is where the send archive lived for two moves running. Each redirects to
+# the address that now answers it and nothing here redirects to anything in this
+# app, so no chain can close into a loop. `/uudised/?fookus=uudiskirjad` is
+# handled inside `news_overview` rather than here, because a query parameter is
+# not something a URL pattern can match on.
 urlpatterns = [
     path("uudised/", news_overview, name="news"),
     path("uudised/otsi/", news_search_fragment, name="news-search"),
     path(
         "uudised/otsi/uudiskirjad/",
-        news_newsletter_search_fragment,
+        legacy_newsletter_search,
         name="news-newsletter-search",
     ),
     path(
         "uudised/uudiskirjad/",
-        newsletter_history,
+        legacy_newsletter_history,
         name="news-newsletter-history",
     ),
     path(
         "uudised/uudiskirjad/otsi/",
-        newsletter_history_search_fragment,
+        legacy_newsletter_history_search,
         name="news-newsletter-history-search",
     ),
 ]
