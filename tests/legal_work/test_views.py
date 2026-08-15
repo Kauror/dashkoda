@@ -1,6 +1,7 @@
 """The Õigusloome page and the overview integration."""
 
 import datetime as dt
+import re
 
 import pytest
 
@@ -304,3 +305,112 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
     assert reporting_date != dt.date.today()
     assert "seis" in content
     assert f"{reporting_date:%d.%m.%Y}" in content
+
+
+# ---------------------------------------------------------------------------
+# The overview's Õigusloome section
+# ---------------------------------------------------------------------------
+
+
+def test_the_overview_lists_work_in_progress_and_recent_opinions(
+    client, authenticate_viewer, imported_snapshot
+):
+    """The board's two lists, added 2026-08-15.
+
+    `Töös` is ordered by the opinion deadline rather than by arrival, because
+    what a reader wants off that list is what has to leave next.
+    """
+    authenticate_viewer(client)
+
+    page = client.get("/").context["page"]
+    content = client.get("/").content.decode()
+
+    assert "Õigusloome" in content
+    assert "Töös" in content
+    assert "Viimased välja saadetud" in content
+    assert page.has_legal_lists
+
+    deadlines = [row.item.deadline_date for row in page.legal_in_progress if row.item.deadline_date]
+    assert deadlines == sorted(deadlines), "Töös must lead with what is due next"
+
+    sent = [row.item.sent_date for row in page.legal_recently_sent]
+    assert sent == sorted(sent, reverse=True), "sent opinions must lead with the newest"
+
+
+def test_neither_overview_list_exceeds_seven_rows(client, authenticate_viewer, imported_snapshot):
+    """Seven is the board's own number, and the section stays a summary.
+
+    A list that grew past it would be the Õigusloome page reproduced a scroll
+    above the link to it.
+    """
+    from apps.legal_work.executive import OVERVIEW_LIST_LIMIT
+
+    authenticate_viewer(client)
+
+    page = client.get("/").context["page"]
+
+    assert OVERVIEW_LIST_LIMIT == 7
+    assert len(page.legal_in_progress) <= OVERVIEW_LIST_LIMIT
+    assert len(page.legal_recently_sent) <= OVERVIEW_LIST_LIMIT
+
+
+def test_an_overview_row_without_a_resolved_address_is_plain_text(
+    client, authenticate_viewer, imported_snapshot
+):
+    """The rule that makes the section trustworthy.
+
+    `topic_links` refuses an address computed against a different snapshot, and
+    nothing has matched this synthetic workbook — so every row here is
+    unmatched, and not one of them may be rendered as a link. A lawyer sent to
+    last week's consultation is worse off than one sent nowhere.
+    """
+    authenticate_viewer(client)
+
+    page = client.get("/").context["page"]
+    rows = tuple(page.legal_in_progress) + tuple(page.legal_recently_sent)
+
+    assert rows, "the fixture must produce rows for this to prove anything"
+    assert all(not row.public_url for row in rows)
+    assert all(not row.is_linked for row in rows)
+
+    # The two `<ul>` lists only. Slicing to the section's own footer keeps the
+    # `Vaata õigusloomet` anchor, whose opening tag sits before its text — a
+    # property of the markup, not of any row, and what made the first version
+    # of this assertion fail.
+    section = client.get("/").content.decode().split('id="oigusloome"', 1)[1]
+    section = section.split("Praegu huvi pakkuv", 1)[0]
+    lists = re.findall(r"<ul[ >].*?</ul>", section, flags=re.S)
+
+    assert lists, "the section rendered no list to inspect"
+    for markup in lists:
+        assert "<a" not in markup, "an unmatched topic became a link"
+
+
+def test_a_sent_row_never_offers_a_consultation_link(
+    client, authenticate_viewer, imported_snapshot
+):
+    """The mutual exclusivity, asserted where the two lists sit side by side.
+
+    `consultation.py` and `opinion_eligibility.py` are exclusive by
+    construction and each is tested in its own suite; this checks the guarantee
+    survives being composed into one section, which is the layer that could
+    quietly resolve both mappings and merge them the wrong way round.
+    """
+    from apps.legal_work.models import SentStatus
+
+    authenticate_viewer(client)
+
+    page = client.get("/").context["page"]
+
+    for row in page.legal_recently_sent:
+        assert row.item.sent_status == SentStatus.SENT
+        if row.public_url:
+            assert row.public_url.startswith("/oigusloome/arvamused/"), (
+                "a sent opinion must point at its own resource, never a consultation"
+            )
+    for row in page.legal_in_progress:
+        assert row.item.is_open
+        if row.public_url:
+            assert not row.public_url.startswith("/oigusloome/arvamused/"), (
+                "an open matter must not point at an opinion resource"
+            )
