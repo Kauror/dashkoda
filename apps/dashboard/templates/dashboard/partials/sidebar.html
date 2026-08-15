@@ -24,11 +24,24 @@ drawer. Context: navigation, active_nav.
       {% csrf_token %}
       <button type="submit" class="dk-button dk-button-secondary w-full">Logi välja</button>
     </form>
-    {% if build_version %}
-      <p class="mt-3 text-center">
+    {% comment %}
+    Admin and the build stamp share one quiet row at the foot of the sidebar.
+    Admin is not a primary navigation item: it collects the data-quality, source
+    and import diagnostics that matter to whoever maintains DashKoda and would
+    be noise in a board member's view. Sitting here it is findable by somebody
+    who knows it exists and does not compete with the Chamber's own subjects.
+
+    `flex-wrap` and `gap` rather than a fixed two-column split, so on a narrow
+    drawer the stamp drops onto its own line instead of colliding with the link.
+    {% endcomment %}
+    <div class="mt-3 flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+      <a href="{% url 'dashboard-admin' %}"
+         class="dk-admin-link{% if active_nav == 'admin' %} dk-admin-link-active{% endif %}"
+         {% if active_nav == 'admin' %}aria-current="page"{% endif %}>Admin</a>
+      {% if build_version %}
         <span class="dk-version"
               {% if build_commit %}title="Ehitatud koodist {{ build_commit }}"{% endif %}>{{ build_version }}</span>
-      </p>
-    {% endif %}
+      {% endif %}
+    </div>
   </div>
 </div>

@@ -77,6 +77,14 @@ and the <noscript> navigation below keeps the same links reachable on a phone.
           <li>{% include "dashboard/components/nav_item.html" with item=item active_nav=active_nav only %}</li>
         {% endfor %}
       </ul>
+      {% comment %}
+      Admin is reached from the foot of the sidebar, which this fallback does not
+      render. Repeated here so the maintainers' page stays reachable on a phone
+      with no JavaScript, and kept as quiet here as it is there.
+      {% endcomment %}
+      <p class="mt-3">
+        <a href="{% url 'dashboard-admin' %}" class="dk-admin-link">Admin</a>
+      </p>
     </nav>
   </noscript>
 

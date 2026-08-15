@@ -4,7 +4,7 @@ import re
 import pytest
 from django.utils.html import strip_tags
 
-from apps.dashboard.navigation import NAVIGATION, iter_items
+from apps.dashboard.navigation import NAVIGATION, iter_items, parent_key
 
 pytestmark = pytest.mark.django_db
 
@@ -57,17 +57,18 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
     for item in entries:
         assert item.label in content
     assert 'aria-current="page"' in content
-    # Every module in the sidebar is routed. The inert-item rule still exists —
-    # `is_available` decides it, and `test_components` covers the rendering —
-    # but nothing is waiting behind it any more.
+    # Every module in the sidebar is routed, parents and children alike. The
+    # inert-item rule still exists — `is_available` decides it, and
+    # `test_components` covers the rendering — but nothing waits behind it.
     assert {item.key for item in routed} == {
         "overview",
         "membership",
         "legislation",
         "events",
-        "news",
         "visibility",
+        "news",
         "shop",
+        "mailings",
     }
     # Arvamused, Projektid, Finantsid and Fookusteemad were all removed at the
     # board's request rather than left as names the sidebar cannot open.
@@ -75,15 +76,114 @@ def test_navigation_routes_only_the_implemented_modules(client, authenticate_vie
     assert 'aria-disabled="true"' not in content
 
 
-def test_the_sidebar_names_no_module_it_cannot_open(client, authenticate_viewer):
-    """No nesting and no `Lisamisel` chip: every entry is a working link."""
+def test_the_primary_navigation_is_five_items_in_order(client, authenticate_viewer):
+    """The order the board reads, top level only.
+
+    Written out rather than derived, because the point of the assertion is that
+    somebody has to change this list deliberately.
+    """
+    assert [item.label for item in NAVIGATION] == [
+        "Ülevaade",
+        "Liikmeskond",
+        "Õigusloome",
+        "Sündmused",
+        "Koduleht",
+    ]
+
+
+def test_koduleht_carries_exactly_three_children(client, authenticate_viewer):
+    """The three facets of the Chamber's public surface, in order.
+
+    Nesting is information architecture and nothing else: these are three
+    separately routed pages with three separate bodies of code, and sharing a
+    menu parent joins none of it.
+    """
+    koduleht = next(item for item in NAVIGATION if item.key == "visibility")
+
+    assert [child.label for child in koduleht.children] == [
+        "Uudised",
+        "E-pood",
+        "Otsepostitused",
+    ]
+    # The parent is a page in its own right, not a folder.
+    assert koduleht.url_name == "visibility"
+
+
+def test_every_child_names_koduleht_as_its_parent():
+    assert parent_key("news") == "visibility"
+    assert parent_key("shop") == "visibility"
+    assert parent_key("mailings") == "visibility"
+    # A top-level entry has no parent, and neither does something unknown.
+    assert parent_key("membership") == ""
+    assert parent_key("nothing-like-this") == ""
+
+
+def test_the_sidebar_nests_the_children_under_koduleht(client, authenticate_viewer):
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
 
-    assert [item for item in NAVIGATION if item.children] == []
-    assert "dk-nav-sublist" not in content
+    assert "dk-nav-sublist" in content
     assert "Fookusteemad" not in content
+
+
+#: One navigation anchor and the text inside it. The shell renders the whole
+#: menu three times — the desktop sidebar, the mobile drawer and the
+#: `<noscript>` fallback — so a document-wide count of `aria-current` says
+#: nothing. What matters is which anchor carries it, which is asked per link.
+NAV_ANCHOR = re.compile(r"<a\s[^>]*>\s*([^<]*?)\s*</a>", re.S)
+
+
+def anchors_for(content: str, label: str) -> list[str]:
+    """Every navigation anchor whose visible text is exactly `label`."""
+    return [match.group(0) for match in NAV_ANCHOR.finditer(content) if match.group(1) == label]
+
+
+@pytest.mark.parametrize(
+    ("url", "label"),
+    [("/uudised/", "Uudised"), ("/epood/", "E-pood"), ("/otsepostitused/", "Otsepostitused")],
+)
+def test_a_child_page_marks_itself_current_and_its_parent_as_ancestor(
+    client, authenticate_viewer, url, label
+):
+    """Exactly one entry is current, and the parent is recognisable without claiming to be it.
+
+    `aria-current="page"` on both would tell a screen-reader user they are in two
+    places at once, so the parent gets a quieter class and no ARIA state.
+    """
+    authenticate_viewer(client)
+
+    content = client.get(url).content.decode()
+
+    children = anchors_for(content, label)
+    parents = anchors_for(content, "Koduleht")
+    assert children and parents
+
+    for anchor in children:
+        assert 'aria-current="page"' in anchor
+        assert "dk-nav-item-active" in anchor
+    for anchor in parents:
+        assert "dk-nav-item-ancestor" in anchor
+        assert "aria-current" not in anchor
+        # Still an ordinary link: Koduleht is a page that has children, not a
+        # folder that only groups them.
+        assert 'href="/koduleht/"' in anchor
+
+
+def test_koduleht_itself_is_current_rather_than_an_ancestor(client, authenticate_viewer):
+    """Opening the parent marks the parent, and marks no child."""
+    authenticate_viewer(client)
+
+    content = client.get("/koduleht/").content.decode()
+
+    parents = anchors_for(content, "Koduleht")
+    assert parents
+    for anchor in parents:
+        assert 'aria-current="page"' in anchor
+        assert "dk-nav-item-ancestor" not in anchor
+    for label in ("Uudised", "E-pood", "Otsepostitused"):
+        for anchor in anchors_for(content, label):
+            assert "aria-current" not in anchor
 
 
 def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
