@@ -400,13 +400,13 @@ def test_teataja_appears_nowhere(viewer, route):
     """Riigi Teataja is out of scope and must not reach a page.
 
     `e-Teataja` is a different thing that happens to contain the word: one of
-    the Chamber's own three newsletters, named by `registry.py`, and on
-    `/uudised/` since the newsletter material moved there from Nähtavus. It is
-    removed before the check rather than the news route being dropped from the
-    list, which would take this guard off everything else on that page.
+    the Chamber's own three newsletters, named by `registry.py`. It is removed
+    before the check rather than a route being dropped from the list, which
+    would take this guard off everything else on that page.
 
-    That is also why `visibility` was never in the list: the same newsletter
-    name has always been on that page.
+    The newsletter name now lives on `/otsepostitused/`, which is why that route
+    is not in the list — and `visibility` never was, for the same reason while
+    the newsletters were still there.
     """
     text = visible_text(viewer.get(reverse(route))).replace("e-teataja", "")
 
@@ -414,9 +414,14 @@ def test_teataja_appears_nowhere(viewer, route):
 
 
 def test_the_navigation_marks_the_new_routes_available():
-    from apps.dashboard.navigation import NAVIGATION
+    """Read through `iter_items`, because `news` is a child of Koduleht now.
 
-    by_key = {item.key: item for item in NAVIGATION}
+    Iterating `NAVIGATION` alone would miss every nested entry, and the miss
+    would look like the route having been removed.
+    """
+    from apps.dashboard.navigation import iter_items
+
+    by_key = {item.key: item for item in iter_items()}
     for key in ("membership", "news", "events"):
         assert by_key[key].is_available is True
 

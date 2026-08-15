@@ -282,6 +282,55 @@ def test_nav_item_nests_children_and_keeps_unrouted_ones_inert():
     assert html.count('aria-disabled="true"') == 2
 
 
+def test_nav_item_marks_a_parent_whose_child_is_open():
+    """A quieter state than active, and deliberately no `aria-current`.
+
+    Exactly one page is current. The child below carries that; the parent only
+    has to be recognisable as the section the reader is inside, and saying it
+    twice would tell a screen-reader user they are in two places at once.
+    """
+    html = render(
+        "nav_item",
+        {
+            "item": NavItem(
+                key="visibility",
+                label="Koduleht",
+                url_name="visibility",
+                children=(NavItem(key="news", label="Uudised", url_name="news"),),
+            ),
+            "active_nav": "news",
+        },
+    )
+
+    parent, child = html.split("dk-nav-sublist", 1)
+    assert "dk-nav-item-ancestor" in parent
+    assert "aria-current" not in parent
+    # Still a link to its own page: a parent is not a folder.
+    assert 'href="/koduleht/"' in parent
+
+    assert 'aria-current="page"' in child
+    assert "dk-nav-item-active" in child
+
+
+def test_nav_item_leaves_an_unrelated_parent_alone():
+    """The ancestor marking is for *this* entry's children and nothing else."""
+    html = render(
+        "nav_item",
+        {
+            "item": NavItem(
+                key="visibility",
+                label="Koduleht",
+                url_name="visibility",
+                children=(NavItem(key="news", label="Uudised", url_name="news"),),
+            ),
+            "active_nav": "membership",
+        },
+    )
+
+    assert "dk-nav-item-ancestor" not in html
+    assert "aria-current" not in html
+
+
 def test_planned_module_names_the_source_as_unconnected():
     html = render(
         "planned_module",

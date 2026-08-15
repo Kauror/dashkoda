@@ -6,6 +6,10 @@ from .views import (
     koduleht,
     koduleht_search_fragment,
     legacy_visibility,
+    mailings,
+    mailings_history,
+    mailings_history_search_fragment,
+    mailings_search_fragment,
 )
 
 # The website surface is `Koduleht` at `/koduleht/` now. The route keeps the name
@@ -28,14 +32,32 @@ from .views import (
 # internal fragments nothing links to and nobody bookmarks, and whose whole
 # purpose was to push a URL that is now wrong.
 #
-# The two `uudiskirjad/` page routes are kept for the same reason `/nahtavus/`
-# is: the send archive is a news page now, and a saved bookmark should arrive.
+# ## Otsepostitused
+#
+# The newsletter section is two routed pages under `/otsepostitused/`: the
+# analytics overview and the send archive. It is served from this app because
+# this app owns Smaily — the models, the collector, the selectors and the
+# segment registry — and the material was only ever *rendered* elsewhere.
+#
+# The two `nahtavus/uudiskirjad/` routes are kept for the same reason
+# `/nahtavus/` is: the send archive has moved twice now, and a saved bookmark
+# should arrive rather than 404. They redirect straight to the current address
+# rather than through the intermediate `/uudised/uudiskirjad/` one, so no old
+# link costs two hops and no chain can close into a loop.
 urlpatterns = [
     path("koduleht/", koduleht, name="visibility"),
     path(
         "koduleht/otsi/",
         koduleht_search_fragment,
         name="visibility-traffic-search",
+    ),
+    path("otsepostitused/", mailings, name="mailings"),
+    path("otsepostitused/otsi/", mailings_search_fragment, name="mailings-search"),
+    path("otsepostitused/ajalugu/", mailings_history, name="mailings-history"),
+    path(
+        "otsepostitused/ajalugu/otsi/",
+        mailings_history_search_fragment,
+        name="mailings-history-search",
     ),
     path("nahtavus/", legacy_visibility, name="visibility-legacy"),
     path(

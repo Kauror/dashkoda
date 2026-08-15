@@ -15,7 +15,8 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
  * above its traffic section. It is `Koduleht` now and answers questions about
  * the website; the four hand-entered social figures are untouched and are still
  * on the overview's band, which is what the first block below covers. The
- * newsletters left earlier — see `news-newsletters.spec.js`.
+ * newsletters left earlier and are `Otsepostitused` now — see
+ * `otsepostitused.spec.js`.
  */
 
 const CHANNELS = [

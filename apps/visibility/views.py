@@ -19,8 +19,10 @@ Three notes about what did *not* change:
   section into the view that now answers for them, so a saved bookmark lands on
   the state it named rather than on a 404.
 
-The newsletter material left earlier and is rendered by `apps.news`; the two
-archive addresses below still redirect there.
+The newsletter material is `Otsepostitused`, further down this module: it spent
+a while rendered by `apps.news` and has come back to the app that owns Smaily,
+as its own section under Koduleht rather than as a focus of the website page.
+Every old address still resolves.
 """
 
 from django.shortcuts import redirect, render
@@ -31,7 +33,20 @@ from apps.dashboard.freshness import current_freshness
 from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
 
+from .campaign_history import PARAM_PAGE as PARAM_HISTORY_PAGE
+from .campaign_history import PARAM_SEARCH as PARAM_HISTORY_SEARCH
+from .campaign_history import build_campaign_history
 from .content_sections import PARAM_CONTENT
+from .mailings_page import build_mailings_page
+from .newsletter_page import (
+    ALL_NEWSLETTERS,
+    PARAM_NEWSLETTER,
+    build_newsletter_section,
+    parse_newsletter,
+)
+from .newsletter_page import PARAM_SEARCH as PARAM_NEWSLETTER_SEARCH
+from .page import build_newsletter_slot
+from .selectors import get_visibility_summary
 from .website_page import (
     FOCUS_CONTENT,
     FOCUS_PAGES,
@@ -205,12 +220,15 @@ def _redirect_keeping_query(request, route: str):
 
 @require_GET
 def campaign_history(request):
-    """Where the send archive used to live.
+    """Where the send archive used to live, before Uudised and before this.
 
-    Redirects to `news-newsletter-history`. No loop is possible: the target is a
-    different path in a different app and redirects nowhere itself.
+    Redirects to `mailings-history`. No loop is possible: the target is a
+    different path whose view renders rather than redirects. It used to point at
+    `news-newsletter-history`, which now redirects to the same place — so this
+    is aimed at the final destination instead of chaining through it, and an
+    ancient bookmark costs one hop rather than two.
     """
-    return _redirect_keeping_query(request, "news-newsletter-history")
+    return _redirect_keeping_query(request, "mailings-history")
 
 
 @require_GET
@@ -218,7 +236,153 @@ def campaign_history_search_fragment(request):
     """Where the archive's live search used to live.
 
     Kept as a compatibility alias for the same reason as the page above. htmx
-    follows the redirect transparently, so the fragment that answers is the news
-    one and the URL it pushes is the news archive's.
+    follows the redirect transparently, so the fragment that answers is the
+    Otsepostitused one and the URL it pushes is that section's.
     """
-    return _redirect_keeping_query(request, "news-newsletter-history-search")
+    return _redirect_keeping_query(request, "mailings-history-search")
+
+
+# ---------------------------------------------------------------------------
+# Otsepostitused
+# ---------------------------------------------------------------------------
+
+#: What the Otsepostitused overview understands. Two parameters and no more:
+#: which newsletter is chosen and what is being searched for in the sends. The
+#: news archive's period, category and ordering are **not** here — this page has
+#: no article archive to preserve, and carrying them would put parameters into
+#: an address that nothing on it reads.
+MAILINGS_PARAMS = (PARAM_NEWSLETTER, PARAM_NEWSLETTER_SEARCH)
+
+#: What the send history understands.
+MAILINGS_HISTORY_PARAMS = (PARAM_NEWSLETTER, PARAM_HISTORY_SEARCH, PARAM_HISTORY_PAGE)
+
+
+@require_GET
+def mailings(request):
+    """`Otsepostitused` — how the Chamber's newsletters perform.
+
+    The Smaily intelligence that was `/uudised/?fookus=uudiskirjad`, at an
+    address of its own. Nothing about the figures changed in the move: the same
+    selectors answer the same questions over the same windows, and
+    `build_newsletter_section` renders the same searchable sends table it did
+    under Uudised.
+
+    Reads PostgreSQL only. The subject search never contacts Smaily, and no page
+    render ever does.
+    """
+    newsletter_key = parse_newsletter(request.GET.get(PARAM_NEWSLETTER))
+    summary = get_visibility_summary()
+    return render(
+        request,
+        "visibility/otsepostitused.html",
+        {
+            "navigation": NAVIGATION,
+            "active_nav": "mailings",
+            "active_section": "overview",
+            # No `freshness`: only `dashboard/partials/freshness.html` reads that
+            # key and only the fragment endpoint renders it, so passing it here
+            # would be a source-state query for something nothing displays. Each
+            # figure on this page states its own recency where it needs to.
+            # `parse_newsletter` answers `koik` for "all three", which is not a
+            # newsletter the aggregates can be read for. The builder wants the
+            # empty string for that state, so the landing view asks for the
+            # comparison and nothing that would need one list chosen.
+            "page": build_mailings_page(
+                newsletter_key="" if newsletter_key == ALL_NEWSLETTERS else newsletter_key
+            ),
+            # The same `ChannelSlot` the overall dashboard's band renders, from
+            # the same builder. No second newsletter card exists, and the three
+            # lists are never totalled.
+            "newsletter_slot": build_newsletter_slot(summary.newsletter),
+            "newsletters": build_newsletter_section(
+                newsletter_key=request.GET.get(PARAM_NEWSLETTER),
+                search=request.GET.get(PARAM_NEWSLETTER_SEARCH),
+                # Nothing to carry. `carried` exists so this section could not
+                # reset the news archive it used to share a URL with; this page
+                # has no such neighbour, so every link it builds carries its own
+                # state and only that.
+                carried="",
+            ),
+        },
+    )
+
+
+@require_GET
+def mailings_search_fragment(request):
+    """The sends table alone, for a reader typing in the subject box.
+
+    Only the sends section is rebuilt. The comparison, the block change and the
+    rankings above it are unaffected by a subject search and re-running their
+    aggregates on every keystroke would buy nothing.
+    """
+    newsletters = build_newsletter_section(
+        newsletter_key=request.GET.get(PARAM_NEWSLETTER),
+        search=request.GET.get(PARAM_NEWSLETTER_SEARCH),
+        carried="",
+    )
+    return search_fragment(
+        request,
+        "visibility/partials/_newsletter_results.html",
+        {"newsletters": newsletters},
+        pushed=push_url(
+            request,
+            path=reverse("mailings"),
+            allowed=MAILINGS_PARAMS,
+            # The section's own parsing has already trimmed and bounded the
+            # term, so what reaches the address bar is what reached the query.
+            updates={PARAM_NEWSLETTER_SEARCH: newsletters.search},
+            anchor="#section-newsletter-analytics",
+        ),
+    )
+
+
+@require_GET
+def mailings_history(request):
+    """Every completed Smaily send, filterable and searchable.
+
+    The archive behind the overview's most-recent list: fourteen years of
+    campaigns, including every one that matches none of the three newsletters.
+    Reads PostgreSQL only — the subject search never contacts Smaily.
+
+    A second route rather than a focus of the page above, because fourteen years
+    of sends is not a section: rendering three thousand rows into the overview
+    would make every visit pay for history almost nobody wants on that visit.
+    """
+    return render(
+        request,
+        "visibility/campaign_history.html",
+        {
+            "navigation": NAVIGATION,
+            "active_nav": "mailings",
+            "active_section": "history",
+            "history": build_campaign_history(
+                newsletter_key=request.GET.get(PARAM_NEWSLETTER),
+                search=request.GET.get(PARAM_HISTORY_SEARCH),
+                page=request.GET.get(PARAM_HISTORY_PAGE),
+            ),
+        },
+    )
+
+
+@require_GET
+def mailings_history_search_fragment(request):
+    """One page of the archive, for a reader typing in the subject box.
+
+    Page one, always: a new term is a new question, and 3 194 sends narrowed to
+    four have no page 40.
+    """
+    history = build_campaign_history(
+        newsletter_key=request.GET.get(PARAM_NEWSLETTER),
+        search=request.GET.get(PARAM_HISTORY_SEARCH),
+    )
+    return search_fragment(
+        request,
+        "visibility/partials/_campaign_history_results.html",
+        {"history": history},
+        pushed=push_url(
+            request,
+            path=reverse("mailings-history"),
+            allowed=MAILINGS_HISTORY_PARAMS,
+            updates={PARAM_HISTORY_SEARCH: history.search, PARAM_HISTORY_PAGE: ""},
+        ),
+    )

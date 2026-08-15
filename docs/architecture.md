@@ -106,7 +106,9 @@ The future monolith will separate shared infrastructure from business modules:
   Liikmeskond page, the member-directory collector and its feed state. It owns
   no member record: the aggregate is all it stores.
 - `news` owns the imported news snapshots and items, their selectors, the
-  Uudised page, the RSS collector and its feed state.
+  Uudised page, the RSS collector and its feed state. It owns **no** newsletter
+  material: the Smaily analytics were rendered here for a while and are
+  `Otsepostitused`, owned by `visibility`, which owned the data throughout.
 - `event_programme` owns the Chamber's authoritative event programme: the
   canonical Excel workbook parser and importer, the immutable programme
   snapshots and rows, their selectors and filters, the Sündmused page, and the
@@ -121,7 +123,8 @@ The future monolith will separate shared infrastructure from business modules:
   on its own and never summed — collected from Smaily by `sync_smaily` and
   `sync_smaily_campaigns`, and the Google Analytics daily history collected by
   `sync_ga4`. With them come the metric registry, the selectors, the staff entry
-  workflow, the Koduleht page and the overview's channel band. It stores no
+  workflow, the Koduleht page, the Otsepostitused pages and the overview's
+  channel band. It stores no
   platform credential and no individual subscriber, follower or visitor. Its GA4
   path canonicalisation and page-view selectors are read by `news`,
   `event_programme` and `shop`, which makes them a shared internal interface
@@ -141,11 +144,27 @@ publication decision stays in its own app.
 
 Exact future app names and models are introduced only by their implementing pull
 requests. No pull request creates placeholder business apps or models. The
-overview, Liikmeskond, Õigusloome, Sündmused, Uudised, Koduleht and E-pood are
-routed, and nothing else appears in the navigation. The inert-entry rule stays
-in the model — a module with no route would render as an entry marked
-`Lisamisel` rather than as a link — but no entry uses it, and there are no
-nested entries.
+primary navigation is five top-level entries — the overview, Liikmeskond,
+Õigusloome, Sündmused and Koduleht — with Koduleht carrying Uudised, E-pood and
+Otsepostitused as children. Nothing else appears in it. The inert-entry rule
+stays in the model — a module with no route would render as an entry marked
+`Lisamisel` rather than as a link — but no entry uses it.
+
+**The nesting is information architecture and nothing else.** The three children
+are separately routed pages with separate views, selectors and semantics, and
+sharing a menu parent joins none of that: nothing may be merged, cross-joined or
+totalled on the strength of the navigation tuple, which only the shell reads.
+Koduleht itself stays clickable and opens the website dashboard.
+
+`Admin` (`/haldus/`) is deliberately outside that navigation, reached from a
+low-emphasis link at the foot of the sidebar beside the build stamp. It is an
+ordinary viewer-facing page behind the same PIN as every other one, and it is
+**not** an administration interface: it grants nothing and accepts no input.
+`/admin/` remains Django's admin site and the staff data-entry routes, whose
+prefix this deliberately avoids. Admin is where data-quality, source-coverage,
+import-status and provenance material will be collected as it is taken off the
+ordinary dashboards; it is empty until each of those is moved deliberately, and
+it states no count it has not computed.
 
 The overview (`Koja töölaud`, `/`) is an executive layer assembled in
 `apps/dashboard/executive.py` from six compact domain summaries — each domain

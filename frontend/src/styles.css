@@ -161,8 +161,30 @@
     @apply text-text-secondary hover:bg-elevated hover:text-text;
   }
 
+  /* A parent whose child is the page on screen. Deliberately quieter than
+     `dk-nav-item-active`: no accent edge and no filled background, because the
+     child below already carries those and two equally loud markings would leave
+     the reader unsure which one they are on. */
+  .dk-nav-item-ancestor {
+    @apply text-text;
+  }
+
   .dk-nav-item-disabled {
     @apply cursor-default text-text-muted;
+  }
+
+  /* The maintainers' way in, at the foot of the sidebar beside the build stamp.
+     Sized and coloured like the stamp rather than like a navigation entry: it
+     must be findable by somebody who knows it exists without competing with the
+     Chamber's own subjects above it. The focus ring is the standard one, so it
+     is reachable by keyboard on exactly the same terms as every other link. */
+  .dk-admin-link {
+    @apply inline-block rounded-md px-2 py-0.5 text-micro text-text-muted
+      no-underline transition-colors hover:text-text-secondary;
+  }
+
+  .dk-admin-link-active {
+    @apply text-text;
   }
 
   .dk-icon-button {

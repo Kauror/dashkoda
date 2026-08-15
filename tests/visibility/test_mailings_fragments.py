@@ -1,11 +1,18 @@
-"""The two newsletter live-search fragments, now that they answer for Uudised.
+"""The two Otsepostitused live-search fragments.
 
-They came from `tests/visibility/test_search_fragments.py` with the routes they
-serve. The contract they held there is unchanged — a fragment is a fragment, it
-narrows by the same term the form would submit, it resets pagination, and it is
-behind the viewer gate — and one thing is added: **the URL they push is
-`/uudised/`, never `/nahtavus/`**. That is the whole reason the routes moved, so
-it is asserted rather than assumed.
+They have followed their routes twice: from Nähtavus to Uudised, and now to
+`/otsepostitused/`. The contract has survived both moves unchanged — a fragment
+is a fragment, it narrows by the same term the form would submit, it resets
+pagination, and it is behind the viewer gate — and what each move adds is an
+assertion about the URL pushed, because pushing the previous section's address
+is exactly the way this breaks.
+
+Two tests were dropped rather than moved: the ones asserting that a keystroke
+carried the *news archive's* period and category through `HX-Current-URL`.
+Otsepostitused has no news archive beside it, `carried` is empty by
+construction, and a test demanding those parameters survive would be pinning
+behaviour the move deliberately removed. What replaces them is the assertion
+below that no news parameter reaches the pushed URL at all.
 """
 
 from __future__ import annotations
@@ -20,8 +27,8 @@ from apps.visibility.models import SmailyCampaign, VisibilityMetric
 
 pytestmark = pytest.mark.django_db
 
-NEWSLETTER_SEARCH = "news-newsletter-search"
-ARCHIVE_SEARCH = "news-newsletter-history-search"
+NEWSLETTER_SEARCH = "mailings-search"
+ARCHIVE_SEARCH = "mailings-history-search"
 
 ETEATAJA = VisibilityMetric.NEWSLETTER_ETEATAJA
 ENEWS = VisibilityMetric.NEWSLETTER_ENEWS
@@ -71,28 +78,31 @@ def test_the_newsletter_fragment_narrows_by_term_and_newsletter(viewer_client):
     assert "Midagi muud" not in narrowed
 
 
-def test_the_newsletter_fragment_pushes_uudised_and_never_nahtavus(viewer_client):
+def test_the_newsletter_fragment_pushes_otsepostitused(viewer_client):
     """The point of the move, in one assertion.
 
-    The fragment used to push `/nahtavus/`. Left that way, a reader typing in the
-    newsletter box on the news page would have watched their address bar change
-    to a page that no longer has a newsletter box.
+    The fragment pushed `/nahtavus/` once and `/uudised/` after that. Left
+    either way, a reader typing in the subject box would watch their address bar
+    change to a page that no longer has one.
     """
     response = viewer_client.get(reverse(NEWSLETTER_SEARCH), {"otsi": "ärifoorum"})
 
     pushed = response.headers["HX-Push-Url"]
-    assert pushed.startswith(reverse("news"))
+    assert pushed.startswith(reverse("mailings"))
+    assert not pushed.startswith(reverse("news"))
     assert not pushed.startswith(reverse("visibility"))
     assert "otsi=%C3%A4rifoorum" in pushed
     assert pushed.endswith("#section-newsletter-analytics")
 
 
-def test_the_newsletter_fragment_carries_the_news_archive(viewer_client):
-    """Typing a subject must not reset the archive above it.
+def test_the_newsletter_fragment_carries_no_news_state(viewer_client):
+    """A news parameter on the current URL must not ride along.
 
-    The period, the category, the ordering and the news search are all on the
-    same page and none of them is in this form, so they come from
-    `HX-Current-URL` and have to survive the keystroke.
+    This section used to sit on `/uudised/` and carried the article archive's
+    period, category and ordering so a keystroke could not reset them. There is
+    no archive here, so those keys mean nothing on the page being pushed — and
+    an address holding parameters the page never reads is an address that lies
+    about what is on screen.
     """
     response = viewer_client.get(
         reverse(NEWSLETTER_SEARCH),
@@ -106,30 +116,8 @@ def test_the_newsletter_fragment_carries_the_news_archive(viewer_client):
     )
 
     pushed = response.headers["HX-Push-Url"]
-    assert "periood=1a" in pushed
-    assert "kategooria=meie_uudised" in pushed
-    assert "sort=vaadatud" in pushed
-    assert "otsing=eksport" in pushed
-
-
-def test_the_newsletter_fragment_chips_keep_the_news_archive(viewer_client):
-    """Not just the pushed URL — the chips rendered into the swapped region.
-
-    They are rebuilt on every keystroke, so if they did not carry the archive's
-    state a reader would lose it on the click *after* typing rather than on the
-    keystroke itself.
-    """
-    send(1, "Kutse ärifoorumile")
-
-    content = viewer_client.get(
-        reverse(NEWSLETTER_SEARCH),
-        {"otsi": "ärifoorum"},
-        headers={"HX-Current-URL": "https://dash.orgusaar.ee/uudised/?periood=1a"},
-    ).content.decode()
-
-    # The `Tühjenda otsing` link is the one control this region renders that
-    # navigates back to the page, so it is where the carried state shows.
-    assert "periood=1a" in content
+    for key in ("periood=", "kategooria=", "sort=", "otsing=", "fookus="):
+        assert key not in pushed
 
 
 # -- the send archive's subject box ------------------------------------------
@@ -147,7 +135,7 @@ def test_the_archive_fragment_narrows_and_resets_the_page(viewer_client):
     assert "<html" not in content
 
     pushed = response.headers["HX-Push-Url"]
-    assert pushed.startswith(reverse("news-newsletter-history"))
+    assert pushed.startswith(reverse("mailings-history"))
     assert "lk=" not in pushed
 
 

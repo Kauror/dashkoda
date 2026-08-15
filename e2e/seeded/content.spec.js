@@ -45,9 +45,12 @@ for (const page_ of PAGES) {
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
 
     // Seeded pages carry figures, so a page with no digit at all would mean the
-    // seed did not reach it.
+    // seed did not reach it — except where the page is empty on purpose, which
+    // `withoutFigures` marks.
     const text = await page.locator("main").innerText();
-    expect(text).toMatch(/\d/);
+    if (!page_.withoutFigures) {
+      expect(text).toMatch(/\d/);
+    }
     expect(errors).toEqual([]);
   });
 

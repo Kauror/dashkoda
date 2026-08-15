@@ -1,0 +1,49 @@
+{% extends "dashboard/shell.html" %}
+
+{% comment %}
+`Admin` — the maintainers' page, at `/haldus/`.
+
+Not Django's admin. This is an ordinary viewer-facing dashboard page behind the
+same PIN as every other one; it grants nothing, edits nothing and accepts no
+input. `/admin/` remains Django's admin site and the staff data-entry
+workflows, with their own `is_staff` requirement and untouched by this.
+
+## Deliberately empty
+
+The three sections below are destinations, not reports. DashKoda's data-quality
+notes, source coverage, import status and provenance detail are still on the
+dashboards where they were written, and they move here one at a time in later
+work — a warning is only worth relocating once somebody has checked which page
+still needs it.
+
+So nothing here counts anything. In particular there is no "0 probleemi": a
+figure like that would be this page describing checks that have not been moved
+yet as checks that found nothing, which is the one reading a maintainer must
+never be given. A quiet page is the honest state of this work.
+{% endcomment %}
+
+{% block title %}Admin – DashKoda{% endblock %}
+
+{% block content %}
+<div class="flex min-w-0 flex-col gap-5">
+
+  <header class="flex min-w-0 flex-col gap-2">
+    <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Admin</h1>
+    <p class="max-w-prose text-sm text-text-secondary">
+      Siia koondame DashKoda andmekvaliteedi, andmeallikate, impordi ja tehnilised
+      kontrollid, mis ei pea olema tavakasutaja põhivaadetes.
+    </p>
+    <p class="dk-meta max-w-prose">
+      Leht on praegu tühi. Kontrollid tuuakse siia järk-järgult koos sellega, kui
+      need põhivaadetest välja viiakse.
+    </p>
+  </header>
+
+  {% include "dashboard/components/admin_section.html" with title="Andmekvaliteet" heading_id="section-andmekvaliteet" description="Puuduvad, vastuolulised ja kinni pidatud väärtused." note="Andmekvaliteedi kontrolle ei ole veel siia toodud." only %}
+
+  {% include "dashboard/components/admin_section.html" with title="Andmeallikad ja import" heading_id="section-andmeallikad" description="Allikate kaetus, viimased impordid ja nende seis." note="Allikate ja impordi ülevaadet ei ole veel siia toodud." only %}
+
+  {% include "dashboard/components/admin_section.html" with title="Tehniline info" heading_id="section-tehniline" description="Päritolu, seosed ja muu hooldajale mõeldud taust." note="Tehnilist infot ei ole veel siia toodud." only %}
+
+</div>
+{% endblock %}

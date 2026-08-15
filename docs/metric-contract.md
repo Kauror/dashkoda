@@ -69,7 +69,17 @@ never merged, subtracted, averaged or continued into each other (AGENTS.md).
 | Uudiste vaatamised | GA4 page views of catalogue articles in the measurement window | GA4 × catalogue join | Day × path; the website's own window | Absent | `previous_traffic_within` — refused when the previous window reaches before GA4 collection began; the news page and the executive share this one rule | Fact + `news-views` signal |
 | Uudiste osa kodulehe vaatamistest | News views ÷ site views, **same days, same unit** (page views over page views) | GA4 | Window | Absent when denominator missing | n/a | Stated as a share, **never** added to site views |
 | Esimene nädal / kuu | An article's own first 7/30 days, only when fully elapsed inside coverage | GA4 × catalogue | Article-anchored window | Unelapsed or uncovered → no figure | Against cohort median | Not on `/` |
+
+## Otsepostitused
+
+The Smaily material was the fifth focus of Uudised and is its own section under
+Koduleht since the navigation restructure. **The definitions below did not change
+with the address** — same selectors, same windows, same weighting.
+
+| Metric | Definition | Source | Grain / time basis | Missing | Comparison | Executive use |
+| --- | --- | --- | --- | --- | --- | --- |
 | Uudiskirja avamis-/klikimäär | Weighted totals over the last 12 sends: opens ÷ delivered, clicks ÷ delivered; click-to-open separately | Smaily aggregates | Send; slice over sends, not dates (cadence is irregular) | Absent | Previous 12-send block | e-Teataja open rate as a fact; **no audience totals anywhere** (list overlap is unmeasured) |
+| Uudiskirjade nimekirjade suurus | Each list's current size, reported **on its own and never summed** — the overlap between the three is unmeasured | Smaily segments (`sync_smaily`) | Day; latest reading | `Sisestamata`, never zero | Previous reading | Channel band on `/`, one card per list |
 
 ## E-pood
 

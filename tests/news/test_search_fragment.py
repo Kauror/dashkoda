@@ -48,12 +48,17 @@ def test_the_fragment_resets_the_page_and_keeps_the_period(viewer_client):
     assert "lk=" not in pushed
 
 
-def test_the_fragment_keeps_the_newsletter_the_reader_chose(viewer_client):
-    """The newsletter section shares this page and is not in this form.
+def test_the_fragment_drops_a_stale_newsletter_parameter(viewer_client):
+    """The inverse of what this asserted while the newsletters shared the page.
 
-    Its two parameters reach the pushed URL from `HX-Current-URL`, so typing an
-    article title must not silently clear the newsletter and the subject search
-    the reader set below.
+    A newsletter section used to sit on `/uudised/` and was not in this form, so
+    its two parameters had to survive from `HX-Current-URL` or typing an article
+    title would silently clear them. The newsletters are `Otsepostitused` now and
+    nothing on this page reads either key.
+
+    So an old tab still holding them must not have them copied forward: the
+    pushed URL is the address of what is actually on screen, and `uudiskiri` in
+    it would describe a section that is not there.
     """
     response = viewer_client.get(
         reverse(SEARCH),
@@ -66,8 +71,10 @@ def test_the_fragment_keeps_the_newsletter_the_reader_chose(viewer_client):
     )
 
     pushed = response.headers["HX-Push-Url"]
-    assert "uudiskiri=newsletter_enews" in pushed
-    assert "otsi=aastakoosolek" in pushed
+    assert "uudiskiri=" not in pushed
+    assert "otsi=aastakoosolek" not in pushed
+    # The archive's own state is still carried, which is what this form owns.
+    assert "otsing=eeln%C3%B5u" in pushed
 
 
 def test_the_fragment_is_behind_the_viewer_gate(client):

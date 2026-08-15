@@ -66,6 +66,37 @@ def overview(request):
 
 
 @require_GET
+def admin_area(request):
+    """`Admin` at `/haldus/` — where DashKoda's technical material will live.
+
+    An ordinary dashboard page behind the same viewer PIN as every other one. It
+    is **not** an administration interface: it grants nothing, changes nothing
+    and accepts no input. Django's admin site and the staff data-entry
+    workflows keep `/admin/` and their own `is_staff` requirement, untouched.
+
+    ## Why it exists before it has content
+
+    The dashboards carry data-quality warnings, source coverage, import status
+    and provenance notes mixed in among the figures a board member came for.
+    That material has to go somewhere before it can be taken out of those pages,
+    and moving it needs a destination that already exists, is already routed and
+    is already in the shell. This is that destination.
+
+    It is deliberately empty. Each section states what it is for and shows
+    nothing else — no invented count, no fabricated warning and above all no
+    "0 probleemi", which would be this page reporting its own emptiness as a
+    clean bill of health for checks that are not running yet. The material
+    arrives one diagnostic at a time in later work; until then a quiet page is
+    the honest one.
+    """
+    return render(
+        request,
+        "dashboard/admin.html",
+        {"navigation": NAVIGATION, "active_nav": "admin"},
+    )
+
+
+@require_GET
 def freshness_fragment(request):
     """Neutral HTMX fragment used to validate the partial-update pattern.
 

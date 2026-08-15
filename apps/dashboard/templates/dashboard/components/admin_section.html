@@ -1,0 +1,28 @@
+{% comment %}
+One Admin section: a titled container standing ready for a diagnostic.
+
+Context:
+  title       – required, the section heading
+  heading_id  – required, referenced by the section's aria-labelledby
+  description – required, what this section is for, in the reader's words
+  note        – required, what is not here yet
+
+It exists so the three sections cannot drift apart from each other, and so that
+moving a check onto this page is a matter of putting markup where the note is
+rather than inventing a container each time. Deliberately no content slot:
+Django templates have no such thing, and a `{{ content|safe }}` parameter would
+be a way to inject unescaped markup from a view for no gain over writing the
+section out where it belongs.
+
+`note` is a plain sentence and **not** `empty_state.html`. That component says
+"there is no data", which would be a claim about the Chamber's sources; what is
+true here is only that the check has not been moved to this page yet. Those are
+different statements and only one of them is honest today.
+{% endcomment %}
+<section aria-labelledby="{{ heading_id }}" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title=title heading_id=heading_id description=description only %}
+
+  <div class="dk-section-body">
+    <p class="dk-meta">{{ note }}</p>
+  </div>
+</section>

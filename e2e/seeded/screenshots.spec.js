@@ -47,7 +47,7 @@ test("capture the news archive", async ({ page }, testInfo) => {
 
 test("capture each news focus view", async ({ page }, testInfo) => {
   /*
-   * All five, at every width. The dashboard's whole claim is that a reader gets
+   * All four, at every width. The dashboard's whole claim is that a reader gets
    * an answer in seconds and can then investigate, and whether that holds is a
    * question about hierarchy and density on a real screen — which is what a
    * screenshot review is for and what no assertion covers.
@@ -57,7 +57,7 @@ test("capture each news focus view", async ({ page }, testInfo) => {
     ["news-overview", "/uudised/"],
     ["news-impact", "/uudised/?fookus=moju"],
     ["news-publishing", "/uudised/?fookus=avaldamine"],
-    ["news-newsletters", "/uudised/?fookus=uudiskirjad"],
+    ["mailings", "/otsepostitused/"],
   ]) {
     await page.goto(url);
     await page.screenshot({ path: shot(testInfo, name), fullPage: true });

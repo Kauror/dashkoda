@@ -1,3 +1,4 @@
+{% load dashboard_nav %}
 {% comment %}
 Navigation item.
 
@@ -13,12 +14,21 @@ Children follow exactly the same rule and are nested in their own list, so the
 relationship between a parent and its views is carried by the document
 structure rather than by indentation alone. A child is never a link unless it
 has a route of its own.
+
+A parent whose child is on screen gets a **quieter** marking of its own —
+`dk-nav-item-ancestor` — and never `aria-current`. Exactly one page is current;
+saying so twice would tell a screen-reader user they are in two places at once.
+The parent stays an ordinary link throughout: `Koduleht` is a page that also has
+children, not a folder.
 {% endcomment %}
 {% if item.is_available %}
   {% if item.key == active_nav %}
     <a href="{% url item.url_name %}"
        aria-current="page"
        class="dk-nav-item dk-nav-item-active">{{ item.label }}</a>
+  {% elif item|has_active_child:active_nav %}
+    <a href="{% url item.url_name %}"
+       class="dk-nav-item dk-nav-item-link dk-nav-item-ancestor">{{ item.label }}</a>
   {% else %}
     <a href="{% url item.url_name %}"
        class="dk-nav-item dk-nav-item-link">{{ item.label }}</a>

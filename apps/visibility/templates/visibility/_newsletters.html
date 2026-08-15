@@ -21,9 +21,10 @@ them a second time — first as sparklines, then as rows once the charts came of
 against itself. This section answers "does anybody read what we send"; the card
 above answers "how many could".
 
-This markup is included by the Uudised page. It was the Nähtavus page's until the
-newsletter material moved; nothing in here changed with it, and the presenter is
-still `apps.visibility.newsletter_page.build_newsletter_section`.
+This markup is included by the Otsepostitused page. It was the Nähtavus page's,
+then the Uudised page's; nothing in here changed with either move, and the
+presenter has been `apps.visibility.newsletter_page.build_newsletter_section`
+throughout.
 {% endcomment %}
 <section aria-labelledby="section-newsletter-analytics" class="dk-section">
   {% include "dashboard/components/section_header.html" with title="Uudiskirjade tulemused" heading_id="section-newsletter-analytics" only %}
@@ -106,7 +107,7 @@ still `apps.visibility.newsletter_page.build_newsletter_section`.
                    placeholder="Pealkirja osa…"
                    autocomplete="off"
                    class="dk-input w-full min-w-0"
-                   hx-get="{% url 'news-newsletter-search' %}"
+                   hx-get="{% url 'mailings-search' %}"
                    hx-trigger="input changed delay:250ms, search"
                    hx-target="#newsletter-results"
                    hx-swap="innerHTML"

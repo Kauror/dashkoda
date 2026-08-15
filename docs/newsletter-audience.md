@@ -211,12 +211,14 @@ drift towards whichever list is smallest.
 
 ## On the page
 
-The newsletter material is on **`/uudised/`**, below the news archive. It was on
-`/nahtavus/` until the two were separated: a reader asking what the Chamber
-published is already on the news page, and the website page — Koduleht now —
-keeps the website and
-the social channels. The data did not move — `apps/visibility` still owns every
-Smaily model, collector, selector and presenter, and `apps/news` imports them.
+The newsletter material is **`Otsepostitused`**, at `/otsepostitused/` under
+Koduleht in the navigation. It has moved twice: it was on `/nahtavus/` until the
+website page and the audiences were separated, then on `/uudised/` below the
+news archive, and it is now a section of its own. **The data never moved** —
+`apps/visibility` owns every Smaily model, collector, selector and presenter,
+and since the second move it owns the page composition as well
+(`apps/visibility/mailings_page.py`). Nothing was reimplemented and no figure
+changed with either address.
 
 **How many people are on each list is shown once, in the `Uudiskirjad` card** —
 three lists, each under its own name, never totalled. `build_newsletter_slot` in
@@ -236,11 +238,26 @@ The filter chips carry the term, so switching newsletter keeps the search rather
 than silently widening it, and `Vaata kõiki` opens the archive already holding
 both. Nothing here contacts Smaily.
 
-`/uudised/uudiskirjad/` is the archive behind it — every completed send, 50 to
-a page, filterable by type and searchable by subject. Fourteen years of
-campaigns is not a section, which is why it is its own page. The old
-`/nahtavus/uudiskirjad/` address still resolves and redirects there with its
-query string intact, so a saved bookmark keeps its newsletter, term and page.
+`/otsepostitused/ajalugu/` is the archive behind it, and the section's second
+view — every completed send, 50 to a page, filterable by type and searchable by
+subject. Fourteen years of campaigns is not a section, which is why it is its
+own route rather than a tab on the page above.
+
+Every address the archive has ever had still resolves. `/nahtavus/uudiskirjad/`
+and `/uudised/uudiskirjad/` both redirect to it with their query string intact,
+so a saved bookmark keeps its newsletter, term and page; and
+`/uudised/?fookus=uudiskirjad` reaches the overview carrying `uudiskiri` and
+`otsi`, which are the two parameters that still mean the same thing there. Each
+is one hop: when the section moved, the older redirect was re-aimed at the new
+destination rather than left pointing at the intermediate one.
+
+### On naming
+
+The section is `Otsepostitused`; an individual newsletter is still an
+**uudiskiri**, which is what the objects in it are. So the page is
+Otsepostitused, the metric is `Saadetud uudiskirjad`, and the object is the
+`Ettevõtlusuudised` uudiskiri. The archive page keeps the heading
+`Saadetud uudiskirjad` for that reason.
 
 ### What the results section used to carry
 

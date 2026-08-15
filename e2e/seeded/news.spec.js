@@ -36,8 +36,9 @@ test("the removed status panel and KPI cards are gone", async ({ page }) => {
   await expect(main).not.toContainText("Viimati kontrollitud");
   await expect(main).not.toContainText("Avaldatud viimase kuu jooksul");
   await expect(main).not.toContainText("Uudiseid voos");
-  // The stale planned block: newsletter analytics live on Nähtavus now, so a
-  // module here saying the newsletter source is not connected is simply false.
+  // The stale planned block: newsletter analytics are `Otsepostitused` now, so
+  // a module here saying the newsletter source is not connected is simply
+  // false — and nothing on this page is about newsletters at all.
   await expect(main).not.toContainText("Muud kanalid");
   await expect(main).not.toContainText("Meediakajastused");
 
