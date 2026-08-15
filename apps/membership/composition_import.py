@@ -326,7 +326,17 @@ def _ensure_artifact(source, *, sha256: str, size: int, actor, correlation_id) -
     trusted checksum, not when it still has a file — the same rule the historical
     package import follows, and here it is a privacy control as well as a
     storage one.
+
+    Bytes already registered are **reused**, never registered twice: a dry run
+    registers the artifact for provenance, and the documented sequence — dry-run
+    first, then the live import of the very same file — must not be refused on
+    its own first half. Whether these bytes have already been *published* is a
+    different question, and it stays with the import key: the unchanged check
+    below answers it, not the artifact's existence.
     """
+    existing = SourceArtifact.objects.filter(source=source, sha256=sha256).first()
+    if existing is not None:
+        return existing
     return register_external_reference(
         source=source,
         external_reference=f"{ARTIFACT_REFERENCE_PREFIX}:{sha256}",
