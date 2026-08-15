@@ -38,25 +38,34 @@ words.
         {% endif %}
       </p>
       {% comment %}
-      A refused comparison says why, where the delta would have been. The
-      website's coverage rules are the case this exists for: two windows
-      measured to different completeness are not subtractable, and printing a
-      delta anyway would be reporting the collector's gaps as the Chamber's
-      audience.
+      The change against the comparison period, and beneath it what it was
+      measured against.
 
-      **There is no delta row above this**, and there never has been. The
-      block that drew one asked `pillar.has_comparison`, but that property is
-      on `ExecutiveMetric` rather than on the pillar — Django resolves the
-      missing attribute to falsy, so the branch has been dead since the
-      overview was first built and every card has shown its comparison only as
-      the `meaning` sentence below. It was removed rather than repaired on
-      2026-08-15: repairing it would have put a figure on four cards that
-      nobody has reviewed, in the same change that took chrome off them. The
-      data is untouched — `headline.comparison` still carries the text, the
-      basis and the direction — so restoring the row is a template block, not a
-      rebuild.
+      **`pillar.headline.has_comparison`, not `pillar.has_comparison`.** That
+      property lives on `ExecutiveMetric`; asking the pillar for it resolved to
+      falsy in Django and left this row dead from the day the overview was
+      built until 2026-08-15, when it was removed as dead code and restored
+      here against the right object. Anything that reaches for it through the
+      pillar will silently draw nothing again.
+
+      Direction is carried by the sign in `text` and by the colour, never by
+      colour alone — `+26,9%` reads as a rise in monochrome.
+
+      A refused comparison says why, in the same place. The website's coverage
+      rules are the case that exists for: two windows measured to different
+      completeness are not subtractable, and printing a delta anyway would be
+      reporting the collector's gaps as the Chamber's audience.
       {% endcomment %}
-      {% if pillar.headline.comparison.has_note %}
+      {% if pillar.headline.has_comparison %}
+        <p class="flex flex-wrap items-baseline gap-x-2 text-sm">
+          <span class="font-medium tabular-nums {% if pillar.headline.comparison.direction == 'up' %}text-success{% elif pillar.headline.comparison.direction == 'down' %}text-danger{% else %}text-text-secondary{% endif %}">
+            {{ pillar.headline.comparison.text }}
+          </span>
+          {% if pillar.headline.comparison.basis %}
+            <span class="dk-meta">{{ pillar.headline.comparison.basis }}</span>
+          {% endif %}
+        </p>
+      {% elif pillar.headline.comparison.has_note %}
         <p class="dk-meta">{{ pillar.headline.comparison.unavailable_note }}</p>
       {% endif %}
     </div>
