@@ -88,7 +88,11 @@ def seed_register(today: dt.date) -> str:
         return "liikmete nimekiri: juba olemas"
 
     snapshot_date = today - dt.timedelta(days=2)
-    digest = "e2ereg" + "0" * 58
+    # A fixed synthetic digest, and it must be 64 lowercase *hexadecimal* chars:
+    # `register_external_reference` rejects anything else, and a mnemonic prefix
+    # is an easy way to smuggle in a non-hex letter. Hence `e2e` plus a fill,
+    # the same shape `seed_composition` uses under its own source.
+    digest = "e2e" + "b" * 61
 
     artifact = register_external_reference(
         source=source,

@@ -151,14 +151,35 @@ def test_membership_has_no_year_to_date_field():
         assert forbidden not in names
 
 
-def test_membership_stores_no_member_rows():
-    """No model in the app may be capable of holding an individual member.
+#: The only two models allowed to hold one row per member. Everything else in
+#: the app is an aggregate, and `test_membership_stores_no_member_rows` enforces
+#: both halves of that sentence.
+MEMBER_LEVEL_MODELS = {"MemberRegisterEntry", "MemberDirectoryEntry"}
 
-    The explicit allowlist is the point: adding a model to this app should be a
-    deliberate act that comes past this assertion. The internal board-report
-    models were added that way, and the field check below now runs over *every*
-    model rather than only the public one, so a member-level column anywhere in
-    the app fails here.
+
+def test_membership_stores_no_member_rows():
+    """Only two named models may hold a member, and neither may hold a person.
+
+    This assertion used to say that *no* model in the app could hold an
+    individual member. That changed deliberately on 2026-08-15: the Chamber
+    asked for the member list itself, which cannot be stored as an aggregate.
+
+    What the rule protected is kept, and is worth stating precisely, because the
+    two things are easy to confuse. The roster export carries a company name, a
+    registry code, an address, a director and three contact addresses. Only the
+    first two are facts about a *company*; the rest identify or reach a
+    *person*, and those never enter the database. So:
+
+    - every model outside `MEMBER_LEVEL_MODELS` stays aggregate-only, checked
+      field by field exactly as before;
+    - the two member-level models may name and code a company — that is what
+      the page was asked for — but may not carry a director, an email, a phone,
+      a fax, a postal address or the free-text comment column, and the check
+      below is a substring match so `contact_email` cannot slip past a rule
+      written for `email`.
+
+    The allowlist is still the point: adding a model to this app should be a
+    deliberate act that comes past this assertion.
     """
     from django.apps import apps as django_apps
 
@@ -196,9 +217,20 @@ def test_membership_stores_no_member_rows():
         "MembershipDecisionBatchSizeMovement",
         "MembershipNewMemberPeriod",
         "MembershipNewMemberSizeDistribution",
+        # The member list itself, imported by hand from the CRM. The snapshot is
+        # an aggregate like every other — a date, a checksum, a row count — and
+        # is checked as one below; only the entry beside it holds a member.
+        "MemberRegisterSnapshot",
+        "MemberRegisterEntry",
+        # The public catalogue row by row, so the list can be compared against
+        # what koda.ee publishes today. A registration code and a profile path:
+        # both already public, and neither reaches a person.
+        "MemberDirectoryEntry",
     }
 
     for model in models:
+        if model.__name__ in MEMBER_LEVEL_MODELS:
+            continue
         fields = {f.name for f in model._meta.get_fields()}
         for forbidden in (
             "crn",
@@ -209,6 +241,27 @@ def test_membership_stores_no_member_rows():
             "member_url",
         ):
             assert forbidden not in fields, f"{model.__name__} gained a {forbidden} field"
+
+    # The two member-level models carry company identity on purpose. What they
+    # may never carry is a person, or a way to reach one.
+    for model_name in MEMBER_LEVEL_MODELS:
+        fields = {
+            f.name for f in django_apps.get_model("membership", model_name)._meta.get_fields()
+        }
+        for forbidden in (
+            "director",
+            "manager",
+            "contact",
+            "person",
+            "mail",
+            "phone",
+            "fax",
+            "address",
+            "comment",
+            "note",
+        ):
+            offending = sorted(field for field in fields if forbidden in field)
+            assert not offending, f"{model_name} gained {offending}, which can hold a person"
 
 
 def test_membership_audit_carries_only_safe_facts():

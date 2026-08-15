@@ -103,8 +103,19 @@ does not show it and does not reserve an empty card for it.
 
 **Teataja is out of scope.** No issue, no PDF, no link.
 
-Also absent: member names, registration codes, profile URLs, individual member
-records, and any per-member view.
+Also absent **from this feed**: member names, registration codes, profile URLs,
+individual member records. What survives a `koda-public-members` collection is
+one integer, and that is unchanged.
+
+The scope of that sentence narrowed on 2026-08-15 and it is worth being exact
+about how. A *second* source, `koda-member-directory`, reads the same endpoint
+and does keep one row per member — a registration code and a profile path, both
+already public — so the manually imported roster can be checked against what
+koda.ee publishes today. It is a separate `DataSource` with separate state, it
+does not write the count, and the count does not read it. There is now a
+per-member view, at `/liikmeskond/?fookus=nimekiri`. See
+[member-register.md](member-register.md) for what it stores and what it refuses
+to store.
 
 ### The change guard
 

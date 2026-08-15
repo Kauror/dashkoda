@@ -5,22 +5,29 @@
 {% comment %}
 Liikmeskond — the membership intelligence page.
 
-Two membership sources, side by side, never merged:
+Four membership sources, side by side, never merged:
 
-  1. Avalik liikmekataloog — how many member profiles Koda.ee publishes. It is
-     reported on the dashboard overview, not here.
+  1. Avalik liikmekataloog — how many member profiles Koda.ee publishes. The
+     count is reported on the dashboard overview, not here.
   2. Sisemine liikmeskonna aruanne — what the Chamber's own board reports say.
-     This page is that source.
+  3. Liikmeskonna koosseis — aggregate composition of the roster.
+  4. Liikmete nimekiri — the roster itself, imported by hand, plus the public
+     catalogue row by row so the two can be compared.
 
 They count different things. Nothing here adds them, subtracts them, or presents
-one as a continuation of the other.
+one as a continuation of the other. The comparison in `section-register-comparison`
+is the sharpest case: it prints three counts and two difference lists and never
+resolves them into a single membership number.
 
 There is still deliberately no "uusi liikmeid sel aastal" figure from the public
 source — it is not a DashKoda metric. The internal new-member figures below come
 from the board reports and are labelled as internal reported data.
 
-No individual member is listed anywhere, because no dataset behind this page
-stores one.
+Individual members *are* listed, in `section-register` and only there. That
+changed on 2026-08-15, when the Chamber asked for the list itself. What is shown
+is company-level — name, registration code, county, size, activity, start date.
+No director, email, phone, postal address or comment column is stored anywhere
+behind this page, and `test_membership_stores_no_member_rows` enforces that.
 
 ## Shape of the page
 

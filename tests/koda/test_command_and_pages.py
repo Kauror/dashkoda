@@ -148,8 +148,11 @@ def test_one_failing_source_still_publishes_the_others(wire):
 
 
 def test_every_source_failing_returns_one(wire):
+    # All four, or the survivor makes this a partial failure and the exit code
+    # is 2 — which is exactly what a forgotten source looks like here.
     wire(
         membership=MembershipCollectionError("404."),
+        directory=MembershipCollectionError("404."),
         news=NewsCollectionError("Vigane XML."),
         events=EventCollectionError("Tühi leht."),
     )
