@@ -12,11 +12,13 @@ refuses, and what never appears in the markup.
 from __future__ import annotations
 
 import datetime as dt
+import json
 import re
 from dataclasses import dataclass
 
 import pytest
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.legal_work.consultation import CONSULTATION_ELIGIBLE
 from apps.legal_work.models import (
@@ -780,3 +782,81 @@ class TestResourcePage:
         url = reverse("opinion-resource", args=[self._resource(item).public_id])
 
         assert client.get(url).status_code == 200
+
+
+class TestRetiringACatalogueTheMatcherCited:
+    """The production failure of 2026-08-15, reproduced through the real pipeline.
+
+    `LegalOpinionDocumentRelation.entry` is `PROTECT` on its
+    `OpinionCatalogueEntry`, so a catalogue snapshot cannot be deleted while a
+    match snapshot still names one of its entries. When both had aged past the
+    retention window the policy correctly decided the pair should go together —
+    but `prune_snapshots` deleted families in registry order, reached the
+    catalogue before the match, and raised `ProtectedError`. The run aborted
+    that family after other families had already lost rows.
+
+    Deletion runs in reverse registry order now, so the match goes first and
+    frees the entries it was protecting.
+    """
+
+    def _retire_everything(self):
+        """Age every opinion snapshot past the window and clear `is_current`."""
+        from apps.legal_work.models import OpinionCatalogueSnapshot
+        from apps.legal_work.opinion_match_models import LegalOpinionMatchSnapshot
+
+        old = timezone.now() - dt.timedelta(days=400)
+        for model, field in (
+            (OpinionCatalogueSnapshot, "observed_at"),
+            (LegalOpinionMatchSnapshot, "generated_at"),
+        ):
+            model.objects.update(is_current=False)
+            model.objects.update(**{field: old})
+
+    @pytest.mark.django_db
+    def test_the_pair_is_pruned_without_a_protected_error(self, matched_world):
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from apps.legal_work.models import OpinionCatalogueSnapshot
+        from apps.legal_work.opinion_match_models import LegalOpinionMatchSnapshot
+
+        assert LegalOpinionDocumentRelation.objects.exists(), (
+            "the fixture must produce a relation for this to prove anything"
+        )
+        self._retire_everything()
+
+        out = StringIO()
+        call_command("prune_snapshots", "--json", stdout=out)
+        payload = json.loads(out.getvalue().strip().splitlines()[-1])
+
+        assert payload["result"] == "pruned", payload.get("detail")
+        errors = [row.get("error") for row in payload["families"] if row.get("error")]
+        assert errors == [], f"a family failed: {errors}"
+        assert not OpinionCatalogueSnapshot.objects.exists()
+        assert not LegalOpinionMatchSnapshot.objects.exists()
+
+    @pytest.mark.django_db
+    def test_a_current_match_still_protects_its_catalogue(self, matched_world):
+        """The fix must not have widened anything.
+
+        The match here is current, so its catalogue is protected however old it
+        is — the rule that stops a live matcher's inputs being deleted out from
+        under it.
+        """
+        from io import StringIO
+
+        from django.core.management import call_command
+
+        from apps.legal_work.models import OpinionCatalogueSnapshot
+
+        old = timezone.now() - dt.timedelta(days=400)
+        OpinionCatalogueSnapshot.objects.update(observed_at=old)
+
+        out = StringIO()
+        call_command("prune_snapshots", "--json", stdout=out)
+        payload = json.loads(out.getvalue().strip().splitlines()[-1])
+
+        assert payload["result"] == "pruned"
+        assert OpinionCatalogueSnapshot.objects.filter(is_current=True).exists()
+        assert LegalOpinionDocumentRelation.objects.exists(), "a live match lost its relations"
