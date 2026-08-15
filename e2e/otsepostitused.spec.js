@@ -1,0 +1,129 @@
+import { expect, test } from "@playwright/test";
+
+import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
+
+/*
+ * `Otsepostitused` — the Chamber's newsletter section, under Koduleht.
+ *
+ * The Smaily material has moved twice: it was Nähtavus's, then Uudised's. This
+ * suite is the browser half of the second move — that the section renders at its
+ * own address, that its two views navigate between each other, and that every
+ * retired address still arrives. `news.spec.js` and `visibility.spec.js` hold
+ * the other side: that neither of those pages still renders any of it.
+ *
+ * CI runs against a container with an empty database, so what these assert is
+ * the layout, the controls and the *truthful empty state*. A newsletter nobody
+ * has collected must read as missing, never as zero.
+ */
+
+const OVERVIEW = "/otsepostitused/";
+const HISTORY = "/otsepostitused/ajalugu/";
+
+async function openMailings(page, url = OVERVIEW) {
+  await signIn(page);
+  await page.goto(url);
+}
+
+test("the section renders at its own address", async ({ page }) => {
+  const errors = watchConsole(page);
+
+  await openMailings(page);
+
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
+  // The audience card, then the analytics section under it.
+  await expect(page.getByRole("heading", { name: "Uudiskirjad", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Uudiskirjade tulemused", exact: true }),
+  ).toBeVisible();
+  expect(errors).toEqual([]);
+});
+
+test("the two views are reachable from each other", async ({ page }) => {
+  await openMailings(page);
+
+  const nav = page.getByRole("navigation", { name: "Vaade" });
+  await expect(nav).toBeVisible();
+  await nav.getByRole("link", { name: "Saadetised", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/otsepostitused\/ajalugu\/$/);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Saadetud uudiskirjad");
+
+  await page
+    .getByRole("navigation", { name: "Vaade" })
+    .getByRole("link", { name: "Ülevaade", exact: true })
+    .click();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
+});
+
+test("the newsletter filter chips work", async ({ page }) => {
+  await openMailings(page);
+
+  const chips = page.getByRole("navigation", { name: "Uudiskiri" });
+  await expect(chips).toBeVisible();
+  await chips.getByRole("link", { name: "e-Teataja", exact: true }).click();
+
+  await expect(page).toHaveURL(/uudiskiri=newsletter_eteataja/);
+  // Still in the section rather than back at the landing state.
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
+});
+
+test("a filter chip carries no news parameter", async ({ page }) => {
+  // While this section sat on `/uudised/` its chips carried the article
+  // archive's period so a click could not reset it. There is no archive here,
+  // and an address holding keys the page cannot read back is an address that
+  // lies about what is on screen.
+  await signIn(page);
+  await page.goto("/otsepostitused/?periood=1a");
+
+  await page
+    .getByRole("navigation", { name: "Uudiskiri" })
+    .getByRole("link", { name: "e-Teataja", exact: true })
+    .click();
+
+  await expect(page).toHaveURL(/uudiskiri=newsletter_eteataja/);
+  await expect(page).not.toHaveURL(/periood=1a/);
+});
+
+test("the section shows no fabricated newsletter figure", async ({ page }) => {
+  await openMailings(page);
+
+  await expect(page.getByText("Andmed puuduvad.").first()).toBeVisible();
+  await expect(
+    page.getByText("Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist."),
+  ).toBeVisible();
+});
+
+/*
+ * The subject search is deliberately not driven here.
+ *
+ * It is inside the `has_any_data` guard, so with no campaigns collected the
+ * section renders its empty state and the box does not exist — and
+ * `seed_e2e_data` creates no Smaily data in either suite. Its behaviour is
+ * pinned where it can be pinned honestly:
+ *
+ *   - `tests/visibility/test_mailings_fragments.py` drives the fragment with
+ *     real campaigns, including that it pushes `/otsepostitused/`;
+ *   - `live-search.spec.js` drives the same live-search mechanics in a real
+ *     browser on the send archive, whose form renders unconditionally.
+ */
+
+test("every retired address arrives in this section", async ({ page }) => {
+  await signIn(page);
+
+  for (const [old, expected] of [
+    ["/uudised/?fookus=uudiskirjad", /\/otsepostitused\/$/],
+    ["/uudised/uudiskirjad/", /\/otsepostitused\/ajalugu\/$/],
+    ["/nahtavus/uudiskirjad/", /\/otsepostitused\/ajalugu\/$/],
+  ]) {
+    await page.goto(old);
+    await expect(page).toHaveURL(expected);
+  }
+});
+
+test("neither view scrolls sideways", async ({ page }) => {
+  await signIn(page);
+  for (const url of [OVERVIEW, HISTORY]) {
+    await page.goto(url);
+    await expectNoHorizontalOverflow(page);
+  }
+});

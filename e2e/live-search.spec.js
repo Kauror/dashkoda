@@ -15,9 +15,10 @@ import { TEST_PIN, signIn, watchConsole } from "./helpers.js";
  * what it can hold is the mechanics rather than which rows come back.
  */
 
-const ARCHIVE = "/uudised/uudiskirjad/";
-const ARCHIVE_FRAGMENT = "/uudised/uudiskirjad/otsi/";
+const ARCHIVE = "/otsepostitused/ajalugu/";
+const ARCHIVE_FRAGMENT = "/otsepostitused/ajalugu/otsi/";
 const OLD_ARCHIVE = "/nahtavus/uudiskirjad/";
+const OLDER_ARCHIVE = "/uudised/uudiskirjad/";
 
 test("typing filters without a navigation and without losing the caret", async ({ page }) => {
   const errors = watchConsole(page);
@@ -88,7 +89,7 @@ test("without JavaScript the same box is an ordinary form", async ({ browser }) 
 
   // A real navigation this time, to the page itself rather than the fragment,
   // and the term survives it. Live search is an enhancement; this is the floor.
-  await expect(page).toHaveURL(/\/uudised\/uudiskirjad\/\?/);
+  await expect(page).toHaveURL(/\/otsepostitused\/ajalugu\/\?/);
   await expect(page).toHaveURL(/otsi=foorum/);
   await expect(page.getByLabel("Otsi uudiskirja")).toHaveValue("foorum");
 
@@ -96,13 +97,25 @@ test("without JavaScript the same box is an ordinary form", async ({ browser }) 
 });
 
 test("the archive's old address still opens it, keeping the question", async ({ page }) => {
-  // The archive moved under Uudised with the rest of the newsletter material. A
+  // The archive is under Otsepostitused now, after a spell under Uudised. A
   // board member who bookmarked it under Nähtavus must land on the same filtered
   // view rather than on a 404 or on fourteen unfiltered years.
   await signIn(page);
   await page.goto(`${OLD_ARCHIVE}?uudiskiri=koik&otsi=foorum`);
 
-  await expect(page).toHaveURL(/\/uudised\/uudiskirjad\//);
+  await expect(page).toHaveURL(/\/otsepostitused\/ajalugu\//);
+  await expect(page).toHaveURL(/otsi=foorum/);
+  await expect(page.getByLabel("Otsi uudiskirja")).toHaveValue("foorum");
+});
+
+test("the archive's intermediate address still opens it too", async ({ page }) => {
+  // It was canonical under Uudised between the two moves, so it is a bookmark in
+  // its own right. It redirects straight to the current address rather than
+  // through anything else.
+  await signIn(page);
+  await page.goto(`${OLDER_ARCHIVE}?uudiskiri=koik&otsi=foorum`);
+
+  await expect(page).toHaveURL(/\/otsepostitused\/ajalugu\//);
   await expect(page).toHaveURL(/otsi=foorum/);
   await expect(page.getByLabel("Otsi uudiskirja")).toHaveValue("foorum");
 });

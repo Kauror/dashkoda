@@ -26,18 +26,29 @@ test("capture the visibility page", async ({ page }, testInfo) => {
 });
 
 test("capture the news page", async ({ page }, testInfo) => {
-  // Added when the newsletter card and analytics moved here from Nähtavus. The
-  // two pages are reviewed as a pair now, because what changed is which of them
-  // carries the section rather than anything the section says.
   await signIn(page);
   await page.goto("/uudised/");
   await page.screenshot({ path: shot(testInfo, "news"), fullPage: true });
 });
 
+test("capture the mailings section", async ({ page }, testInfo) => {
+  // Reviewed as a pair with Uudised and Koduleht: what the newsletter move
+  // changed is which page carries the section, not anything the section says.
+  await signIn(page);
+  await page.goto("/otsepostitused/");
+  await page.screenshot({ path: shot(testInfo, "mailings"), fullPage: true });
+});
+
 test("capture the newsletter archive", async ({ page }, testInfo) => {
   await signIn(page);
-  await page.goto("/uudised/uudiskirjad/");
+  await page.goto("/otsepostitused/ajalugu/");
   await page.screenshot({ path: shot(testInfo, "newsletter-archive"), fullPage: true });
+});
+
+test("capture the admin area", async ({ page }, testInfo) => {
+  await signIn(page);
+  await page.goto("/haldus/");
+  await page.screenshot({ path: shot(testInfo, "admin"), fullPage: true });
 });
 
 test("capture the open mobile drawer", async ({ page }, testInfo) => {
