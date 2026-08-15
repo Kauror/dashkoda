@@ -451,8 +451,16 @@ test("the members list states the date it describes and lists members", async ({
   ).toBeVisible();
   // A members list rendered without its date reads as current, and this one is
   // a manual export that ages between imports.
-  await expect(page.getByText(/Nimekiri seisuga/i)).toBeVisible();
-  await expect(page.getByText(/ei ole liikmete arvu näitaja/i)).toBeVisible();
+  //
+  // `\s+` rather than a literal space, everywhere a phrase can span a template
+  // line break. `getByText` normalizes whitespace for a *string*, but a regex
+  // is tested against the text as rendered, so a sentence the template happens
+  // to wrap stops matching — and rewrapping a paragraph must not fail a test
+  // about what the page says.
+  await expect(page.getByText(/Nimekiri\s+seisuga/i)).toBeVisible();
+  await expect(
+    page.getByText(/ei\s+ole\s+liikmete\s+arvu\s+näitaja/i),
+  ).toBeVisible();
   await expect(page.getByRole("row").nth(1)).toBeVisible();
 });
 
@@ -504,11 +512,27 @@ test("the two sources are compared without producing one merged total", async ({
     .locator("#section-register-comparison")
     .locator("xpath=ancestor::section[1]");
   await expect(section).toBeVisible();
-  await expect(section.getByText("Mõlemas allikas")).toBeVisible();
-  await expect(section.getByText("Ainult nimekirjas")).toBeVisible();
-  await expect(section.getByText("Ainult kataloogis")).toBeVisible();
+
+  // Each difference appears twice on purpose — as a count in the summary list
+  // and as a heading over the members themselves — so each is asserted at the
+  // place it belongs rather than with a bare text match, which resolves to two
+  // elements and fails strict mode.
+  const counts = section.locator("dl");
+  await expect(counts.getByText("Mõlemas allikas")).toBeVisible();
+  await expect(counts.getByText("Ainult nimekirjas")).toBeVisible();
+  await expect(counts.getByText("Ainult kataloogis")).toBeVisible();
+  await expect(counts.getByText("Kataloogis kokku")).toBeVisible();
   await expect(
-    section.getByText(/ei ole kummagi allika viga ega anna parandatud/i),
+    section.getByRole("heading", { name: "Ainult nimekirjas" }),
+  ).toBeVisible();
+  await expect(
+    section.getByRole("heading", { name: "Ainult kataloogis" }),
+  ).toBeVisible();
+
+  await expect(
+    section.getByText(
+      /ei\s+ole\s+kummagi\s+allika\s+viga\s+ega\s+anna\s+parandatud/i,
+    ),
   ).toBeVisible();
 });
 
