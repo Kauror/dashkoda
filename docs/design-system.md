@@ -70,6 +70,41 @@ makes them available as utilities (`bg-surface`, `text-brand`, `border-border`).
 Each status colour also has a `-soft` companion used only as a low-contrast fill
 behind its own text.
 
+### Chart series
+
+| Token | Value | Slot |
+| --- | --- | --- |
+| `--color-brand` | `#009fda` | 1 — the Chamber blue |
+| `--color-series-2` | `#d95926` | 2 |
+| `--color-series-3` | `#199e70` | 3 |
+| `--color-series-4` | `#c98500` | 4 |
+| `--color-series-5` | `#d55181` | 5 |
+| `--color-series-6` | `#9085e9` | 6 |
+
+Three rules, and the first two are not stylistic:
+
+- **the order is the accessibility mechanism.** It is what holds every
+  neighbouring pair apart under colour-blind simulation, and it was validated as
+  a set against the `#171c22` card rather than chosen by eye: every adjacent
+  pair clears the CVD floor (worst 8.4) and the normal-vision floor (worst
+  19.3), every slot sits in the dark lightness band, and all six clear 3:1
+  against the card. Reordering it silently breaks that;
+- **status colours are not available for this job.** `success`, `warning`,
+  `danger` and `info` say a thing is good or wrong. A chart that spends one on
+  "the third category" has nothing left to say it with, and teaches a reader
+  that amber means attention everywhere except here. Charts drew in exactly
+  those until 2026-08-15, alongside two near-identical blues — `brand` against
+  `info` measures ΔE 7.8 for a reader with full colour vision against a floor of
+  15, and 2.5 under tritanopia;
+- **there is no seventh slot.** A seventh series folds into `Muu`, which every
+  builder already does at `MIX_KEYS`.
+
+Axis labels take `--color-text-secondary` and gridlines `--color-border-strong`,
+both named by the chart theme rather than left to ECharts — whose defaults are
+written for a light background and put the labels at 3.47:1 while the grid sat
+at 13.67:1, the text you have to read fainter than the grid behind it.
+`tests/membership/test_chart_legibility.py` holds all of this as a contract.
+
 Contrast on `#101418`: primary text ≈ 15:1, secondary ≈ 7:1, metadata ≈ 5:1,
 brand blue ≈ 6.2:1, and every status colour ≥ 6:1. All exceed WCAG 2.2 AA for
 normal text.
