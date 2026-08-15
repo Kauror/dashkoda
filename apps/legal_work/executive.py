@@ -42,7 +42,13 @@ from apps.core.formatting import integer, percent
 
 from .analytics import YearOnYear, deadline_pressure, sent_year_on_year, topics_year_on_year
 from .sections import SECTION_OPEN, anchor
-from .selectors import LegalWorkSummary, get_upcoming_deadlines
+from .selectors import (
+    LegalWorkSummary,
+    get_latest_sent_items,
+    get_open_items_by_deadline,
+    get_upcoming_deadlines,
+)
+from .topic_links import present_topics, resolve_links_for
 
 #: The horizon the pillar and the critical signal both use for "soon". Seven days
 #: is the workbook's own weekly rhythm and the band `deadline_pressure` already
@@ -54,6 +60,12 @@ URGENT_DAYS = 7
 #: The overview's timeline holds ten rows across two domains; asking for more
 #: than this would let one busy week fill it.
 TIMELINE_LIMIT = 8
+
+#: How many rows each of the overview's two Õigusloome lists carries. Seven is
+#: the board's own number: enough to see the shape of the week's work, few
+#: enough that the section stays a summary rather than becoming the Õigusloome
+#: page a scroll higher up.
+OVERVIEW_LIST_LIMIT = 7
 
 
 @dataclass(frozen=True)
@@ -73,9 +85,20 @@ class LegalWorkExecutive:
 
     signals: tuple[DomainSignal, ...] = ()
 
+    #: The two lists the overview's Õigusloome section renders, each already
+    #: carrying its resolved address. They are `LegalTopicPresentation`, so the
+    #: shared `legal_topic` component reads them on exactly the contract it
+    #: reads every other legal list on.
+    in_progress: tuple = ()
+    recently_sent: tuple = ()
+
     @property
     def has_headline(self) -> bool:
         return self.sent is not None
+
+    @property
+    def has_lists(self) -> bool:
+        return bool(self.in_progress or self.recently_sent)
 
     @property
     def meaning(self) -> str:
@@ -111,6 +134,7 @@ def get_legal_work_executive(summary: LegalWorkSummary) -> LegalWorkExecutive:
 
     sent = sent_year_on_year(snapshot)
     pressure = deadline_pressure(snapshot)
+    in_progress, recently_sent = _overview_lists(snapshot)
     return LegalWorkExecutive(
         sent=sent,
         open_topics=summary.open_count,
@@ -119,7 +143,32 @@ def get_legal_work_executive(summary: LegalWorkSummary) -> LegalWorkExecutive:
         overdue_pending=pressure.overdue_pending,
         reporting_date=summary.reporting_date,
         signals=_signals(pressure, reporting_date=summary.reporting_date),
+        in_progress=in_progress,
+        recently_sent=recently_sent,
     )
+
+
+def _overview_lists(snapshot) -> tuple[tuple, tuple]:
+    """The two lists, with every address resolved in one pass.
+
+    `resolve_links_for` is asked once for both, which is what makes a record
+    appearing in either list link to the same place — and it is three queries
+    for the whole section rather than one per row.
+
+    **Which address a row gets is decided by the record's own status**, by
+    `resolve_consultation_links`, not here: a sent record resolves to the
+    opinion resource that carries the PDF, and an open unsent one to its
+    `Hetkel käsil` consultation — the "küsime arvamust" invitation. The two
+    eligibility rules are mutually exclusive by construction, so no row can
+    offer both, and a row whose match is stale or missing renders as plain
+    text. That last part is deliberate and is the reason this section can be
+    trusted: a lawyer sent to last week's consultation is worse off than one
+    sent nowhere.
+    """
+    in_progress = list(get_open_items_by_deadline(snapshot, limit=OVERVIEW_LIST_LIMIT))
+    recently_sent = list(get_latest_sent_items(snapshot, limit=OVERVIEW_LIST_LIMIT))
+    links = resolve_links_for(in_progress, recently_sent)
+    return present_topics(in_progress, links), present_topics(recently_sent, links)
 
 
 def _signals(pressure, *, reporting_date: date | None) -> tuple[DomainSignal, ...]:

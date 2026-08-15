@@ -153,6 +153,8 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
                 ("shop", "E-pood", shop_exec.signals),
             )
         ),
+        legal_in_progress=legal_exec.in_progress,
+        legal_recently_sent=legal_exec.recently_sent,
         upcoming=build_timeline(legal_summary=legal_work, events_executive=events_exec),
         interest=_interest_panels(website_exec, news_exec, events_exec, shop_exec),
         channels=build_channel_band(),

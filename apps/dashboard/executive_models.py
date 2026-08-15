@@ -323,6 +323,11 @@ class ExecutiveOverviewPage:
 
     pillars: tuple[ExecutivePillar, ...] = ()
     signals: tuple[ExecutiveSignal, ...] = ()
+    #: The Õigusloome section's two lists, straight off the domain executive.
+    #: `LegalTopicPresentation` rows, so the shared `legal_topic` component
+    #: reads them on the contract it reads every other legal list on.
+    legal_in_progress: tuple = ()
+    legal_recently_sent: tuple = ()
     upcoming: tuple[ExecutiveUpcomingItem, ...] = ()
     interest: tuple[ExecutiveInterestItem, ...] = ()
     #: The channel audience strip, built by `apps.visibility` as it always was.
@@ -332,6 +337,10 @@ class ExecutiveOverviewPage:
     @property
     def has_signals(self) -> bool:
         return bool(self.signals)
+
+    @property
+    def has_legal_lists(self) -> bool:
+        return bool(self.legal_in_progress or self.legal_recently_sent)
 
     @property
     def has_upcoming(self) -> bool:
