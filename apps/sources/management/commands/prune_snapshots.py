@@ -102,14 +102,31 @@ class Command(FeedCommandOutputMixin, BaseCommand):
         cutoff = retention_cutoff(days=days)
         protected = protected_ids(cutoff)
 
-        reports = []
         deleted_snapshots = 0
         deleted_rows = 0
         failed = []
 
-        for family in families:
-            plan = plan_family(family, cutoff=cutoff, protected=protected[family.model])
-            report = plan.as_dict()
+        # Plan every family first, in registry order, so the report reads the
+        # way the registry does: sources, then the matchers that pin them.
+        plans = [
+            (family, plan_family(family, cutoff=cutoff, protected=protected[family.model]))
+            for family in families
+        ]
+        by_model = {family.model: plan.as_dict() for family, plan in plans}
+
+        # **Deleted in reverse.** `FAMILIES` is ordered dependencies-first, and a
+        # `PROTECT` foreign key points the other way:
+        # `LegalOpinionDocumentRelation.entry` protects the `OpinionCatalogueEntry`
+        # its match snapshot cites. Deleting the catalogue first therefore raised
+        # `ProtectedError` on a snapshot the policy had already decided was
+        # deletable — the match holding the reference has to go first, and it is
+        # later in the registry precisely because it depends on the catalogue.
+        #
+        # This is not a widening. The same set is deleted, in an order the
+        # database will accept: protection still decides *what* goes, and this
+        # decides only *when*.
+        for family, plan in reversed(plans):
+            report = by_model[family.model]
 
             if not dry_run and plan.candidates:
                 try:
@@ -125,7 +142,7 @@ class Command(FeedCommandOutputMixin, BaseCommand):
                 report["deleted"] = 0
                 report["deleted_rows"] = 0
 
-            reports.append(report)
+        reports = [by_model[family.model] for family, _plan in plans]
 
         total_candidates = sum(r["candidates"] for r in reports)
         payload = {

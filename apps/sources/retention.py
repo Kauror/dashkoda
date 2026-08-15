@@ -37,6 +37,24 @@ A retired snapshot pinned only by another *deletable* snapshot is **not**
 protected: the pair goes together. Protection follows from what is protected,
 never from what merely points.
 
+## Order matters, and it is the reverse of this list
+
+`FAMILIES` is ordered dependencies-first because that is how it reads. Deletion
+runs the other way, and `prune_snapshots` reverses it deliberately.
+
+Not every foreign key into a snapshot's children is `CASCADE`.
+`LegalOpinionDocumentRelation.entry` is `PROTECT` on the `OpinionCatalogueEntry`
+its match cites, so a catalogue snapshot cannot be deleted while a match
+snapshot still names one of its entries — even when the policy has correctly
+decided *both* are deletable and the pair should go together. Deleting the
+catalogue first raised `ProtectedError` in production on 2026-08-15 and aborted
+that family, leaving the run partial.
+
+So: whatever holds the reference is deleted first, which is whatever is later
+in this list. A new family added out of dependency order would reintroduce the
+failure, which is why the ordering of this tuple is load-bearing rather than
+cosmetic.
+
 ## What this never touches
 
 Audit events, feed-state rows, source artifacts, source files, opinion PDF

@@ -453,3 +453,57 @@ class TestThePlanMatchesTheCommand:
         year = run("--dry-run", "--days", "365")["total_candidates"]
 
         assert year <= week
+
+
+class TestDeletionOrder:
+    """The order families are deleted in: the reverse of the registry.
+
+    `FAMILIES` reads dependencies-first. Deletion has to run the other way,
+    because not every foreign key into a snapshot's children is `CASCADE`:
+    `LegalOpinionDocumentRelation.entry` is `PROTECT` on the
+    `OpinionCatalogueEntry` its match cites. Deleting a catalogue before the
+    match that names it raised `ProtectedError` in production on 2026-08-15,
+    aborting that family after other families had already lost rows.
+    """
+
+    def _recorded_order(self, monkeypatch) -> list[str]:
+        """Run a live prune, returning the families `_delete` was called for."""
+        from apps.sources.management.commands import prune_snapshots as module
+
+        order: list[str] = []
+        original = module.Command._delete
+
+        def record(command, family, candidates, *, days):
+            order.append(family.model)
+            return original(command, family, candidates, days=days)
+
+        monkeypatch.setattr(module.Command, "_delete", record)
+        run()
+        return order
+
+    def test_deletion_runs_in_reverse_registry_order(self, matched_current_world, monkeypatch):
+        """Whatever holds a reference goes first, and it is later in the list."""
+        legal, match = matched_current_world
+        LegalCurrentTopicMatchSnapshot.objects.filter(pk=match.pk).update(is_current=False)
+        LegalWorkSnapshot.objects.filter(pk=legal.pk).update(is_current=False)
+        age(match, days=400, field="generated_at")
+        age(legal, days=400, field="imported_at")
+
+        order = self._recorded_order(monkeypatch)
+        registry = [family.model for family in FAMILIES]
+
+        assert len(order) >= 2, "this proves nothing unless two families had candidates"
+        positions = [registry.index(model) for model in order]
+        assert positions == sorted(positions, reverse=True), (
+            f"deleted in {order}, which is not reverse-registry order"
+        )
+        # The match, which holds the reference, went before the source it pins.
+        assert order.index("legal_work.LegalCurrentTopicMatchSnapshot") < order.index(
+            "legal_work.LegalWorkSnapshot"
+        )
+
+    def test_the_report_still_reads_in_registry_order(self, legal_snapshot):
+        """Deleting backwards must not turn the operator's report inside out."""
+        payload = run("--dry-run")
+
+        assert [row["family"] for row in payload["families"]] == [f.model for f in FAMILIES]
