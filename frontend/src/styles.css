@@ -43,6 +43,27 @@
   --color-info: #5fb3e8;
   --color-info-soft: #12242f;
 
+  /* Chart series, in a fixed order. Slot 1 is the Chamber blue above; these are
+     slots 2–6, stepped for the dark card surface.
+
+     They are their own tokens because the status colours are not available for
+     this job. `success`, `warning` and `danger` mean a thing is good or wrong;
+     a chart that spends them on "the third category" has nothing left to say it
+     with, and a reader who has learned that amber means attention has to unlearn
+     it on every chart. Charts used to draw in exactly those, which is what these
+     replace.
+
+     **The order is the accessibility mechanism, not a preference.** It is what
+     holds every neighbouring pair apart under colour-blind simulation, and it
+     was validated as a set against this surface rather than chosen by eye. Do
+     not reorder them and do not add a seventh — a seventh series belongs in
+     `Muu`. */
+  --color-series-2: #d95926;
+  --color-series-3: #199e70;
+  --color-series-4: #c98500;
+  --color-series-5: #d55181;
+  --color-series-6: #9085e9;
+
   --radius-xs: 0.125rem;
   --radius-sm: 0.25rem;
   --radius-md: 0.375rem;

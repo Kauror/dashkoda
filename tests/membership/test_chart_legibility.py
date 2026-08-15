@@ -14,7 +14,9 @@ contracts.
 from __future__ import annotations
 
 import datetime as dt
+import re
 from decimal import Decimal
+from pathlib import Path
 
 import pytest
 
@@ -175,3 +177,95 @@ def test_an_empty_series_still_produces_a_label_that_names_something(every_chart
 
     for series in empty.option["series"]:
         assert series["endLabel"]["formatter"] in ("Kokku", "Tasunud")
+
+
+# ---------------------------------------------------------------------------
+# The series palette
+# ---------------------------------------------------------------------------
+#
+# Same class of defect as the two above, and found the same way: the values were
+# right and could not be read. Two of the five series colours were both blue —
+# `--color-brand` against `--color-info`, which measure ΔE 7.8 apart for a reader
+# with full colour vision against a floor of 15, and 2.5 under tritanopia — and
+# three of the five were the reserved status colours.
+#
+# Neither is visible to a test that inspects values, and neither is visible to a
+# test that renders a chart and checks it drew something. So the palette is
+# asserted as a contract, in the two files that have to agree about it.
+
+FRONTEND = Path(__file__).resolve().parents[2] / "frontend" / "src"
+
+#: The categorical order, slot by slot. Slot 1 is the Chamber blue; 2–6 are the
+#: series tokens. Validated as a set against the dark card surface: every
+#: adjacent pair clears the colour-blind and normal-vision floors.
+SERIES_TOKENS = (
+    "--color-brand",
+    "--color-series-2",
+    "--color-series-3",
+    "--color-series-4",
+    "--color-series-5",
+    "--color-series-6",
+)
+
+#: Reserved for saying a thing is good or wrong. A chart that spends one on
+#: "the third category" leaves nothing to say it with, and teaches a reader that
+#: amber means attention everywhere except here.
+STATUS_TOKENS = ("--color-success", "--color-warning", "--color-danger", "--color-info")
+
+
+def test_every_series_token_is_defined() -> None:
+    styles = (FRONTEND / "styles.css").read_text(encoding="utf-8")
+
+    for token in SERIES_TOKENS:
+        assert f"{token}:" in styles, f"{token} is used by the chart theme but not defined"
+
+
+def test_the_chart_theme_draws_its_series_in_the_declared_order() -> None:
+    """The order is the accessibility mechanism, so it is pinned, not just the set."""
+    charts_js = (FRONTEND / "charts.js").read_text(encoding="utf-8")
+    palette = charts_js.split("color: [", 1)[1].split("]", 1)[0]
+
+    found = re.findall(r'token\("(--color-[a-z0-9-]+)"', palette)
+
+    assert found == list(SERIES_TOKENS), f"series order changed: {found}"
+
+
+def test_no_status_colour_is_used_as_a_series_colour() -> None:
+    charts_js = (FRONTEND / "charts.js").read_text(encoding="utf-8")
+    palette = charts_js.split("color: [", 1)[1].split("]", 1)[0]
+
+    for token in STATUS_TOKENS:
+        assert token not in palette, f"{token} is a status colour and may not be a series"
+
+
+def test_the_theme_names_its_own_axis_colours() -> None:
+    """ECharts' defaults are written for a light background.
+
+    Its `axisLabel` default overrides the theme's `textStyle`, which put the
+    labels at 3.47:1 on this surface while the gridline default sat at 13.67:1 —
+    the text you must read fainter than the grid behind it. Both are named by
+    the theme now, so neither can fall back.
+    """
+    charts_js = (FRONTEND / "charts.js").read_text(encoding="utf-8")
+
+    axis_block = charts_js.split("const AXIS_BASE", 1)[1].split("});", 1)[0]
+
+    assert "--color-text-secondary" in axis_block, (
+        "axis labels must not inherit the ECharts default"
+    )
+    assert "--color-border-strong" in axis_block, "gridlines must be recessive"
+
+
+def test_the_theme_is_registered_rather_than_spread_into_setoption() -> None:
+    """`categoryAxis` and its siblings are theme keys, not option keys.
+
+    Spread into `setOption` they are inert — the axis styling would apply to
+    nothing and raise nothing. That silence is the whole hazard, so the wiring
+    is asserted rather than assumed.
+    """
+    charts_js = (FRONTEND / "charts.js").read_text(encoding="utf-8")
+
+    assert "registerTheme(THEME_NAME, chartTheme())" in charts_js
+    assert "echarts.init(canvas, THEME_NAME" in charts_js
+    setoption = charts_js.split("instance.setOption({", 1)[1].split("});", 1)[0]
+    assert "chartTheme()" not in setoption, "the theme belongs to init, not to setOption"
