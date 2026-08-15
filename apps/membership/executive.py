@@ -218,10 +218,10 @@ def _signals(internal: ObservationPoint | None) -> tuple[DomainSignal, ...]:
                 f"Tasunud liikmete osakaal {'langes' if falling else 'tõusis'} "
                 f"{percentage_points(abs(movement))}."
             ),
-            evidence=(
-                f"{percent(current)} koja aruande liikmeskonnast, "
-                f"eelmises aruandes {percent(previous)}."
-            ),
+            # No evidence sentence. The two share levels restated the headline
+            # movement, and the board struck them; the Liikmeskond page states
+            # both readings with their dates.
+            evidence="",
             # A falling collection rate is worth a manager's attention; a rising
             # one is worth knowing and is not a problem to be solved.
             priority=SignalPriority.ATTENTION if falling else SignalPriority.NOTABLE,

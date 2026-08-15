@@ -18,25 +18,38 @@ figures beyond turning a comparison the domain already made into the string that
 prints it. Every threshold, every window, every share and every signal arrives
 decided.
 
-## The five pillars, and the rule that keeps them disjoint
+## The four pillars, and the rule that keeps them disjoint
 
 ```text
 Liikmeskond   → public Koda.ee directory count
 Huvikaitse    → opinions sent YTD, from the workbook
 Kaasamine     → the events programme
 Nähtavus      → website sessions + news reading + newsletter engagement
-Digiteenused  → Commerce, minus event registrations
 ```
 
-Kaasamine and Digiteenused are the pair that could double count, and they do not
-share a row: the events pillar reads the programme workbook and no Commerce at
-all, and the shop pillar excludes `EVENT_REGISTRATION` at the query. Nähtavus
-holds two sources that overlap by construction — news views are a subset of site
-views — and states the subset as a **share** rather than adding them.
+There were five. The Digiteenused card was removed at the board's request on
+2026-08-15 — the shop keeps its own dashboard, its interest panel, its signals
+and its `Andmete seis` row; what went is only the pillar card. The
+double-counting rule it existed under **still holds and is still tested**: the
+events pillar reads the programme workbook and no Commerce at all, and
+everything shop-related that remains on this page excludes
+`EVENT_REGISTRATION` at the query.
 
-Nothing on this page sums across pillars, and there is no total, no index and no
-score. Five numbers in different units do not have a sum, and a weighted one
+Nähtavus holds two sources that overlap by construction — news views are a
+subset of site views — and states the subset as a **share** rather than adding
+them.
+
+Nothing on this page sums across pillars, and there is no total, no index and
+no score. Four numbers in different units do not have a sum, and a weighted one
 would hide exactly the trade-offs a manager opens this page to see.
+
+## What a pillar no longer carries
+
+The question lines, the period · source · seis rows and the per-fact source
+captions came off the cards in the same request. The `ExecutiveMetric` objects
+keep `period`, `source` and `as_of` — `Andmete seis` and the domain pages still
+need them — so the removal is presentation, and a figure's provenance is one
+scroll away rather than under every number.
 """
 
 from __future__ import annotations
@@ -44,7 +57,6 @@ from __future__ import annotations
 from django.urls import reverse
 
 from apps.core.formatting import (
-    euros,
     integer,
     long_date,
     percent,
@@ -130,7 +142,6 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
             _legal_pillar(legal_exec),
             _events_pillar(events_exec),
             _visibility_pillar(website_exec, news_exec),
-            _shop_pillar(shop_exec),
         ),
         signals=collect_signals(
             (
@@ -165,18 +176,20 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
 def _membership_pillar(summary) -> ExecutivePillar:
     """Liikmeskond. The public directory count leads; the report supports.
 
-    The two sources never share a figure. The headline is the koda.ee directory,
-    the paid share and the fee collection are ratios inside the board report, and
-    each fact names which source it came from — because AGENTS.md forbids two
-    unlabelled member totals sitting side by side, and this pillar is the one
-    place on the dashboard where both sources appear at once.
+    The two sources never share a figure. The headline is the koda.ee directory;
+    the paid share and the fee collection are ratios inside the board report.
+    Each fact still carries its source **in the data**, though the card no
+    longer prints the captions — AGENTS.md forbids two unlabelled member
+    *totals* side by side, and since the caption rows came off, the card shows
+    exactly one total. The ratios and the joined/removed counts are not totals,
+    and `Andmete seis` states which source is which, with the warning that the
+    two must never be compared.
     """
     links = (ExecutiveLink(label="Vaata liikmeskonda", url=reverse("membership")),)
     if not summary.has_headline:
         return ExecutivePillar(
             key="membership",
             label="Liikmeskond",
-            question="Kui tugev on liikmeskond?",
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
         )
@@ -184,7 +197,6 @@ def _membership_pillar(summary) -> ExecutivePillar:
     return ExecutivePillar(
         key="membership",
         label="Liikmeskond",
-        question="Kui tugev on liikmeskond?",
         headline=ExecutiveMetric(
             label="Liikmeid kokku",
             period="viimane loend",
@@ -256,7 +268,6 @@ def _legal_pillar(summary) -> ExecutivePillar:
         return ExecutivePillar(
             key="legal_work",
             label="Huvikaitse",
-            question="Kui palju poliitikakujundamise tööd Koda kannab?",
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
         )
@@ -265,13 +276,15 @@ def _legal_pillar(summary) -> ExecutivePillar:
     return ExecutivePillar(
         key="legal_work",
         label="Huvikaitse",
-        question="Kui palju poliitikakujundamise tööd Koda kannab?",
         headline=ExecutiveMetric(
             label="Arvamusi välja saadetud tänavu",
             period=f"1. jaanuar – {short_date(sent.current_cutoff)}",
             source=SOURCE_LEGAL_WORKBOOK,
             value=integer(sent.current),
-            unit="arvamust",
+            # Self-describing since the caption row came off the card: the year
+            # window that `Arvamusi välja saadetud tänavu` used to state is in
+            # the unit now, per the board's wording.
+            unit="arvamust sellel aastal",
             as_of=summary.reporting_date,
             comparison=ExecutiveComparison(
                 text=(
@@ -320,7 +333,6 @@ def _events_pillar(summary) -> ExecutivePillar:
         return ExecutivePillar(
             key="events",
             label="Kaasamine",
-            question="Kui palju osalust Koda sündmustega loob?",
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
         )
@@ -328,7 +340,6 @@ def _events_pillar(summary) -> ExecutivePillar:
     return ExecutivePillar(
         key="events",
         label="Kaasamine",
-        question="Kui palju osalust Koda sündmustega loob?",
         headline=ExecutiveMetric(
             # The grain is named in the label because the workbook also holds an
             # occurrence sheet counting something else entirely.
@@ -364,16 +375,6 @@ def _events_pillar(summary) -> ExecutivePillar:
                 source=SOURCE_EVENTS,
                 as_of=summary.observed_at,
             ),
-            ExecutiveFact(
-                label="Enim kasutatud vorm",
-                value=(
-                    f"{summary.top_delivery_mode} · {percent(summary.top_delivery_share_pct)}"
-                    if summary.top_delivery_mode
-                    else None
-                ),
-                source=SOURCE_EVENTS,
-                as_of=summary.observed_at,
-            ),
         ),
         links=links,
     )
@@ -397,7 +398,6 @@ def _visibility_pillar(website, news) -> ExecutivePillar:
         return ExecutivePillar(
             key="website",
             label=VISIBILITY_PILLAR_LABEL,
-            question="Kui hästi Koda oma auditooriumideni jõuab?",
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
         )
@@ -406,7 +406,6 @@ def _visibility_pillar(website, news) -> ExecutivePillar:
     return ExecutivePillar(
         key="website",
         label=VISIBILITY_PILLAR_LABEL,
-        question="Kui hästi Koda oma auditooriumideni jõuab?",
         headline=ExecutiveMetric(
             label="Kodulehe seansid",
             period=period,
@@ -465,75 +464,6 @@ def _visibility_pillar(website, news) -> ExecutivePillar:
                     else None
                 ),
                 source=SOURCE_SMAILY,
-            ),
-        ),
-        links=links,
-    )
-
-
-def _shop_pillar(summary) -> ExecutivePillar:
-    """Digiteenused. Commerce without event registrations — see the shop module."""
-    links = (ExecutiveLink(label="Vaata e-poodi", url=reverse("shop")),)
-    if not summary.has_headline:
-        return ExecutivePillar(
-            key="shop",
-            label="Digiteenused",
-            question="Milliseid praktilisi digiteenuseid kasutatakse?",
-            unavailable_note=NO_SOURCE_NOTE,
-            links=links,
-        )
-
-    period = (
-        f"{short_date(summary.period_start)} – {short_date(summary.period_end)}"
-        if summary.period_start
-        else summary.period_label
-    )
-    return ExecutivePillar(
-        key="shop",
-        label="Digiteenused",
-        question="Milliseid praktilisi digiteenuseid kasutatakse?",
-        headline=ExecutiveMetric(
-            # "Mitte-sündmuse" is in the label because the exclusion is the
-            # figure's definition, not a footnote to it.
-            label="Mitte-sündmuse tooteid soetatud",
-            period=period,
-            source=SOURCE_COMMERCE,
-            value=integer(summary.units),
-            unit="ühikut",
-            as_of=summary.source_as_of,
-            comparison=(
-                ExecutiveComparison(
-                    text=signed_percent(summary.change_pct),
-                    basis="vs eelmine sama pikk periood",
-                    direction=_direction(summary.change_pct),
-                )
-                if summary.change_pct is not None
-                else None
-            ),
-        ),
-        meaning=summary.meaning,
-        facts=(
-            ExecutiveFact(
-                label="Tellitud väärtus (KM-ta)",
-                value=(
-                    euros(summary.ordered_value_net)
-                    if summary.ordered_value_net is not None
-                    else None
-                ),
-                source=SOURCE_COMMERCE,
-                as_of=summary.source_as_of,
-            ),
-            ExecutiveFact(
-                label="Tasuta osakaal",
-                value=percent(summary.free_share) if summary.free_share is not None else None,
-                source=SOURCE_COMMERCE,
-                as_of=summary.source_as_of,
-            ),
-            ExecutiveFact(
-                label="Enim soetatud toode",
-                value=summary.top_product.title if summary.top_product else None,
-                source=SOURCE_COMMERCE,
-                as_of=summary.source_as_of,
             ),
         ),
         links=links,
@@ -615,7 +545,9 @@ def _news_panel(news) -> ExecutiveInterestItem:
         title=getattr(article, "title", "") or article.path,
         metric_value=integer(news.top_article_views),
         metric_label="vaatamist perioodil",
-        period=f"{short_date(news.start)} – {short_date(news.end)}",
+        # No period range: the board struck it, and the publication date below
+        # is the one date a reader was using this panel for.
+        period="",
         # Publication date beside the figure rather than folded into it: an old
         # article leading the panel is a real and interesting result, and the
         # reader has to be able to see that is what happened.
@@ -647,7 +579,7 @@ def _event_panel(events) -> ExecutiveInterestItem:
         title=upcoming.event_name,
         metric_value=short_date(upcoming.start_date),
         metric_label="algab",
-        period="programmi järgi",
+        period="",
         context=getattr(upcoming, "delivery_mode", "") or "",
         url=upcoming.public_link.url if getattr(upcoming, "public_link", None) else "",
         is_external=True,

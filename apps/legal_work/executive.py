@@ -81,24 +81,21 @@ class LegalWorkExecutive:
     def meaning(self) -> str:
         """The year-on-year sentence, stated as the measurement.
 
-        A baseline of zero yields no percentage, and the sentence then states
-        the count alone rather than inventing an infinite increase.
+        Without the "Arvamusi on sama kuupäevani" opener it used to carry: the
+        headline above it says "arvamust sellel aastal" itself now, and the
+        board struck the repeat. A baseline of zero yields no percentage, and
+        the sentence then states the fact rather than inventing an infinite
+        increase.
         """
         if self.sent is None:
             return ""
         change = self.sent.absolute_change
         if self.sent.previous == 0:
-            return (
-                f"Arvamusi on sama kuupäevani {integer(self.sent.current)}; "
-                "eelmisel aastal ei olnud selleks ajaks ühtegi."
-            )
+            return "Eelmisel aastal ei olnud sama kuupäevani ühtegi arvamust."
         if change == 0:
-            return "Arvamusi on sama kuupäevani täpselt sama palju kui eelmisel aastal."
+            return "Täpselt sama palju kui eelmisel aastal sama kuupäevani."
         word = "rohkem" if change > 0 else "vähem"
-        return (
-            f"Arvamusi on sama kuupäevani {percent(abs(self.sent.percent_change))} "
-            f"{word} kui eelmisel aastal."
-        )
+        return f"{percent(abs(self.sent.percent_change))} {word} kui eelmisel aastal."
 
 
 def get_legal_work_executive(summary: LegalWorkSummary) -> LegalWorkExecutive:

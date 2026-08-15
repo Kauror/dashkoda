@@ -4,15 +4,18 @@ One strategic pillar of `Koja seis`.
 Context:
   pillar – an `ExecutivePillar`
 
-Reading order inside the card: what the question is, the figure that answers it,
-what that figure means, then the supporting detail. A pillar holds at most one
-visual, never a table, and never a control.
+Reading order inside the card: the area, the figure, what the figure means,
+then the supporting detail. A pillar holds at most one visual, never a table,
+and never a control.
 
-Every figure prints its own period and its own source, because the five pillars
-do not share one. The Liikmeskond card is the reason this is not negotiable: its
-headline is the public Koda.ee directory and its supporting facts are the
-internal board report, and a reader must be able to tell which is which without
-being told twice.
+The card prints **no per-figure provenance**. The question lines, the
+period · source · seis rows and the per-fact source captions were removed at
+the board's request on 2026-08-15: to the reader they were chrome repeated
+under every number, and the answer to "can this figure be trusted" lives in
+`Andmete seis` at the foot of the page, once per source instead of once per
+figure. The data still carries `period`, `source` and `as_of` — the domain
+pages print them, and `Andmete seis` is built from the same objects — so what
+changed is what this card shows, not what anything knows.
 
 Direction is never colour alone. The comparison text carries its own sign, the
 arrow has a text alternative, and the meaning sentence states the direction in
@@ -21,9 +24,8 @@ words.
 <article class="dk-card flex min-w-0 flex-col gap-3 p-4"
          aria-labelledby="pillar-{{ pillar.key }}">
 
-  <header class="flex flex-col gap-0.5">
+  <header>
     <h3 id="pillar-{{ pillar.key }}" class="text-sm font-semibold text-text">{{ pillar.label }}</h3>
-    <p class="dk-meta">{{ pillar.question }}</p>
   </header>
 
   {% if pillar.is_available %}
@@ -35,29 +37,28 @@ words.
           <span class="text-sm text-text-secondary">{{ pillar.headline.unit }}</span>
         {% endif %}
       </p>
-      <p class="text-sm text-text-secondary">{{ pillar.headline.label }}</p>
+      {% comment %}
+      A refused comparison says why, where the delta would have been. The
+      website's coverage rules are the case this exists for: two windows
+      measured to different completeness are not subtractable, and printing a
+      delta anyway would be reporting the collector's gaps as the Chamber's
+      audience.
 
-      {% if pillar.has_comparison %}
-        <p class="flex flex-wrap items-baseline gap-x-2 text-sm">
-          <span class="font-medium tabular-nums {% if pillar.headline.comparison.direction == 'up' %}text-success{% elif pillar.headline.comparison.direction == 'down' %}text-danger{% else %}text-text-secondary{% endif %}">
-            {{ pillar.headline.comparison.text }}
-          </span>
-          <span class="dk-meta">{{ pillar.headline.comparison.basis }}</span>
-        </p>
-      {% elif pillar.headline.comparison.has_note %}
-        {% comment %}
-        A refused comparison says why, where the delta would have been. The
-        website's coverage rules are the case this exists for: two windows
-        measured to different completeness are not subtractable, and printing a
-        delta anyway would be reporting the collector's gaps as the Chamber's
-        audience.
-        {% endcomment %}
+      **There is no delta row above this**, and there never has been. The
+      block that drew one asked `pillar.has_comparison`, but that property is
+      on `ExecutiveMetric` rather than on the pillar — Django resolves the
+      missing attribute to falsy, so the branch has been dead since the
+      overview was first built and every card has shown its comparison only as
+      the `meaning` sentence below. It was removed rather than repaired on
+      2026-08-15: repairing it would have put a figure on four cards that
+      nobody has reviewed, in the same change that took chrome off them. The
+      data is untouched — `headline.comparison` still carries the text, the
+      basis and the direction — so restoring the row is a template block, not a
+      rebuild.
+      {% endcomment %}
+      {% if pillar.headline.comparison.has_note %}
         <p class="dk-meta">{{ pillar.headline.comparison.unavailable_note }}</p>
       {% endif %}
-
-      <p class="dk-meta">
-        {{ pillar.headline.period }} · {{ pillar.headline.source }}{% if pillar.headline.as_of %} · seis {{ pillar.headline.as_of|date:"d.m.Y" }}{% endif %}
-      </p>
     </div>
 
     {# ---- Meaning ---- #}
@@ -101,9 +102,6 @@ words.
             </dt>
             <dd class="text-sm font-medium tabular-nums text-text">{{ fact.value }}</dd>
           </div>
-          {% if fact.source %}
-            <p class="dk-meta -mt-1">{{ fact.source }}{% if fact.as_of %} · {{ fact.as_of|date:"d.m.Y" }}{% endif %}</p>
-          {% endif %}
         {% endfor %}
       </dl>
     {% endif %}

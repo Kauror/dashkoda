@@ -138,16 +138,20 @@ class ExecutiveFact:
 
 @dataclass(frozen=True)
 class ExecutivePillar:
-    """One strategic area, answering one question.
+    """One strategic area.
 
-    Ordered as the reader asks: what the question is, the one figure that
-    answers it, what that figure means, and then the supporting detail. A pillar
-    holds at most one visual, never a table, and never a filter.
+    Ordered as the reader asks: the area, the one figure that describes it,
+    what that figure means, and then the supporting detail. A pillar holds at
+    most one visual, never a table, and never a filter.
+
+    There is no `question` field. Each card used to open with the question its
+    figure answers; the board struck those lines on 2026-08-15, and a field the
+    template no longer renders would be a sentence waiting to drift from the
+    page.
     """
 
     key: str
     label: str
-    question: str
     headline: ExecutiveMetric | None = None
     #: One sentence, composed by the domain from its own explicit metrics.
     meaning: str = ""
