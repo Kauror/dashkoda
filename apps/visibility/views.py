@@ -279,7 +279,10 @@ def mailings(request):
             "navigation": NAVIGATION,
             "active_nav": "mailings",
             "active_section": "overview",
-            "freshness": current_freshness(),
+            # No `freshness`: only `dashboard/partials/freshness.html` reads that
+            # key and only the fragment endpoint renders it, so passing it here
+            # would be a source-state query for something nothing displays. Each
+            # figure on this page states its own recency where it needs to.
             # `parse_newsletter` answers `koik` for "all three", which is not a
             # newsletter the aggregates can be read for. The builder wants the
             # empty string for that state, so the landing view asks for the
