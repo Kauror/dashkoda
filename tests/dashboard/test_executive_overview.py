@@ -175,6 +175,39 @@ def test_a_refused_comparison_prints_its_reason_where_the_delta_would_be():
     assert comparison.has_note
 
 
+def test_a_reported_zero_share_is_a_value_and_not_a_gap():
+    """A paid share of exactly 0% is a measurement, not a missing figure.
+
+    January before anyone has paid is a real state of the world. The pillar
+    must render it as `0%`, distinguishable from a report that carries no
+    share at all — truthiness on the Decimal would erase exactly that line.
+    """
+    from apps.core.formatting import percent
+    from apps.dashboard.executive import _membership_pillar
+
+    summary = MembershipExecutive(
+        total_members=3000,
+        total_as_of=date(2026, 8, 1),
+        paid_share_pct=Decimal("0"),
+        fee_collection_pct=Decimal("0"),
+        internal_as_of=date(2026, 7, 31),
+    )
+
+    pillar = _membership_pillar(summary)
+    by_label = {fact.label: fact for fact in pillar.facts}
+
+    assert by_label["Tasunud liikmete osakaal"].value == percent(Decimal("0"))
+    assert by_label["Liikmemaksu laekumine"].value == percent(Decimal("0"))
+
+    unmeasured = _membership_pillar(
+        MembershipExecutive(total_members=3000, total_as_of=date(2026, 8, 1))
+    )
+    unmeasured_by_label = {fact.label: fact for fact in unmeasured.facts}
+
+    assert unmeasured_by_label["Tasunud liikmete osakaal"].value is None
+    assert unmeasured_by_label["Liikmemaksu laekumine"].value is None
+
+
 # ---------------------------------------------------------------------------
 # Deterministic meaning: generated from metrics, never written
 # ---------------------------------------------------------------------------

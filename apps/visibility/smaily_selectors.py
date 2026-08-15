@@ -302,8 +302,15 @@ class NewsletterAggregate:
         return self.unique_clicks / self.opened
 
 
+#: How many recent sends an aggregate summarises unless a caller says
+#: otherwise. Named once here, the selector's own default: the Uudiskirjad
+#: page and the executive overview both quote a rate over this many issues,
+#: and two literals could drift into two different rates for the same letter.
+DEFAULT_AGGREGATE_ISSUES = 12
+
+
 def get_newsletter_aggregate(
-    metric: str, *, limit: int = 12, offset: int = 0
+    metric: str, *, limit: int = DEFAULT_AGGREGATE_ISSUES, offset: int = 0
 ) -> NewsletterAggregate:
     """One newsletter's totals across a slice of its most recent issues.
 
@@ -351,7 +358,7 @@ def get_newsletter_aggregate(
     )
 
 
-def get_all_aggregates(*, limit: int = 12) -> tuple[NewsletterAggregate, ...]:
+def get_all_aggregates(*, limit: int = DEFAULT_AGGREGATE_ISSUES) -> tuple[NewsletterAggregate, ...]:
     return tuple(get_newsletter_aggregate(spec.metric, limit=limit) for spec in NEWSLETTERS)
 
 

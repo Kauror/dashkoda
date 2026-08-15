@@ -147,10 +147,15 @@ in the model — a module with no route would render as an entry marked
 `Lisamisel` rather than as a link — but no entry uses it, and there are no
 nested entries.
 
-The overview assembles its view-model in `apps/dashboard/overview.py`, which
-reads each module through that module's own `selectors.py` and decides what the
-board sees. The view renders; the template lays out. Neither holds a business
-rule.
+The overview (`Koja töölaud`, `/`) is an executive layer assembled in
+`apps/dashboard/executive.py` from six compact domain summaries — each domain
+exposes one in its own `executive.py`, built on the same analytics its own
+dashboard uses. The shared vocabulary (`DomainSignal`) lives in
+`apps/core/executive.py`, so a domain never imports the page that renders it.
+`apps/dashboard/executive.py` contains no ORM query and no threshold: domains
+decide what is worth saying and how urgent it is; the dashboard collects,
+orders, limits and renders. The view renders; the template lays out. Neither
+holds a business rule.
 
 ## Data collection boundary
 

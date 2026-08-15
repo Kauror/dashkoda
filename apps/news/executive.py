@@ -39,7 +39,7 @@ from .analytics import (
     NewsTrafficSummary,
     most_read,
     news_traffic,
-    previous_window,
+    previous_traffic_within,
     published_between,
 )
 from .selectors import NewsSummary
@@ -108,8 +108,9 @@ def get_news_executive(summary: NewsSummary) -> NewsExecutive:
         return NewsExecutive()
 
     current = news_traffic(start=period.start, end=period.end)
-    previous_start, previous_end = previous_window(period.start, period.end)
-    previous = news_traffic(start=previous_start, end=previous_end)
+    # The same refusal the news page applies: a previous window reaching before
+    # collection began yields no comparison rather than a partial denominator.
+    previous = previous_traffic_within(period.start, period.end, coverage)
     leader = _leader(period.start, period.end)
 
     executive = NewsExecutive(
@@ -153,9 +154,10 @@ def _window_views(article) -> int | None:
 def _with_signals(executive: NewsExecutive, current: NewsTrafficSummary) -> NewsExecutive:
     """At most one: news reading that moved materially against the window before.
 
-    No coverage guard of its own — both windows are read through the same GA4
-    day rows the website's comparison already qualified, and the pillar suppresses
-    the whole news block when that qualification fails.
+    The coverage guard sits in `previous_traffic_within`: when the previous
+    window reaches before collection began, `previous_news_views` is `None`,
+    `change_pct` is `None`, and no signal can state a comparison the news page
+    itself would refuse.
     """
     change = executive.change_pct
     if change is None or abs(change) < NEWS_CHANGE_PCT:

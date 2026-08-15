@@ -6,10 +6,10 @@ gap and never decides what is safe to show — those decisions belong to
 block, which is why no chart here needs an inline script or a relaxed Content
 Security Policy.
 
-The payload dataclasses are defined locally rather than imported from another
-domain. `dashboard/components/chart_figure.html` renders whatever carries these
-attributes, so matching the shape is the whole contract, and a legal-work chart
-must not acquire a dependency on the membership module's release cycle.
+The payload shape comes from `apps.core.chart_payload` — the contract of
+`dashboard/components/chart_figure.html`, written once and owned by neither
+feature module. What a legal-work chart says, asks and shows stays decided
+here; only the shape those decisions travel in is shared.
 
 Three rules hold throughout:
 
@@ -23,8 +23,7 @@ Three rules hold throughout:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-
+from apps.core.chart_payload import ChartPayload, Readout
 from apps.core.formatting import integer, month_name, percent, signed_integer, signed_percent
 
 from .analytics import (
@@ -50,49 +49,6 @@ LABEL_LAYOUT = {"hideOverlap": True}
 #: Suffix appended to a period that the data has not finished covering.
 PARTIAL_SUFFIX = "osalise aasta seis"
 PARTIAL_MONTH_SUFFIX = "osalise kuu seis"
-
-
-@dataclass(frozen=True)
-class Readout:
-    """One figure in a chart's analytical header, already formatted.
-
-    `direction` is the non-colour signal: a reader who cannot separate the hues
-    still gets the sense from the glyph, and `change_label` is what a screen
-    reader receives instead of an arrow it cannot describe.
-    """
-
-    label: str
-    value: str
-    change: str = ""
-    change_label: str = ""
-    direction: str = ""
-    note: str = ""
-
-    @property
-    def has_change(self) -> bool:
-        return bool(self.change)
-
-
-@dataclass(frozen=True)
-class ChartPayload:
-    """One chart plus the accessible alternative that always accompanies it."""
-
-    payload_id: str
-    title: str
-    option: dict
-    table_headers: tuple[str, ...]
-    table_rows: tuple[tuple, ...]
-    summary: str
-    empty_message: str = "Andmed puuduvad."
-    footnotes: tuple[str, ...] = field(default_factory=tuple)
-    question: str = ""
-    observation_label: str = ""
-    readouts: tuple[Readout, ...] = field(default_factory=tuple)
-    size: str = "medium"
-
-    @property
-    def has_data(self) -> bool:
-        return bool(self.table_rows)
 
 
 def _base_option(*, legend: bool = True) -> dict:

@@ -1,10 +1,11 @@
 """Server-prepared chart payloads for the news dashboard.
 
-The same contract the membership charts use, for the same reasons: the browser
-receives finished data and draws it, the payload is read from a non-executable
-`application/json` block so no inline script and no `unsafe-eval` is needed, and
-every chart carries its accessible alternative — a text summary and the identical
-values as table rows — in the same object.
+The same contract every dashboard uses — `apps.core.chart_payload`, rendered by
+`dashboard/components/chart_figure.html`: the browser receives finished data
+and draws it, the payload is read from a non-executable `application/json`
+block so no inline script and no `unsafe-eval` is needed, and every chart
+carries its accessible alternative — a text summary and the identical values
+as table rows — in the same object.
 
 Three rules hold here as they do there:
 
@@ -20,9 +21,9 @@ Three rules hold here as they do there:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 from datetime import date
 
+from apps.core.chart_payload import ChartPayload, Readout
 from apps.core.formatting import integer, month_name, percent, short_date
 
 #: Chart geometry, shared so the news charts cannot drift apart from each other.
@@ -31,44 +32,6 @@ GRID = {"left": 56, "right": 24, "top": 32, "bottom": 40, "containLabel": True}
 #: A bar's own count, written where the reader is meant to take it off the
 #: drawing rather than off the axis.
 BAR_LABEL = {"fontSize": 12, "fontWeight": 600, "distance": 6}
-
-
-@dataclass(frozen=True)
-class Readout:
-    """One figure in a chart's analytical header. Every string arrives formatted."""
-
-    label: str
-    value: str
-    change: str = ""
-    change_label: str = ""
-    direction: str = ""
-    note: str = ""
-
-    @property
-    def has_change(self) -> bool:
-        return bool(self.change)
-
-
-@dataclass(frozen=True)
-class ChartPayload:
-    """One chart plus the accessible alternative that always accompanies it."""
-
-    payload_id: str
-    title: str
-    option: dict
-    table_headers: tuple[str, ...]
-    table_rows: tuple[tuple, ...]
-    summary: str
-    empty_message: str = "Andmed puuduvad."
-    footnotes: tuple[str, ...] = field(default_factory=tuple)
-    question: str = ""
-    observation_label: str = ""
-    readouts: tuple[Readout, ...] = field(default_factory=tuple)
-    size: str = "medium"
-
-    @property
-    def has_data(self) -> bool:
-        return bool(self.table_rows)
 
 
 def _axis(labels: list[str]) -> dict:

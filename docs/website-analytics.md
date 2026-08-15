@@ -11,9 +11,10 @@ rows and acquisition rows, published through the same artifact / import-run /
 audit path every other source uses.
 
 **Supported by DashKoda** and **configured in production** are different
-statements and this document keeps them apart. As of 2026-08-09 the collection
-is configured and scheduled in production; the historical backfill is not yet
-run.
+statements and this document keeps them apart. As of 2026-08-14 the collection
+is configured and scheduled in production and the historical backfill has been
+run: coverage is complete from 2023-06-16, with page detail on every collected
+day.
 
 ## The data model
 
