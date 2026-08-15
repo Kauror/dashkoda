@@ -16,27 +16,38 @@ Context:
 {% endcomment %}
 
 {% comment %}
-The primary answers. Four when planning data supports the fourth, three when it
-does not — a card filled for symmetry is a card with nothing in it.
+The primary answers. Two since 2026-08-15: the programme count and the median
+planning lead were struck, and the two that stayed lost their captions and their
+`Seisuga` rows. Each says what it counts in its own unit, so a card is a
+sentence rather than a number under a heading.
+
+The column count is written out rather than interpolated. `dk-kpi-strip` paints
+`bg-border` behind its cells, so an empty grid track is not blank — it is a grey
+block the width of a card — and a class name built from a variable is invisible
+to the stylesheet build anyway.
 {% endcomment %}
 <section aria-labelledby="section-headline" class="dk-section">
   <h2 id="section-headline" class="sr-only">Peamised näitajad</h2>
   {% comment %}
-  The column count is written out rather than interpolated. `dk-kpi-strip`
-  paints `bg-border` behind its cells, so an empty grid track is not blank — it
-  is a grey block the width of a card — and a class name built from a variable
-  is invisible to the stylesheet build anyway.
+  Written out rather than passed through `kpi_card`. That component always draws
+  a caption row and a `Seisuga:` footer, and the board struck both here — a card
+  reduced to a number and a phrase is no longer the shape that component is for,
+  and bending it would have put "Seisuga: —" back under every other dashboard's
+  captionless figure too.
   {% endcomment %}
-  <div class="dk-kpi-strip sm:grid-cols-1 md:grid-cols-3 {% if view.headline|length == 4 %}xl:grid-cols-4{% else %}xl:grid-cols-3{% endif %}">
+  <div class="dk-kpi-strip sm:grid-cols-1 md:grid-cols-2">
     {% for figure in view.headline %}
-      {% include "dashboard/components/kpi_card.html" with label=figure.label value=figure.value comparison_period=figure.note secondary=figure.detail flush=True only %}
+      <p class="flex flex-wrap items-baseline gap-x-2 px-4 py-4">
+        <span class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ figure.value }}</span>
+        <span class="text-sm text-text-secondary">{{ figure.unit }}</span>
+      </p>
     {% endfor %}
   </div>
 </section>
 
 {% if view.changes %}
   <section aria-labelledby="section-changes" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-changes" description="Võrdlus eelmise aastaga. Iga rida on kahe arvu vahe, mitte selgitus." only %}
+    {% include "dashboard/components/section_header.html" with title="Võrdluses eelmise aastaga" heading_id="section-changes" only %}
     <div class="dk-section-body">
       <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
         {% for change in view.changes %}
@@ -63,31 +74,35 @@ does not — a card filled for symmetry is a card with nothing in it.
   </section>
 {% endif %}
 
-{% if view.notices %}
-  <section aria-labelledby="section-notices" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Tähelepanu" heading_id="section-notices" description="Allikapõhised tähelepanekud, mille kohta saab midagi ette võtta." only %}
-    <div class="dk-section-body flex flex-col gap-2">
-      {% for notice in view.notices %}
-        <p class="flex flex-wrap items-baseline gap-x-2 text-sm text-text-secondary">
-          {{ notice.text }}
-          {% if notice.url %}<a class="dk-link" href="{{ notice.url }}">{{ notice.link_label }}</a>{% endif %}
-        </p>
-      {% endfor %}
-    </div>
-  </section>
-{% endif %}
-
 <section aria-labelledby="section-mix" class="dk-section">
   {% include "dashboard/components/section_header.html" with title="Mida korraldame?" heading_id="section-mix" description="Suurimad kategooriad valitud perioodil. Täispildi jaoks vaata „Formaadid ja teemad“." only %}
-  <div class="dk-section-body grid grid-cols-1 gap-6 lg:grid-cols-3">
+  {% comment %}
+  Two columns since 2026-08-15: the `Teema` preview was struck. `Formaadid ja
+  teemad` still ranks every theme, and the link below goes there.
+  {% endcomment %}
+  <div class="dk-section-body grid grid-cols-1 gap-6 lg:grid-cols-2">
     {% include "event_programme/partials/_mix_preview.html" with title="Tüüp" distribution=view.types only %}
-    {% include "event_programme/partials/_mix_preview.html" with title="Teema" distribution=view.tags only %}
     {% include "event_programme/partials/_mix_preview.html" with title="Toimumisviis" distribution=view.delivery only %}
   </div>
   <div class="border-t border-border px-4 py-3 sm:px-5">
     <a class="dk-link text-sm" href="{% url 'events' %}?fookus=formaadid&amp;year={{ page.year|default:'all' }}">Kõik formaadid ja teemad</a>
   </div>
 </section>
+
+{% if view.price_chart %}
+  {% comment %}
+  `Hinnastruktuur`, moved here when `Planeerimine` came off. Planned prices from
+  the workbook, never transactions — and a price nobody recorded is not free.
+  Both of those are footnotes on the payload itself, so they travel with the
+  chart wherever it is rendered.
+  {% endcomment %}
+  <section aria-labelledby="section-price" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Hinnastruktuur" heading_id="section-price" only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=view.price_chart only %}
+    </div>
+  </section>
+{% endif %}
 
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
 

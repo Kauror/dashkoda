@@ -8,9 +8,10 @@ Three things are worth pinning about a page that deliberately holds nothing:
   nothing;
 - **it is protected exactly like every other dashboard page**, by the viewer PIN
   and nothing extra;
-- **it invents no figure.** In particular it must never say "0 probleemi": the
-  checks have not been moved here yet, and a page reporting its own emptiness as
-  a clean bill of health is the one reading a maintainer must not be given.
+- **it invents no figure.** In particular it must never say "0 probleemi": an
+  empty section reporting its own emptiness as a clean bill of health is the one
+  reading a maintainer must not be given. Real figures are a different matter —
+  Sündmused' provenance block moved here on 2026-08-15 and is full of them.
 
 The link's placement is asserted too. It has to be findable without competing
 with the Chamber's own subjects, which means present in the shell, absent from
@@ -97,26 +98,44 @@ def test_the_admin_page_states_what_it_is_for(viewer_client):
         assert heading in content
 
 
-def test_the_admin_page_fabricates_no_figure(viewer_client):
-    """An empty foundation states its emptiness; it does not count it.
+def test_the_events_provenance_block_arrived(viewer_client):
+    """The other half of the move off `/sundmused/`.
 
-    `0 probleemi` beside a check that has not been moved here would report the
-    absence of the check as the absence of problems.
-
-    Read off the **visible text**, not the markup. Every utility class in the
-    stylesheet carries digits — `gap-1`, `py-3` — so scanning the raw HTML would
-    pass for a reason unrelated to what is on screen, and go on passing after
-    somebody put a real number on the page.
+    A block deleted from one page and never rendered on the other would pass
+    the events-side assertion just as well, so this names what has to be here.
     """
     content = viewer_client.get(reverse("dashboard-admin")).content.decode()
 
-    # From after the opening tag, not from after `<main` — its own class
-    # attribute is full of `px-4` and would be counted as page content.
-    main = content.split("<main", 1)[1].split(">", 1)[1].split("</main>", 1)[0]
-    text = " ".join(re.sub(r"<[^>]*>", " ", main).split())
+    assert "Andmeallikad ja import" in content
+    assert "Sündmused ·" in content
+    # The parts that carry the actual denominators, not just the heading.
+    assert "Mida need andmed ei tõesta" in content
+    assert "Koda.ee avalik kalender" in content
 
-    assert text, "the Admin page rendered no visible text at all"
-    assert not re.search(r"\d", text), f"the Admin page grew a number it cannot support: {text}"
+
+def test_an_empty_admin_section_counts_nothing(viewer_client):
+    """An empty foundation states its emptiness; it does not count it.
+
+    `0 probleemi` beside a check nobody has moved here would report the absence
+    of the check as the absence of problems.
+
+    Scoped to the two sections that are still empty. The whole page carried no
+    digit until 2026-08-15; Sündmused' provenance block arrived that day and is
+    full of real ones, so a page-wide rule would now be asserting the opposite
+    of what it means.
+    """
+    content = viewer_client.get(reverse("dashboard-admin")).content.decode()
+
+    for note in (
+        "Andmekvaliteedi kontrolle ei ole veel siia toodud.",
+        "Tehnilist infot ei ole veel siia toodud.",
+    ):
+        assert note in content
+        assert not re.search(r"\d", note), f"an empty section grew a figure: {note}"
+
+    # The shape the rule exists to forbid, in the words it would be written in.
+    for fabricated in ("0 probleemi", "0 viga", "0 hoiatust"):
+        assert fabricated not in content
 
 
 def test_admin_is_not_a_primary_navigation_item():

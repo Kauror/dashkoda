@@ -9,10 +9,15 @@ available history in one current snapshot. Every figure and every row on this
 page comes from that one snapshot; rows from several snapshots are never
 combined to reconstruct a past.
 
-One route, six focus views, chosen by `?fookus=`. The header, the year control
-and the provenance block are constant; the analytical surface between them
-changes. An unknown focus falls back to `Ülevaade` rather than producing an
-error page.
+One route, four focus views, chosen by `?fookus=`. `Huvi` and `Planeerimine`
+were the other two and came off on 2026-08-15; `Hinnastruktuur` was the one
+section worth keeping out of either and is on `Ülevaade` now. An unknown focus —
+including an old `?fookus=huvi` bookmark — falls back to `Ülevaade` rather than
+producing an error page, so nothing needed a redirect.
+
+The header and the year control are constant; the analytical surface between
+them changes. Provenance is **not** on this page any more: `Andmete kohta` moved
+to `/haldus/`, where the maintainer material for every dashboard is collecting.
 
 The measurement object is one **canonical programme event** — one service code,
 one row of `DASH_EVENTS`. It is not a session and not a calendar day, and the
@@ -43,9 +48,6 @@ attendees.
 
   <header class="flex flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Sündmused</h1>
-    {% if summary.observed_at %}
-      <p class="dk-meta">Koja sündmuseprogramm seisuga {{ summary.observed_at|date:"j.m.Y" }}</p>
-    {% endif %}
   </header>
 
   {% if intelligence.has_data %}
@@ -78,10 +80,6 @@ attendees.
              href="{{ link.url }}"
              {% if link.is_active %}aria-current="true"{% endif %}>{{ link.label }}</a>
         {% endfor %}
-        <p class="dk-meta w-full">
-          Periood valib sündmused nende <strong>oma alguskuupäeva</strong> järgi. Lehevaatamiste ja
-          registreerimiste ajaaknad on eraldi ja on nimetatud seal, kus neid kasutatakse.
-        </p>
       </div>
     </nav>
 
@@ -91,10 +89,6 @@ attendees.
       {% include "event_programme/partials/_focus_volume.html" with view=intelligence.volume page=intelligence only %}
     {% elif intelligence.formats %}
       {% include "event_programme/partials/_focus_formats.html" with view=intelligence.formats page=intelligence only %}
-    {% elif intelligence.attention %}
-      {% include "event_programme/partials/_focus_attention.html" with view=intelligence.attention page=intelligence only %}
-    {% elif intelligence.planning %}
-      {% include "event_programme/partials/_focus_planning.html" with view=intelligence.planning page=intelligence only %}
     {% elif page %}
       {% include "event_programme/partials/_focus_register.html" with page=page only %}
     {% endif %}
@@ -109,15 +103,6 @@ attendees.
     </section>
 
   {% endif %}
-
-  {% comment %}
-  Outside the branch on purpose. The public Koda.ee calendar is a connection of
-  its own with its own schedule, so it keeps being named and keeps stating its
-  own count even on a day the programme has never imported — the two feeds fail
-  independently and a page that hid one because the other was empty would be
-  reporting a connection state it had not checked.
-  {% endcomment %}
-  {% include "event_programme/partials/_data_quality.html" with quality=intelligence.quality public_calendar=public_calendar public_upcoming_count=public_upcoming_count only %}
 
 </div>
 {% endblock %}

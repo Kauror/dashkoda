@@ -177,8 +177,10 @@ def test_the_page_leads_with_the_workbook_programme(viewer, programme):
     page = text_of(response)
     # The page description was struck out on the board's print-out.
     assert "Sündmuste programm" in page
-    # The public calendar appears once, named, at the foot.
-    assert page.index("Sündmuste programm") < page.index("Koda.ee avalik kalender")
+    # The public calendar used to be named once at the foot, inside the
+    # provenance block. That block is on `/haldus/` since 2026-08-15, so this
+    # page names the secondary source nowhere at all.
+    assert "Koda.ee avalik kalender" not in page
 
 
 def test_history_is_visible_through_the_year_filter(viewer, programme):
@@ -629,9 +631,17 @@ def test_no_price_or_participant_information_reaches_the_register(viewer, progra
 
 
 def test_the_page_discloses_that_attendance_is_not_available(viewer, programme):
-    """The other half of the rule above: absence is stated, not left to be assumed."""
-    page = text_of(viewer.get(PAGE_URL))
-    assert "Ükski allikas ei ütle, kui palju inimesi sündmusel osales." in page
+    """The other half of the rule above: absence is stated, not left to be assumed.
+
+    Stated on `/haldus/` since the provenance block moved there. The rule the
+    events page still keeps is the stronger one — it claims no attendance
+    anywhere, which `test_no_focus_claims_something_no_source_establishes`
+    checks focus by focus.
+    """
+    from django.urls import reverse
+
+    admin = viewer.get(reverse("dashboard-admin")).content.decode()
+    assert "Ükski allikas ei ütle, kui palju inimesi sündmusel osales." in admin
 
 
 def test_no_participant_or_capacity_field_exists_on_the_model():

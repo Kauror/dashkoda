@@ -22,8 +22,6 @@ from apps.dashboard.navigation import NAVIGATION
 
 # The one deliberate cross-domain read on this page. `apps.events` is a separate
 # feed with separate snapshots; nothing below merges it into the programme.
-from apps.events.selectors import count_upcoming_within, get_event_summary
-
 from .intelligence import FOCUS_REGISTER, build_intelligence_page
 from .page import build_programme_page
 from .selectors import get_event_programme_summary
@@ -31,15 +29,19 @@ from .selectors import get_event_programme_summary
 
 @require_GET
 def event_programme_overview(request):
-    """One route, six focus views.
+    """One route, four focus views.
 
     The register is the only focus that costs a paginated query over the whole
     programme, so it is the only one that builds a `ProgrammePage`. A reader on
     `Ülevaade` pays for the overview and nothing else, which is the property
-    that lets this page carry six analyses without becoming six pages.
+    that lets this page carry four analyses without becoming four pages.
+
+    The public Koda.ee calendar is **not** read here any more. It was only ever
+    on this page inside `Andmete kohta`, and that block moved to `/haldus/` on
+    2026-08-15 — so this request no longer pays for a feed nothing it renders
+    would show.
     """
     summary = get_event_programme_summary()
-    public_calendar = get_event_summary()
     intelligence = build_intelligence_page(summary, request.GET)
     return render(
         request,
@@ -55,12 +57,6 @@ def event_programme_overview(request):
             "page": (
                 build_programme_page(summary, request.GET)
                 if intelligence.focus == FOCUS_REGISTER
-                else None
-            ),
-            "public_calendar": public_calendar,
-            "public_upcoming_count": (
-                count_upcoming_within(public_calendar.snapshot)
-                if public_calendar.has_data
                 else None
             ),
         },
