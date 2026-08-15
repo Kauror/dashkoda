@@ -269,3 +269,63 @@ def test_the_theme_is_registered_rather_than_spread_into_setoption() -> None:
     assert "echarts.init(canvas, THEME_NAME" in charts_js
     setoption = charts_js.split("instance.setOption({", 1)[1].split("});", 1)[0]
     assert "chartTheme()" not in setoption, "the theme belongs to init, not to setOption"
+
+
+def test_the_theme_names_its_own_legend_colours() -> None:
+    """`legend.textStyle` outranks the theme's `textStyle`, exactly as `axisLabel` does.
+
+    Unnamed it drew the legend labels at roughly 2.2:1 while the axis labels
+    beside them sat at 6.98:1 — and on a stacked chart the legend is the only
+    thing that says which colour is which series.
+    """
+    charts_js = (FRONTEND / "charts.js").read_text(encoding="utf-8")
+
+    legend_block = charts_js.split("const LEGEND_BASE", 1)[1].split("});", 1)[0]
+
+    assert "--color-text-secondary" in legend_block, (
+        "legend labels must not inherit the ECharts default"
+    )
+    assert "--color-text-muted" in legend_block, (
+        "a toggled-off swatch must read as off, not as emphasis"
+    )
+    assert "legend: LEGEND_BASE()" in charts_js, "the theme must carry the legend"
+
+
+def test_the_tooltip_surface_belongs_to_the_theme_not_to_a_branch() -> None:
+    """The regression this replaces: a dark tooltip only where a readout existed.
+
+    The surface used to be set inside `if (dashkoda.tooltip)`, so the ten
+    builders that say no more than `{"trigger": "axis"}` kept ECharts' near-white
+    panel and rendered as a white card on a dark page. A surface cannot be
+    conditional on whether a chart also wanted a custom formatter.
+    """
+    charts_js = (FRONTEND / "charts.js").read_text(encoding="utf-8")
+
+    assert "tooltip: TOOLTIP_BASE()" in charts_js, "the theme must carry the tooltip surface"
+
+    surface_block = charts_js.split("const TOOLTIP_BASE", 1)[1].split("});", 1)[0]
+    assert "--color-elevated" in surface_block
+    assert "--color-text" in surface_block
+
+    branch = charts_js.split("if (dashkoda.tooltip) {", 1)[1].split("\n  }", 1)[0]
+    for key in ("backgroundColor", "borderColor", "textStyle"):
+        assert key not in branch, (
+            f"{key} is a surface and belongs to the theme, so charts without readouts get it too"
+        )
+
+
+def test_charts_exist_that_would_regress_if_the_surface_were_conditional() -> None:
+    """Guards the guard.
+
+    The test above is only worth its runtime while builders that set a tooltip
+    without server readouts still exist. If they ever stop existing the branch
+    check is vacuous and should be reconsidered rather than quietly kept.
+    """
+    bare = [
+        path
+        for path in sorted(Path("apps").rglob("*charts*.py"))
+        if '"tooltip"' in (source := path.read_text(encoding="utf-8"))
+        and '"dashkoda"' not in source.split('"tooltip"', 1)[1]
+    ]
+
+    assert bare, "no builder sets a tooltip without readouts — recheck the branch assertion"

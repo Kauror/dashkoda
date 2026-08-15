@@ -62,6 +62,57 @@ const AXIS_BASE = () => ({
 });
 
 /**
+ * The legend, for the same reason and with the same fix.
+ *
+ * `legend.textStyle` has its own light-background default that outranks the
+ * theme's `textStyle`, exactly as `axisLabel` does — so leaving it unnamed drew
+ * the legend labels at roughly 2.2:1 against the card while the axis labels
+ * beside them sat at 6.98:1. On a stacked chart the legend *is* the key: it is
+ * the only thing that says which colour is `Veebis`. Dimming it below the
+ * numbers it explains is the worst of both — the reader can see the value and
+ * not what it counts.
+ *
+ * `inactiveColor` is the swatch of a series the reader has toggled off. Its
+ * default is `#ccc`, which on this surface is brighter than the active labels
+ * and reads as emphasis rather than as "off"; muted ink says off while staying
+ * legible enough to toggle back on.
+ */
+const LEGEND_BASE = () => ({
+  textStyle: { color: token("--color-text-secondary", "#9aa7b4") },
+  inactiveColor: token("--color-text-muted", "#7d8b99"),
+  inactiveBorderColor: token("--color-text-muted", "#7d8b99"),
+  pageTextStyle: { color: token("--color-text-secondary", "#9aa7b4") },
+  pageIconColor: token("--color-text-secondary", "#9aa7b4"),
+  pageIconInactiveColor: token("--color-border-strong", "#3d4954"),
+});
+
+/**
+ * The tooltip surface.
+ *
+ * ECharts' tooltip is its own DOM element with a near-white panel and dark text
+ * by default, so on this interface it renders as a white card in the middle of
+ * a dark page. This *was* fixed — but only inside the branch that runs when a
+ * payload carries server-rendered readouts, which left every chart that just
+ * says `{"trigger": "axis"}` still drawing the white panel. Ten builders across
+ * Õigusloome, Liikmeskond, Uudised and Otsepostitused were in that state.
+ *
+ * A surface belongs to the theme, not to the branch that happens to also set a
+ * formatter: put it here and a chart cannot opt out of it by not needing a
+ * custom readout. `confine` goes with it for the same reason — a tooltip that
+ * runs off the edge of a phone is unreadable whoever built it.
+ */
+const TOOLTIP_BASE = () => ({
+  backgroundColor: token("--color-elevated", "#1e242b"),
+  borderColor: token("--color-border-strong", "#3d4954"),
+  borderWidth: 1,
+  padding: [10, 12],
+  textStyle: { color: token("--color-text", "#e8edf2") },
+  extraCssText: "box-shadow: 0 2px 6px rgb(0 0 0 / 0.4);",
+  confine: true,
+  enterable: false,
+});
+
+/**
  * Theme derived from the design-system tokens so charts cannot drift away from
  * the rest of the interface.
  *
@@ -105,6 +156,8 @@ export function chartTheme() {
     valueAxis: AXIS_BASE(),
     timeAxis: AXIS_BASE(),
     logAxis: AXIS_BASE(),
+    legend: LEGEND_BASE(),
+    tooltip: TOOLTIP_BASE(),
   };
 }
 
@@ -370,25 +423,13 @@ export function mountChart(figure) {
   if (dashkoda.tooltip) {
     option.tooltip = {
       ...(option.tooltip || {}),
-      formatter: tooltipFormatter(dashkoda.tooltip),
       /*
-       * The tooltip container is ECharts' own element, not ours, and its
-       * default is a near-white panel with dark text. On this dark interface
-       * that put our light readout text on a light panel and made every
-       * tooltip on the page unreadable — the numbers were correct and nobody
-       * could see them. The surface is set from the same tokens the rest of
-       * the interface uses so it cannot drift out of the theme again.
+       * Only the readout. The panel it is drawn on comes from `TOOLTIP_BASE`
+       * in the theme, so a chart without server-rendered readouts gets the
+       * same surface as one with them — which was not true while these keys
+       * lived here.
        */
-      backgroundColor: token("--color-elevated", "#1e242b"),
-      borderColor: token("--color-border-strong", "#3d4954"),
-      borderWidth: 1,
-      padding: [10, 12],
-      textStyle: { color: token("--color-text", "#e8edf2") },
-      extraCssText: "box-shadow: 0 2px 6px rgb(0 0 0 / 0.4);",
-      // A tooltip that runs off the edge of a phone is a tooltip nobody can
-      // read. ECharts keeps it inside the canvas when told to confine it.
-      confine: true,
-      enterable: false,
+      formatter: tooltipFormatter(dashkoda.tooltip),
     };
   }
 
