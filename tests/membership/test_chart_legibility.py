@@ -329,3 +329,32 @@ def test_charts_exist_that_would_regress_if_the_surface_were_conditional() -> No
     ]
 
     assert bare, "no builder sets a tooltip without readouts — recheck the branch assertion"
+
+
+def test_the_default_readout_is_only_applied_where_a_tooltip_was_asked_for() -> None:
+    """A fallback must not hand a tooltip to a chart that wanted none.
+
+    Charts that omit `tooltip` do so deliberately — the bar states its own count
+    and the hover has nothing to add. Applying the fallback unconditionally
+    would give every one of them a hover panel nobody asked for, which no
+    browser test would fail on because appearing is not an error.
+    """
+    charts_js = (FRONTEND / "charts.js").read_text(encoding="utf-8")
+
+    assert "} else if (option.tooltip) {" in charts_js, (
+        "the fallback must be conditional on the chart having requested a tooltip"
+    )
+
+
+def test_the_default_readout_does_not_round_the_value_it_states() -> None:
+    """An axis tick is a scale marker; a readout is the value itself.
+
+    `groupThousands` rounds, which is right for a tick and wrong for a readout —
+    a median response window of 14.5 days stated as `15` is a different number.
+    """
+    charts_js = (FRONTEND / "charts.js").read_text(encoding="utf-8")
+
+    readout = charts_js.split("function readoutNumber", 1)[1].split("\n}", 1)[0]
+
+    assert "Math.round" not in readout, "a readout states the value, it does not round it"
+    assert "groupThousands" not in readout, "groupThousands rounds; readouts must not"

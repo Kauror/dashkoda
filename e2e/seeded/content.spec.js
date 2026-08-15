@@ -20,7 +20,11 @@ import { PAGES } from "./pages.js";
  * "Teataja" alone is deliberately not listed: `e-Teataja` is a real newsletter
  * name the seed publishes, and only the out-of-scope *metric* is forbidden.
  */
-const FORBIDDEN = ["Uusi liikmeid sel aastal", "orgusaar", "koda.ee/et/uudised/2"];
+const FORBIDDEN = [
+  "Uusi liikmeid sel aastal",
+  "orgusaar",
+  "koda.ee/et/uudised/2",
+];
 
 /*
  * Heading order, console cleanliness and page wording do not depend on the
@@ -36,7 +40,9 @@ const oncePerRun = () =>
   );
 
 for (const page_ of PAGES) {
-  test(`${page_.name} renders content without a console error`, async ({ page }) => {
+  test(`${page_.name} renders content without a console error`, async ({
+    page,
+  }) => {
     oncePerRun();
     const errors = watchConsole(page);
 
@@ -54,15 +60,17 @@ for (const page_ of PAGES) {
     expect(errors).toEqual([]);
   });
 
-  test(`${page_.name} keeps one h1 and no skipped heading level`, async ({ page }) => {
+  test(`${page_.name} keeps one h1 and no skipped heading level`, async ({
+    page,
+  }) => {
     oncePerRun();
     await signIn(page);
     await page.goto(page_.path);
 
     const levels = await page.evaluate(() =>
-      Array.from(document.querySelectorAll("main h1, main h2, main h3, main h4")).map((node) =>
-        Number(node.tagName.slice(1)),
-      ),
+      Array.from(
+        document.querySelectorAll("main h1, main h2, main h3, main h4"),
+      ).map((node) => Number(node.tagName.slice(1))),
     );
 
     expect(levels.filter((level) => level === 1)).toHaveLength(1);
@@ -73,7 +81,9 @@ for (const page_ of PAGES) {
     }
   });
 
-  test(`${page_.name} shows nothing that looks like real Chamber data`, async ({ page }) => {
+  test(`${page_.name} shows nothing that looks like real Chamber data`, async ({
+    page,
+  }) => {
     oncePerRun();
     await signIn(page);
     await page.goto(page_.path);
@@ -85,7 +95,9 @@ for (const page_ of PAGES) {
   });
 }
 
-test("every chart keeps its accessible table alongside the drawing", async ({ page }) => {
+test("every chart keeps its accessible table alongside the drawing", async ({
+  page,
+}) => {
   oncePerRun();
   await signIn(page);
 
@@ -136,8 +148,9 @@ test("every chart keeps its accessible table alongside the drawing", async ({ pa
  * been asserting a defect.
  */
 
-
-test("an explicit zero reads differently from a missing value", async ({ page }) => {
+test("an explicit zero reads differently from a missing value", async ({
+  page,
+}) => {
   /*
    * The seed publishes one board report with `suspended_members = 0` and
    * another with it absent. "Nobody was suspended" and "nobody counted" are
@@ -173,7 +186,9 @@ test("the mobile drawer still works on a populated page", async ({ page }) => {
   await expect(drawer).toBeHidden();
 });
 
-test("a seeded list is long enough to have exercised scrolling", async ({ page }) => {
+test("a seeded list is long enough to have exercised scrolling", async ({
+  page,
+}) => {
   oncePerRun();
   await signIn(page);
   await page.goto("/oigusloome/");
@@ -182,4 +197,40 @@ test("a seeded list is long enough to have exercised scrolling", async ({ page }
   // rather than a two-row fixture that always fits.
   const rows = page.locator("main table tbody tr");
   expect(await rows.count()).toBeGreaterThanOrEqual(4);
+});
+
+test("a chart with no server-built readout still states its value separately", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * Õigusloome is where the fourteen charts that ship no `dashkoda.tooltip`
+   * live, so they fell through to ECharts' own default: one run of text per
+   * row, which rendered as `Eesti seisukoht3` — the label and its figure with
+   * nothing between them. The value was correct and unreadable, the same defect
+   * class as the white tooltip panel and the dim legend before it.
+   *
+   * Asserted through the DOM the fallback builds rather than through the text,
+   * because "label and value are separate elements" is the actual contract; a
+   * text assertion would pass on any string that happened to contain a space.
+   */
+  await signIn(page);
+  await page.goto("/oigusloome/");
+
+  const canvas = page.locator("[data-chart-canvas] canvas").first();
+  const box = await canvas.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+
+  const tooltip = page.locator(".dk-chart-tooltip").first();
+  await expect(tooltip).toBeVisible({ timeout: 5000 });
+
+  // The category names the row; the series and its figure are separate cells.
+  await expect(tooltip.locator(".dk-chart-tooltip-title")).not.toBeEmpty();
+  const label = tooltip.locator("dt").first();
+  const value = tooltip.locator("dd").first();
+  await expect(label).not.toBeEmpty();
+  await expect(value).toHaveText(/^\d/);
+
+  // The defect itself: a figure glued to the end of its own label.
+  await expect(label).not.toHaveText(/\d$/);
 });
