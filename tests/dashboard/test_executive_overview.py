@@ -23,6 +23,7 @@ from apps.dashboard.executive_models import (
     ExecutiveComparison,
     ExecutiveMetric,
     ExecutiveOverviewPage,
+    ExecutivePillar,
 )
 from apps.dashboard.executive_signals import (
     PER_DOMAIN_LIMIT,
@@ -427,3 +428,86 @@ def test_rendering_the_main_page_makes_no_external_request(
     response = client.get("/")
 
     assert response.status_code == 200
+
+
+# ---------------------------------------------------------------------------
+# The pillar's delta row
+# ---------------------------------------------------------------------------
+
+
+def _pillar_card(pillar) -> str:
+    from django.template.loader import render_to_string
+
+    return render_to_string("dashboard/components/executive_pillar.html", {"pillar": pillar})
+
+
+def _delta_pillar(**comparison_kwargs) -> ExecutivePillar:
+    return ExecutivePillar(
+        key="legal_work",
+        label="Huvikaitse",
+        headline=ExecutiveMetric(
+            label="",
+            period="1. jaanuar – 14.08.26",
+            source="Õigusloome töövihik",
+            value="165",
+            unit="arvamust sellel aastal",
+            comparison=ExecutiveComparison(**comparison_kwargs),
+        ),
+    )
+
+
+def test_the_pillar_draws_its_delta_and_names_the_basis():
+    card = _pillar_card(_delta_pillar(text="+26,9%", basis="vs sama periood 2025", direction="up"))
+
+    assert "+26,9%" in card
+    assert "vs sama periood 2025" in card
+
+
+def test_the_delta_is_read_off_the_metric_and_not_off_the_pillar():
+    """The bug this row spent its whole first life in.
+
+    `has_comparison` is a property of `ExecutiveMetric`. The template asked
+    `pillar.has_comparison`, Django resolved the missing attribute to falsy, and
+    the row silently drew nothing from the day the overview was built until
+    2026-08-15 — no test failed, because nothing asserted the row existed.
+
+    So this pins both halves: the pillar genuinely does not carry the property,
+    and the row renders anyway. A template that reaches through the pillar again
+    fails here instead of going quiet.
+    """
+    pillar = _delta_pillar(text="+26,9%", basis="vs sama periood 2025", direction="up")
+
+    assert not hasattr(pillar, "has_comparison"), (
+        "if the pillar ever grows this property, this test stops proving anything"
+    )
+    assert pillar.headline.has_comparison
+    assert "+26,9%" in _pillar_card(pillar)
+
+
+def test_the_delta_carries_direction_in_the_sign_not_only_in_colour():
+    """A change distinguished only by hue does not exist for some readers."""
+    up = _pillar_card(_delta_pillar(text="+26,9%", basis="b", direction="up"))
+    down = _pillar_card(_delta_pillar(text="−12,0%", basis="b", direction="down"))
+
+    assert "+26,9%" in up and "text-success" in up
+    assert "−12,0%" in down and "text-danger" in down
+
+
+def test_a_refused_comparison_still_prints_its_reason_instead_of_a_delta():
+    card = _pillar_card(_delta_pillar(unavailable_note="Mõõtmisandmed on liiga ebaühtlased."))
+
+    assert "Mõõtmisandmed on liiga ebaühtlased." in card
+    assert "text-success" not in card
+
+
+def test_a_pillar_without_a_comparison_draws_neither_delta_nor_note():
+    pillar = ExecutivePillar(
+        key="events",
+        label="Kaasamine",
+        headline=ExecutiveMetric(label="", period="2026", source="Sündmuste programm", value="85"),
+    )
+    card = _pillar_card(pillar)
+
+    assert "85" in card
+    assert "text-success" not in card
+    assert "text-danger" not in card
