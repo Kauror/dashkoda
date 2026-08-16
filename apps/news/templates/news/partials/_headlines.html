@@ -17,7 +17,15 @@ distinguished only by hue does not exist for a reader who cannot separate hues.
 Context: headlines
 {% endcomment %}
 
-<div class="dk-kpi-strip">
+{% comment %}
+`dk-kpi-strip` paints `bg-border` behind its cells, so an empty `xl` grid track
+is not blank — it is a grey block the width of a card. The strip carries one to
+three measures depending on what was measured, so the column count follows the
+count the same way the shop's and Liikmeskond's strips do. Written out rather
+than interpolated: a class name built from a variable is invisible to the
+stylesheet build.
+{% endcomment %}
+<div class="dk-kpi-strip{% if headlines|length == 3 %} dk-kpi-strip-trio{% elif headlines|length == 2 %} xl:grid-cols-2{% elif headlines|length == 1 %} sm:grid-cols-1 xl:grid-cols-1{% endif %}">
   {% for headline in headlines %}
     <div class="flex flex-col gap-1.5 px-4 py-4 sm:px-5">
       <h3 class="text-sm font-medium text-text-secondary">{{ headline.label }}</h3>
