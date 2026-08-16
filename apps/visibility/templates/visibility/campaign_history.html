@@ -27,8 +27,7 @@ Context: history, active_section
   <header class="flex min-w-0 flex-col gap-2">
     <h1 class="text-2xl font-semibold tracking-tight text-text">Saadetud uudiskirjad</h1>
     <p class="text-sm text-text-secondary">
-      Kõik Smailyst välja saadetud kampaaniad. Mustandid ja tühistatud kampaaniad
-      siia ei jõua.
+      Kõik Smailyst välja saadetud kampaaniad
     </p>
   </header>
 
@@ -63,7 +62,8 @@ Context: history, active_section
       <form method="get" class="flex flex-wrap items-end gap-2">
         <input type="hidden" name="uudiskiri" value="{{ history.active }}">
         <div class="flex min-w-0 flex-col gap-1">
-          <label for="otsi" class="text-sm text-text-secondary">Otsi uudiskirja</label>
+          {# sr-only, not deleted: the input still needs its accessible name. #}
+          <label for="otsi" class="sr-only">Otsi uudiskirja</label>
           <input type="search"
                  id="otsi"
                  name="otsi"

@@ -27,7 +27,12 @@ presenter has been `apps.visibility.newsletter_page.build_newsletter_section`
 throughout.
 {% endcomment %}
 <section aria-labelledby="section-newsletter-analytics" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Uudiskirjade tulemused" heading_id="section-newsletter-analytics" only %}
+  {% comment %}
+  The heading is the section's accessible name and the anchor every filter
+  chip links to, so it stays in the document and stops being printed rather
+  than being removed.
+  {% endcomment %}
+  <h2 id="section-newsletter-analytics" class="sr-only">Uudiskirjade tulemused</h2>
 
   <div class="dk-section-body flex flex-col gap-4">
     <nav aria-label="Uudiskiri" class="flex flex-wrap gap-2">
@@ -62,7 +67,7 @@ throughout.
         it cannot describe the search — which mode the rows are in is stated
         inside `partials/_newsletter_results.html`, where it can keep up.
         {% endcomment %}
-        <h3 class="text-sm font-medium text-text">Saadetud uudiskirjad</h3>
+        <h3 class="sr-only">Saadetud uudiskirjad</h3>
 
         {% comment %}
         A plain GET form. Without the bundle it submits, the page reloads, and
@@ -98,7 +103,8 @@ throughout.
         <form method="get" action="#section-newsletter-analytics" class="flex min-w-0 flex-wrap items-end gap-2">
           <input type="hidden" name="uudiskiri" value="{{ newsletters.active }}">
           <div class="flex min-w-0 flex-1 flex-col gap-1">
-            <label for="otsi-uudiskiri" class="text-sm text-text-secondary">Otsi uudiskirja</label>
+            {# sr-only, not deleted: an unlabelled search box is a regression, not a declutter. #}
+            <label for="otsi-uudiskiri" class="sr-only">Otsi uudiskirja</label>
             <input type="search"
                    id="otsi-uudiskiri"
                    name="otsi"

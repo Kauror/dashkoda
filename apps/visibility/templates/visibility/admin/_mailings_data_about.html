@@ -1,0 +1,76 @@
+{% comment %}
+Otsepostitused' `Andmete kohta`, moved off the dashboard to `/haldus/` on
+2026-08-16 — the third block to arrive here, after Sündmused and Koduleht.
+
+It carries more than the section it replaces. Two further rate definitions came
+with it, from places that had their own copies: the weighted-rate note under
+`Uudiskirjade võrdlus`, and the paragraph under the sends table on
+`Saadetised`. All three said the same thing in slightly different words, which
+is exactly the duplication a single disclosure exists to end.
+
+Static prose, so unlike `visibility/admin/_data_about.html` this needs no
+context. The one date in it is the day Smaily subscriber collection began and
+does not move.
+{% endcomment %}
+<div class="flex flex-col gap-5">
+
+  <h3 class="text-sm font-semibold text-text">Otsepostitused (Smaily)</h3>
+
+  <div class="flex flex-col gap-2">
+    <h4 class="text-sm font-semibold text-text">Nimekirju ei liideta</h4>
+    <p class="text-sm text-text-secondary">
+      Nimekirjade suurusi <strong>ei liideta</strong>: sama inimene võib olla mitmes
+      nimekirjas ja keegi ei ole kattuvust mõõtnud. Kolme nimekirja summa ei ole
+      inimeste arv, ja „Kokku“ rida väidaks vaikimisi, et kattuvust ei ole.
+    </p>
+    <p class="text-sm text-text-secondary">
+      Tellijate ajalugu kogutakse alates 10.08.2026, mistõttu tellijate graafikut veel
+      ei joonistata. Erinevalt saadetistest ei saa nimekirja ajalugu tagantjärele
+      koguda: Smaily ütleb, mis nimekirjas <em>praegu</em> on.
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    <h4 class="text-sm font-semibold text-text">Näitajate definitsioonid</h4>
+    <dl class="flex flex-col gap-1 text-sm text-text-secondary">
+      <div><dt class="inline font-medium text-text">Avamismäär:</dt>
+        <dd class="inline">avamised jagatud <strong>kättetoimetatud</strong> kirjadega,
+          mitte saadetutega. Tagasi põrkunud kirja ei olnud võimalik avada.</dd></div>
+      <div><dt class="inline font-medium text-text">Klikimäär:</dt>
+        <dd class="inline">unikaalsed klikkijad jagatud kättetoimetatud kirjadega.
+          Loetakse klikkijaid, mitte klikke: üks innukas lugeja, kes avab kuus linki,
+          on üks.</dd></div>
+      <div><dt class="inline font-medium text-text">Klikid:</dt>
+        <dd class="inline">unikaalsed klikkijad jagatud <strong>avajatega</strong>, mitte
+          kättetoimetatutega — kuni 2026-08-16 „Klikke avajate seas“. See on
+          <strong>teine küsimus</strong> kui klikimäär, mitte sama näitaja täpsemalt:
+          nimetaja on väiksem, nii et see arv on alati suurem. Kaks protsenti kõrvuti,
+          kaks eri nimetajat.</dd></div>
+      <div><dt class="inline font-medium text-text">Koondmäärad:</dt>
+        <dd class="inline">kaalutud — liidetud avamised jagatud liidetud
+          kättetoimetatutega — mitte üksiksaadetiste protsentide keskmine. Saadetis
+          800-le ja saadetis 20 000-le ei ole võrdse kaaluga vaatlused.</dd></div>
+      <div><dt class="inline font-medium text-text">Viimased 12 vs eelmised 12:</dt>
+        <dd class="inline">võrreldakse saadetiste, mitte võrdsete ajavahemike kaupa.
+          Uudiskirjade sagedus on ebaühtlane — e-Teataja läheb välja kahe kampaaniana
+          numbri kohta ja e-Vestniku vahel võib olla kuid — nii et võrdsed vahemikud
+          võrdleksid nelja saadetist üheksateistkümnega.</dd></div>
+    </dl>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    <h4 class="text-sm font-semibold text-text">Mida need andmed ei ütle</h4>
+    <ul class="flex list-disc flex-col gap-1 pl-5 text-sm text-text-secondary">
+      <li>millisele lingile vajutati: kampaania koondklikkide arv ei seosta klikke
+        konkreetsete uudistega;</li>
+      <li>kui palju inimesi kokku uudiskirju saab — vt eespool, nimekirju ei liideta;</li>
+      <li>mida lugeja pärast klikki tegi: kodulehe liiklus on Kodulehe töölaual ja
+        neid kahte ei ole omavahel seotud.</li>
+    </ul>
+    <p class="dk-meta">
+      Saadetise pealkiri avab Smaily eelvaate seal, kus see on olemas. Kustutatud
+      malliga saadetisel eelvaadet ei ole, kuid selle tulemused on alles.
+    </p>
+  </div>
+
+</div>
