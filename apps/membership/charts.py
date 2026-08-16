@@ -1965,6 +1965,11 @@ def composition_chart(
         return None
 
     option = _base_option(legend=False)
+    # Room for the value-and-share label past the longest bar. A series label
+    # is clipped at the canvas, not the plot, and since these four draw two-up
+    # from `xl` the default 24px margin is not enough: the top bar's
+    # `2 349 · 69,0%` ran off the card's right edge at half width.
+    option["grid"] = {**GRID, "right": 110}
     option.update(
         {
             "xAxis": {
