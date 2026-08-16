@@ -168,8 +168,8 @@ test("a failed refresh keeps the figures and discloses itself", async ({ page })
   // unit beside the number.
   const pillars = page.getByRole("region", { name: "Koja seis" });
   const visibility = pillars.locator("article", { hasText: "Koduleht ja uudised" }).first();
-  await expect(visibility.getByText("seanssi")).toBeVisible();
-  await expect(visibility.getByText("Kodulehe seansid")).toHaveCount(0);
+  await expect(visibility.getByText("külastust")).toBeVisible();
+  await expect(visibility.getByText("Kodulehe külastused")).toHaveCount(0);
 
   await page.goto("/haldus/");
   const status = page.getByRole("region", { name: "Andmete seis" });

@@ -28,7 +28,7 @@ enforced here rather than in the page, because the page has no way to know what
 A session is a visit. Two visits by one person are two sessions, and no figure
 here is ever worded as a count of humans. The same applies to page views, which
 are smaller still: neither is a unique reader, and the pillar's wording says
-`seansid` and `vaatamised` and never `külastajad`.
+`külastused` and `vaatamised` and never `külastajad`.
 """
 
 from __future__ import annotations
@@ -115,11 +115,11 @@ class WebsiteExecutive:
             return ""
         change = self.change_pct
         if change is None:
-            return f"Seansse oli {integer(self.sessions)} viimasel mõõdetud perioodil."
+            return f"Külastusi oli {integer(self.sessions)} viimasel mõõdetud perioodil."
         if change == 0:
-            return "Seansid püsisid eelmise võrdlusperioodiga samal tasemel."
+            return "Külastused püsisid eelmise võrdlusperioodiga samal tasemel."
         word = "kasvasid" if change > 0 else "langesid"
-        return f"Seansid {word} {percent(abs(change))} võrreldes eelmise sama pika perioodiga."
+        return f"Külastused {word} {percent(abs(change))} võrreldes eelmise sama pika perioodiga."
 
 
 def get_website_executive() -> WebsiteExecutive:
@@ -238,11 +238,11 @@ def _with_signals(executive: WebsiteExecutive) -> WebsiteExecutive:
     signal = DomainSignal(
         key="website-sessions",
         headline=(
-            f"Kodulehe seansid {'langesid' if falling else 'kasvasid'} "
+            f"Kodulehe külastused {'langesid' if falling else 'kasvasid'} "
             f"{percent(abs(change))} võrreldes eelmise sama pika perioodiga."
         ),
         evidence=(
-            f"{integer(executive.sessions)} seanssi {executive.days} päeva jooksul, "
+            f"{integer(executive.sessions)} külastust {executive.days} päeva jooksul, "
             f"eelmisel võrdlusperioodil {integer(executive.previous_sessions)}."
         ),
         # A fall is worth attention; a rise is worth knowing. Neither is a

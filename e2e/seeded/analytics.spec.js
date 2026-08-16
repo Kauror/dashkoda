@@ -23,7 +23,10 @@ import { expectNoHorizontalOverflow, signIn } from "../helpers.js";
 const KPI = 'section[aria-labelledby="section-kpi"]';
 const SEARCH = 'section[aria-labelledby="section-otsing"]';
 const MOVEMENT = 'section[aria-labelledby="section-liikumine"]';
-const METHOD = 'section[aria-labelledby="section-andmed"]';
+const CHANGES = 'section[aria-labelledby="section-muutus"]';
+// Koduleht's coverage disclosure lives on `/haldus/` since 2026-08-16, inside
+// the sources section it shares with Sündmused' provenance block.
+const METHOD = 'section[aria-labelledby="section-andmeallikad"]';
 
 /*
  * Wording and behaviour that do not depend on the viewport run once rather than
@@ -62,12 +65,14 @@ test("the overview answers before the reader touches anything", async ({ page })
 
   // If this fails, every other test in this file is passing vacuously.
   await expect(page.locator(KPI)).toBeVisible();
-  for (const label of ["Seansid", "Lehevaatamised", "Kaasatud seansside osakaal"]) {
+  for (const label of ["Kasutajad", "Külastused", "Lehevaatamised"]) {
     await expect(page.locator(KPI)).toContainText(label);
   }
-  await expect(page.getByRole("heading", { name: "Mis muutus?", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Perioodi muutus", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Kust tullakse", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Mida vaadatakse", exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Enim külastatud lehed", exact: true }),
+  ).toBeVisible();
 });
 
 test("the seeded history gives every headline a comparison", async ({ page }) => {
@@ -78,8 +83,11 @@ test("the seeded history gives every headline a comparison", async ({ page }) =>
   // Seventy seeded days is a complete thirty-day window and a complete one
   // before it, which is what the comparison requires. A rate moves in
   // percentage points and a count in percent, and the two must not be confused.
-  await expect(page.locator(KPI)).toContainText("pp");
+  // The strip is all counts since the engagement rate left it on 2026-08-16, so
+  // the `pp` assertion follows the rate to `Perioodi muutus`.
   await expect(page.locator(KPI)).toContainText("%");
+  await expect(page.locator(KPI)).not.toContainText("pp");
+  await expect(page.locator(CHANGES)).toContainText("pp");
 });
 
 test("a period the history cannot fill is offered and inert", async ({ page }) => {
@@ -237,9 +245,10 @@ test("channels are shown with the denominator their shares used", async ({ page 
   await signIn(page);
   await page.goto("/koduleht/?fookus=kanalid");
 
-  await expect(page.getByRole("heading", { name: "Seansid kanalite kaupa" })).toBeVisible();
-  await expect(page.locator("main")).toContainText("kogu kodulehe seansside suhtes");
-  const labels = await chartTableLabels(page, "Seansid kanalite kaupa");
+  await expect(
+    page.getByRole("heading", { name: "Külastused kanalite kaupa" }),
+  ).toBeVisible();
+  const labels = await chartTableLabels(page, "Külastused kanalite kaupa");
   expect(labels).toContain("Organic Search");
 });
 
@@ -349,22 +358,31 @@ test("one page opens its own analysis with both of its figures", async ({ page }
 // Andmete kohta
 // ---------------------------------------------------------------------------
 
-test("the methodology discloses coverage without shouting about it", async ({ page }) => {
+test("the coverage disclosure moved to Admin and kept its numbers", async ({ page }) => {
   oncePerRun();
   await signIn(page);
-  await page.goto("/koduleht/");
+
+  /*
+   * It is no longer a `<details>` that starts shut. On Koduleht it had to stay
+   * out of the way of a board member; `/haldus/` exists to show exactly this, so
+   * hiding it behind a summary there would be a disclosure nobody opens.
+   */
+  await page.goto("/haldus/");
 
   const method = page.locator(METHOD);
   await expect(method).toBeVisible();
-  // Available, not intrusive: it is a disclosure and starts shut.
-  const open = await method.locator("details").first().getAttribute("open");
-  expect(open).toBeNull();
-
-  await method.locator("summary").first().click();
   await expect(method).toContainText("Puuduvaid päevi");
   await expect(method).toContainText("Lehekaupa kogutud päevi");
   // The rule that matters most, in the reader's own words.
   await expect(method).toContainText("ei ole 780");
+});
+
+test("Koduleht no longer carries the disclosure it used to end with", async ({ page }) => {
+  oncePerRun();
+  await signIn(page);
+  await page.goto("/koduleht/");
+
+  await expect(page.locator("main")).not.toContainText("Andmete kohta");
 });
 
 test("the seeded gaps are disclosed rather than smoothed over", async ({ page }) => {
@@ -381,9 +399,13 @@ test("the seeded gaps are disclosed rather than smoothed over", async ({ page })
   await page.goto("/koduleht/?fookus=sisu&periood=30");
   await expect(page.locator(MOVEMENT)).toContainText("Kasvavad lehed");
 
-  await page.goto("/koduleht/?periood=koik");
+  /*
+   * No `?periood=koik` needed any more. Admin reports coverage over the whole
+   * collected history by definition — there is no period control there to make
+   * the table mean something narrower.
+   */
+  await page.goto("/haldus/");
   const method = page.locator(METHOD);
-  await method.locator("summary").first().click();
 
   const counts = await method.evaluate((node) => {
     const read = (label) => {

@@ -356,6 +356,6 @@ def test_the_channel_breakdown_is_its_own_view_and_still_lists_every_channel(vie
         reverse("visibility"), {"fookus": "kanalid", "periood": "koik"}
     ).content.decode()
 
-    assert "Seansid kanalite kaupa" in page
+    assert "Külastused kanalite kaupa" in page
     assert "Organic Search" in page
     assert "Direct" in page

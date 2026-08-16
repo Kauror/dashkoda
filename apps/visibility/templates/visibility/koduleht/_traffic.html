@@ -16,7 +16,7 @@ rank themselves.
 
 {% if page.trend %}
   <section aria-labelledby="section-liiklus-trend" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Liiklus ajas" heading_id="section-liiklus-trend" description="Ajasamm valitakse perioodi pikkuse järgi: päev, nädal või kuu." only %}
+    {% include "dashboard/components/section_header.html" with title="Kodulehe liiklus" heading_id="section-liiklus-trend" only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% include "visibility/koduleht/_metric_switch.html" with options=page.metric_options only %}
       {% include "dashboard/components/chart_figure.html" with chart=page.trend only %}
@@ -34,7 +34,7 @@ rank themselves.
           <dd class="text-lg font-semibold tabular-nums text-text">{{ page.peak_day.day|date:"d.m.Y" }}</dd>
         </div>
         <div class="flex flex-col gap-0.5">
-          <dt class="text-sm text-text-secondary">Seansid</dt>
+          <dt class="text-sm text-text-secondary">Külastused</dt>
           <dd class="text-lg font-semibold tabular-nums text-text">{{ page.peak_day.sessions }}</dd>
         </div>
         {% if page.peak_day.page_views is not None %}
@@ -44,7 +44,7 @@ rank themselves.
           </div>
         {% endif %}
       </dl>
-      <p class="dk-meta mt-2">Kõige rohkem seansse mõõdetud üksikul päeval. See ei ole kordumatute külastajate arv.</p>
+      <p class="dk-meta mt-2">Kõige rohkem külastusi mõõdetud üksikul päeval. See ei ole kordumatute külastajate arv.</p>
     </div>
   </section>
 {% endif %}

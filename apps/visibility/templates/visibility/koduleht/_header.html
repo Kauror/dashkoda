@@ -20,20 +20,8 @@ from being reflected back into an address.
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div class="flex min-w-0 flex-col gap-1">
       <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">{{ page.title }}</h1>
-      <p class="dk-meta">
-        {{ page.freshness_note }}
-        <span aria-hidden="true"> · </span>
-        <a class="dk-link-quiet" href="#section-andmed">Andmete kohta</a>
-      </p>
+      <p class="dk-meta">{{ page.freshness_note }}</p>
     </div>
-    {% if page.focus.key == "ulevaade" and page.has_data %}
-      {% comment %}
-      One short state, not an operator's wall. The detail is in `Andmete kohta`.
-      {% endcomment %}
-      <p class="shrink-0">
-        {% include "dashboard/components/status_badge.html" with label=page.coverage_status.0 variant=page.coverage_status.1 only %}
-      </p>
-    {% endif %}
   </div>
 
   {# ---------------- Focus navigation ---------------- #}
@@ -62,7 +50,7 @@ from being reflected back into an address.
       </nav>
 
       <details class="text-sm"{% if page.period.is_custom %} open{% endif %}>
-        <summary class="cursor-pointer text-text-secondary">Kohandatud vahemik</summary>
+        <summary class="cursor-pointer text-text-secondary">Vali vahemik</summary>
         <form method="get" action="" class="mt-3 flex flex-wrap items-end gap-3">
           <input type="hidden" name="fookus" value="{{ page.focus.key }}">
           <input type="hidden" name="periood" value="kohandatud">
@@ -83,12 +71,16 @@ from being reflected back into an address.
         </form>
       </details>
 
+      {% comment %}
+      The comparison window is no longer spelled out here: every figure that uses
+      it now says `vs eelnev periood` on the figure itself. A comparison that is
+      *refused* still states why — that is a data warning, not a repetition of
+      the window.
+      {% endcomment %}
       <p class="dk-meta">
-        Kuvatud {{ page.period.range_label }} ({{ page.period.days }} päeva).
-        {% if page.comparison.is_available %}
-          Võrdlusperiood {{ page.comparison.range_label }}.
-        {% elif page.comparison.unavailable_reason %}
-          {{ page.comparison.unavailable_reason }}
+        {{ page.period.range_label }} ({{ page.period.days }} päeva)
+        {% if not page.comparison.is_available and page.comparison.unavailable_reason %}
+          <span aria-hidden="true"> · </span>{{ page.comparison.unavailable_reason }}
         {% endif %}
         {% if page.period.custom_note %}<span class="text-warning">{{ page.period.custom_note }}</span>{% endif %}
       </p>

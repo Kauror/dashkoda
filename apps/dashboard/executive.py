@@ -413,11 +413,11 @@ def _visibility_pillar(website, news) -> ExecutivePillar:
         key="website",
         label=VISIBILITY_PILLAR_LABEL,
         headline=ExecutiveMetric(
-            label="Kodulehe seansid",
+            label="Kodulehe külastused",
             period=period,
             source=SOURCE_GA4,
             value=integer(website.sessions),
-            unit="seanssi",
+            unit="külastust",
             as_of=website.end,
             comparison=(
                 ExecutiveComparison(

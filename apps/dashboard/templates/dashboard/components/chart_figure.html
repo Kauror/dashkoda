@@ -25,7 +25,12 @@ Context:
 
 <figure data-chart data-chart-payload="{{ chart.payload_id }}" class="flex w-full flex-col gap-3">
   <figcaption class="flex flex-col gap-1">
-    {% if chart.title %}
+    {% comment %}
+    `title_hidden` suppresses the printed heading only. The title itself stays
+    on the payload and still captions the data table below, so hiding it here
+    never leaves a screen reader with an unnamed table.
+    {% endcomment %}
+    {% if chart.title and not chart.title_hidden %}
       <span class="text-sm font-medium text-text">{{ chart.title }}</span>
     {% endif %}
     {% if chart.question %}

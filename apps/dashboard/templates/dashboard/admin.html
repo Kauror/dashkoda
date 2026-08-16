@@ -60,8 +60,14 @@ never be given.
   {% endcomment %}
   <section aria-labelledby="section-andmeallikad" class="dk-section">
     {% include "dashboard/components/section_header.html" with title="Andmeallikad ja import" heading_id="section-andmeallikad" description="Allikate kaetus, viimased impordid ja nende seis." only %}
-    <div class="dk-section-body">
+    <div class="dk-section-body flex flex-col gap-6">
       {% include "dashboard/partials/_events_data_quality.html" with quality=events_quality public_calendar=public_calendar public_upcoming_count=public_upcoming_count only %}
+      {% comment %}
+      Koduleht's block, moved here 2026-08-16. It joins the events block inside
+      this section rather than starting a fifth, which is the arrangement the
+      section was built for.
+      {% endcomment %}
+      {% include "visibility/admin/_data_about.html" with coverage=website_coverage period_coverage=website_period_coverage can_add_data=can_add_data only %}
     </div>
   </section>
 

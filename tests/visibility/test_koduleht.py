@@ -161,12 +161,25 @@ def test_the_focus_links_are_real_urls_the_page_answers(history, viewer_client):
 
 def test_the_overview_answers_the_five_second_questions(history):
     page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
-    labels = {headline.label for headline in page.headlines}
+    labels = [headline.label for headline in page.headlines]
 
-    assert "Seansid" in labels
+    # Users first, the order Google Analytics' own dashboard uses.
+    assert labels[0] == "Kasutajad"
+    assert "Külastused" in labels
     assert "Lehevaatamised" in labels
-    assert "Kaasatud seansside osakaal" in labels
-    assert "Keskmine kaasatuse aeg / seanss" in labels
+    assert "Keskmine kaasatuse aeg / külastus" in labels
+
+
+def test_the_engagement_rate_left_the_primary_strip(history):
+    """Moved off the strip on 2026-08-16, not deleted from the page.
+
+    Both halves are asserted: a metric quietly dropped from the product would
+    pass the first line on its own.
+    """
+    page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
+
+    assert "kaasatuse_maar" not in {headline.key for headline in page.headlines}
+    assert any("Kaasatud külastuste osakaal" in insight.label for insight in page.insights)
 
 
 def test_the_headline_totals_are_the_period_sums(history):
@@ -178,11 +191,14 @@ def test_the_headline_totals_are_the_period_sums(history):
 
 
 def test_a_rate_moves_in_percentage_points_and_a_count_in_percent(history):
+    """The rate now states its movement from `Perioodi muutus` rather than the strip."""
     page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
     by_key = {headline.key: headline for headline in page.headlines}
 
     assert by_key["seansid"].change.endswith("%")
-    assert by_key["kaasatuse_maar"].change.endswith("pp")
+
+    rate = next(i for i in page.insights if "Kaasatud külastuste osakaal" in i.label)
+    assert rate.value.endswith("pp")
 
 
 def test_no_headline_carries_a_delta_when_the_comparison_is_refused(ga4_day):
@@ -220,22 +236,20 @@ def test_the_engagement_time_card_is_absent_when_nothing_measured_it(ga4_day):
     page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
 
     assert len(page.headlines) == 3
-    assert "Keskmine kaasatuse aeg / seanss" not in {h.label for h in page.headlines}
+    assert "Keskmine kaasatuse aeg / külastus" not in {h.label for h in page.headlines}
 
 
 def test_the_peak_day_readout_says_it_is_not_a_period_total(history):
+    """Still the point of that readout, and more so now.
+
+    A period user count sits in the strip above it, so the day figure has to
+    keep saying which of the two it is.
+    """
     page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
-    peak = next(r for r in page.secondary if "Tipppäeva" in r.label)
+    peak = next(r for r in page.secondary if r.label == "Kõige aktiivsem päev")
 
     assert "ei ole päevade summa" in peak.note
-
-
-def test_no_period_user_total_is_offered_anywhere(history):
-    page = build_website_page(focus_key=FOCUS_TRAFFIC, period_key="30")
-    labels = {h.label for h in page.headlines} | {r.label for r in page.secondary}
-
-    for forbidden in ("Perioodi kasutajad", "Kasutajaid kokku", "Uniques", "Reach"):
-        assert forbidden not in labels
+    assert peak.value.endswith("kasutajat")
 
 
 def test_new_users_are_collected_but_not_published_as_a_period_total(ga4_day):
@@ -445,9 +459,17 @@ def test_decline_is_worded_neutrally(history, viewer_client):
 
 
 def test_the_channel_share_denominator_is_stated(history, viewer_client):
-    rendered = body(viewer_client.get(PAGE_URL, {"fookus": "kanalid"}))
+    """Still stated — on `/haldus/`, with the rest of the definitions.
 
-    assert "kogu kodulehe seansside suhtes" in rendered
+    The footnote under the chart went with the 2026-08-16 declutter. What must
+    not happen is the denominator going unstated anywhere, so this follows it
+    rather than being deleted.
+    """
+    koduleht = body(viewer_client.get(PAGE_URL, {"fookus": "kanalid"}))
+    assert "kogu kodulehe külastuste suhtes" not in koduleht
+
+    admin = body(viewer_client.get("/haldus/"))
+    assert "kanali külastused jagatud kogu kodulehe külastustega" in admin
 
 
 def test_no_source_or_campaign_detail_is_invented(history, viewer_client):
@@ -458,16 +480,27 @@ def test_no_source_or_campaign_detail_is_invented(history, viewer_client):
         assert forbidden not in rendered
 
 
-def test_the_methodology_is_available_on_every_view(history, viewer_client):
+def test_the_methodology_left_every_view(history, viewer_client):
+    """`Andmete kohta` moved to `/haldus/` on 2026-08-16.
+
+    Every focus view, because it used to render outside the focus branch and so
+    appeared on all five. The header's jump link went with it — a `#section-andmed`
+    left behind would be a link to nothing.
+    """
     for focus in (FOCUS_OVERVIEW, FOCUS_TRAFFIC, FOCUS_CONTENT, FOCUS_CHANNELS, FOCUS_PAGES):
         rendered = body(viewer_client.get(PAGE_URL, {"fookus": focus}))
-        assert "Andmete kohta" in rendered
+        assert "Andmete kohta" not in rendered, focus
+        assert "section-andmed" not in rendered, focus
 
 
-def test_the_methodology_explains_what_adds_and_what_does_not(history, viewer_client):
+def test_the_arithmetic_rule_left_with_it(history, viewer_client):
+    """The disclosure moved whole; it was not partly left behind.
+
+    `tests/dashboard/test_admin_area.py` asserts the same sentence arrived.
+    """
     rendered = body(viewer_client.get(PAGE_URL))
 
-    assert "ei ole 780" in rendered
+    assert "ei ole 780" not in rendered
 
 
 # ---------------------------------------------------------------------------

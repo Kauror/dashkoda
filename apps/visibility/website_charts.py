@@ -100,10 +100,14 @@ def _truncated_axis_label() -> dict:
 #: The metrics the main trend can draw, one at a time. Drawing all three at once
 #: puts a count of sessions beside a count of page views beside a subset of the
 #: first, and the reader has to work out which line answers their question.
+#: The slugs are a URL contract and stay as they were spelled when the links
+#: were first shareable. Only the labels follow the seanss → külastus rename;
+#: renaming a slug would quietly demote every saved `?mõõdik=seansid` link to
+#: the default instead of the metric it names.
 TRAFFIC_METRICS: tuple[tuple[str, str, str], ...] = (
-    ("seansid", "Seansid", "sessions"),
+    ("seansid", "Külastused", "sessions"),
     ("lehevaatamised", "Lehevaatamised", "page_views"),
-    ("kaasatud", "Kaasatud seansid", "engaged_sessions"),
+    ("kaasatud", "Kaasatud külastused", "engaged_sessions"),
 )
 
 DEFAULT_TRAFFIC_METRIC = TRAFFIC_METRICS[0][0]
@@ -175,6 +179,7 @@ def traffic_trend_chart(series: TrafficSeries, *, metric: str) -> WebsiteChart:
     return WebsiteChart(
         payload_id="koduleht-liiklus",
         title=f"{label} ajas",
+        title_hidden=True,
         option=option,
         table_headers=("Periood", label),
         table_rows=tuple(rows),
@@ -220,9 +225,9 @@ def channel_sessions_chart(
         channel.channel: {
             "title": channel.channel,
             "rows": [
-                {"label": "Seansid", "value": integer(channel.sessions), "emphasis": True},
+                {"label": "Külastused", "value": integer(channel.sessions), "emphasis": True},
                 {
-                    "label": "Osakaal kõigist seanssidest",
+                    "label": "Osakaal kõigist külastustest",
                     "value": percent(channel.share * 100) if channel.share is not None else "–",
                 },
                 {
@@ -257,10 +262,10 @@ def channel_sessions_chart(
     return WebsiteChart(
         payload_id="koduleht-kanalid",
         empty_message=EMPTY_MESSAGE,
-        title="Seansid kanalite kaupa",
-        question="Kust külastajad tulid?",
+        title="Külastused kanalite kaupa",
+        title_hidden=True,
         option=option,
-        table_headers=("Kanal", "Seansid", "Osakaal", "Kaasatuse määr"),
+        table_headers=("Kanal", "Külastused", "Osakaal", "Kaasatuse määr"),
         table_rows=tuple(
             (
                 channel.channel,
@@ -272,8 +277,7 @@ def channel_sessions_chart(
             )
             for channel in channels
         ),
-        summary=f"{len(channels)} kanalit, kokku {integer(site_sessions)} seanssi.",
-        footnotes=("Osakaal on arvutatud kogu kodulehe seansside suhtes.",),
+        summary=f"{len(channels)} kanalit, kokku {integer(site_sessions)} külastust.",
         size="categorical",
     )
 
@@ -311,9 +315,9 @@ def channel_engagement_chart(
                     "value": percent(channel.engagement_rate * 100),
                     "emphasis": True,
                 },
-                {"label": "Seansid", "value": integer(channel.sessions)},
+                {"label": "Külastused", "value": integer(channel.sessions)},
                 {
-                    "label": "Kaasatud seansid",
+                    "label": "Kaasatud külastused",
                     "value": integer(channel.engaged_sessions)
                     if channel.engaged_sessions is not None
                     else "–",
@@ -342,10 +346,10 @@ def channel_engagement_chart(
     return WebsiteChart(
         payload_id="koduleht-kanalite-kaasatus",
         empty_message=EMPTY_MESSAGE,
-        title="Kaasatud seansside osakaal kanali kaupa",
-        question="Millised kanalid toovad kaasatumaid seansse?",
+        title="Kaasatud külastuste osakaal kanali kaupa",
+        question="Millised kanalid toovad kaasatumaid külastusi?",
         option=option,
-        table_headers=("Kanal", "Kaasatuse määr", "Seansid"),
+        table_headers=("Kanal", "Kaasatuse määr", "Külastused"),
         table_rows=tuple(
             (
                 channel.channel,
@@ -355,7 +359,7 @@ def channel_engagement_chart(
             for channel in sorted(measured, key=lambda c: c.engagement_rate, reverse=True)
         ),
         summary=f"Kaasatuse määr {len(measured)} kanali kohta.",
-        footnotes=("Kaasatuse määr = kaasatud seansid / seansid samal perioodil.",),
+        footnotes=("Kaasatuse määr = kaasatud külastused / külastused samal perioodil.",),
         size="categorical",
     )
 
@@ -720,7 +724,7 @@ def weekday_chart(pattern: tuple[WeekdayAverage, ...], *, names: tuple[str, ...]
             "title": names[day.weekday - 1].capitalize(),
             "rows": [
                 {
-                    "label": "Keskmine seansside arv",
+                    "label": "Keskmine külastuste arv",
                     "value": integer(round(day.mean_sessions)),
                     "emphasis": True,
                 },
@@ -750,7 +754,7 @@ def weekday_chart(pattern: tuple[WeekdayAverage, ...], *, names: tuple[str, ...]
         title="Nädalapäevade muster",
         question="Kuidas jaguneb liiklus nädalapäevade vahel?",
         option=option,
-        table_headers=("Nädalapäev", "Keskmine seansside arv", "Mõõdetud päevi"),
+        table_headers=("Nädalapäev", "Keskmine külastuste arv", "Mõõdetud päevi"),
         table_rows=tuple(
             (
                 names[day.weekday - 1].capitalize(),
@@ -759,7 +763,7 @@ def weekday_chart(pattern: tuple[WeekdayAverage, ...], *, names: tuple[str, ...]
             )
             for day in pattern
         ),
-        summary="Keskmine seansside arv mõõdetud nädalapäevade kohta.",
+        summary="Keskmine külastuste arv mõõdetud nädalapäevade kohta.",
         footnotes=(
             "Kirjeldav jaotus mõõdetud päevadest. See ei ütle, et nädalapäev "
             "põhjustaks liikluse erinevust.",

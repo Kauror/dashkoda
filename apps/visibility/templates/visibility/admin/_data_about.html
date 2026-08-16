@@ -1,0 +1,176 @@
+{% comment %}
+Koduleht's `Andmete kohta`, moved off the dashboard to `/haldus/` on 2026-08-16.
+
+It arrives whole. Nothing was summarised on the way, for the same reason the
+events block was not: a diagnostic that loses half its numbers in a move is
+worse where it lands than where it started.
+
+One thing did change, and deliberately. On Koduleht this block described **the
+period the reader had selected** — `Valitud periood`, `Võrdlusperiood` and the
+day counts inside them. There is no period selector here, and a coverage table
+that silently described the last thirty days would be read as describing the
+source. So `Kaetus` now describes the **whole collected history**, which is the
+question a maintainer is actually asking, and the two selection-specific rows
+are gone rather than frozen at some default.
+
+The operator's link to manual data entry came along too. Those four hand-entered
+social figures were never what Koduleht was about, but the workflow is untouched
+and staff should not have to remember the admin URL.
+
+Context:
+  coverage         – Coverage over all collected history
+  period_coverage  – PeriodCoverage across that same full span
+  can_add_data     – whether this viewer may reach the manual-entry form
+{% endcomment %}
+<div class="flex flex-col gap-5">
+
+  <h3 class="text-sm font-semibold text-text">Koduleht (Google Analytics)</h3>
+
+  {% comment %}
+  Only once something has been collected. A coverage table reading zero across
+  every row describes nothing, and a column of zeros beside words like
+  "puuduvaid päevi" reads as a measurement rather than as an absence.
+  {% endcomment %}
+  {% if coverage.has_data %}
+    <div class="flex flex-col gap-2">
+      <h4 class="text-sm font-semibold text-text">Kaetus</h4>
+      <dl class="grid gap-x-8 gap-y-2 text-sm sm:grid-cols-2">
+        <div class="flex justify-between gap-4 border-b border-border pb-1">
+          <dt class="text-text-secondary">Mõõtmine algab</dt>
+          <dd class="tabular-nums text-text">{{ coverage.earliest|date:"d.m.Y"|default:"–" }}</dd>
+        </div>
+        <div class="flex justify-between gap-4 border-b border-border pb-1">
+          <dt class="text-text-secondary">Viimane kogutud päev</dt>
+          <dd class="tabular-nums text-text">{{ coverage.latest|date:"d.m.Y"|default:"–" }}</dd>
+        </div>
+        <div class="flex justify-between gap-4 border-b border-border pb-1">
+          <dt class="text-text-secondary">Päevi vahemikus</dt>
+          <dd class="tabular-nums text-text">{{ period_coverage.expected_days }}</dd>
+        </div>
+        <div class="flex justify-between gap-4 border-b border-border pb-1">
+          <dt class="text-text-secondary">Kogutud päevi</dt>
+          <dd class="tabular-nums text-text">{{ period_coverage.snapshot_days }}</dd>
+        </div>
+        <div class="flex justify-between gap-4 border-b border-border pb-1">
+          <dt class="text-text-secondary">Puuduvaid päevi</dt>
+          <dd class="tabular-nums text-text">{{ period_coverage.missing_count }}</dd>
+        </div>
+        <div class="flex justify-between gap-4 border-b border-border pb-1">
+          <dt class="text-text-secondary">Lehekaupa kogutud päevi</dt>
+          <dd class="tabular-nums text-text">{{ period_coverage.days_with_page_detail }}</dd>
+        </div>
+        <div class="flex justify-between gap-4 border-b border-border pb-1">
+          <dt class="text-text-secondary">Kanalite kaupa kogutud päevi</dt>
+          <dd class="tabular-nums text-text">{{ period_coverage.days_with_channel_detail }}</dd>
+        </div>
+        <div class="flex justify-between gap-4 border-b border-border pb-1">
+          <dt class="text-text-secondary">Kaasatuse ajaga päevi</dt>
+          <dd class="tabular-nums text-text">{{ period_coverage.days_with_engagement_seconds }}</dd>
+        </div>
+      </dl>
+    </div>
+  {% endif %}
+
+  <div class="flex flex-col gap-2">
+    <h4 class="text-sm font-semibold text-text">Mis liidetakse ja mis mitte</h4>
+    <p class="text-sm text-text-secondary">
+      Külastused, lehevaatamised ja kaasatud külastused on sündmuste arvud: need kuuluvad ühte
+      päeva ja päevade summa on perioodi summa.
+    </p>
+    <p class="text-sm text-text-secondary">
+      Aktiivsed kasutajad on <strong>erinevad inimesed</strong>. Esmaspäeva 400 ja teisipäeva
+      380 ei ole 780 — suur osa on samad inimesed. Päevade kaupa loendatud erinevaid inimesi ei
+      saa perioodi arvuks liita. Perioodi kasutajate arv küsitakse seetõttu Google Analyticsilt
+      eraldi, päringuga, mille vahemik <em>on</em> see periood, ja seda hoitakse omaette; päevade
+      kaupa kogutud arvudest seda ei tuletata.
+    </p>
+    <p class="text-sm text-text-secondary">
+      <strong>Uusi kasutajaid</strong> kogutakse, kuid perioodi summana ei kuvata. Selle
+      liitmine päevade kaupa võib anda soovitud suuruse, kuid seda ei ole selle property
+      vastu tõendatud, ja siin rakenduses kontrollitakse näitaja tähendus enne avaldamist.
+    </p>
+    <p class="text-sm text-text-secondary">
+      Puuduv väärtus ei ole null. Kogumata päev ei ole nullliiklusega päev, ja leht ilma
+      mõõdetud reata ei ole leht, mille liiklus mõõdeti nulliks.
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    <h4 class="text-sm font-semibold text-text">Näitajate definitsioonid</h4>
+    <dl class="flex flex-col gap-1 text-sm text-text-secondary">
+      <div><dt class="inline font-medium text-text">Kasutajad:</dt>
+        <dd class="inline">Google Analyticsi <code>activeUsers</code> valitud vahemiku kohta,
+          küsituna ühe päringuga, mille vahemik on see periood. Kordumatud inimesed, mitte
+          päevade summa.</dd></div>
+      <div><dt class="inline font-medium text-text">Kaasatud külastuste osakaal:</dt>
+        <dd class="inline">kaasatud külastused jagatud külastustega samadel päevadel. Päevaste
+          protsentide keskmist ei võeta.</dd></div>
+      <div><dt class="inline font-medium text-text">Kaasatuse aeg / külastus:</dt>
+        <dd class="inline">kaasatuse sekundid jagatud nende samade päevade külastustega, kus
+          sekundid olid mõõdetud. See ei ole lehel viibitud aeg.</dd></div>
+      <div><dt class="inline font-medium text-text">Lehevaatamisi külastuse kohta:</dt>
+        <dd class="inline">lehevaatamised jagatud külastustega. See ei ole erinevate lehtede
+          arv külastuses.</dd></div>
+      <div><dt class="inline font-medium text-text">Kanali osakaal:</dt>
+        <dd class="inline">kanali külastused jagatud kogu kodulehe külastustega, mitte kuvatud
+          kanalite summaga.</dd></div>
+      <div><dt class="inline font-medium text-text">Vaadatud sisu jaotus:</dt>
+        <dd class="inline">osakaal järjestatavaks sisuks loetud lehtede vaatamistest. Keelte
+          avalehed, ostukorv, siseotsing, Drupali node-aadressid ja veadokumendid jäävad
+          sellest nimekirjast välja — kuid mitte kodulehe kogusummadest.</dd></div>
+      <div><dt class="inline font-medium text-text">Sisukeel:</dt>
+        <dd class="inline">vaadatud lehe keeleversioon aadressi järgi. Mitte külastaja
+          rahvus, riik ega eelistatud keel.</dd></div>
+      <div><dt class="inline font-medium text-text">Kaasatuse aeg / lehevaatamine:</dt>
+        <dd class="inline">GA4 <code>userEngagementDuration</code> jagatud nende ridade
+          vaatamistega, kus kestus oli mõõdetud. See ei ole „lehel viibitud aeg“.</dd></div>
+      <div><dt class="inline font-medium text-text">Kokku mõõdetud:</dt>
+        <dd class="inline">vaatamised GA4 kaetuse sees. Enne mõõtmise algust avaldatud lehe
+          puhul ei ole see kogu eluaja arv.</dd></div>
+    </dl>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    <h4 class="text-sm font-semibold text-text">Millal võrdlust ei näidata</h4>
+    <p class="text-sm text-text-secondary">
+      Võrdlusperiood on vahetult eelnev sama pikk vahemik, ilma kattumiseta. Muutust
+      kuvatakse ainult siis, kui mõlemad perioodid on selle andmetaseme kohta piisavalt
+      kaetud — kodulehe näitajad vajavad päevaseid ridu, sisu võrdlus lehekaupa ridu ja
+      kanalite võrdlus kanalite kaupa ridu. Täielikku perioodi ei võrrelda poolikuga:
+      selline vahe kirjeldaks kogumist, mitte kodulehte.
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    <h4 class="text-sm font-semibold text-text">Mida need andmed ei ütle</h4>
+    <ul class="flex list-disc flex-col gap-1 pl-5 text-sm text-text-secondary">
+      <li>külastajate demograafiat, riiki ega seadmeid;</li>
+      <li>maandumislehti ega liikluse allikat täpsemalt kui kanalirühm;</li>
+      <li>uudiskirja mõju kodulehe liiklusele;</li>
+      <li>eesmärke ega konversioone — neid ei koguta;</li>
+      <li>e-poe äritulemusi: tellimusi, käivet ega tooteid. Need on E-poe töölaual.</li>
+    </ul>
+    <p class="dk-meta">
+      Kodulehe kogusummad sisaldavad ka poelehtede liiklust — see on osa kodulehe
+      kasutusest ja seda ei lahutata maha.
+    </p>
+  </div>
+
+  <div class="flex flex-col gap-2">
+    <h4 class="text-sm font-semibold text-text">Allikas</h4>
+    <p class="text-sm text-text-secondary">
+      Google Analytics 4, üks lugemisõigusega teenusekonto, kogutud ajastatud käsuga.
+      Iga aruandepäev salvestatakse muutumatu redaktsioonina; arvestusse läheb ainult
+      kehtiv redaktsioon. Ükski leht ei pöördu joonistamise ajal Google'i poole ja ühtegi
+      üksikut külastajat ei salvestata.
+    </p>
+    {% if can_add_data %}
+      <p class="dk-meta">
+        Käsitsi sisestatavad sotsiaalmeedia näitajad ei kuulu Koduleheks, kuid nende
+        sisestamine töötab endiselt:
+        <a class="dk-link" href="{% url 'visibility-admin-entry-new' %}">Lisa andmed</a>.
+      </p>
+    {% endif %}
+  </div>
+
+</div>

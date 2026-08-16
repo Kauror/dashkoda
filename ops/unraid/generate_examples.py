@@ -109,6 +109,40 @@ CHAIN: tuple[Job, ...] = (
         ],
     ),
     Job(
+        name="sync_ga4_period_users",
+        purpose="DashKoda Google Analytics period user counts.",
+        command="sync_ga4_period_users --json",
+        tallinn="05:18",
+        ordering=(
+            "Three minutes after the reconciliation, because it resolves the period\n"
+            "presets against coverage and wants last night's day already published.\n"
+            "If the reconciliation overruns, this one resolves against coverage that\n"
+            "is a day short — the windows it fetches are then a day behind for one\n"
+            "night and correct again the next. It holds its own lock and blocks\n"
+            "nothing in the chain that follows."
+        ),
+        exit_codes=[
+            "0  counts were fetched, nothing had changed, or a successful dry run",
+            "1  failed — the previously stored counts stay, and the cards keep",
+            "   showing them",
+            "3  another run was still going",
+        ],
+        notes=[
+            "This is the one website figure that cannot be computed from the stored\n"
+            "daily rows. Users are distinct people, so a period's count is not the\n"
+            "sum of its days; it has to be asked of GA4 with the period as the query's\n"
+            "own date range.",
+            "One request per selectable window — each period preset resolved against\n"
+            "coverage, plus each preset's comparison window, de-duplicated. On a\n"
+            "property with a few years of history that is roughly ten requests.",
+            "Hand-picked custom ranges are not fetched and are not meant to be. The\n"
+            "card says the window was never asked rather than showing a number\n"
+            "belonging to a different period.",
+            "The JSON is counts only: how many windows were asked, stored, unchanged\n"
+            "and unanswered. Never a date range, a property ID or a credential path.",
+        ],
+    ),
+    Job(
         name="sync_smaily",
         purpose="DashKoda Smaily newsletter list sizes.",
         command="sync_smaily --json",
