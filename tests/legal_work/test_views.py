@@ -56,21 +56,32 @@ def test_with_data_the_page_shows_its_sections(client, authenticate_viewer, impo
     assert "Sünteetiline avatud teema" in content
 
 
-def test_arrivals_are_no_longer_a_section_of_their_own(
+def test_arrivals_are_no_longer_a_section_or_a_headline(
     client, authenticate_viewer, imported_snapshot
 ):
     """A record that has just come in is active work, and Hetkel töös is where
     active work is listed. The arrivals table repeated those same rows under a
-    second heading, so it is gone — table, heading and anchor together, rather
-    than left behind as an empty section or a dead fragment link."""
+    second heading, so it went — table, heading and anchor together, rather
+    than left behind as an empty section or a dead fragment link.
+
+    `Sisse tulnud sel aastal` followed it off the page on 2026-08-16. Until then
+    this test asserted the phrase was still *somewhere*, which was true only
+    because that readout survived the table.
+
+    The measurement is not lost: `topics_year_on_year` still drives the
+    `Uusi teemasid saabunud` comparison in `Mis muutus?`. That is not asserted
+    here, because the insight is conditional on a prior year being present in
+    the snapshot — a render check would pin the fixture's shape rather than the
+    page's rule. `tests/legal_work/test_executive_consistency.py` covers the
+    selector itself.
+    """
     authenticate_viewer(client)
 
     content = client.get(PAGE_URL).content.decode()
 
     assert "Uusimad sisse tulnud" not in content
     assert 'id="section-received"' not in content
-    # The arrival count itself is still measured; it is the table that went.
-    assert "Sisse tulnud" in content
+    assert "Sisse tulnud sel aastal" not in content
 
 
 def test_the_workbook_row_total_is_not_a_headline_figure(
