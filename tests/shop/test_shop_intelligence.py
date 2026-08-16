@@ -171,7 +171,7 @@ def test_an_empty_previous_window_is_not_a_product_launch():
     presenter = MoverPresenter(mover)
     assert presenter.context == "uus perioodil"
     assert "toode" not in presenter.context
-    assert presenter.context_title == "Eelmisel perioodil soetusi ei olnud."
+    assert presenter.context_title == "Eelmisel perioodil oste ei olnud."
 
 
 # ---------------------------------------------------------------------------

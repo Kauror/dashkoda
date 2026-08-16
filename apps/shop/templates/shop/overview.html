@@ -146,43 +146,15 @@ Nothing here turns one into the other.
 
     {# ---------------- 2. web readout ---------------- #}
     {% comment %}
-    Kept out of the Commerce headline strip on purpose. The GA4 pair needs its
-    own caveat — a narrower window, and views that are not visitors — and
-    putting it beside the acquisition count would mean explaining that caveat
-    four times or not at all.
+    `Veeb ja ostmine` — the acquisition-page views and the per-hundred rate —
+    left the overview on 2026-08-16. Both figures are still on `Nähtavus`,
+    which is the focus whose subject they are; this was the second place they
+    appeared, with the narrower-window caveat that had to travel with them.
     {% endcomment %}
-    <section aria-labelledby="section-web" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Veeb ja soetamine" heading_id="section-web" only %}
-      <div class="dk-section-body flex flex-col gap-3">
-        {% if overview.window.has_web %}
-          <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <p class="text-sm text-text-secondary">{{ overview.views_label }}</p>
-              <p class="text-metric font-semibold tabular-nums text-text">{{ overview.product_views }}</p>
-            </div>
-            <div>
-              <p class="text-sm text-text-secondary">{{ overview.rate_label }}</p>
-              <p class="text-metric font-semibold tabular-nums text-text">{{ overview.rate }}</p>
-            </div>
-          </div>
-          {% if overview.web_is_partial %}
-            <p class="dk-meta">Veebivõrdlus {{ overview.web_interval_label }} — lühem kui valitud tellimuste periood. Määr arvutatakse mõlemal pool sama akna sees.</p>
-          {% endif %}
-        {% else %}
-          {% comment %}
-          Stated rather than omitted. A period outside the measured overlap must
-          say so: a section that simply disappears leaves the reader to guess
-          whether the traffic was zero or the question unanswerable, which is
-          the distinction this whole module exists to keep visible.
-          {% endcomment %}
-          {% include "dashboard/components/empty_state.html" with message="Veebivõrdlus ei ole selle perioodi kohta võimalik." detail="Valitud periood jääb väljapoole mõõdetud veebistatistikat või imporditud tellimusi." only %}
-        {% endif %}
-      </div>
-    </section>
 
     {# ---------------- 3. trend ---------------- #}
     <section aria-labelledby="section-trend" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Soetamine ajas" heading_id="section-trend" only %}
+      {% include "dashboard/components/section_header.html" with title="Ostmine ajas" heading_id="section-trend" only %}
       <div class="dk-section-body flex flex-col gap-3">
         {% include "shop/_metric_switch.html" %}
         {% if overview.trend %}
@@ -212,7 +184,7 @@ Nothing here turns one into the other.
 
     {# ---------------- 5. what is acquired ---------------- #}
     <section aria-labelledby="section-ranking" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Mida soetati?" heading_id="section-ranking" only %}
+      {% include "dashboard/components/section_header.html" with title="Mida osteti?" heading_id="section-ranking" only %}
       <div class="dk-section-body flex flex-col gap-3">
         {% if overview.ranking %}
           {% comment %}
@@ -281,8 +253,12 @@ Nothing here turns one into the other.
       </section>
     {% endif %}
 
-    {# ---------------- 7. attention signals ---------------- #}
-    {% include "shop/_signals.html" %}
+    {# ---------------- 7. attention signals — removed 2026-08-16 ---------------- #}
+    {% comment %}
+    `Tasub vaadata` and its five rule-based observations left the overview. The
+    rules themselves are untouched in `apps/shop/intelligence.py`; nothing on
+    this page composes them now.
+    {% endcomment %}
 
     {% elif overview.is_purchases %}
       {% include "shop/_focus_ostud.html" %}
@@ -306,7 +282,15 @@ Nothing here turns one into the other.
             <p><strong class="text-text">Tellimused ja veebistatistika.</strong> Tellimuste ajalugu algab {{ overview.coverage_label }}, veebistatistika hiljem. Ühiseid näitajaid arvutatakse ainult kattuval perioodil, mitte kogu valitud vahemikus.</p>
             <p><strong class="text-text">Vaatamised.</strong> Lehevaatamine ei ole inimene: sama külastaja mitu külastust on mitu vaatamist.</p>
             <p><strong class="text-text">Lepingu kaks lehte.</strong> Lepingupõhjal on tutvustusleht ja tooteleht. Neid vaatamisi ei liideta, sest sama külastaja näeb sageli mõlemat. Määr arvutatakse tootelehe alusel, kus on ostunupp.</p>
-            <p><strong class="text-text">Soetamisi / 100 vaatamist.</strong> 100 × soetatud ühikud ÷ ostulehe vaatamised, mõlemad sama kattuva akna sees. „Soetatud“ on üldine sõna, sest suur osa lepingunäidistest on tasuta ja „ostetud“ oleks nende kohta vale.</p>
+            {% comment %}
+            This sentence used to explain why the general word was `Ostetud`.
+            The word changed on 2026-08-16 and the explanation could not simply
+            be renamed with it — it would have read "`Ostetud` is the general
+            word because `ostetud` would be wrong". What the reader actually
+            needs is the fact underneath it, which is that most of the count was
+            never paid for.
+            {% endcomment %}
+            <p><strong class="text-text">Oste / 100 vaatamist.</strong> 100 × ostetud ühikud ÷ ostulehe vaatamised, mõlemad sama kattuva akna sees. „Ostetud“ hõlmab ka tasuta võetud lepingunäidiseid, mida on suurem osa: see arv ei ole müük ega tasutud tellimuste arv.</p>
             <p><strong class="text-text">Ostuleht tooteliigi järgi.</strong> Lepingunäidisel ja füüsilisel tootel on selleks tooteleht, sündmusel sündmuse leht. Kui õiget lehte ei ole määratud, jääb määr näitamata — teist liiki lehte asemele ei panda.</p>
             <p><strong class="text-text">Jagatud lehed.</strong> Koondnäitajates loetakse iga ostuleht üks kord, ka siis kui mitu toodet viitab samale lehele.</p>
             {% comment %}
@@ -322,7 +306,7 @@ Nothing here turns one into the other.
             {% endif %}
             <p><strong class="text-text">Registreerimised.</strong> Sündmuse toote ühik on registreerimine, mitte osaleja. Kohalkäimist e-poe andmestik ei sisalda.</p>
             <p><strong class="text-text">Osaline aasta.</strong> Kalendriaasta, mida imporditud ajalugu tervikuna ei kata, on eraldi märgitud ega ole täisaastaga võrreldav.</p>
-            <p><strong class="text-text">„Uus perioodil“.</strong> Tähendab, et eelmisel perioodil soetusi ei olnud. See ei ütle, millal toode e-poodi lisati.</p>
+            <p><strong class="text-text">„Uus perioodil“.</strong> Tähendab, et eelmisel perioodil oste ei olnud. See ei ütle, millal toode e-poodi lisati.</p>
             <p><strong class="text-text">Andmestiku maht.</strong> Skeem {{ overview.schema_version|default:"—" }}; eri tellimuste arv {% if overview.distinct_orders_available %}on{% else %}ei ole{% endif %} selle valiku kohta saadaval; tasuta/tasulise jaotus {% if overview.free_paid_available %}on{% else %}ei ole{% endif %} imporditud; veebi päevadetail {% if overview.page_detail_complete %}katab kogu võrdlusakna{% else %}ei kata kogu võrdlusakent{% endif %}.</p>
             <p><strong class="text-text">Liikmestaatus.</strong> {% if overview.member_gate_open %}Liikmete ja mitteliikmete jaotus on kinnitatud ja kuvatud.{% else %}Jaotust ei näidata: allikas ei ole kinnitanud, et liikmestaatus kirjeldab tehingu hetke.{% endif %}</p>
             <p><strong class="text-text">Puuduv ja null.</strong> „—“ tähendab, et mõõtmist ei ole. „0“ tähendab mõõdetud nulli. Neid ei asendata teineteisega.</p>

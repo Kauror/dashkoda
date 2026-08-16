@@ -99,7 +99,7 @@ The current price pair is shown as a current fact, dated.
   {# --- a real trend, not only a table --- #}
   {% if detail.trend %}
     <section aria-labelledby="section-product-line" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Soetamine ajas" heading_id="section-product-line" only %}
+      {% include "dashboard/components/section_header.html" with title="Ostmine ajas" heading_id="section-product-line" only %}
       <div class="dk-section-body">
         {% include "dashboard/components/trend_chart.html" with chart=detail.trend only %}
       </div>
@@ -109,7 +109,7 @@ The current price pair is shown as a current fact, dated.
   {# --- free vs paid, from transaction facts rather than today's price --- #}
   {% if detail.mix.is_known %}
     <section aria-labelledby="section-product-mix" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Tasuta ja tasulised soetused" heading_id="section-product-mix" only %}
+      {% include "dashboard/components/section_header.html" with title="Tasuta ja tasulised ostud" heading_id="section-product-mix" only %}
       <div class="dk-section-body flex flex-col gap-2">
         <svg viewBox="0 0 100 8" preserveAspectRatio="none" class="h-4 w-full" role="img"
              aria-label="Tasuta {{ detail.mix.free_units }} ühikut, tasuline {{ detail.mix.paid_units }} ühikut">

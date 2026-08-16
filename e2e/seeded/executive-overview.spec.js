@@ -147,7 +147,7 @@ test("each interest panel states its own metric and its own period", async ({ pa
   // Four different metrics. Nothing ranks them against one another, so no panel
   // may borrow another's unit.
   await expect(interest.getByText("lehevaatamist")).toBeVisible();
-  await expect(interest.getByText("ühikut soetatud")).toBeVisible();
+  await expect(interest.getByText("ühikut ostetud")).toBeVisible();
 });
 
 test("a failed refresh keeps the figures and discloses itself", async ({ page }) => {

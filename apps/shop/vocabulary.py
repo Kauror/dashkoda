@@ -1,18 +1,26 @@
 """What each product family's numbers are called.
 
 The shop sells three quite different things through one set of tables, and the
-generic word for a row in `ShopDailyFact.units` is **`Soetatud`** — acquired.
-That is not a stylistic preference over `Ostetud`:
+generic word for a row in `ShopDailyFact.units` is **`Ostetud`**.
 
-- a large share of the contract templates are **free**, so "bought" is wrong for
-  the acquisition it describes and `Tasuta` + `Ostetud` in the same sentence
-  reads as a contradiction;
-- an event registration is not a purchase of an object at all;
-- only a physical product is unambiguously *bought*, and there `Ostetud ühikud`
-  stays available and is used.
+It was `Soetatud` — acquired — until 2026-08-16, chosen precisely because it was
+true of every row. The owner changed it to `Ostetud` after being shown what that
+costs, so the cost is recorded here rather than lost:
 
-So `Soetatud` is the word that is true for every row, and each family may narrow
-it where narrowing is more informative than the general term.
+- **roughly three quarters of acquisitions are free.** `Tasuta ostud` is
+  literally "free purchases", and that phrase is now on the page. It is the
+  known price of a plainer word, not an oversight to be quietly corrected;
+- the reading it produces is "we sold this much", where the measurement is "this
+  many were taken". Any figure derived from `units` inherits that.
+
+**Do not extend it to the event family.** `Registreerimised` survives below
+because it is a different word rather than a form of `soetatud`, and that is
+lucky rather than designed: a registration is not a purchase, and relabelling it
+`Ostetud` would state something the Commerce data does not contain. If a fourth
+family is added, ask what its rows actually are before reaching for this word.
+
+Each family may still narrow the general term where narrowing is more
+informative.
 
 ## What is deliberately not said
 
@@ -51,7 +59,7 @@ _MIXED_VIEW_LABEL = "Ostulehe vaatamised"
 class Vocabulary:
     """How one selected product family's figures are worded."""
 
-    #: The headline count: `Soetatud`, or a family's own narrower word.
+    #: The headline count: `Ostetud`, or a family's own narrower word.
     units_label: str
     #: The noun that follows a bare count — "1 245 ühikut".
     units_noun: str
@@ -71,22 +79,22 @@ class Vocabulary:
 
 
 _ALL = Vocabulary(
-    units_label="Soetatud",
+    units_label="Ostetud",
     units_noun="ühikut",
     views_label=_MIXED_VIEW_LABEL,
-    rate_label="Soetamisi / 100 vaatamist",
+    rate_label="Oste / 100 vaatamist",
     rate_column="/ 100",
-    trend_label="Soetatud",
+    trend_label="Ostetud",
 )
 
 _BY_TYPE: dict[str, Vocabulary] = {
     ProductType.DOCUMENT: Vocabulary(
-        units_label="Soetatud",
+        units_label="Ostetud",
         units_noun="näidist",
         views_label=_ROLE_VIEW_LABELS[denominator_role(ProductType.DOCUMENT)],
-        rate_label="Soetamisi / 100 vaatamist",
+        rate_label="Oste / 100 vaatamist",
         rate_column="/ 100",
-        trend_label="Soetatud lepingunäidised",
+        trend_label="Ostetud lepingunäidised",
     ),
     ProductType.EVENT_REGISTRATION: Vocabulary(
         units_label="Registreerimised",
@@ -100,7 +108,7 @@ _BY_TYPE: dict[str, Vocabulary] = {
         units_label="Ostetud ühikud",
         units_noun="ühikut",
         views_label=_ROLE_VIEW_LABELS[denominator_role(ProductType.PHYSICAL_PRODUCT)],
-        rate_label="Soetamisi / 100 vaatamist",
+        rate_label="Oste / 100 vaatamist",
         rate_column="/ 100",
         trend_label="Ostetud ühikud",
     ),
@@ -111,7 +119,7 @@ def vocabulary_for(product_type: str) -> Vocabulary:
     """The wording for one selected type, or the generic wording for all of them.
 
     An unrecognised type resolves to the generic vocabulary rather than raising:
-    a rotted bookmark must render a page, and `Soetatud` is true of every row
+    a rotted bookmark must render a page, and `Ostetud` is true of every row
     whatever family it came from.
     """
     return _BY_TYPE.get(product_type, _ALL)

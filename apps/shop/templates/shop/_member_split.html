@@ -20,7 +20,7 @@ preserves the price paid but not the list price that stood that day, so
     {% include "dashboard/components/section_header.html" with title="Liikmed ja mitteliikmed" heading_id="section-member" only %}
     <div class="dk-section-body flex flex-col gap-4">
       <div>
-        <h3 class="mb-2 text-sm font-semibold text-text">Soetatud ühikud</h3>
+        <h3 class="mb-2 text-sm font-semibold text-text">Ostetud ühikud</h3>
         {% include "shop/_bars.html" with rows=overview.member_split.rows only %}
       </div>
       {% if overview.member_split.value_rows %}

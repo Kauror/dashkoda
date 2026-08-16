@@ -607,7 +607,7 @@ def _shop_panel(shop) -> ExecutiveInterestItem:
         domain_key="shop",
         title=product.title,
         metric_value=integer(product.units),
-        metric_label="ühikut soetatud",
+        metric_label="ühikut ostetud",
         period=(
             f"{short_date(shop.period_start)} – {short_date(shop.period_end)}"
             if shop.period_start

@@ -372,7 +372,7 @@ class MoverPresenter:
     @property
     def context_title(self) -> str:
         if self.row.is_new:
-            return "Eelmisel perioodil soetusi ei olnud."
+            return "Eelmisel perioodil oste ei olnud."
         return ""
 
 
@@ -401,7 +401,7 @@ class CategoryMoverPresenter:
     @property
     def context_title(self) -> str:
         if self.row.is_new:
-            return "Eelmisel perioodil soetusi ei olnud."
+            return "Eelmisel perioodil oste ei olnud."
         return ""
 
 
@@ -657,10 +657,10 @@ class ShopOverview:
     #: without indexing into `focus_options` by position.
     focus_links: dict = field(default_factory=dict)
     #: Type-aware wording for every acquisition figure on the page.
-    units_label: str = "Soetatud"
+    units_label: str = "Ostetud"
     units_noun: str = "ühikut"
     views_label: str = "Ostulehe vaatamised"
-    rate_label: str = "Soetamisi / 100 vaatamist"
+    rate_label: str = "Oste / 100 vaatamist"
     #: Deterministic things worth a second look.
     signals: tuple = ()
     #: Long-term history.
@@ -981,7 +981,7 @@ def build_overview(
             formatter=euros,
             unit="KM-ta",
             secondary=(
-                f"{mix.free_share:.0f}% soetustest tasuta".replace(".", ",")
+                f"{mix.free_share:.0f}% ostudest tasuta".replace(".", ",")
                 if mix.free_share is not None
                 else ""
             ),
@@ -1380,7 +1380,7 @@ def build_overview(
         risers=tuple(MoverPresenter(row) for row in risers),
         fallers=tuple(MoverPresenter(row) for row in fallers),
         ranking=ranking,
-        ranking_note=(f"Top 10 moodustavad {share}% soetustest." if share is not None else ""),
+        ranking_note=(f"Top 10 moodustavad {share}% ostudest." if share is not None else ""),
         focus=focus.key,
         focus_label=focus.label,
         focus_question=focus.question,
@@ -1417,10 +1417,10 @@ def build_overview(
         member_split=member_presenter,
         concentration=concentration,
         concentration_note=(
-            f"Top 10 toodet moodustavad {share}% soetatud ühikutest." if share is not None else ""
+            f"Top 10 toodet moodustavad {share}% ostetud ühikutest." if share is not None else ""
         ),
         long_tail_note=(
-            f"80% soetustest tuleb {concentration.long_tail_count} tootest "
+            f"80% ostudest tuleb {concentration.long_tail_count} tootest "
             f"({concentration.population} seast)."
             if concentration.long_tail_count is not None
             else ""
@@ -1535,7 +1535,7 @@ def _metric_options(
     deliver.
     """
     labels = (
-        (METRIC_UNITS, "Soetatud"),
+        (METRIC_UNITS, "Ostetud"),
         (METRIC_ORDERS, orders_label),
         (METRIC_VALUE, "Tellitud väärtus"),
     )
@@ -1670,11 +1670,11 @@ class ProductDetail:
 
     # --- the intelligence layer ------------------------------------------
     #: Type-aware wording, so an event says `Registreerimised` and a template
-    #: says `Soetatud` without either page hard-coding the other's word.
-    units_label: str = "Soetatud"
+    #: says `Ostetud` without either page hard-coding the other's word.
+    units_label: str = "Ostetud"
     units_noun: str = "ühikut"
     views_label: str = "Tootelehe vaatamised"
-    rate_label: str = "Soetamisi / 100 vaatamist"
+    rate_label: str = "Oste / 100 vaatamist"
     #: Which page role this product's rate divides by, named for the reader.
     denominator_label: str = ""
     #: Views for that page. For a template this is the product page and for an
