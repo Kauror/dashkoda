@@ -19,13 +19,14 @@ import {
 const PAGE = "/liikmeskond/";
 
 /*
- * The page is five focused views behind one URL, so a test has to say which
+ * The page is four focused views behind one URL, so a test has to say which
  * one it is asserting about. `fookus` is an ordinary GET parameter and every
  * control is a link, which is what lets these navigate by URL rather than by
- * clicking through a client-side router.
+ * clicking through a client-side router. `liikmemaks` retired on 2026-08-16:
+ * its one chart draws on the overview, and the key resolves there.
  */
 const GROWTH = "?fookus=kasv";
-const FEES = "?fookus=liikmemaks";
+const RETIRED_FEES = "?fookus=liikmemaks";
 const MOVEMENT = "?fookus=liikumine";
 const COMPOSITION = "?fookus=koosseis";
 
@@ -96,11 +97,18 @@ test("each focus draws its own analysis and names itself", async ({ page }) => {
   // Each named focus carries its own section, and only when navigated to.
   for (const [query, title] of [
     [GROWTH, "Uute liikmete dünaamika"],
-    [FEES, "Liikmemaksu laekumine"],
     [MOVEMENT, "Liikmete liikumine"],
   ]) {
     await page.goto(`${PAGE}${query}`);
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  }
+
+  // The fee history draws on the overview since `liikmemaks` retired, and the
+  // retired key still lands on it. Located by its payload id: the chart title
+  // is a span rather than a heading, and the KPI strip carries the same words.
+  for (const query of ["", RETIRED_FEES]) {
+    await page.goto(`${PAGE}${query}`);
+    await expect(page.locator('[data-chart-payload="internal-membership-fees"]')).toBeVisible();
   }
 
   // Still a heading, still the section's accessible name, just not painted.

@@ -171,6 +171,11 @@ class AnalyticsSection:
     presets: tuple = ()
     show_custom_range: bool = False
     toggles: tuple[Toggle, ...] = ()
+    #: Lay the charts out two-up from `xl` instead of stacking them. For a run
+    #: of same-shaped categorical charts — the composition's four distributions
+    #: — a single column is twice the scroll to say the same four things; a
+    #: time series keeps the full width, where its resolution is the point.
+    grid: bool = False
 
     @property
     def has_charts(self) -> bool:
@@ -1085,9 +1090,10 @@ def fee_collection_chart(rows: tuple[dict, ...]) -> ChartPayload:
 
     return ChartPayload(
         payload_id="internal-membership-fees",
-        # Both struck out. The section heading two lines above already says
-        # `Liikmemaksu laekumine`; this repeated it with one word added.
-        title="",
+        # Restored when the `Liikmemaks` focus retired: this chart now draws in
+        # the overview's trend section under an `sr-only` landmark, so the
+        # figure's own title is the only visible name it has.
+        title="Liikmemaksu laekumine",
         option=option,
         size="large",
         readouts=_fee_readouts(by_year, current_year),

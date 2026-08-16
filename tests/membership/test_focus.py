@@ -1,6 +1,6 @@
 """The `fookus` navigation contract.
 
-The page has five views behind one URL, so the rules about what a query value
+The page has four views behind one URL, so the rules about what a query value
 may do are load-bearing: an unknown focus must render something, a focus with no
 data must not be advertised, and a focus link must not carry a control that means
 nothing where it lands.
@@ -41,6 +41,13 @@ def test_every_named_focus_resolves_to_itself():
         assert resolve_focus(key) == key
 
 
+def test_the_retired_fee_focus_resolves_to_the_overview():
+    """`Liikmemaks` retired on 2026-08-16; its chart joined the overview's
+    trend section, so a saved link lands where the content went."""
+    assert FOCUS_FEES not in FOCUS_KEYS
+    assert resolve_focus(FOCUS_FEES) == FOCUS_OVERVIEW
+
+
 def test_an_unknown_focus_is_the_overview_rather_than_an_error():
     """A stale bookmark or a typed URL renders the page, it does not raise.
 
@@ -68,9 +75,9 @@ def test_the_active_focus_is_listed_even_when_it_has_no_data():
 
 
 def test_exactly_one_link_is_active():
-    links = focus_links(FOCUS_FEES)
+    links = focus_links(FOCUS_MOVEMENT)
     assert [link.is_active for link in links].count(True) == 1
-    assert next(link for link in links if link.is_active).key == FOCUS_FEES
+    assert next(link for link in links if link.is_active).key == FOCUS_MOVEMENT
 
 
 def test_a_focus_link_carries_the_window_forward():
@@ -84,13 +91,13 @@ def test_a_focus_link_carries_the_window_forward():
 
 
 def test_a_focus_link_does_not_carry_a_chart_toggle():
-    """`vaade` governs the recruitment chart and means nothing on the fee view.
+    """`vaade` governs the recruitment chart and means nothing on the movement view.
 
     Carrying it across would land a reader on a control state that does not
     apply where they arrived, which is how a control comes to look broken.
     """
     links = focus_links(FOCUS_GROWTH, carried={"alates": "2025-01-01"})
-    params = query_of(next(link for link in links if link.key == FOCUS_FEES))
+    params = query_of(next(link for link in links if link.key == FOCUS_MOVEMENT))
 
     assert "vaade" not in params
     assert "vordlus" not in params
