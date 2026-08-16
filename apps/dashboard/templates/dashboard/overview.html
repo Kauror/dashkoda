@@ -5,23 +5,29 @@ Koja töölaud — the executive overview.
 
 Reading order, top to bottom:
 
-  Koja seis            – five strategic pillars
-  Mis vajab tähelepanu? – exception-based signals, at most five
-  Järgmised 30 päeva   – the two domains that genuinely have dates
-  Praegu huvi pakkuv   – four separate panels, four separate metrics
-  Kanalite auditoorium – audiences, each on its own, never totalled
-  (Andmete seis moved to `/haldus/` on 2026-08-15. The header chip still counts
-   the sources worth disclosing and links there.)
+  Koja seis            – the strategic pillars
+  Eesolevad tegevused  – the two domains that genuinely have dates
+  Kanalid              – audiences, each on its own, never totalled
+
+  (Andmete seis moved to `/haldus/` on 2026-08-15; the header links there. The
+   count beside that link went on 2026-08-16 — `3 andmemärkust` read as a score
+   for a fact about plumbing.
+
+   `Mis vajab tähelepanu?` and `Praegu huvi pakkuv` left on 2026-08-16 too.
+   Their builders are untouched and nothing renders them, which is the largest
+   single change this page has had: the signals section was its one genuinely
+   cross-domain capability.)
 
 The page holds layout and no business rule. Every number arrives formatted,
 compared and worded by `apps.dashboard.executive`, which in turn takes it from
 the domain that owns it. There is no `{% templatetag openblock %} if value > x {% templatetag closeblock %}` anywhere below, because a
 threshold in a template is a business rule nobody can test.
 
-Visual hierarchy is deliberate and unequal: the pillars are the page, the
-signals are loud when present and silent when not, and the lower sections are
-quiet. Six identically weighted card grids would make the reader do the
-prioritising this page exists to do for them.
+Visual hierarchy is deliberate and unequal: the pillars are the page and the
+two sections under them are quiet. That mattered more when there were six card
+grids competing; with three, the risk has inverted — the page is now closer to
+being too quiet to prioritise anything, which is worth watching rather than
+celebrating.
 {% endcomment %}
 
 {% block content %}
@@ -42,11 +48,12 @@ prioritising this page exists to do for them.
       Admin with the rest of the maintainer material, and an anchor left behind
       would be a link to nothing.
       {% endcomment %}
-      {% if page.has_any_source and page.warning_count %}
-        <a class="dk-link" href="{% url 'dashboard-admin' %}#andmete-seis">{{ page.warning_count }} andmemärkust</a>
-      {% else %}
-        <a class="dk-link" href="{% url 'dashboard-admin' %}#andmete-seis">Andmete kohta</a>
-      {% endif %}
+      {% comment %}
+      The count went on 2026-08-16 — `3 andmemärkust` read as a score for a
+      fact about plumbing. The link did not: it is the only route from here to
+      `Andmete seis`, and `tests/dashboard/test_admin_area.py` pins it.
+      {% endcomment %}
+      <a class="dk-link" href="{% url 'dashboard-admin' %}#andmete-seis">Andmete kohta</a>
     </p>
   </header>
 
@@ -60,53 +67,17 @@ prioritising this page exists to do for them.
     </div>
   </section>
 
-  {# ---------------- Mis vajab tähelepanu? ---------------- #}
-  <section aria-labelledby="tahelepanu" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Mis vajab tähelepanu?" heading_id="tahelepanu" only %}
-    <div class="dk-section-body">
-      {% if page.has_signals %}
-        <ul class="flex flex-col divide-y divide-border">
-          {% for entry in page.signals %}
-            <li class="flex flex-col gap-1 py-3 first:pt-0 last:pb-0">
-              <div class="flex flex-wrap items-center gap-2">
-                {% comment %}
-                Priority is a word before it is a colour, so it survives a
-                greyscale print and a reader who cannot separate the two
-                warning tones.
-                {% endcomment %}
-                <span class="dk-badge {% if entry.priority == 'critical' %}dk-badge-danger{% elif entry.priority == 'attention' %}dk-badge-warning{% else %}dk-badge-neutral{% endif %}">
-                  {{ entry.priority_label }}
-                </span>
-                <span class="dk-meta">{{ entry.domain_label }}</span>
-              </div>
-              <p class="text-sm font-medium break-words text-text">{{ entry.headline }}</p>
-              {% if entry.evidence %}
-                <p class="text-sm break-words text-text-secondary">{{ entry.evidence }}</p>
-              {% endif %}
-              {% if entry.has_link %}
-                <p class="dk-meta">
-                  <a class="dk-link" href="{{ entry.href }}">Vaata {{ entry.domain_label|lower }}</a>
-                </p>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        {% comment %}
-        Silence is a real answer. Filling this with rows confirming that
-        ordinary things are ordinary teaches the reader to skim the section on
-        the day it is not.
-        {% endcomment %}
-        <p class="text-sm text-text-secondary">
-          Olulisi muutusi või lähenevaid tähtaegu ei ole.
-        </p>
-      {% endif %}
-    </div>
-  </section>
+  {% comment %}
+  `Mis vajab tähelepanu?` left the overview on 2026-08-16. It was the page's
+  one genuinely cross-domain capability, and removing it is the largest change
+  in this round — `apps/dashboard/executive_signals.py` still builds the
+  signals and nothing on this page renders them, so restoring the section is
+  putting this block back rather than rebuilding it.
+  {% endcomment %}
 
   {# ---------------- Järgmised 30 päeva ---------------- #}
   <section aria-labelledby="jargmised-30" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Järgmised 30 päeva" heading_id="jargmised-30" only %}
+    {% include "dashboard/components/section_header.html" with title="Eesolevad tegevused" heading_id="jargmised-30" only %}
     <div class="dk-section-body">
       {% if page.has_upcoming %}
         <ol class="flex flex-col divide-y divide-border">
@@ -218,39 +189,11 @@ prioritising this page exists to do for them.
     </section>
   {% endif %}
 
-  {# ---------------- Praegu huvi pakkuv ---------------- #}
-  <section aria-labelledby="huvi-pakkuv" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Praegu huvi pakkuv" heading_id="huvi-pakkuv" only %}
-    <div class="dk-section-body">
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {% for item in page.interest %}
-          <article class="flex min-w-0 flex-col gap-1">
-            <h3 class="dk-meta">{{ item.domain_label }}</h3>
-            {% if item.is_available %}
-              <p class="text-sm font-medium break-words text-text">
-                {% if item.has_link %}
-                  <a class="dk-link" href="{{ item.url }}"{% if item.is_external %} rel="noopener noreferrer" target="_blank"{% endif %}>
-                    {{ item.title }}{% if item.is_external %}<span class="sr-only"> (avaneb uuel vahelehel)</span>{% endif %}
-                  </a>
-                {% else %}
-                  {{ item.title }}
-                {% endif %}
-              </p>
-              <p class="text-sm text-text">
-                <span class="font-semibold tabular-nums">{{ item.metric_value }}</span>
-                <span class="text-text-secondary">{{ item.metric_label }}</span>
-              </p>
-              {% if item.period or item.context %}
-                <p class="dk-meta">{% if item.period %}{{ item.period }}{% endif %}{% if item.period and item.context %} · {% endif %}{% if item.context %}{{ item.context }}{% endif %}</p>
-              {% endif %}
-            {% else %}
-              <p class="text-sm text-text-secondary">{{ item.unavailable_note }}</p>
-            {% endif %}
-          </article>
-        {% endfor %}
-      </div>
-    </div>
-  </section>
+  {% comment %}
+  `Praegu huvi pakkuv` — four panels, four domains, four different metrics —
+  left the overview on 2026-08-16. `page.interest` is still built; nothing
+  renders it.
+  {% endcomment %}
 
   {# ---------------- Kanalite auditoorium ---------------- #}
   {% comment %}
@@ -261,7 +204,7 @@ prioritising this page exists to do for them.
   needs to address exactly this section.
   {% endcomment %}
   <section aria-labelledby="section-channels" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kanalite auditoorium" heading_id="section-channels" only %}
+    {% include "dashboard/components/section_header.html" with title="Kanalid" heading_id="section-channels" only %}
     <div class="dk-section-body">
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {% for slot in page.channels %}

@@ -15,7 +15,11 @@ from django.urls import reverse
 from django.utils.html import strip_tags
 
 from apps.dashboard import executive, freshness
-from apps.event_programme.selectors import EventProgrammeSummary
+from apps.event_programme.executive import get_events_executive
+from apps.event_programme.selectors import (
+    EventProgrammeSummary,
+    get_event_programme_summary,
+)
 from apps.event_programme.sync import synchronize_public_workbook
 from apps.events.models import EventSnapshot
 from apps.events.selectors import EventSummary
@@ -100,6 +104,21 @@ def test_a_page_may_hand_back_the_programme_summary_it_already_read(published_pr
     assert with_preloaded.stale_sources == without.stale_sources
 
 
+def _pillar_figures(pillar) -> str:
+    """Every label/value pair the pillar carries, headline and facts alike.
+
+    `Algab 30 päeva jooksul` is a *fact*, not the headline — the headline counts
+    the year. While these assertions read the rendered page that distinction did
+    not matter, because both were in the same text; addressing the builder
+    directly, it does.
+    """
+    parts = []
+    if pillar.headline is not None:
+        parts.append(f"{pillar.headline.label} {pillar.headline.value}")
+    parts.extend(f"{fact.label} {fact.value}" for fact in pillar.facts)
+    return " · ".join(parts)
+
+
 # -- the overview -------------------------------------------------------
 
 
@@ -110,10 +129,18 @@ def test_the_kaasamine_pillar_reads_the_workbook(viewer, published_programme):
     still running and the one ten days ago. A label-only assertion would pass on
     a pillar that had lost its figures.
     """
-    page = text_of(viewer.get(reverse("home")))
+    # The `Kaasamine` card left the overview on 2026-08-16, so the figure is
+    # asserted where it is still produced. The rule this protects is unchanged:
+    # the pillar reads the programme workbook, and a label-only assertion would
+    # pass on one that had lost its figures.
+    pillar = executive._events_pillar(get_events_executive(get_event_programme_summary()))
 
-    assert "Kaasamine" in page
-    assert "Algab 30 päeva jooksul 1" in page
+    figures = _pillar_figures(pillar)
+
+    assert pillar.label == "Kaasamine"
+    assert "Algab 30 päeva jooksul 1" in figures
+    assert "Sündmusi tänavu 2" in figures
+    assert "Kaasamine" not in text_of(viewer.get(reverse("home")))
 
 
 def test_the_overview_names_the_programme_as_its_event_source():
@@ -169,7 +196,11 @@ def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_p
 
     page = text_of(viewer.get(reverse("home")))
     freshness = text_of(viewer.get(reverse("dashboard-freshness")))
+    pillar = executive._events_pillar(get_events_executive(get_event_programme_summary()))
 
     assert "Vananenud: 1" in freshness
-    assert "Algab 30 päeva jooksul 1" in page, "the figures are not withdrawn"
+    # Asserted on the builder since the card left the overview on 2026-08-16.
+    # The rule is the one that matters: a failed sync must not withdraw figures
+    # that were successfully imported earlier.
+    assert "Algab 30 päeva jooksul 1" in _pillar_figures(pillar), "the figures are not withdrawn"
     assert "Sünteetiline tõrge" not in page, "no failure detail may reach a viewer"

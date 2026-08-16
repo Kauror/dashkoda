@@ -357,13 +357,12 @@ def test_every_pillar_carries_a_period_and_a_source_in_its_data():
         events=get_event_programme_summary(),
     )
 
-    assert len(page.pillars) == 4
-    assert [pillar.key for pillar in page.pillars] == [
-        "membership",
-        "legal_work",
-        "events",
-        "website",
-    ]
+    # Two since 2026-08-16: `legal_work` and `events` left the strip with
+    # `Huvikaitse` and `Kaasamine`. Their builders are unchanged and tested
+    # directly — see `test_event_source_of_truth` and `test_views` in
+    # `tests/legal_work/`.
+    assert len(page.pillars) == 2
+    assert [pillar.key for pillar in page.pillars] == ["membership", "website"]
     for pillar in page.pillars:
         assert pillar.links, "every pillar offers a next step"
         if pillar.headline is not None:

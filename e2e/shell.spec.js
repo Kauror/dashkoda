@@ -2,16 +2,11 @@ import { expect, test } from "@playwright/test";
 
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
-// The executive overview's sections, in reading order: status, exceptions,
-// near-term work, audience behaviour. Provenance was the fifth — `Andmete seis`
-// — and moved to `/haldus/` on 2026-08-15.
-const SECTIONS = [
-  "Koja seis",
-  "Mis vajab tähelepanu?",
-  "Järgmised 30 päeva",
-  "Praegu huvi pakkuv",
-  "Kanalite auditoorium",
-];
+// The executive overview's sections, in reading order: status, near-term work,
+// audience behaviour. `Andmete seis` moved to `/haldus/` on 2026-08-15;
+// `Mis vajab tähelepanu?` and `Praegu huvi pakkuv` left on 2026-08-16 and the
+// remaining two were renamed. Three now, down from seven.
+const SECTIONS = ["Koja seis", "Eesolevad tegevused", "Kanalid"];
 
 test("the shell renders every section with a truthful empty state", async ({ page }) => {
   const errors = watchConsole(page);
@@ -23,12 +18,10 @@ test("the shell renders every section with a truthful empty state", async ({ pag
     // area too ("Liikmeskond"), and that label is an h3 inside the card.
     await expect(page.getByRole("heading", { name: section, exact: true, level: 2 })).toBeVisible();
   }
-  // With nothing imported, every pillar says so rather than showing a nought,
-  // and the exception section is silent rather than full of reassurance.
+  // With nothing imported, every pillar says so rather than showing a nought.
+  // The second half of this used to assert the attention section's silent
+  // state; that section left the page on 2026-08-16.
   await expect(page.getByText("Andmeallikas ei ole ühendatud.").first()).toBeVisible();
-  await expect(
-    page.getByText("Olulisi muutusi või lähenevaid tähtaegu ei ole."),
-  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 
@@ -61,16 +54,14 @@ test("the Chamber logo is visible and undistorted", async ({ page }) => {
 test("no fabricated business number is shown anywhere on the shell", async ({ page }) => {
   await signIn(page);
 
-  // The whole of `main`, with one heading cut out. `Järgmised 30 päeva` names
-  // the timeline's fixed horizon: it is a constant in a section title, on the
-  // page before any source exists and unmoved when one arrives. Everything else
-  // must still be free of digits — including the header chip, which counts data
-  // notes only once some source has actually published, so an empty deployment
-  // never reports its own emptiness as a list of problems.
+  // The whole of `main`, with nothing cut out. This used to carve out
+  // `Järgmised 30 päeva`, whose thirty was a constant in a section title rather
+  // than a measurement; that section became `Eesolevad tegevused` on 2026-08-16
+  // and carries no number, and the header chip's count went the same day. So
+  // the rule is now simply: not one digit, anywhere.
   const text = await page.evaluate(() => document.querySelector("main").innerText);
 
-  expect(text).toContain("Järgmised 30 päeva");
-  expect(text.replace("Järgmised 30 päeva", "")).not.toMatch(/\d/);
+  expect(text).not.toMatch(/\d/);
 });
 
 test("the page never scrolls sideways", async ({ page }) => {

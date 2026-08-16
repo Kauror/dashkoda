@@ -223,8 +223,10 @@ def test_the_overview_still_reaches_the_legal_records(published):
         events=get_event_programme_summary(),
     )
 
-    pillar = next(one for one in page.pillars if one.key == "legal_work")
-    assert pillar.is_available
+    # The `Huvikaitse` pillar left on 2026-08-16, so the surviving path is the
+    # shared timeline rather than the pillar's count. That is still the thing
+    # this test is about: the workbook's open records reach `Koja töölaud`.
+    assert page.legal_in_progress
     # The imported rows are read, never modified: nothing in the executive path
     # assigns a resolved address onto a `LegalWorkItem`.
     assert LegalWorkItem.objects.exists()
