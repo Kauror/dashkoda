@@ -263,7 +263,7 @@ def test_the_headline_strip_answers_four_questions_not_nine(viewer_client, impor
     assert "Peamised näitajad" in body
     for label in (
         "Liikmeid kokku",
-        "Liitumised ja väljaarvamised",
+        "Liikmed ja tasunud liikmeid",
         "Tasunute osakaal",
         "Liikmemaksu laekumine",
     ):
