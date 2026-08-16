@@ -72,8 +72,6 @@ class Focus:
 
     key: str
     label: str
-    #: What this view answers, shown under the heading rather than as a tooltip.
-    question: str
 
 
 FOCUS_OVERVIEW = "ulevaade"
@@ -86,26 +84,13 @@ FOCUS_VISIBILITY = "nahtavus"
 RETIRED_FOCUS_VALUE = "vaartus"
 
 FOCUSES: tuple[Focus, ...] = (
-    Focus(
-        key=FOCUS_OVERVIEW,
-        label="Ülevaade",
-        question="Mis e-poes toimub ja mis väärib tähelepanu?",
-    ),
-    Focus(
-        key=FOCUS_PURCHASES,
-        label="Ostud",
-        question="Kuidas ostmise aktiivsus ajas muutub, ühikutes ja eurodes?",
-    ),
-    Focus(
-        key=FOCUS_PRODUCTS,
-        label="Tooted",
-        question="Millised tooted ja kategooriad e-poodi tegelikult kannavad?",
-    ),
-    Focus(
-        key=FOCUS_VISIBILITY,
-        label="Nähtavus",
-        question="Mis saab tähelepanu, mis ostetakse ja kus on tõendatud võimalus?",
-    ),
+    # The per-focus `question` sentence went with the heading block that
+    # rendered it (2026-08-16): the active chip names the view, and the
+    # sections name their subjects.
+    Focus(key=FOCUS_OVERVIEW, label="Ülevaade"),
+    Focus(key=FOCUS_PURCHASES, label="Ostud"),
+    Focus(key=FOCUS_PRODUCTS, label="Tooted"),
+    Focus(key=FOCUS_VISIBILITY, label="Nähtavus"),
 )
 
 DEFAULT_FOCUS = FOCUSES[0]

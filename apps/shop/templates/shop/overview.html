@@ -70,10 +70,11 @@ Nothing here turns one into the other.
     {# ---------------- focus navigation ---------------- #}
     {% include "shop/_focus_nav.html" %}
 
-    <div class="flex min-w-0 flex-col gap-1">
-      <h2 class="text-lg font-semibold tracking-tight text-text">{{ overview.focus_label }}</h2>
-      <p class="dk-meta">{{ overview.focus_question }}</p>
-    </div>
+    {% comment %}
+    The focus name and its question used to repeat here, under the navigation
+    that had just said both — the active chip names the view, and the sections
+    below name their subjects. Same removal the other dashboards made.
+    {% endcomment %}
 
     {# ---------------- controls ---------------- #}
     <div class="flex min-w-0 flex-col gap-2">
@@ -172,7 +173,12 @@ Nothing here turns one into the other.
     {# ---------------- 4. what changed ---------------- #}
     {% if overview.comparison_available %}
       <section aria-labelledby="section-movers" class="dk-section">
-        {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-movers" only %}
+        {% comment %}
+        `Perioodi muutus`, the name Koduleht's identical vs-previous-window
+        section already wears. `Mis muutus?` stays on the dashboards whose
+        comparison is a year-on-year or report-to-report question.
+        {% endcomment %}
+        {% include "dashboard/components/section_header.html" with title="Perioodi muutus" heading_id="section-movers" only %}
         <div class="dk-section-body grid grid-cols-1 gap-5 lg:grid-cols-2">
           <div class="min-w-0">
             <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem kasvanud</h3>
