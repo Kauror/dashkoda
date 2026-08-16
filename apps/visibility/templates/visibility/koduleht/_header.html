@@ -36,7 +36,7 @@ from being reflected back into an address.
   {% if page.has_data %}
     {# ---------------- Measurement window ---------------- #}
     <div class="flex flex-col gap-3">
-      <nav aria-label="Periood" class="flex flex-wrap items-center gap-2">
+      <nav id="periood" aria-label="Periood" class="flex flex-wrap items-center gap-2">
         {% for option in page.period_options %}
           {% if option.is_offered %}
             <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"

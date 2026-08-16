@@ -27,7 +27,15 @@ they are absent, the section says so rather than leaving a gap.
 {# ---------------- Top pages ---------------- #}
 {% if page.top_pages_chart %}
   <section aria-labelledby="section-enim" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Enim vaadatud sisu" heading_id="section-enim" description="Nimi on kuvatud siis, kui DashKoda seda usaldusväärselt teab; muidu lehe aadress." only %}
+    {% comment %}
+    The window is stated on the section rather than only at the top of the page.
+    A ranking read halfway down a long page, with its control off-screen, is one
+    a reader assumes covers something else — and `Muuda` goes to the control
+    rather than repeating it, so there is never a second period selector able to
+    disagree with the first.
+    {% endcomment %}
+    {% include "dashboard/components/section_header.html" with title="Enim vaadatud sisu" heading_id="section-enim" description=page.period.window_label only %}
+    <p class="dk-meta px-4 pt-1 sm:px-5"><a class="dk-link-quiet" href="#periood">Muuda perioodi</a></p>
     <div class="dk-section-body">
       {% include "dashboard/components/chart_figure.html" with chart=page.top_pages_chart only %}
     </div>
@@ -36,7 +44,8 @@ they are absent, the section says so rather than leaving a gap.
 
 {# ---------------- Movement ---------------- #}
 <section aria-labelledby="section-liikumine" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Mis kasvas ja mis vähenes" heading_id="section-liikumine" description="Võrreldud on kogu mõõdetud lehtede hulka, mitte ainult selle perioodi edetabelit." only %}
+  {% include "dashboard/components/section_header.html" with title="Mis kasvas ja mis vähenes" heading_id="section-liikumine" description=page.period.window_label only %}
+  <p class="dk-meta px-4 pt-1 sm:px-5"><a class="dk-link-quiet" href="#periood">Muuda perioodi</a></p>
   <div class="dk-section-body flex flex-col gap-6">
     {% if page.movement %}
       <div class="grid gap-6 xl:grid-cols-2">
