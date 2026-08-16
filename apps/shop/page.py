@@ -27,11 +27,6 @@ from apps.core.formatting import euros, group_thousands, long_date, month_and_ye
 from apps.dashboard.sparkline import TrendSource, build_trend_chart
 
 from .comparison import FLAT, MetricComparison, derive_period_pair
-from .intelligence import (
-    build_attention_matrix,
-    build_order_structure,
-    build_signals,
-)
 from .models import MemberStatus, PageRole, PaymentClass, ProductType
 from .periods import (
     FOCUSES,
@@ -534,16 +529,6 @@ class PaymentMixPresenter:
 
 
 @dataclass(frozen=True)
-class OrderStructurePresenter:
-    is_distinct: bool = False
-    units_per_order: str = DASH
-    value_per_order: str = DASH
-    value_per_unit: str = DASH
-    has_per_order: bool = False
-    withheld_note: str = ""
-
-
-@dataclass(frozen=True)
 class WebCoveragePresenter:
     """How much of the selected population the web figures cover."""
 
@@ -661,8 +646,6 @@ class ShopOverview:
     units_noun: str = "ühikut"
     views_label: str = "Ostulehe vaatamised"
     rate_label: str = "Oste / 100 vaatamist"
-    #: Deterministic things worth a second look.
-    signals: tuple = ()
     #: Long-term history.
     years: tuple[YearPresenter, ...] = ()
     months_bars: tuple[BarRow, ...] = ()
@@ -670,7 +653,6 @@ class ShopOverview:
     free_paid_series_known: bool = False
     #: Structure and composition.
     payment_mix: PaymentMixPresenter = field(default_factory=PaymentMixPresenter)
-    order_structure: OrderStructurePresenter = field(default_factory=OrderStructurePresenter)
     member_split: MemberSplitPresenter = field(default_factory=MemberSplitPresenter)
     concentration: object = None
     concentration_note: str = ""
@@ -686,7 +668,6 @@ class ShopOverview:
     category_fallers: tuple = ()
     #: Web.
     web_coverage: WebCoveragePresenter = field(default_factory=WebCoveragePresenter)
-    matrix: object = None
     #: Catalogue, present tense.
     catalogue: CataloguePresenter = field(default_factory=CataloguePresenter)
     #: Data quality.
@@ -1126,28 +1107,14 @@ def build_overview(
         if point.free_share is not None
     )
 
-    order_structure = build_order_structure(
-        units=totals.units,
-        ordered_value_net=totals.ordered_value_net,
-        distinct_orders=current_orders if orders_are_distinct else None,
-        supports_distinct=orders_are_distinct,
-    )
-
-    matrix = build_attention_matrix(rows, minimum_views=MIN_VIEWS_FOR_OPPORTUNITY)
-
-    signals = build_signals(
-        units_change=units_cmp.absolute_change if units_cmp.is_available else None,
-        units_percentage=units_cmp.percentage_change if units_cmp.is_available else None,
-        weak_acquisition=weak,
-        strong_acquisition=strong,
-        product_fallers=fallers,
-        category_fallers=category_fallers,
-        free_share=mix.free_share,
-        previous_free_share=previous_mix.free_share if previous_mix else None,
-        concentration=concentration,
-        focus_query=_focus_query,
-        minimum_views=MIN_VIEWS_FOR_OPPORTUNITY,
-    )
+    # `build_order_structure`, `build_attention_matrix` and `build_signals` were
+    # called here until 2026-08-16. The three sections they fed — `Tellimuse
+    # struktuur`, `Mis vajab tähelepanu?` and the attention matrix — came off
+    # the page during the declutter, and the builders outlived them by a round:
+    # pure functions over rows already in memory, so they cost no query and
+    # nothing failed. They are gone now, with their results and the page fields
+    # that carried them, because "every focus builds only what it renders" is
+    # the rule this module states about itself.
 
     # --- composition breakdowns ------------------------------------------
     #
@@ -1388,28 +1355,10 @@ def build_overview(
         rate_label=words.rate_label,
         trend_metric=metric,
         trend_options=_metric_options(metric, resolved, state, focus.key, orders_label),
-        signals=signals,
         years=year_rows,
         free_paid_series=free_paid_bars,
         free_paid_series_known=bool(free_paid_bars),
         payment_mix=payment_mix,
-        order_structure=OrderStructurePresenter(
-            is_distinct=order_structure.is_distinct,
-            units_per_order=_decimal(order_structure.units_per_order),
-            value_per_order=euros(order_structure.value_per_order)
-            if order_structure.value_per_order is not None
-            else DASH,
-            value_per_unit=euros(order_structure.value_per_unit)
-            if order_structure.value_per_unit is not None
-            else DASH,
-            has_per_order=order_structure.has_per_order,
-            withheld_note=(
-                ""
-                if order_structure.is_distinct
-                else "Tellimuse kohta arvutatavad näitajad vajavad eri tellimuste arvu, "
-                "mida see valik ei toeta."
-            ),
-        ),
         member_split=member_presenter,
         concentration=concentration,
         concentration_note=(
@@ -1434,7 +1383,6 @@ def build_overview(
         category_risers=tuple(CategoryMoverPresenter(row) for row in category_risers),
         category_fallers=tuple(CategoryMoverPresenter(row) for row in category_fallers),
         web_coverage=web_coverage,
-        matrix=matrix,
         catalogue=catalogue_presenter,
         schema_version=coverage.schema_version,
         distinct_orders_available=orders_are_distinct,
