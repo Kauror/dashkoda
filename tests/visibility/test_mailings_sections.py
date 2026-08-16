@@ -418,6 +418,9 @@ def test_the_page_offers_no_view_navigation(viewer_client):
 
     content = page(viewer_client.get(MAILINGS_URL))
 
-    assert reverse("mailings-history") not in content
-    assert reverse("news-newsletter-history") not in content
+    # As an `href`, not as a substring: the search fragment still lives under
+    # `/otsepostitused/ajalugu/otsi/` — only htmx ever asks for it — and a bare
+    # `not in` matches that path's own prefix and fails on a page that is right.
+    assert f'href="{reverse("mailings-history")}"' not in content
+    assert f'href="{reverse("news-newsletter-history")}"' not in content
     assert "Vaata kõiki" not in content

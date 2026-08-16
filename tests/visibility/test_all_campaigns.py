@@ -287,11 +287,13 @@ def test_the_backfill_imports_every_type_not_only_eteataja():
 # -- the page ---------------------------------------------------------------
 
 
-def test_the_page_shows_every_kind_and_links_to_the_archive(viewer_client):
+def test_the_page_shows_every_kind(viewer_client):
     collect()
     page = viewer_client.get(reverse("mailings")).content.decode()
 
-    assert "Viimased saadetud uudiskirjad" in page
+    # `Viimased saadetud uudiskirjad` went with the fifteen-row table on
+    # 2026-08-16; the archive's own heading is what names the rows now.
+    assert "Saadetud uudiskirjad" in page
     assert OTHER_LABEL in page
     assert "Kutse ärifoorumile" in page
 

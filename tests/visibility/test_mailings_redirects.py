@@ -135,7 +135,7 @@ def test_the_uudised_archive_url_keeps_its_question_too(viewer_client):
     )
 
     assert response.status_code == 302
-    assert response.url.startswith(reverse("mailings-history"))
+    assert response.url.startswith(reverse("mailings"))
     assert f"uudiskiri={ENEWS}" in response.url
     assert "otsi=aastakoosolek" in response.url
 
