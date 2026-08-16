@@ -21,9 +21,10 @@ Context: page, reading_state
     </nav>
   </div>
 
-  {% if page.lens_question %}
-    <p class="dk-meta mt-1">{{ page.lens_question }}</p>
-  {% endif %}
+  {% comment %}
+  Each lens restated its own question here. The lens buttons above already name
+  it, so the sentence went on 2026-08-16 and `build_impact` stopped composing it.
+  {% endcomment %}
 
   {% if page.lens == "praegu" %}
     <div class="mt-3 flex flex-wrap items-center gap-2">
@@ -54,9 +55,10 @@ the difference between "this got 300" and "this is in the top tenth".
 <div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
   <section aria-labelledby="section-evergreen" class="dk-section dk-section-body">
     <h2 id="section-evergreen" class="text-sm font-medium text-text">Jätkuvalt loetav</h2>
-    <p class="dk-meta mt-1">
-      Vähemalt 90 päeva tagasi avaldatud uudised, mida loetakse {{ page.reading.label|lower }} jooksul.
-    </p>
+    {% comment %}
+    The "at least 90 days old" rule that defines this list moved to
+    `Andmete kohta` with the other definitions on 2026-08-16.
+    {% endcomment %}
     {% include "news/partials/_article_list.html" with rows=page.evergreen empty="Vanemaid uudiseid ei ole valitud perioodil loetud." only %}
   </section>
 
@@ -67,10 +69,6 @@ the difference between "this got 300" and "this is in the top tenth".
     strategic importance, its intended audience size, whether anybody promoted
     it, or whether a narrow legal note was meant to reach twenty people.
     {% endcomment %}
-    <p class="dk-meta mt-1">
-      Uudised, mille esimene kuu jääb sarnaste uudiste madalaimasse veerandisse.
-      See ei ütle, miks.
-    </p>
     {% if page.below_normal %}
       <ul class="mt-3 flex flex-col divide-y divide-border">
         {% for signal in page.below_normal %}
@@ -92,62 +90,17 @@ the difference between "this got 300" and "this is in the top tenth".
   </section>
 </div>
 
-<div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
-  {% if page.concentration.has_data %}
-    <section aria-labelledby="section-concentration" class="dk-section dk-section-body">
-      <h2 id="section-concentration" class="text-sm font-medium text-text">Kui koondunud tähelepanu on</h2>
-      <p class="dk-meta mt-1">
-        {{ page.concentration.articles_read }} uudist sai lugejaid {{ page.reading.label|lower }} jooksul.
-      </p>
-      <dl class="mt-3 flex flex-col divide-y divide-border">
-        <div class="flex items-baseline justify-between gap-3 py-2.5">
-          <dt class="text-sm text-text">Viie loetuima osakaal</dt>
-          <dd class="text-base font-semibold tabular-nums text-text">{{ page.concentration.top_5 }}</dd>
-        </div>
-        <div class="flex items-baseline justify-between gap-3 py-2.5">
-          <dt class="text-sm text-text">Kümne loetuima osakaal</dt>
-          <dd class="text-base font-semibold tabular-nums text-text">{{ page.concentration.top_10 }}</dd>
-        </div>
-      </dl>
-    </section>
-  {% endif %}
+{% comment %}
+`Kui koondunud tähelepanu on` and `Koja ja Sõprade uudised` both left this view
+on 2026-08-16.
 
-  <section aria-labelledby="section-categories" class="dk-section dk-section-body">
-    <h2 id="section-categories" class="text-sm font-medium text-text">Koja ja Sõprade uudised</h2>
-    {% comment %}
-    Output and fair performance side by side, because either alone misleads.
-    Koja uudised take most of the news traffic largely because there are nearly
-    three times as many of them; the median first month is what says whether one
-    of them is read more than one partner article.
-    {% endcomment %}
-    <p class="dk-meta mt-1">
-      Avaldatud ja mediaan kirjeldavad viimast 12 kuud. Vaatamised on
-      {{ page.reading.label|lower }} jooksul mõõdetud liiklus, mitte kvaliteedimõõt.
-    </p>
-    <div class="mt-3 w-full overflow-x-auto">
-      <table class="w-full min-w-max border-collapse text-sm">
-        <thead>
-          <tr>
-            <th scope="col" class="border-b border-border px-3 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Liik</th>
-            <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avaldatud</th>
-            <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">30 p mediaan</th>
-            <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Vaatamisi</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in page.categories %}
-            <tr>
-              <th scope="row" class="border-b border-border px-3 py-2 text-left font-medium text-text">{{ row.label }}</th>
-              <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.published }}</td>
-              <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.median }}</td>
-              <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.window_views }}</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-    <p class="dk-meta mt-2">
-      Liigita uudised ei ole kummaski reas; nende arv on „Andmete kohta“ all.
-    </p>
-  </section>
-</div>
+The Koja/Sõprade dimension is the one to be careful about: it is now nowhere on
+the dashboard as a figure. What remains is the part that governs how the rest of
+the page is read — `Andmete kohta` still states that the two kinds are
+benchmarked **separately**, and why a shared median would file most partner
+articles under `Alla tavapärase`. The comparison went; the rule it existed to
+justify did not.
+
+`page.concentration` and `page.categories` are still built. They are one section
+away from being shown again, and `Alla tavapärase` depends on the same cohorts.
+{% endcomment %}

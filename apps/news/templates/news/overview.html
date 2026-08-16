@@ -51,19 +51,12 @@ should stay that way.
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Uudised</h1>
 
     {% comment %}
-    One quiet metadata row. Each source states its own freshness because the two
-    genuinely differ — the catalogue is read hourly and GA4 lags by a day — and
-    one combined date would be wrong for at least one of them.
+    The two source dates left this row on 2026-08-16. They are not gone: both
+    are in `Andmete kohta`, which this link opens, and which is also where the
+    reason they differ belongs — the catalogue is read hourly and GA4 lags by a
+    day, and that is a sentence, not a header.
     {% endcomment %}
-    <p class="dk-meta flex flex-wrap items-center gap-x-2 gap-y-1">
-      {% if page.facts.latest %}
-        <span>Uudised kuni {{ page.facts.latest|date:"d.m.Y" }}</span>
-      {% endif %}
-      {% if page.coverage.latest %}
-        <span aria-hidden="true">·</span>
-        <span>GA4 kuni {{ page.coverage.latest|date:"d.m.Y" }}</span>
-      {% endif %}
-      <span aria-hidden="true">·</span>
+    <p class="dk-meta">
       <a class="dk-link-quiet" href="#andmete-kohta">Andmete kohta</a>
     </p>
   </header>
@@ -86,9 +79,11 @@ should stay that way.
     </ul>
   </nav>
 
-  {% if page.focus.question %}
-    <p class="text-sm text-text-secondary">{{ page.focus.question }}</p>
-  {% endif %}
+  {% comment %}
+  Each focus used to restate its own question here, under the navigation. The
+  four tab labels already say which question is being asked, so the field went
+  with the line — see `Focus` in `apps/news/focus.py`.
+  {% endcomment %}
 
   {% if page.is_overview %}
     {% include "news/partials/_focus_overview.html" with page=page reading_state=reading_state only %}

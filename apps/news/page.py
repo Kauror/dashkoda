@@ -197,8 +197,6 @@ def _headline_published(period: ResolvedPeriod, *, today: date | None = None) ->
             key="published",
             label="Avaldatud uudiseid",
             value=integer(counted.total),
-            detail="kõik DashKodale teadaolevad uudised",
-            parts=_category_parts(counted),
         )
 
     current = analytics.published_between(period.start, period.end)
@@ -209,23 +207,10 @@ def _headline_published(period: ResolvedPeriod, *, today: date | None = None) ->
         key="published",
         label="Avaldatud uudiseid",
         value=integer(current.total),
-        detail=f"avaldatud {period.label.lower()} jooksul",
         change=f"{signed_integer(difference)} vs eelmine {period.label.lower()}",
         change_label=f"{signed_integer(difference)} võrreldes eelmise perioodiga",
         direction=direction_of(difference),
-        parts=_category_parts(current),
     )
-
-
-def _category_parts(counted: analytics.PublishingCount) -> tuple[str, ...]:
-    """The Koja / Sõprade / unknown split, with unknown shown rather than folded."""
-    parts = [
-        f"Koja {integer(counted.chamber)}",
-        f"Sõprade {integer(counted.partner)}",
-    ]
-    if counted.unknown:
-        parts.append(f"liik teadmata {integer(counted.unknown)}")
-    return tuple(parts)
 
 
 def _headline_news_views(
@@ -256,7 +241,6 @@ def _headline_news_views(
         key="news_views",
         label="Uudiste lehevaatamised",
         value=integer(current.news_views),
-        detail=f"loetud {reading.label.lower()} jooksul",
         change=change,
         change_label=change_label,
         direction=direction,
@@ -291,36 +275,10 @@ def _headline_news_share(
         key="news_share",
         label="Uudiste osakaal",
         value=share_percent(current.share),
-        detail="uudiste lehevaatamised kogu kodulehe vaatamistest",
         change=change,
         change_label=change_label,
         direction=direction,
         note="" if previous.share is not None else NO_COMPARISON,
-    )
-
-
-def _headline_typical_month(cohort: analytics.CohortStats | None) -> Headline | None:
-    """The median first month of a recently published article.
-
-    The **median**, not the mean: the distribution is heavily skewed — a real
-    median of 28 against a mean of 66 and a maximum of 1 875 — and the mean
-    describes none of the articles in it.
-
-    Only articles whose whole first month elapsed inside GA4 coverage are in the
-    cohort, which is what makes it a fair description rather than an average of
-    however much of a first month each article happened to get.
-    """
-    if cohort is None or not cohort.is_usable:
-        return None
-    return Headline(
-        key="typical_month",
-        label="Tüüpiline esimene kuu",
-        value=f"{integer(cohort.median)} vaatamist",
-        detail=(
-            f"mediaan, {integer(cohort.count)} uudist viimase 12 kuu jooksul, "
-            "millel on täielik 30 päeva mõõdetud"
-        ),
-        note=f"veerandil alla {integer(cohort.p25)}, veerandil üle {integer(cohort.p75)}",
     )
 
 
@@ -562,43 +520,35 @@ def build_overview(
         else analytics.NewsTrafficSummary()
     )
 
-    cohorts = analytics.benchmark_cohorts(coverage=coverage)
-
+    # `benchmark_cohorts` is no longer walked here. It was the fourth card's
+    # median and the input to `signals`, and both went on 2026-08-16 — it is
+    # still built on `Uudiste mõju`, which is the focus that uses it.
     headlines = [
         _headline_published(period),
         _headline_news_views(traffic, previous_traffic, reading),
         _headline_news_share(traffic, previous_traffic),
-        _headline_typical_month(cohorts.get("")),
     ]
 
     most_read = ()
-    first_week = ()
     if reading.has_window:
         most_read = _describe_ranked(
             analytics.most_read(start=reading.start, end=reading.end, limit=6),
             annotation=analytics.WINDOW_ANNOTATION,
         )
-    first_week = _describe_ranked(
-        analytics.first_week_leaders(coverage=coverage, limit=5),
-        annotation=analytics.FIRST_WINDOW_ANNOTATION,
-    )
 
     # The newsletter comparison strip that used to close this view moved to
     # `/otsepostitused/` with the rest of the Smaily material. It is not
     # summarised here in its place: a second copy of three rates on a page whose
     # subject is articles is exactly the duplication that move was for.
+    # `changes`, `first_week` and `signals` are no longer computed. Their three
+    # sections left this view on 2026-08-16, and this module's rule is that a
+    # focus builds only what it renders — the cohort walk behind `signals` and
+    # the second ranking behind `first_week` were not free. The fields stay on
+    # `NewsPage` with their empty defaults, so restoring a section is putting
+    # its key back here rather than reassembling it.
     return {
         "headlines": tuple(headline for headline in headlines if headline is not None),
-        "changes": _changes(traffic, previous_traffic, period),
         "most_read": most_read,
-        "first_week": first_week,
-        "signals": _opportunities(
-            coverage=coverage,
-            reading=reading,
-            cohorts=cohorts,
-            traffic=traffic,
-            previous=previous_traffic,
-        ),
     }
 
 
@@ -756,37 +706,15 @@ def build_impact(
             )
             for key, label, _ in LENSES
         ),
-        "lens_question": next((q for key, _, q in LENSES if key == lens), ""),
+        # `lens_question`, `concentration` and `categories` are no longer
+        # computed — the lens sentence and both sections went on 2026-08-16, and
+        # `analytics.concentration` and `analytics.category_performance` are a
+        # query each. Both selectors are untouched and still tested; nothing on
+        # this focus calls them.
         "ranked": ranked,
         "distribution": distribution,
         "evergreen": evergreen_rows,
         "below_normal": _below_normal(coverage=coverage, cohorts=cohorts, limit=6),
-        "concentration": _describe_concentration(
-            analytics.concentration(start=reading.start, end=reading.end)
-            if reading.has_window
-            else analytics.Concentration()
-        ),
-        # Output and median describe the benchmark cohort's twelve months;
-        # attention describes the reading window. Two questions, two windows,
-        # passed separately so neither can quietly govern the other.
-        "categories": tuple(
-            CategoryRow(
-                key=row.key,
-                label=row.label,
-                published=integer(row.published),
-                median=integer(row.median_first_month) if row.has_benchmark else NO_VALUE,
-                window_views=(
-                    integer(row.window_views) if row.window_views is not None else NO_VALUE
-                ),
-            )
-            for row in analytics.category_performance(
-                cohorts=cohorts,
-                cohort_start=cohort_start,
-                cohort_end=coverage.latest,
-                reading_start=reading.start,
-                reading_end=reading.end,
-            )
-        ),
         "cohort_start": cohort_start,
         "cohorts": cohorts,
     }
