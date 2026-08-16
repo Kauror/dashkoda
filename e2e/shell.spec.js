@@ -18,12 +18,10 @@ test("the shell renders every section with a truthful empty state", async ({ pag
     // area too ("Liikmeskond"), and that label is an h3 inside the card.
     await expect(page.getByRole("heading", { name: section, exact: true, level: 2 })).toBeVisible();
   }
-  // With nothing imported, every pillar says so rather than showing a nought,
-  // and the exception section is silent rather than full of reassurance.
+  // With nothing imported, every pillar says so rather than showing a nought.
+  // The second half of this used to assert the attention section's silent
+  // state; that section left the page on 2026-08-16.
   await expect(page.getByText("Andmeallikas ei ole ühendatud.").first()).toBeVisible();
-  await expect(
-    page.getByText("Olulisi muutusi või lähenevaid tähtaegu ei ole."),
-  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 

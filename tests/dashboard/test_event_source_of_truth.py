@@ -15,7 +15,10 @@ from django.urls import reverse
 from django.utils.html import strip_tags
 
 from apps.dashboard import executive, freshness
-from apps.event_programme.selectors import EventProgrammeSummary
+from apps.event_programme.selectors import (
+    EventProgrammeSummary,
+    get_event_programme_summary,
+)
 from apps.event_programme.sync import synchronize_public_workbook
 from apps.events.models import EventSnapshot
 from apps.events.selectors import EventSummary
@@ -110,10 +113,15 @@ def test_the_kaasamine_pillar_reads_the_workbook(viewer, published_programme):
     still running and the one ten days ago. A label-only assertion would pass on
     a pillar that had lost its figures.
     """
-    page = text_of(viewer.get(reverse("home")))
+    # The `Kaasamine` card left the overview on 2026-08-16, so the figure is
+    # asserted where it is still produced. The rule this protects is unchanged:
+    # the pillar reads the programme workbook, and a label-only assertion would
+    # pass on one that had lost its figures.
+    pillar = executive._events_pillar(get_event_programme_summary())
 
-    assert "Kaasamine" in page
-    assert "Algab 30 päeva jooksul 1" in page
+    assert pillar.label == "Kaasamine"
+    assert "Algab 30 päeva jooksul 1" in f"{pillar.headline.label} {pillar.headline.value}"
+    assert "Kaasamine" not in text_of(viewer.get(reverse("home")))
 
 
 def test_the_overview_names_the_programme_as_its_event_source():
@@ -169,7 +177,13 @@ def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_p
 
     page = text_of(viewer.get(reverse("home")))
     freshness = text_of(viewer.get(reverse("dashboard-freshness")))
+    pillar = executive._events_pillar(get_event_programme_summary())
 
     assert "Vananenud: 1" in freshness
-    assert "Algab 30 päeva jooksul 1" in page, "the figures are not withdrawn"
+    # Asserted on the builder since the card left the overview on 2026-08-16.
+    # The rule is the one that matters: a failed sync must not withdraw figures
+    # that were successfully imported earlier.
+    assert "Algab 30 päeva jooksul 1" in f"{pillar.headline.label} {pillar.headline.value}", (
+        "the figures are not withdrawn"
+    )
     assert "Sünteetiline tõrge" not in page, "no failure detail may reach a viewer"

@@ -213,6 +213,24 @@ def test_the_page_loads_only_local_bundled_assets(client, authenticate_viewer, i
     assert 'style="' not in content
 
 
+def _legal_pillar_wording() -> str:
+    """The `Huvikaitse` pillar's own words, built directly.
+
+    The card left `Koja töölaud` on 2026-08-16; `_legal_pillar` did not, and its
+    wording is what the two tests below are about. The Õigusloome dashboard
+    states the same figure in its own words — a different contract, asserted
+    elsewhere.
+    """
+    from apps.dashboard.executive import _legal_pillar
+    from apps.legal_work.executive import get_legal_work_executive
+    from apps.legal_work.selectors import get_legal_work_summary
+
+    pillar = _legal_pillar(get_legal_work_executive(get_legal_work_summary()))
+    if pillar.headline is None:
+        return ""
+    return f"{pillar.headline.value} {pillar.headline.unit}"
+
+
 # -- overview integration ----------------------------------------------
 
 
@@ -242,20 +260,22 @@ def test_overview_shows_real_legal_work_data_once_imported(
     """The figure left the overview with its card; the page still carries it.
 
     Until 2026-08-16 the `Huvikaitse` pillar stated how much work was being
-    carried. The card is gone, so the assertion follows the figure to the
-    Õigusloome page, which is where it is now read.
+    carried. The card is gone, so the figure is asserted on the builder that
+    still produces it, and the overview is asserted to have let it go.
     """
     authenticate_viewer(client)
 
-    overview = client.get("/").content.decode()
-    assert "Huvikaitse" not in overview
+    content = client.get("/").content.decode()
+    assert "Huvikaitse" not in content
 
-    content = client.get(reverse("legal-work")).content.decode()
-    # `Arvamusi välja saadetud tänavu` was the caption under the figure. It came
-    # off the card on 2026-08-15 and the window moved into the unit, so the
-    # headline states its own scope: `165 arvamust sellel aastal`.
-    assert "arvamust sellel aastal" in content
-    assert "Arvamusi välja saadetud tänavu" not in content
+    # `arvamust sellel aastal` is the pillar's own wording, so it is asserted on
+    # the builder rather than on a page — the Õigusloome dashboard states the
+    # same figure in its own words, which is a different contract.
+    # `Arvamusi välja saadetud tänavu` was the caption under the figure; it came
+    # off the card on 2026-08-15 and the window moved into the unit.
+    wording = _legal_pillar_wording()
+    assert "arvamust sellel aastal" in wording
+    assert "Arvamusi välja saadetud tänavu" not in wording
     assert "Teemasid töös" in content
     assert "Vaata õigusloomet" in content
     # The workbook's own date is claimed in `Andmete seis`, which moved to
@@ -279,13 +299,12 @@ def test_overview_discloses_a_failed_sync_alongside_old_data(
     state.save()
     authenticate_viewer(client)
 
-    content = client.get("/").content.decode()
     freshness = client.get("/dashboard/varskus/").content.decode()
 
     assert "Vananenud: 1" in freshness
     # The figure stays put; only its caption went. That is the half this test is
     # about — a failed refresh must not withdraw the last good data.
-    assert "arvamust sellel aastal" in content
+    assert "arvamust sellel aastal" in _legal_pillar_wording()
     # The disclosure itself is in `Andmete seis`, on `/haldus/` since
     # 2026-08-15. Both halves are named: the figures stay, and the staleness is
     # still stated somewhere a maintainer will find it.
