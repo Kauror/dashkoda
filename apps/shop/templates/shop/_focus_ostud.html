@@ -27,7 +27,7 @@ that does not say so reads as a collapse at both ends.
 {# --- calendar years --- #}
 {% if overview.years %}
   <section aria-labelledby="section-years" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Ostetud aastate lõikes" heading_id="section-years" only %}
+    {% include "dashboard/components/section_header.html" with title="Ostud aastate vaates" heading_id="section-years" only %}
     <div class="dk-section-body flex flex-col gap-3">
       <ul class="flex min-w-0 flex-col gap-2">
         {% for year in overview.years %}
@@ -86,7 +86,7 @@ that does not say so reads as a collapse at both ends.
 {# --- free vs paid over time --- #}
 {% if overview.free_paid_series_known %}
   <section aria-labelledby="section-freetrend" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Tasuta ostude osakaal ajas" heading_id="section-freetrend" only %}
+    {% include "dashboard/components/section_header.html" with title="Tasuta ostud ajas" heading_id="section-freetrend" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "shop/_bars.html" with rows=overview.free_paid_series only %}
       <p class="dk-meta">Osakaal arvutatakse klassifitseeritud ühikutest. Määramata ühikud jäävad nimetajast välja, sest osakaal koguhulgast, mis sisaldab „ei tea“, ei kirjelda midagi.</p>
