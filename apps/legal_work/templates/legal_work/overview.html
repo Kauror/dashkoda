@@ -179,11 +179,46 @@ dashboard overview. They stay on the default focus and keep their ids;
     {% endif %}
   {% endif %}
 
+  {# ---------------- Liikmete tagasiside — the view's own summary ---------------- #}
+  {% comment %}
+  Only on the feedback focus, and first, the way the other dashboards lead with
+  their strip. It used to render on the overview too — a preview one click from
+  the focus that answers it — and a second time here under the same visible
+  heading as the charts section below.
+  {% endcomment %}
+  {% if page.feedback and page.focus == "tagasiside" %}
+    <section aria-labelledby="section-feedback" class="dk-section">
+      <h2 id="section-feedback" class="sr-only">Tagasiside kokkuvõte</h2>
+      {% if page.feedback.has_coverage %}
+        <dl class="dk-kpi-strip">
+          <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
+            <dt class="text-sm text-text-secondary">Teemasid, kus liikmed andsid tagasisidet</dt>
+            <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.with_feedback }}</dd>
+          </div>
+          {# `Tagasiside mõõdetud` left on 2026-08-16; the figures are still built. #}
+          <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
+            <dt class="text-sm text-text-secondary">Liikmete tagasiside kokku</dt>
+            <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.feedback_instances|default_if_none:"—" }}</dd>
+          </div>
+        </dl>
+      {% else %}
+        <div class="dk-section-body">
+          <p class="text-sm text-text-secondary">Andmed kogunevad.</p>
+        </div>
+      {% endif %}
+    </section>
+  {% endif %}
+
   {# ---------------- Charts for the active focus ---------------- #}
+  {% comment %}
+  The landmark keeps the focus's name for assistive technology; the visible
+  heading went, because it repeated the active chip above and every chart in
+  the section carries its own title and question.
+  {% endcomment %}
   {% if page.charts %}
     <section aria-labelledby="section-charts" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title=page.focus_label heading_id="section-charts" only %}
-      <div class="dk-section-body flex flex-col gap-8">
+      <h2 id="section-charts" class="sr-only">{{ page.focus_label }}</h2>
+      <div class="dk-section-body flex flex-col gap-8 pt-4">
         {% for chart in page.charts %}
           {% include "dashboard/components/chart_figure.html" with chart=chart only %}
         {% endfor %}
@@ -233,42 +268,15 @@ dashboard overview. They stay on the default focus and keep their ids;
     </section>
   {% endif %}
 
-  {# ---------------- Liikmete tagasiside ---------------- #}
   {% comment %}
-  Counts per topic, never people. The source records how many members answered
-  and how many were asked directly; it does not record who, and nothing here
-  adds a field that could.
+  The `Liikmete tagasiside` preview left the overview on 2026-08-16: it was
+  the destination focus's own strip rendered a click early, and the focus
+  navigation already names where the answer lives. The strip itself now leads
+  the `tagasiside` view, above its charts.
 
-  No response rate: the two counts are not a valid numerator and denominator,
-  because members also answer through newsletters and general calls.
+  The counts stay counts per topic, never people, and no response rate exists —
+  the two figures are not a valid numerator and denominator.
   {% endcomment %}
-  {% if page.feedback %}
-    <section aria-labelledby="section-feedback" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Liikmete tagasiside" heading_id="section-feedback" only %}
-      {% if page.feedback.has_coverage %}
-        <dl class="dk-kpi-strip">
-          <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
-            <dt class="text-sm text-text-secondary">Teemasid, kus liikmed andsid tagasisidet</dt>
-            <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.with_feedback }}</dd>
-          </div>
-          {# `Tagasiside mõõdetud` left on 2026-08-16; the figures are still built. #}
-          <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
-            <dt class="text-sm text-text-secondary">Liikmete tagasiside kokku</dt>
-            <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.feedback_instances|default_if_none:"—" }}</dd>
-          </div>
-        </dl>
-        {% if page.focus == "ulevaade" %}
-          <div class="dk-section-body pt-0">
-            <a class="dk-link text-sm" href="?fookus=tagasiside">Vaata liikmete tagasisidet →</a>
-          </div>
-        {% endif %}
-      {% else %}
-        <div class="dk-section-body">
-          <p class="text-sm text-text-secondary">Andmed kogunevad.</p>
-        </div>
-      {% endif %}
-    </section>
-  {% endif %}
 
   {# ---------------- Enim tagasisidet saanud teemad ---------------- #}
   {% comment %}
@@ -552,11 +560,13 @@ dashboard overview. They stay on the default focus and keep their ids;
 
   {# ---------------- Hetkel töös ---------------- #}
   {% comment %}
-  Kept on the default focus with its anchor: the dashboard overview links
+  On the default focus alone, with its anchor: the dashboard overview links
   straight into it, and a fragment that lands nowhere fails silently in a
-  browser. The full, filterable list lives under `fookus=aktiivsed`.
+  browser. `Aktiivsed teemad` used to repeat this table wholesale under its
+  charts; the filterable population is the register, and the plain list is one
+  click away here.
   {% endcomment %}
-  {% if page.focus == "ulevaade" or page.focus == "aktiivsed" %}
+  {% if page.focus == "ulevaade" %}
     <section aria-labelledby="section-open" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="Hetkel töös" heading_id="section-open" only %}
       {% if open_items %}
@@ -605,7 +615,10 @@ dashboard overview. They stay on the default focus and keep their ids;
   {% endif %}
 
   {# ---------------- Viimati välja läinud ---------------- #}
-  {% if page.focus == "ulevaade" or page.focus == "arvamused" %}
+  {% comment %}
+  Also the default focus alone — `Arvamused` repeated it under its charts.
+  {% endcomment %}
+  {% if page.focus == "ulevaade" %}
     <section aria-labelledby="section-sent" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="Viimati välja läinud" heading_id="section-sent" only %}
       {% if sent_items %}

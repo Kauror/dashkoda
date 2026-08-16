@@ -22,7 +22,13 @@ from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
 
 from .analytics import data_quality
-from .intelligence_page import FOCUS_REGISTER, PARAM_FOCUS, build_page, parse_focus
+from .intelligence_page import (
+    FOCUS_OVERVIEW,
+    FOCUS_REGISTER,
+    PARAM_FOCUS,
+    build_page,
+    parse_focus,
+)
 from .register import REGISTER_PARAMS, build_register
 from .search import (
     PARAM_PAGE,
@@ -61,9 +67,15 @@ def legal_work_overview(request):
 
     page = build_page(snapshot, focus=focus, page_url=reverse("legal-work"))
 
-    # The standing lists the linked-to sections draw. Bounded exactly as before.
-    open_items = list(page.open_items) if page.open_items else list(get_open_items(snapshot))
-    sent_items = list(page.sent_items) if page.sent_items else list(get_latest_sent_items(snapshot))
+    # The standing lists render on the overview alone since 2026-08-16 — the
+    # sub-focuses repeated them wholesale under their charts — so only the
+    # overview pays for the queries. Bounded exactly as before.
+    if focus == FOCUS_OVERVIEW:
+        open_items = list(get_open_items(snapshot))
+        sent_items = list(get_latest_sent_items(snapshot))
+    else:
+        open_items = []
+        sent_items = []
 
     # The register focus gets the full explorer: facets, filters and per-record
     # detail. Every other focus keeps the plain term-and-status search, which is

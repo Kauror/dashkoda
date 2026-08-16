@@ -50,9 +50,6 @@ from .analytics import (
     warning_code_counts,
 )
 from .selectors import (
-    DEFAULT_RECENT_LIMIT,
-    get_latest_sent_items,
-    get_open_items_by_deadline,
     get_upcoming_deadlines,
 )
 
@@ -167,8 +164,6 @@ class IntelligencePage:
     insights: tuple[Insight, ...] = ()
     charts: tuple = ()
     deadlines: tuple = ()
-    open_items: tuple = ()
-    sent_items: tuple = ()
     stage: StageBreakdown | None = None
     age: ActiveAge | None = None
     pressure: DeadlinePressure | None = None
@@ -379,8 +374,9 @@ def _overview(snapshot, year, focus, label, links) -> IntelligencePage:
         stage=stages,
         charts=(charts.active_stage_chart(stages),),
         deadlines=get_upcoming_deadlines(snapshot, limit=OVERVIEW_DEADLINE_LIMIT),
-        feedback=feedback_summary(snapshot, year=year),
-        feedback_start_year=first_tracked_feedback_year(snapshot),
+        # The feedback preview left the overview on 2026-08-16: it was the
+        # `tagasiside` focus's own strip rendered a click early, so this focus
+        # no longer runs its query either.
     )
 
 
@@ -453,7 +449,10 @@ def _active(snapshot, year, focus, label, links) -> IntelligencePage:
             charts.active_age_chart(age),
             charts.deadline_pressure_chart(pressure),
         ),
-        open_items=tuple(get_open_items_by_deadline(snapshot)),
+        # `Hetkel töös` renders on the overview alone since 2026-08-16 — this
+        # focus repeated the table wholesale under its charts, so the query
+        # goes with the section. The deadline list stays: it is this view's
+        # own analysis, uncapped where the overview previews seven.
         deadlines=get_upcoming_deadlines(snapshot),
     )
 
@@ -488,7 +487,8 @@ def _opinions(snapshot, year, focus, label, links) -> IntelligencePage:
             charts.response_window_chart(windows),
             charts.response_window_distribution_chart(response_window_distribution(snapshot)),
         ),
-        sent_items=tuple(get_latest_sent_items(snapshot, limit=DEFAULT_RECENT_LIMIT)),
+        # `Viimati välja läinud` renders on the overview alone since
+        # 2026-08-16 — this focus repeated it — so the query goes too.
         footnotes=tuple(footnotes),
     )
 
