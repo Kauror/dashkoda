@@ -1,7 +1,7 @@
 """Which membership question the page is answering.
 
 The Liikmeskond page grew from one report into five analytical views, and a
-single scroll through all of them buries the four figures most readers open the
+single scroll through all of them buries the few figures most readers open the
 page for. `fookus` names which view is drawn.
 
 It is an ordinary GET parameter and every control is a link, so a focus is
