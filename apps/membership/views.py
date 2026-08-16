@@ -14,19 +14,20 @@ the same measurement only appears when both actually exist. Nothing on this page
 adds them, compares them as though they should agree, or continues one series
 with the other.
 
-## One page, five focuses
+## One page, four focuses
 
-The page answers five different management questions and `fookus` names which
+The page answers four different management questions and `fookus` names which
 one is drawn. It is an ordinary GET parameter, every control is a link, and an
 unknown value renders the overview rather than raising — so the page survives a
 stale bookmark, a typed URL and the back button. There is no client-side state
-and no SPA.
+and no SPA. `Liikmemaks` was a fifth focus holding one chart; the chart draws
+on the overview since 2026-08-16 and the retired key resolves there.
 
-The overview is the default and is built to be read without interaction: four
-headline figures, the membership trend, what changed, and the current year's
-movement. The other four focuses are where the analysis lives. Anything a
-control governs sits inside the section that carries the control, which is the
-rule the range control already followed.
+The overview is the default and is built to be read without interaction: three
+headline figures, the membership trend with the fee history under one window,
+what changed, and the current year's movement. The other three focuses are
+where the analysis lives. Anything a control governs sits inside the section
+that carries the control, which is the rule the range control already followed.
 """
 
 from datetime import timedelta
@@ -69,7 +70,6 @@ from .composition_selectors import (
 )
 from .focus import (
     FOCUS_COMPOSITION,
-    FOCUS_FEES,
     FOCUS_GROWTH,
     FOCUS_MOVEMENT,
     FOCUS_OVERVIEW,
@@ -233,8 +233,6 @@ def membership_overview(request):
     available = {FOCUS_OVERVIEW}
     if trend.has_data or any(monthly.values()):
         available.add(FOCUS_GROWTH)
-    if fee_rows:
-        available.add(FOCUS_FEES)
     if latest is not None or batches:
         available.add(FOCUS_MOVEMENT)
     if composition is not None:
@@ -324,7 +322,6 @@ def _sections_for(focus, **ctx) -> list[AnalyticsSection]:
     builders = {
         FOCUS_OVERVIEW: _overview_sections,
         FOCUS_GROWTH: _growth_sections,
-        FOCUS_FEES: _fee_sections,
         FOCUS_MOVEMENT: _movement_sections,
         FOCUS_COMPOSITION: _composition_sections,
     }
@@ -350,8 +347,28 @@ def _trend_section(*, trend, presets, has_range_choice, section_id="section-tren
     )
 
 
-def _overview_sections(*, trend, presets, has_range_choice, **_ignored):
-    return [_trend_section(trend=trend, presets=presets, has_range_choice=has_range_choice)]
+def _overview_sections(*, trend, fee_rows, presets, has_range_choice, **_ignored):
+    """The membership trend and, under the same window, the fee history.
+
+    `Liikmemaks` was a whole focus holding the one fee chart; since 2026-08-16
+    it draws here, in the section the range control already governs — the two
+    series answer over the same window, so one control serves both and the
+    reader stops switching views to hold the pair in mind.
+    """
+    charts = [total_and_paid_chart(trend)] if trend.has_data else []
+    if fee_rows:
+        charts.append(fee_collection_chart(fee_rows))
+    return [
+        AnalyticsSection(
+            section_id="section-trend",
+            title="Liikmeskonna areng",
+            show_title=False,
+            description="",
+            charts=tuple(charts),
+            presets=presets,
+            show_custom_range=has_range_choice,
+        )
+    ]
 
 
 def _growth_sections(
@@ -466,26 +483,6 @@ def _growth_sections(
             )
         )
     return sections
-
-
-def _fee_sections(*, fee_rows, presets, has_range_choice, **_ignored):
-    """Fee collection, on one scale at a time.
-
-    Amounts and completion are different units and never share a y-axis. The
-    chart draws the completion the amounts imply; the reported percentage keeps
-    its own column in the table and its own footnote when the two disagree.
-    """
-    charts = [fee_collection_chart(fee_rows)] if fee_rows else []
-    return [
-        AnalyticsSection(
-            section_id="section-fees",
-            title="Liikmemaksu laekumine",
-            description="",
-            charts=tuple(charts),
-            presets=presets,
-            show_custom_range=has_range_choice,
-        )
-    ]
 
 
 def _movement_sections(*, latest, batches, decisions, chosen, control_state, **_ignored):
@@ -608,7 +605,11 @@ def _composition_sections(*, composition=None, **_ignored):
         ),
     ]
 
-    for dimension, section_id, title, question, ranked in structure:
+    # One section, two columns from `xl`. Four stacked full-width sections of
+    # the same categorical shape were twice the scroll to say four things, and
+    # each chart already carries its own title and question.
+    structure_charts = []
+    for dimension, _section_id, title, question, ranked in structure:
         chart = composition_chart(
             composition.dimension(dimension),
             payload_id=f"membership-composition-{dimension.replace('_', '-')}",
@@ -626,14 +627,17 @@ def _composition_sections(*, composition=None, **_ignored):
             ),
         )
         if chart is not None:
-            sections.append(
-                AnalyticsSection(
-                    section_id=section_id,
-                    title=title,
-                    show_title=False,
-                    charts=(chart,),
-                )
+            structure_charts.append(chart)
+    if structure_charts:
+        sections.append(
+            AnalyticsSection(
+                section_id="section-structure",
+                title="Koosseisu jaotused",
+                show_title=False,
+                charts=tuple(structure_charts),
+                grid=True,
             )
+        )
 
     cohorts = join_cohort_chart(composition.dimension(Dimension.JOIN_COHORT), snapshot_date=on)
     if cohorts is not None:

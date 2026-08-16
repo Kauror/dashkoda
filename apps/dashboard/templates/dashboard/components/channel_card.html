@@ -28,6 +28,7 @@ leaves DashKoda, so it opens in a new tab, carrying `target="_blank"
 rel="noopener noreferrer"` and a visually-hidden note naming both the outside
 destination and the new tab.
 {% endcomment %}
+{% load membership_format %}
 <article class="flex flex-col gap-2 px-4 py-4{% if not flush %} dk-card{% endif %}">
   <div class="flex items-start justify-between gap-3">
     <h3 class="text-sm font-medium text-text-secondary">
@@ -60,7 +61,8 @@ destination and the new tab.
 
   {% if slot.has_value %}
     <p class="flex items-baseline gap-1.5">
-      <span class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ slot.value }}</span>
+      {# Grouped like every other count on the page: `12 230`, never `12230`. #}
+      <span class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ slot.value|integer }}</span>
       {% if slot.unit %}<span class="text-sm text-text-secondary">{{ slot.unit }}</span>{% endif %}
     </p>
   {% elif slot.details %}
@@ -68,7 +70,7 @@ destination and the new tab.
       {% for detail in slot.details %}
         <div class="flex items-baseline justify-between gap-3">
           <dt class="min-w-0 text-sm text-text-secondary">{{ detail.label }}</dt>
-          <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.value }}</dd>
+          <dd class="flex-none text-sm font-semibold tabular-nums text-text">{{ detail.value|integer }}</dd>
         </div>
       {% endfor %}
     </dl>

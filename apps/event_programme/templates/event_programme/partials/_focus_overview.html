@@ -97,8 +97,10 @@ to the stylesheet build anyway.
   chart wherever it is rendered.
   {% endcomment %}
   <section aria-labelledby="section-price" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Hinnastruktuur" heading_id="section-price" only %}
-    <div class="dk-section-body">
+    {# The chart's own title says `Hinnastruktuur`; a visible section heading #}
+    {# said it again one line above. The landmark keeps the name unpainted. #}
+    <h2 id="section-price" class="sr-only">Hinnastruktuur</h2>
+    <div class="dk-section-body pt-4">
       {% include "dashboard/components/chart_figure.html" with chart=view.price_chart only %}
     </div>
   </section>

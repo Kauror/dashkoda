@@ -56,7 +56,6 @@ from .focus import (
     FOCUS_ARCHIVE,
     FOCUS_IMPACT,
     FOCUS_OVERVIEW,
-    FOCUS_PUBLISHING,
     PARAM_FOCUS,
     Focus,
     FocusOption,
@@ -479,10 +478,6 @@ class NewsPage:
         return self.focus.key == FOCUS_IMPACT
 
     @property
-    def is_publishing(self) -> bool:
-        return self.focus.key == FOCUS_PUBLISHING
-
-    @property
     def is_archive(self) -> bool:
         return self.focus.key == FOCUS_ARCHIVE
 
@@ -747,14 +742,9 @@ def build_publishing(*, period: ResolvedPeriod, coverage: Coverage, state: str =
     from . import charts
     from .periods import period_options
 
-    # The publication chips carry the focus, so choosing a window keeps the
-    # reader in the publishing view instead of returning them to the overview.
-    periods = period_options(
-        period,
-        sort="",
-        search="",
-        carried=f"{PARAM_FOCUS}={FOCUS_PUBLISHING}" + (f"&{state}" if state else ""),
-    )
+    # On the overview since 2026-08-16, which is the default focus and emits no
+    # `fookus` parameter — the chips carry only the rest of the page state.
+    periods = period_options(period, sort="", search="", carried=state)
 
     start = period.start
     end = period.end
@@ -828,6 +818,10 @@ def build_news_page(
 
     if focus.key == FOCUS_OVERVIEW:
         page.update(build_overview(reading=reading, period=period, coverage=coverage))
+        # The publishing material joined the overview when `avaldamine`
+        # retired: how much the Chamber publishes belongs on the same first
+        # screen as what is being read.
+        page.update(build_publishing(period=period, coverage=coverage, state=state))
     elif focus.key == FOCUS_IMPACT:
         page.update(
             build_impact(
@@ -837,8 +831,6 @@ def build_news_page(
                 state=state,
             )
         )
-    elif focus.key == FOCUS_PUBLISHING:
-        page.update(build_publishing(period=period, coverage=coverage, state=state))
 
     return NewsPage(**page)
 

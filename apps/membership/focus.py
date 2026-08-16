@@ -43,12 +43,11 @@ FOCUS_MOVEMENT = "liikumine"
 #:
 #: The order is the reading order of the dashboard rather than an alphabet:
 #: how many members there are, whether that number is growing, who they are,
-#: whether they pay, and who arrived or left.
+#: and who arrived or left.
 FOCUS_LABELS: tuple[tuple[str, str], ...] = (
     (FOCUS_OVERVIEW, "Ülevaade"),
     (FOCUS_GROWTH, "Kasv ja püsimine"),
     (FOCUS_COMPOSITION, "Koosseis"),
-    (FOCUS_FEES, "Liikmemaks"),
     (FOCUS_MOVEMENT, "Liikumine ja põhjused"),
 )
 
@@ -57,10 +56,21 @@ FOCUS_KEYS: tuple[str, ...] = tuple(key for key, _label in FOCUS_LABELS)
 #: What an unreadable or absent `fookus` resolves to.
 DEFAULT_FOCUS = FOCUS_OVERVIEW
 
+#: Retired views and the view that inherited each one's content. `Liikmemaks`
+#: was a whole focus holding one chart; the chart joined the overview's trend
+#: section on 2026-08-16, under the same window control, so its key resolves
+#: there — an explicit map rather than the unknown-key fallback, the same
+#: pattern as the shop's `vaartus`.
+RETIRED_FOCUSES: dict[str, str] = {FOCUS_FEES: FOCUS_OVERVIEW}
+
 
 def resolve_focus(raw: str | None) -> str:
-    """The focus to draw. An unknown value is the overview, never an error."""
-    return raw if raw in FOCUS_KEYS else DEFAULT_FOCUS
+    """The focus to draw. An unknown value is the overview, never an error.
+
+    A retired key lands on the view that inherited its content.
+    """
+    key = RETIRED_FOCUSES.get(raw, raw)
+    return key if key in FOCUS_KEYS else DEFAULT_FOCUS
 
 
 @dataclass(frozen=True)

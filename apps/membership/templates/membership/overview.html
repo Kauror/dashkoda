@@ -317,9 +317,21 @@ by a rule written for this one.
           </div>
         {% endif %}
 
-        {% for chart in section.charts %}
-          {% include "dashboard/components/chart_figure.html" with chart=chart only %}
-        {% endfor %}
+        {% if section.grid %}
+          {% comment %}
+          Same-shaped categorical charts, two-up from `xl`. Stacked, the four
+          composition distributions were twice the scroll to say four things.
+          {% endcomment %}
+          <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
+            {% for chart in section.charts %}
+              {% include "dashboard/components/chart_figure.html" with chart=chart only %}
+            {% endfor %}
+          </div>
+        {% else %}
+          {% for chart in section.charts %}
+            {% include "dashboard/components/chart_figure.html" with chart=chart only %}
+          {% endfor %}
+        {% endif %}
       </div>
     </section>
   {% endfor %}
@@ -465,7 +477,8 @@ by a rule written for this one.
   {% endcomment %}
   {% if internal_latest %}
     <section aria-labelledby="section-quality" class="dk-section">
-      <h2 id="section-quality" class="sr-only">Andmete seisund</h2>
+      {# `Andmete seis`, the name every other dashboard's status section wears. #}
+      <h2 id="section-quality" class="sr-only">Andmete seis</h2>
       <div class="dk-section-body flex flex-col gap-3 py-4 text-sm text-text-secondary">
         <p class="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span class="dk-badge {% if quality_badge.needs_attention %}dk-badge-warning{% else %}dk-badge-success{% endif %}">

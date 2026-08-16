@@ -187,13 +187,18 @@ def test_the_news_archive_is_unchanged(viewer_client):
         assert control in content, f"the news archive lost {control}"
 
 
-def test_the_news_page_offers_only_the_four_article_focuses(viewer_client):
-    """The focus navigation names four views and no fifth."""
+def test_the_news_page_offers_only_the_three_article_focuses(viewer_client):
+    """The focus navigation names three views and no more.
+
+    `Avaldamine` folded into the overview on 2026-08-16; `Uudiskirjad` left for
+    Otsepostitused long before. Neither is offered as a tab.
+    """
     content = page(viewer_client.get(NEWS_URL))
 
-    for label in ("Ülevaade", "Uudiste mõju", "Avaldamine", "Arhiiv"):
+    for label in ("Ülevaade", "Uudiste mõju", "Arhiiv"):
         assert label in content
     assert "fookus=uudiskirjad" not in content
+    assert "fookus=avaldamine" not in content
 
 
 def test_the_news_page_has_no_newsletter_card_section_or_sends(viewer_client):

@@ -14,18 +14,13 @@ are shorter for a reason that has nothing to do with demand — and a bar chart
 that does not say so reads as a collapse at both ends.
 {% endcomment %}
 
-{# --- monthly, on the chosen metric --- #}
-<section aria-labelledby="section-months" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Ostmine ajas" heading_id="section-months" only %}
-  <div class="dk-section-body flex flex-col gap-3">
-    {% include "shop/_metric_switch.html" %}
-    {% if overview.trend %}
-      {% include "dashboard/components/trend_chart.html" with chart=overview.trend only %}
-    {% else %}
-      {% include "dashboard/components/empty_state.html" with message="Selle perioodi kohta ei ole piisavalt punkte joone joonistamiseks." only %}
-    {% endif %}
-  </div>
-</section>
+{% comment %}
+`Ostmine ajas` left this view on 2026-08-16. It was the overview's own opening
+section — the same `overview.trend`, the same metric switch — rendered a second
+time under the same heading, which is exactly what the `vaartus` merge had just
+removed between two other views. The overview keeps it; this view starts with
+the long view, which is its subject.
+{% endcomment %}
 
 {# --- calendar years --- #}
 {% if overview.years %}

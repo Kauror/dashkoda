@@ -54,7 +54,8 @@ def test_the_traffic_fragment_pushes_the_page_it_belongs_to(viewer_client):
     ]
 
     assert pushed.startswith(reverse("visibility"))
-    assert "fookus=lehed" in pushed
+    # The explorer lives at the foot of `Sisu ja lehed` since `lehed` retired.
+    assert "fookus=sisu" in pushed
 
 
 # -- it is an ordinary protected route ---------------------------------------

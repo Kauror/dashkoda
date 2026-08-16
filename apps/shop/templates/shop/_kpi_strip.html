@@ -18,7 +18,11 @@ The three states below are deliberately distinct, and none of them is a zero:
     days that happen to precede it is worse than showing nothing, because the
     reader cannot see that the denominator was short.
 {% endcomment %}
-<div class="dk-kpi-strip">
+{% comment %}
+`dk-kpi-strip-trio` at three cards, or the fourth cell of the `xl` grid sits
+empty beside them — the same treatment the Liikmeskond and Koduleht strips use.
+{% endcomment %}
+<div class="dk-kpi-strip{% if kpis|length == 3 %} dk-kpi-strip-trio{% endif %}">
   {% for kpi in kpis %}
     <article class="flex flex-col gap-2 px-4 py-4">
       <h3 class="text-sm font-medium text-text-secondary">{{ kpi.label }}</h3>

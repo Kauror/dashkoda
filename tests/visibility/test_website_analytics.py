@@ -17,14 +17,11 @@ from apps.visibility.website_analytics import (
     OTHER_SECTION_KEY,
     WEEKDAY_PATTERN_MIN_DAYS,
     get_channel_performance,
-    get_concentration,
     get_content_mix,
     get_engagement_matrix,
     get_language_mix,
     get_page_detail,
     get_page_movement,
-    get_peak_day,
-    get_quality_signals,
     get_traffic_summary,
     get_weekday_pattern,
     min_page_views_for,
@@ -122,17 +119,6 @@ def test_views_per_session_is_a_depth_metric_not_a_page_count(ga4_day):
     summary = get_traffic_summary(start=START, end=START)
 
     assert summary.views_per_session == pytest.approx(2.5)
-
-
-def test_the_peak_day_is_named_rather_than_left_as_a_maximum(ga4_day):
-    ga4_day(START, sessions=100, page_views=200)
-    ga4_day(START + dt.timedelta(days=1), sessions=400, page_views=900)
-
-    peak = get_peak_day(start=START, end=START + dt.timedelta(days=1))
-
-    assert peak.day == START + dt.timedelta(days=1)
-    assert peak.sessions == 400
-    assert peak.page_views == 900
 
 
 # ---------------------------------------------------------------------------
@@ -537,23 +523,8 @@ def test_a_page_with_no_engagement_measurement_has_no_quadrant(ga4_day):
 
 
 # ---------------------------------------------------------------------------
-# Concentration and language
+# Language
 # ---------------------------------------------------------------------------
-
-
-def test_concentration_shares_the_content_denominator(ga4_day):
-    ga4_day(
-        START,
-        pages=tuple((f"/et/uudised/p{i}", 100 - i, 500) for i in range(20))
-        + (("/et", 9000, 20000),),
-    )
-
-    concentration = get_concentration(start=START, end=END)
-
-    # The language root is not content and is out of both the list and its total.
-    assert concentration.total_page_views == sum(100 - i for i in range(20))
-    assert concentration.ranked_pages == 20
-    assert 0 < concentration.top_5_share < concentration.top_10_share < 1
 
 
 def test_language_is_read_from_the_path_prefix(ga4_day):
@@ -597,55 +568,6 @@ def test_a_language_root_is_not_mistaken_for_a_similar_prefix(ga4_day):
 
     assert by_key["et"].page_views == 50
     assert by_key[OTHER_LANGUAGE_KEY].page_views == 50
-
-
-# ---------------------------------------------------------------------------
-# Quality signals
-# ---------------------------------------------------------------------------
-
-
-def test_error_documents_are_counted_with_the_failed_address_appended(ga4_day):
-    ga4_day(
-        START,
-        pages=(
-            ("/404.html%3Fpage=/et/kadunud", 30, 60),
-            ("/403.html", 10, 20),
-            ("/et/uudised/a", 960, 5000),
-        ),
-    )
-
-    signals = {s.key: s for s in get_quality_signals(start=START, end=END, total_page_views=1000)}
-
-    assert signals["vead"].page_views == 40
-    assert signals["vead"].share_of_page_views == pytest.approx(0.04)
-
-
-def test_internal_search_is_counted_but_not_the_service_that_contains_the_word(ga4_day):
-    """`/en/services/search-cooperation-partner` is a service the Chamber sells,
-    and a substring rule would file it as internal search."""
-    ga4_day(
-        START,
-        pages=(
-            ("/et/search/node", 25, 40),
-            ("/en/services/search-cooperation-partner", 300, 3000),
-        ),
-    )
-
-    signals = {s.key: s for s in get_quality_signals(start=START, end=END, total_page_views=325)}
-
-    assert signals["siseotsing"].page_views == 25
-
-
-def test_the_cart_is_not_reported_as_a_website_fault(ga4_day):
-    """Not every excluded route is an error. The cart is an ordinary working
-    page that simply is not content, and counting it here would report a problem
-    the site does not have."""
-    ga4_day(START, pages=(("/et/cart", 500, 900),))
-
-    signals = {s.key: s for s in get_quality_signals(start=START, end=END, total_page_views=500)}
-
-    assert signals["vead"].page_views is None
-    assert signals["siseotsing"].page_views is None
 
 
 # ---------------------------------------------------------------------------

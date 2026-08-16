@@ -43,11 +43,21 @@ def test_the_default_view_is_the_overview():
     assert parse_focus("").key == FOCUS_OVERVIEW
 
 
-@pytest.mark.parametrize(
-    "key", [FOCUS_OVERVIEW, FOCUS_TRAFFIC, FOCUS_CONTENT, FOCUS_CHANNELS, FOCUS_PAGES]
-)
+@pytest.mark.parametrize("key", [FOCUS_OVERVIEW, FOCUS_CONTENT, FOCUS_CHANNELS])
 def test_every_focus_resolves_to_itself(key):
     assert parse_focus(key).key == key
+
+
+def test_a_retired_focus_resolves_to_the_view_that_inherited_it():
+    """`liiklus` and `lehed` retired on 2026-08-16, their bookmarks did not.
+
+    Each lands on the view that actually holds its content — the overview took
+    the traffic material and `Sisu ja lehed` took the page explorer. Falling
+    through to the default would answer a saved traffic link correctly by
+    accident and a saved explorer link wrongly on purpose.
+    """
+    assert parse_focus(FOCUS_TRAFFIC).key == FOCUS_OVERVIEW
+    assert parse_focus(FOCUS_PAGES).key == FOCUS_CONTENT
 
 
 def test_an_unknown_focus_falls_back_rather_than_erroring():
@@ -338,13 +348,19 @@ def test_search_matches_a_pasted_koda_ee_url(history):
 
 def test_search_reaches_the_view_and_does_not_return_the_ranking(history, viewer_client):
     """The defect this exists for: `?otsing=…` returning the ordinary ranking
-    looks exactly like a search that matched everything."""
+    looks exactly like a search that matched everything.
+
+    Scoped to the results region since the explorer moved onto `Sisu ja
+    lehed`: the view above it legitimately lists falling pages, so the page as
+    a whole may name `vaheneb` — the search results must not.
+    """
     response = viewer_client.get(PAGE_URL, {"fookus": "lehed", "otsing": "kasvab"})
     rendered = body(response)
 
     assert response.status_code == 200
-    assert "kasvab" in rendered
-    assert "vaheneb" not in rendered
+    results = rendered.split("koduleht-otsingutulemused", 1)[1]
+    assert "kasvab" in results
+    assert "vaheneb" not in results
 
 
 def test_a_search_that_matches_nothing_says_so(history, viewer_client):

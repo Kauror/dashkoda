@@ -441,18 +441,21 @@ actor. They never carry CSV bodies, source prose, user-entered notes, session
 data or tracebacks. The note a user types is stored on the observation, where it
 belongs, and is deliberately not copied into the audit summary.
 
-## The page: five focuses behind one URL
+## The page: four focuses behind one URL
 
-`/liikmeskond/` answers five different management questions and `fookus` names
+`/liikmeskond/` answers four different management questions and `fookus` names
 which one is drawn:
 
 ```text
 fookus=ulevaade    Ülevaade               (default)
 fookus=kasv        Kasv ja püsimine
 fookus=koosseis    Koosseis
-fookus=liikmemaks  Liikmemaks
 fookus=liikumine   Liikumine ja põhjused
 ```
+
+`fookus=liikmemaks` was a fifth, holding the one fee-collection chart. Since
+2026-08-16 that chart draws in the overview's trend section under the same
+window control, and the retired key resolves to the overview.
 
 It is an ordinary GET parameter, every control is a link, and an unknown value
 renders the overview rather than raising — the same rule `ranges.py` applies to
@@ -466,12 +469,13 @@ changing which page section existed.
 
 A focus link carries the resolved window forward and nothing else. The chart
 toggles are not carried, because a recruitment-chart choice means nothing on the
-fee view, and landing a reader on a control state that does not apply is how a
-control comes to look broken.
+movement view, and landing a reader on a control state that does not apply is
+how a control comes to look broken.
 
-The overview is built to be read without interaction: four headline answers, the
-membership trend, `Mis muutus?`, `Sel aastal`, and — once a roster has been
-imported — a four-fact composition preview. `apps/membership/intelligence.py`
+The overview is built to be read without interaction: the headline answers, the
+membership trend with the fee history under one window, `Mis muutus?`,
+`Sel aastal`, and — once a roster has been imported — a four-fact composition
+preview. `apps/membership/intelligence.py`
 assembles all of it and reads no database, taking the points the view already
 fetched.
 

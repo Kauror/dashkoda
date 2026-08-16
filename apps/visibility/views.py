@@ -49,7 +49,6 @@ from .page import build_newsletter_slot
 from .selectors import get_visibility_summary
 from .website_page import (
     FOCUS_CONTENT,
-    FOCUS_PAGES,
     PARAM_DETAIL,
     PARAM_FOCUS,
     PARAM_METRIC,
@@ -129,12 +128,15 @@ def koduleht_search_fragment(request):
     to the page itself.
     """
     page = build_website_page(
-        focus_key=FOCUS_PAGES,
+        focus_key=FOCUS_CONTENT,
         period_key=request.GET.get(PARAM_PERIOD),
         date_from=request.GET.get(PARAM_FROM),
         date_to=request.GET.get(PARAM_TO),
         section_key=request.GET.get(PARAM_CONTENT),
         search=request.GET.get(PARAM_SEARCH),
+        # Just the results region: running the content view's own analysis to
+        # answer a keystroke would make typing cost what a page load costs.
+        search_only=True,
     )
     return search_fragment(
         request,
@@ -145,7 +147,7 @@ def koduleht_search_fragment(request):
             path=reverse("visibility"),
             allowed=KODULEHT_PARAMS,
             updates={
-                PARAM_FOCUS: FOCUS_PAGES,
+                PARAM_FOCUS: FOCUS_CONTENT,
                 PARAM_SEARCH: page.query.search,
                 PARAM_PAGE: "",
                 # Selecting a page is a different question from searching for
@@ -162,8 +164,9 @@ def koduleht_search_fragment(request):
 #: page search; those map onto three different focus views here.
 def _legacy_focus(params) -> str:
     if params.get(PARAM_SEARCH):
-        # A saved search was a reader looking for one page. That is the explorer.
-        return FOCUS_PAGES
+        # A saved search was a reader looking for one page. The explorer lives
+        # at the foot of `Sisu ja lehed` since the `lehed` view retired.
+        return FOCUS_CONTENT
     section = (params.get(PARAM_CONTENT) or "").strip()
     if section and section != "koik":
         # A saved section filter was a reader asking about content.

@@ -18,7 +18,6 @@ from apps.news.focus import (
     FOCUS_ARCHIVE,
     FOCUS_IMPACT,
     FOCUS_OVERVIEW,
-    FOCUS_PUBLISHING,
     FOCUSES,
     parse_focus,
 )
@@ -85,7 +84,8 @@ def test_every_focus_renders_with_articles_but_no_analytics(viewer_client, focus
         ("", FOCUS_OVERVIEW),
         ("ulevaade", FOCUS_OVERVIEW),
         ("moju", FOCUS_IMPACT),
-        ("avaldamine", FOCUS_PUBLISHING),
+        # Retired 2026-08-16: the publishing material lives on the overview.
+        ("avaldamine", FOCUS_OVERVIEW),
         ("arhiiv", FOCUS_ARCHIVE),
         ("zzz", FOCUS_OVERVIEW),
         ("../../etc", FOCUS_OVERVIEW),

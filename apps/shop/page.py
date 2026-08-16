@@ -464,7 +464,6 @@ class FocusOption:
 
     key: str
     label: str
-    question: str
     is_active: bool
     query: str
 
@@ -636,7 +635,6 @@ class ShopOverview:
     #: Which analytical view is on screen, and the links to the others.
     focus: str = ""
     focus_label: str = ""
-    focus_question: str = ""
     focus_options: tuple[FocusOption, ...] = ()
     #: Ready-made links to each view by key, so a template can point at one
     #: without indexing into `focus_options` by position.
@@ -825,7 +823,6 @@ def build_overview(
             web_is_partial=False,
             focus=focus.key,
             focus_label=focus.label,
-            focus_question=focus.question,
         )
 
     resolved = resolve_period(period_key, date_from, date_to, anchor=coverage.coverage_end)
@@ -1346,7 +1343,6 @@ def build_overview(
         ranking_note=(f"Top 10 moodustavad {share}% ostudest." if share is not None else ""),
         focus=focus.key,
         focus_label=focus.label,
-        focus_question=focus.question,
         focus_options=_focus_options(focus.key, resolved, state, metric),
         focus_links={item.key: _focus_query(item.key) for item in FOCUSES},
         units_label=words.units_label,
@@ -1453,7 +1449,6 @@ def _focus_options(active: str, resolved, state: dict, metric: str) -> tuple[Foc
         FocusOption(
             key=focus.key,
             label=focus.label,
-            question=focus.question,
             is_active=focus.key == active,
             query=build_query(
                 period_key=resolved.key,

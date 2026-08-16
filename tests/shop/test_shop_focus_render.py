@@ -87,7 +87,6 @@ def _overview(focus) -> ShopOverview:
         period=resolved,
         focus=focus.key,
         focus_label=focus.label,
-        focus_question=focus.question,
         focus_options=_focus_options(focus.key, resolved, _state(), METRIC_UNITS),
         focus_links={item.key: f"?fookus={item.key}" for item in FOCUSES},
         trend_options=_metric_options(METRIC_UNITS, resolved, _state(), focus.key, "Tellimusridu"),
@@ -105,8 +104,9 @@ def _render(template: str, context: dict) -> str:
 def test_every_focus_view_renders(focus):
     html = _render("shop/overview.html", {"overview": _overview(focus)})
 
+    # The label appears in the navigation; the per-focus question sentence
+    # left the page with the heading block that rendered it (2026-08-16).
     assert focus.label in html
-    assert focus.question in html
 
 
 @pytest.mark.parametrize("focus", FOCUSES, ids=[focus.key for focus in FOCUSES])
@@ -168,7 +168,6 @@ def test_a_page_without_a_source_still_renders():
         web_is_partial=False,
         focus="ulevaade",
         focus_label="Ülevaade",
-        focus_question="Mis e-poes toimub?",
     )
 
     html = _render("shop/overview.html", {"overview": overview})

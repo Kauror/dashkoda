@@ -39,6 +39,64 @@ const token = (name, fallback) => {
 const THEME_NAME = "dashkoda";
 
 /**
+ * The Estonian locale, for the labels ECharts writes by itself.
+ *
+ * Almost every label on a chart is spelled by the server — the finite axis
+ * lists, the tooltip readouts — but a **time axis** picks its own ticks, so its
+ * month names are the one piece of text the server cannot supply as a list.
+ * Left alone, ECharts falls back to its built-in English locale and the
+ * membership trend reads `Oct … Feb` on a page whose every other date is
+ * Estonian. The design system's rule is `jaan`–`dets`, so the twelve names are
+ * spelled once here and handed to `init`.
+ *
+ * Static strings registered once: unlike the theme, nothing in a locale reads
+ * a CSS token, so there is nothing to re-resolve per mount.
+ */
+const LOCALE_NAME = "ET";
+echarts.registerLocale(LOCALE_NAME, {
+  time: {
+    month: [
+      "jaanuar",
+      "veebruar",
+      "märts",
+      "aprill",
+      "mai",
+      "juuni",
+      "juuli",
+      "august",
+      "september",
+      "oktoober",
+      "november",
+      "detsember",
+    ],
+    monthAbbr: [
+      "jaan",
+      "veebr",
+      "märts",
+      "apr",
+      "mai",
+      "juuni",
+      "juuli",
+      "aug",
+      "sept",
+      "okt",
+      "nov",
+      "dets",
+    ],
+    dayOfWeek: [
+      "pühapäev",
+      "esmaspäev",
+      "teisipäev",
+      "kolmapäev",
+      "neljapäev",
+      "reede",
+      "laupäev",
+    ],
+    dayOfWeekAbbr: ["P", "E", "T", "K", "N", "R", "L"],
+  },
+});
+
+/**
  * Axis styling, applied to every axis of every chart.
  *
  * ECharts' own defaults are written for a light background and **override the
@@ -454,7 +512,10 @@ export function mountChart(figure) {
    * `registerTheme` overwrites by name, so this is idempotent.
    */
   echarts.registerTheme(THEME_NAME, chartTheme());
-  const instance = echarts.init(canvas, THEME_NAME, { renderer: "canvas" });
+  const instance = echarts.init(canvas, THEME_NAME, {
+    renderer: "canvas",
+    locale: LOCALE_NAME,
+  });
   /*
    * `dashkoda` carries what ECharts must not receive as option: the
    * server-rendered tooltip readouts, keyed by the `tip` each datum holds. It is

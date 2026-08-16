@@ -52,6 +52,21 @@ triggered them.
   </section>
 {% endif %}
 
+{# ---------------- Nädalapäevade muster ---------------- #}
+{% comment %}
+Inherited from the retired `Liiklus` view, and conditional the same way it was
+there: the pattern refuses a window under eight weeks, so on the default month
+this section does not exist and the overview stays as short as it was.
+{% endcomment %}
+{% if page.weekday %}
+  <section aria-labelledby="section-nadalapaevad" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Nädalapäevade muster" heading_id="section-nadalapaevad" description="Kuvatakse ainult siis, kui periood katab vähemalt kaheksa nädalat." only %}
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=page.weekday only %}
+    </div>
+  </section>
+{% endif %}
+
 {# ---------------- Kust tullakse ---------------- #}
 {% if page.channels %}
   <section aria-labelledby="section-kust" class="dk-section">

@@ -1,18 +1,23 @@
-"""Which of the four Uudised views a reader is looking at.
+"""Which of the three Uudised views a reader is looking at.
 
-The page answers four different questions and used to answer them in one
-scroll — an archive table with statistics beneath it. That works for "find me
-the article about excise duty" and works badly for "how are we doing", because
-the answer to the second was somewhere in the middle of the first.
+The page used to answer its questions in one scroll — an archive table with
+statistics beneath it. That works for "find me the article about excise duty"
+and works badly for "how are we doing", because the answer to the second was
+somewhere in the middle of the first.
 
-So the page carries a **focus**: four ordinary `GET` links, each a real URL that
-can be bookmarked, shared and reached with the browser's back button. No SPA, no
-tab state in JavaScript, no fragment that has to be re-fetched.
+So the page carries a **focus**: three ordinary `GET` links, each a real URL
+that can be bookmarked, shared and reached with the browser's back button. No
+SPA, no tab state in JavaScript, no fragment that has to be re-fetched.
 
     /uudised/                     → Ülevaade      (the default)
     /uudised/?fookus=moju         → Uudiste mõju
-    /uudised/?fookus=avaldamine   → Avaldamine
     /uudised/?fookus=arhiiv       → Arhiiv
+
+`fookus=avaldamine` was a fourth. Its two sections were one chart and a short
+list, and the overview it sat beside was itself two sections — so on
+2026-08-16 the publishing material moved onto the overview and the key
+retired. It still resolves, to the overview that now carries its content,
+because a saved link should keep answering its question.
 
 `fookus=uudiskirjad` was the fifth. The newsletters are `Otsepostitused` now,
 at their own address under Koduleht, and this page no longer has a view of
@@ -84,7 +89,6 @@ class Focus:
 FOCUSES: tuple[Focus, ...] = (
     Focus(key=FOCUS_OVERVIEW, label="Ülevaade"),
     Focus(key=FOCUS_IMPACT, label="Uudiste mõju"),
-    Focus(key=FOCUS_PUBLISHING, label="Avaldamine"),
     Focus(key=FOCUS_ARCHIVE, label="Arhiiv"),
 )
 
@@ -92,10 +96,20 @@ DEFAULT_FOCUS = FOCUSES[0]
 
 _BY_KEY = {focus.key: focus for focus in FOCUSES}
 
+#: Retired keys and the view that inherited each one's content. `avaldamine`
+#: moved onto the overview whole, so the resolve is exact rather than a
+#: fallback — the same pattern as the shop's `vaartus`.
+RETIRED_FOCUSES: dict[str, str] = {FOCUS_PUBLISHING: FOCUS_OVERVIEW}
+
 
 def parse_focus(raw: str | None) -> Focus:
-    """The view asked for, or the overview. Never raises."""
-    return _BY_KEY.get((raw or "").strip(), DEFAULT_FOCUS)
+    """The view asked for, or the overview. Never raises.
+
+    A retired key lands on the view that inherited its content; an unknown
+    value is a rotted bookmark and lands on the overview.
+    """
+    key = (raw or "").strip()
+    return _BY_KEY.get(RETIRED_FOCUSES.get(key, key), DEFAULT_FOCUS)
 
 
 @dataclass(frozen=True)
