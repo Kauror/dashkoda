@@ -127,12 +127,17 @@ by a rule written for this one.
     <section aria-labelledby="section-headlines" class="dk-section">
       {% comment %}
       Two names, because they answer to different readers. The visible landmark
-      is `Peamised näitajad`, which is what these four figures are; the second
-      line says which source they come from, and it is the sentence that keeps
-      this page's total from being read as the public catalogue's.
+      is `Peamised näitajad`, which is what these figures are; the second line
+      says which source they come from, and it is the sentence that keeps this
+      page's total from being read as the public catalogue's.
+
+      Three cards since 2026-08-16, when `Tasunute osakaal` folded into
+      `Liikmed ja tasunud liikmeid`. `dk-kpi-strip-trio` is what keeps the last
+      cell from sitting alone in a four-column row — the same treatment
+      Koduleht's strip uses at three.
       {% endcomment %}
       <h2 id="section-headlines" class="sr-only">Peamised näitajad · Sisemine liikmeskonna aruanne</h2>
-      <dl class="dk-kpi-strip">
+      <dl class="dk-kpi-strip {% if headlines|length == 3 %}dk-kpi-strip-trio{% endif %}">
         {% for headline in headlines %}
           <div class="flex flex-col gap-1 px-4 py-4 sm:px-5">
             <dt class="text-sm text-text-secondary">{{ headline.label }}</dt>

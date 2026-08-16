@@ -106,7 +106,7 @@ def _tone(value, *, rising_is_good: bool) -> str:
 
 @dataclass(frozen=True)
 class MembershipHeadline:
-    """One of the four questions the page answers before it is scrolled.
+    """One of the questions the page answers before it is scrolled.
 
     Every string arrives formatted. A template that had to decide how to write a
     signed percentage would be the second place that decision lived, and the two
@@ -279,67 +279,48 @@ def build_headlines(
         note="" if total_comparison.is_available else _baseline_note(total_comparison),
     )
 
-    # 2. Liikmed ja tasunud liikmeid. Replaced `Liitumised ja väljaarvamised`
-    #    on 2026-08-16 at the owner's request.
+    # 2. Liikmed ja tasunud liikmeid — with the share folded in on 2026-08-16.
     #
-    #    The two counts side by side and the gap between them. `Vahe` is the
-    #    only figure here that was not already somewhere on the page — the pair
-    #    itself is also the detail line of `Tasunute osakaal` below, which is a
-    #    duplication to resolve rather than a bug to fix, and the note is here
-    #    so whoever resolves it can see both at once.
+    #    `Tasunute osakaal` was its own card until then, and the two were the
+    #    same pair twice: the share's detail line read `3 426 / 3 429 liiget`,
+    #    which is exactly this card's value. One card now carries the counts,
+    #    the gap between them and the share.
+    #
+    #    **The change is the share's, in percentage points, not the total's.**
+    #    The card it replaced compared the member total year on year — which is
+    #    `Liikmeid kokku`'s comparison, printed a second time a card later. The
+    #    pp movement is the one figure in this card that appears nowhere else in
+    #    the strip, so it is the one worth the change line.
     #
     #    The gap is **members who have not paid**, not a movement: nobody left,
     #    nobody joined, and describing it as a change would be the same error the
-    #    card it replaced existed to avoid.
-    gap = total - paid if total is not None and paid is not None else None
-    movement = MembershipHeadline(
-        key="members_and_paid",
-        label="Liikmed ja tasunud liikmeid",
-        value=(
-            f"{integer(total)} · {integer(paid)}" if total is not None and paid is not None else ""
-        ),
-        detail=(
-            f"vahe {integer(gap)}"
-            if gap is not None
-            else "Vahet ei saa arvutada, sest üks pooltest puudub."
-        ),
-        change=(
-            f"{signed_integer(total_comparison.absolute)}" if total_comparison.is_available else ""
-        ),
-        change_label=(
-            f"{signed_integer(total_comparison.absolute)} liiget võrreldes aastataguse vaatlusega"
-            if total_comparison.is_available
-            else ""
-        ),
-        direction=_direction(total_comparison.absolute),
-        tone=_tone(total_comparison.absolute, rising_is_good=True),
-        comparison_label=(
-            f"aasta tagasi · {_comparison_label(total_comparison)[3:]}"
-            if total_comparison.is_available
-            else ""
-        ),
-        note="" if total_comparison.is_available else _baseline_note(total_comparison),
-    )
-
-    # 3. Tasunute osakaal, moved in percentage points rather than percent.
+    #    card this replaced existed to avoid.
     share = latest.paid_member_share_pct
     share_history = _share_series(history)
     share_comparison = compare_with(share, on, share_history)
     points_moved = (
         share_change(share, share_comparison.baseline) if share_comparison.is_available else None
     )
-    paid_share = MembershipHeadline(
-        key="paid_share",
-        label="Tasunute osakaal",
-        value=percent(share),
-        detail=(
-            f"{integer(paid)} / {integer(total)} liiget"
-            if paid is not None and total is not None
-            else ""
+
+    gap = total - paid if total is not None and paid is not None else None
+    share_label = percent(share) if share is not None else ""
+    if gap is not None:
+        detail = f"vahe {integer(gap)}"
+        if share_label:
+            detail = f"{detail} · tasunud {share_label}"
+    else:
+        detail = "Vahet ei saa arvutada, sest üks pooltest puudub."
+
+    movement = MembershipHeadline(
+        key="members_and_paid",
+        label="Liikmed ja tasunud liikmeid",
+        value=(
+            f"{integer(total)} · {integer(paid)}" if total is not None and paid is not None else ""
         ),
+        detail=detail,
         change=percentage_points(points_moved) if points_moved is not None else "",
         change_label=(
-            f"{percentage_points(points_moved)} võrreldes aastataguse vaatlusega"
+            f"tasunute osakaal {percentage_points(points_moved)} võrreldes aastataguse vaatlusega"
             if points_moved is not None
             else ""
         ),
@@ -353,7 +334,7 @@ def build_headlines(
         note="" if share_comparison.is_available else _baseline_note(share_comparison),
     )
 
-    return (members, movement, paid_share, _fee_headline(latest))
+    return (members, movement, _fee_headline(latest))
 
 
 def _fee_headline(latest: ObservationPoint) -> MembershipHeadline:

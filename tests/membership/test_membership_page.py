@@ -264,10 +264,16 @@ def test_the_headline_strip_answers_four_questions_not_nine(viewer_client, impor
     for label in (
         "Liikmeid kokku",
         "Liikmed ja tasunud liikmeid",
-        "Tasunute osakaal",
         "Liikmemaksu laekumine",
     ):
         assert label in body, f"headline missing: {label}"
+
+    # `Tasunute osakaal` folded into the card above it on 2026-08-16. It is no
+    # longer a card of its own, but the trend chart's readouts still carry the
+    # label, so this is scoped to the strip rather than the page.
+    strip = body.split('id="section-headlines"', 1)[1].split("</section>", 1)[0]
+    assert "Tasunute osakaal" not in strip
+    assert "tasunud" in strip
 
 
 def test_the_suspended_count_moved_out_of_the_headline_strip(viewer_client, imported_package):

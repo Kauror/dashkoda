@@ -1,7 +1,7 @@
 """What the Liikmeskond domain tells the main dashboard.
 
 A compact summary for the executive overview's Liikmeskond pillar. It is
-deliberately **not** `intelligence.build_headlines`: that builds four headline
+deliberately **not** `intelligence.build_headlines`: that builds three headline
 figures, a trend, a movement summary and quality badges for a page that is about
 membership. The overview needs one figure, one comparison, three supporting
 facts and at most two signals, and calling the page builder to obtain them would

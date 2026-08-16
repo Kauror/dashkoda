@@ -100,16 +100,21 @@ def by_key(headlines) -> dict:
 # ---------------------------------------------------------------------------
 
 
-def test_the_page_leads_with_four_questions_not_nine_figures():
+def test_the_page_leads_with_three_questions_not_nine_figures():
+    """Three since 2026-08-16: `paid_share` folded into `members_and_paid`.
+
+    The two were the same pair twice — the share's detail line was this card's
+    value — so the strip was answering one question in two cells.
+    """
     headlines = build_headlines(point(LATEST, total=3412, paid=3279), ())
 
-    assert len(headlines) == 4
+    assert len(headlines) == 3
     assert [headline.key for headline in headlines] == [
         "total_members",
         "members_and_paid",
-        "paid_share",
         "fee_collection",
     ]
+    assert "paid_share" not in {headline.key for headline in headlines}
 
 
 def test_no_headlines_at_all_without_an_observation():
@@ -157,7 +162,7 @@ def test_a_withheld_total_is_treated_as_missing_rather_than_drawn():
     headlines = by_key(build_headlines(latest, ()))
 
     assert headlines["total_members"].is_available is False
-    assert headlines["paid_share"].is_available is False
+    assert headlines["members_and_paid"].is_available is False
 
 
 def test_the_members_and_paid_card_states_the_gap_without_calling_it_movement():
@@ -176,7 +181,10 @@ def test_the_members_and_paid_card_states_the_gap_without_calling_it_movement():
     # `integer` groups thousands with a non-breaking space; compare digits only.
     digits = lambda s: "".join(ch for ch in s if ch.isdigit())  # noqa: E731
     assert digits(card.value) == "34293426"
-    assert digits(card.detail) == "3"
+    # The gap leads the detail; the share follows it, from 2026-08-16.
+    assert card.detail.startswith("vahe")
+    assert digits(card.detail.split("·")[0]) == "3"
+    assert "tasunud" in card.detail
     for forbidden in ("neto", "netokasv", "liikmeskonna muutus", "liitus", "välja arvati"):
         assert forbidden not in words
 
@@ -190,14 +198,22 @@ def test_the_gap_is_withheld_when_only_one_side_was_reported():
 
 
 def test_paid_share_moves_in_percentage_points_not_percent():
+    """The share is now the folded card's detail, and the pp movement its change.
+
+    Deliberately not the member total's year-on-year change, which is what this
+    card carried until 2026-08-16: that figure is `Liikmeid kokku`'s comparison
+    and printing it again a card later said the same thing twice. The pp
+    movement is the only figure in this card that is nowhere else in the strip.
+    """
     latest = point(LATEST, total=1000, paid=961)
     history = (point(YEAR_AGO, total=1000, paid=947), latest)
 
-    share = by_key(build_headlines(latest, history))["paid_share"]
+    card = by_key(build_headlines(latest, history))["members_and_paid"]
 
-    assert share.value.startswith("96,1")
-    assert "pp" in share.change
-    assert "%" not in share.change
+    assert "96,1" in card.detail
+    assert "pp" in card.change
+    assert "%" not in card.change
+    assert "tasunute osakaal" in card.change_label
 
 
 def test_fee_collection_draws_the_completion_the_amounts_imply():
