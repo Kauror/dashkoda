@@ -23,7 +23,7 @@ from apps.visibility.period_users import (
 )
 from apps.visibility.website_page import FOCUS_OVERVIEW, build_website_page
 
-from .test_koduleht import END, PREV_END, PREV_START, START
+from .conftest import END, PREV_END, PREV_START, START
 
 # No module-level `django_db`: the four collector tests below take their session
 # and need neither a database nor a credential, so they stay runnable where one

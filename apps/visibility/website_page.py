@@ -564,6 +564,31 @@ def build_headlines(
     return tuple(headlines)
 
 
+def build_unstripped_measures(
+    summary: WebsiteTrafficSummary,
+    previous: WebsiteTrafficSummary | None,
+    comparison: WebsiteComparison,
+) -> tuple[WebsiteHeadline, ...]:
+    """Measures that are still computed but no longer carry a card.
+
+    `Kaasatud külastuste osakaal` left the KPI strip on 2026-08-16 and did not
+    leave the page: it is still one of the movements in `Perioodi muutus`, and
+    its definition is still in `Andmete kohta`. It is built here rather than in
+    `build_headlines` so that nothing renders it as a card by accident.
+    """
+    previous = previous or WebsiteTrafficSummary(start=None, end=None, days=0)
+    rate = _rate_headline(
+        key="kaasatuse_maar",
+        label="Kaasatud külastuste osakaal",
+        current=summary.engagement_rate,
+        previous=previous.engagement_rate,
+        can_compare=comparison.can_compare_site,
+        comparison_period=comparison.range_label,
+        unavailable_note=_comparison_note(comparison),
+    )
+    return (rate,) if rate is not None else ()
+
+
 def _comparison_note(comparison: WebsiteComparison) -> str:
     """Why a delta is missing, in words, so the gap is a statement."""
     if comparison.unavailable_reason:
@@ -903,11 +928,20 @@ def build_insights(
     headlines: tuple[WebsiteHeadline, ...],
     channels: tuple[WebsiteChannelPerformance, ...],
     mix: WebsiteContentMix | None,
+    *,
+    unstripped: tuple[WebsiteHeadline, ...] = (),
 ) -> tuple[WebsiteInsight, ...]:
     """Three or four movements worth stating, largest first.
 
     Only signals whose comparison survived the coverage check reach here, because
     a headline with no delta has nothing to say about change.
+
+    `unstripped` is for measures that are still measured and still worth stating
+    as a movement, but no longer have a card in the KPI strip. The engagement
+    rate is the first of them: it left the strip on 2026-08-16, and because this
+    function derives its labels *from* the strip, dropping the card would
+    otherwise have deleted the movement too — silently, since nothing else
+    mentions it.
     """
     insights: list[WebsiteInsight] = [
         WebsiteInsight(
@@ -916,7 +950,7 @@ def build_insights(
             direction=headline.direction,
             detail=headline.change_label,
         )
-        for headline in headlines
+        for headline in (*headlines, *unstripped)
         if headline.has_change
     ]
 
@@ -1466,7 +1500,12 @@ def _overview(base, query, start, end, previous_start, previous_end, comparison,
         previous_summary=previous,
         headlines=headlines,
         secondary=build_secondary_readouts(summary),
-        insights=build_insights(headlines, top_channels, mix),
+        insights=build_insights(
+            headlines,
+            top_channels,
+            mix,
+            unstripped=build_unstripped_measures(summary, previous, comparison),
+        ),
         opportunities=build_opportunities(
             movement=movement, matrix=matrix, channels=top_channels, titles=titles, query=query
         ),

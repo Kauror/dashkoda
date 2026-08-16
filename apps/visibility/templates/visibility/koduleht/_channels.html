@@ -16,7 +16,7 @@ source/medium and no campaign here, because neither is stored — a row saying
 
 {% if page.channel_chart %}
   <section aria-labelledby="section-kanalid" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Külastused kanalite kaupa" heading_id="section-kanalid" description="Osakaal on arvutatud kogu kodulehe külastuste suhtes." only %}
+    {% include "dashboard/components/section_header.html" with title="Külastused kanalite kaupa" heading_id="section-kanalid" only %}
     <div class="dk-section-body">
       {% include "dashboard/components/chart_figure.html" with chart=page.channel_chart only %}
     </div>

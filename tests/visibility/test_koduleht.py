@@ -23,79 +23,13 @@ from apps.visibility.website_page import (
     parse_focus,
 )
 
-from .conftest import PAGE_URL
+from .conftest import PAGE_URL, PREV_START, START
 
 pytestmark = pytest.mark.django_db
-
-END = dt.date(2026, 3, 30)
-START = END - dt.timedelta(days=29)
-PREV_END = START - dt.timedelta(days=1)
-PREV_START = PREV_END - dt.timedelta(days=29)
 
 
 def body(response) -> str:
     return response.content.decode()
-
-
-@pytest.fixture
-def history(ga4_day):
-    """Sixty complete days: a full window and a full comparison window.
-
-    Deliberately varied so every analysis has something to find — a growing
-    page, a declining one, a page with deep engagement and little traffic, one
-    with the reverse, three languages, an error document and four channels.
-    """
-    for offset in range(30):
-        ga4_day(
-            START + dt.timedelta(days=offset),
-            sessions=1000,
-            page_views=2600,
-            engaged_sessions=650,
-            user_engagement_seconds=90000,
-            active_users=800 + offset,
-            pages=(
-                ("/et/uudised/kasvab", 60, 3000),
-                ("/et/sundmused/vaheneb", 5, 250),
-                ("/et/teenused/sygav", 20, 6000),
-                ("/et/teenused/kiire", 300, 900),
-                ("/en/news/story", 25, 1000),
-                ("/ru/novosti/statja", 8, 300),
-                ("/et", 400, 4000),
-                ("/404.html%3Fpage=/et/kadunud", 6, 12),
-                ("/et/search/node", 4, 8),
-            ),
-            channels=(
-                ("Organic Search", 600, 400),
-                ("Direct", 250, 100),
-                ("Organic Social", 100, 70),
-                ("Referral", 50, 20),
-            ),
-        )
-        ga4_day(
-            PREV_START + dt.timedelta(days=offset),
-            sessions=900,
-            page_views=2400,
-            engaged_sessions=540,
-            user_engagement_seconds=76000,
-            active_users=700 + offset,
-            pages=(
-                ("/et/uudised/kasvab", 10, 500),
-                ("/et/sundmused/vaheneb", 70, 3500),
-                ("/et/teenused/sygav", 18, 5400),
-                ("/et/teenused/kiire", 280, 840),
-                ("/en/news/story", 20, 800),
-                ("/ru/novosti/statja", 9, 340),
-                ("/et", 380, 3800),
-                ("/404.html%3Fpage=/et/kadunud", 9, 18),
-                ("/et/search/node", 3, 6),
-            ),
-            channels=(
-                ("Organic Search", 560, 340),
-                ("Direct", 240, 96),
-                ("Organic Social", 60, 36),
-                ("Referral", 55, 22),
-            ),
-        )
 
 
 # ---------------------------------------------------------------------------
@@ -135,7 +69,7 @@ def test_an_unknown_focus_renders_the_overview_through_the_view(history, viewer_
     response = viewer_client.get(PAGE_URL, {"fookus": "ei-ole"})
 
     assert response.status_code == 200
-    assert "Mis muutus?" in body(response)
+    assert "Perioodi muutus" in body(response)
 
 
 def test_changing_focus_keeps_the_measurement_period(history, viewer_client):
