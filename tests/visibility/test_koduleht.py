@@ -12,6 +12,7 @@ import datetime as dt
 
 import pytest
 
+from apps.visibility.period_users import record_period_users
 from apps.visibility.website_page import (
     FOCUS_CHANNELS,
     FOCUS_CONTENT,
@@ -23,7 +24,7 @@ from apps.visibility.website_page import (
     parse_focus,
 )
 
-from .conftest import PAGE_URL, PREV_START, START
+from .conftest import END, PAGE_URL, PREV_END, PREV_START, START
 
 pytestmark = pytest.mark.django_db
 
@@ -114,6 +115,26 @@ def test_the_engagement_rate_left_the_primary_strip(history):
 
     assert "kaasatuse_maar" not in {headline.key for headline in page.headlines}
     assert any("Kaasatud külastuste osakaal" in insight.label for insight in page.insights)
+
+
+def test_the_rate_survives_the_four_movement_cap(history):
+    """The regression that shipped twice: five measures, four places.
+
+    `Perioodi muutus` prints at most four movements. When the rate was a card it
+    was fourth by insertion order and got in; adding `Kasutajad` to the strip
+    pushed it to fifth and truncated it away, which reads exactly like a metric
+    that stopped moving. The order is explicit now, and this is what says so.
+    """
+    record_period_users(START, END, 4210)
+    record_period_users(PREV_START, PREV_END, 4000)
+
+    page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
+    labels = [insight.label for insight in page.insights]
+
+    assert len(page.insights) <= 4
+    assert "Kaasatud külastuste osakaal" in labels
+    # The one it outranks, so a future reshuffle has to be deliberate.
+    assert "Keskmine kaasatuse aeg / külastus" not in labels
 
 
 def test_the_headline_totals_are_the_period_sums(history):

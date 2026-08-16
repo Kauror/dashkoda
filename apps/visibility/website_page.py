@@ -943,6 +943,19 @@ def build_insights(
     otherwise have deleted the movement too — silently, since nothing else
     mentions it.
     """
+    # Insertion order decided which movements survived the cap below, which is
+    # how adding `Kasutajad` to the strip silently truncated the engagement rate
+    # out of this section: five measures, four places, and the rate appended
+    # last. The order is stated instead. Average engagement time is deliberately
+    # last of the five — it moves least and explains least — so the four that
+    # get printed are the counts, the users and the rate.
+    priority = ("kasutajad", "seansid", "lehevaatamised", "kaasatuse_maar", "kaasatuse_aeg")
+    measures = sorted(
+        (headline for headline in (*headlines, *unstripped) if headline.has_change),
+        key=lambda headline: (
+            priority.index(headline.key) if headline.key in priority else len(priority)
+        ),
+    )
     insights: list[WebsiteInsight] = [
         WebsiteInsight(
             label=headline.label,
@@ -950,8 +963,7 @@ def build_insights(
             direction=headline.direction,
             detail=headline.change_label,
         )
-        for headline in (*headlines, *unstripped)
-        if headline.has_change
+        for headline in measures
     ]
 
     leader = next((channel for channel in channels if channel.share is not None), None)
