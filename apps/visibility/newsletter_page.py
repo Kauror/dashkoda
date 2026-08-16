@@ -329,7 +329,20 @@ def build_newsletter_section(
 
 
 def _figures(aggregate: NewsletterAggregate) -> tuple[PerformanceFigure, ...]:
-    """The rates above the table, each naming what it divided by."""
+    """The rates above the table.
+
+    They no longer name their denominators here. All four notes came off on
+    2026-08-16 and the definitions are in `Andmete kohta` on `/haldus/`, in
+    `visibility/admin/_mailings_data_about.html`.
+
+    **`Klikid` and `Klikimäär` do not share a denominator**, and after the
+    rename they no longer say so. `Klikimäär` is unique clickers over
+    *delivered*; `Klikid` — which was `Klikke avajate seas` — is unique clickers
+    over *opens*, so it is always the larger of the two and is not a "total"
+    version of the one above it. Kaur chose the shorter label knowing that; if
+    the pair ever reads as one metric at two precisions, this is the reason and
+    the fix is the label rather than the arithmetic.
+    """
     if not aggregate.has_data:
         return ()
 
@@ -337,7 +350,6 @@ def _figures(aggregate: NewsletterAggregate) -> tuple[PerformanceFigure, ...]:
         PerformanceFigure(
             label="Kohale toimetatud",
             value=group_thousands(aggregate.delivered or 0),
-            note=f"Kokku {aggregate.campaigns} viimase numbri peale.",
         )
     ]
     if aggregate.open_rate is not None:
@@ -345,9 +357,6 @@ def _figures(aggregate: NewsletterAggregate) -> tuple[PerformanceFigure, ...]:
             PerformanceFigure(
                 label="Avamismäär",
                 value=percent(100 * aggregate.open_rate),
-                # Named, because Smaily's own percentage means this and a reader
-                # comparing it with another tool's figure needs to know.
-                note="Avamised kohale toimetatud kirjadest.",
             )
         )
     if aggregate.click_rate is not None:
@@ -355,16 +364,13 @@ def _figures(aggregate: NewsletterAggregate) -> tuple[PerformanceFigure, ...]:
             PerformanceFigure(
                 label="Klikimäär",
                 value=percent(100 * aggregate.click_rate),
-                note="Unikaalsed klikid kohale toimetatud kirjadest.",
             )
         )
     if aggregate.click_to_open_rate is not None:
         figures.append(
             PerformanceFigure(
-                label="Klikke avajate seas",
+                label="Klikid",
                 value=percent(100 * aggregate.click_to_open_rate),
-                # A different denominator from the one above it, so it says so.
-                note="Unikaalsed klikid avamistest.",
             )
         )
     return tuple(figures)
