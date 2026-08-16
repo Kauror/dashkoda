@@ -44,14 +44,18 @@ Nothing here turns one into the other.
   {% endcomment %}
   <header class="flex min-w-0 flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">E-pood</h1>
-    {% if overview.has_source %}
-      {% comment %}
-      The as-of date belongs beside the heading, quietly. The dataset is a
-      manual export that stops on a stated day, and burying the only indication
-      of that at the foot of the page lets every figure above it read as live.
-      {% endcomment %}
-      <p class="dk-meta">E-poe andmed seisuga {{ overview.as_of_label }}</p>
-    {% endif %}
+    {% comment %}
+    The as-of line left the header on 2026-08-16. It was not the only statement
+    of the export's cut-off — `Andmete kohta` opens with the same date, in a
+    sentence that also says the export is compiled by hand — so removing it
+    costs no fact.
+
+    It does cost placement, which is what this line was for: the argument it
+    was added under was that a date at the foot lets every figure above it read
+    as live. That argument still holds; the date is now at the foot alone.
+    Restoring it means putting this paragraph back, not recomputing anything —
+    `overview.as_of_label` is unchanged and still rendered below.
+    {% endcomment %}
   </header>
 
   {% if not overview.has_source %}

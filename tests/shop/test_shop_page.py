@@ -66,10 +66,17 @@ def test_the_as_of_date_is_shown(client, authenticate_viewer, seeded):
 
 
 def test_the_header_carries_no_coverage_line(client, authenticate_viewer, seeded):
+    """Both header lines are named, because they went in separate rounds.
+
+    `E-poe andmed seisuga …` outlived the coverage line and was removed on
+    2026-08-16. The date it carried is still on the page — the test above
+    asserts that — which is the only reason removing it was safe.
+    """
     content = _get(client, authenticate_viewer).content.decode()
 
     assert "Andmed 11.08.2026" not in content
     assert "Veebistatistika 12.08.2025" not in content
+    assert "E-poe andmed seisuga" not in content
 
 
 def test_the_dataset_is_never_described_as_live(client, authenticate_viewer, seeded):

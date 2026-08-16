@@ -303,3 +303,18 @@ def test_the_archive_page_renders(viewer_client):
     assert "Saadetud uudiskirjad" in page
     assert "Kutse ärifoorumile" in page
     assert "Sündmuste kalender" in page
+
+
+def test_the_archive_states_its_scope_once(viewer_client):
+    """The subtitle went on 2026-08-16; the section header it duplicated stays.
+
+    `Kõik Smailyst välja saadetud kampaaniad` sat directly above
+    `Kõik saadetised`, which says the same thing about the same table. Only the
+    duplicate left — a page that had dropped both would no longer tell the
+    reader the table is the whole population rather than a recent slice.
+    """
+    collect()
+    page = viewer_client.get(reverse("mailings-history")).content.decode()
+
+    assert "Kõik saadetised" in page
+    assert "Kõik Smailyst välja saadetud kampaaniad" not in page
