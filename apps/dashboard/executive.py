@@ -18,20 +18,23 @@ figures beyond turning a comparison the domain already made into the string that
 prints it. Every threshold, every window, every share and every signal arrives
 decided.
 
-## The four pillars, and the rule that keeps them disjoint
+## The two pillars, and the rule that keeps them disjoint
 
 ```text
 Liikmeskond   → public Koda.ee directory count
-Huvikaitse    → opinions sent YTD, from the workbook
-Kaasamine     → the events programme
 Nähtavus      → website sessions + news reading + newsletter engagement
 ```
 
-There were five. The Digiteenused card was removed at the board's request on
-2026-08-15 — the shop keeps its own dashboard, its interest panel, its signals
-and its `Andmete seis` row; what went is only the pillar card. The
-double-counting rule it existed under **still holds and is still tested**: the
-events pillar reads the programme workbook and no Commerce at all, and
+There were five. `Digiteenused` went on 2026-08-15 at the board's request;
+`Huvikaitse` and `Kaasamine` went on 2026-08-16. In every case only the pillar
+card was removed — each domain keeps its own dashboard, its signals and its
+`Andmete seis` row, and `_legal_pillar` and `_events_pillar` still exist and
+still carry their rules.
+
+**The disjointness rule outlived the cards and still applies.** It governs what
+a pillar may count, not how many pillars there are, so restoring any of the
+three must not quietly reintroduce double counting: the events pillar reads the
+programme workbook and no Commerce at all, and
 everything shop-related that remains on this page excludes
 `EVENT_REGISTRATION` at the query.
 
@@ -141,10 +144,13 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
     shop_exec = get_shop_executive()
 
     return ExecutiveOverviewPage(
+        # `Huvikaitse` and `Kaasamine` left the strip on 2026-08-16 at the
+        # owner's request. `_legal_pillar` and `_events_pillar` are untouched
+        # and no longer called from here — restoring a card is putting its line
+        # back, not rebuilding it. Both domains keep their own dashboards, their
+        # signals and their `Andmete seis` rows.
         pillars=(
             _membership_pillar(membership_exec),
-            _legal_pillar(legal_exec),
-            _events_pillar(events_exec),
             _visibility_pillar(website_exec, news_exec),
         ),
         signals=collect_signals(

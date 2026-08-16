@@ -16,6 +16,18 @@ test.beforeEach(async ({ page }) => {
   await signIn(page);
 });
 
+/*
+ * Three tests were removed on 2026-08-16 with the sections they covered:
+ * two on `Mis vajab tähelepanu?` (its one-of-two-valid-states contract and the
+ * seeded-signal count) and one on `Praegu huvi pakkuv` (each panel naming its
+ * own metric and period).
+ *
+ * The rules they held are not orphaned. `collect_signals` and
+ * `_interest_panels` are untouched and still unit-tested; what is gone is the
+ * only place a reader saw them, so there is nothing left to assert in a
+ * browser. If either section returns, these are the contracts to restore.
+ */
+
 test("the executive status fills with figures rather than empty states", async ({ page }) => {
   const errors = watchConsole(page);
 
@@ -26,10 +38,15 @@ test("the executive status fills with figures rather than empty states", async (
   // Digiteenused is deliberately absent: the board removed the card on
   // 2026-08-15, while the shop keeps its interest panel, its signals and its
   // Andmete seis row.
-  for (const pillar of ["Liikmeskond", "Huvikaitse", "Kaasamine", "Koduleht ja uudised"]) {
+  for (const pillar of ["Liikmeskond", "Koduleht ja uudised"]) {
     await expect(status.getByRole("heading", { name: pillar, level: 3 })).toBeVisible();
   }
-  await expect(status.getByRole("heading", { name: "Digiteenused", level: 3 })).toHaveCount(0);
+  // Three cards have been removed at the owner's request rather than lost:
+  // Digiteenused on 2026-08-15, Huvikaitse and Kaasamine on 2026-08-16. Each
+  // domain keeps its own dashboard, its signals and its Andmete seis row.
+  for (const gone of ["Digiteenused", "Huvikaitse", "Kaasamine"]) {
+    await expect(status.getByRole("heading", { name: gone, level: 3 })).toHaveCount(0);
+  }
 
   // Not a single pillar may be showing the unconnected state.
   await expect(page.getByText("Andmeallikas ei ole ühendatud.")).toHaveCount(0);
@@ -56,76 +73,8 @@ test("the membership pillar leads with the public directory count", async ({ pag
   await expect(pillar.getByText("Koja sisemine liikmeskonna aruanne")).toHaveCount(0);
 });
 
-test("the attention section renders exactly one of its two valid states", async ({ page }) => {
-  /*
-   * Signals or silence, never both and never neither. The section is scoped by
-   * its heading rather than by a class, so this also holds the heading itself.
-   *
-   * The seeded legal register carries deadlines two and five days out and one
-   * overdue matter whose opinion has not gone, so signals are expected here —
-   * but the assertion is written as the contract rather than as that
-   * expectation. A seed that stopped producing one should fail on the *count*
-   * assertion below with a readable number, not on a locator that silently
-   * resolved to nothing.
-   */
-  const attention = page.getByRole("region", { name: "Mis vajab tähelepanu?" });
-  await expect(attention).toBeVisible();
-
-  const quiet = attention.getByText("Olulisi muutusi või lähenevaid tähtaegu ei ole.");
-  const rows = attention.locator("li");
-
-  const [quietCount, rowCount] = await Promise.all([quiet.count(), rows.count()]);
-
-  // Exactly one state. Both would mean the template lost its branch; neither
-  // would mean the section rendered empty, which says nothing to a reader.
-  expect({ quiet: quietCount, signals: rowCount }).toEqual(
-    rowCount > 0 ? { quiet: 0, signals: rowCount } : { quiet: 1, signals: 0 },
-  );
-
-  if (rowCount === 0) {
-    return;
-  }
-
-  // Bounded: an exception list, not another dashboard.
-  expect(rowCount).toBeLessThanOrEqual(5);
-
-  /*
-   * Urgency is a word before it is a colour, so it survives greyscale, a
-   * printer and a reader who cannot separate the two warning tones. Every row
-   * carries one, not just the first.
-   *
-   * Compared case-insensitively because `.dk-badge` is `uppercase`, and
-   * `innerText` returns text as CSS transformed it — so the rendered word is
-   * `KIIRELOOMULINE` while the template and the presenter both say
-   * `Kiireloomuline`. Matching the styled casing here would tie this assertion
-   * to a CSS declaration it is not about.
-   */
-  const priorities = ["kiireloomuline", "tähelepanu", "tähelepanuväärne"];
-  const texts = await rows.allInnerTexts();
-  for (const text of texts) {
-    const haystack = text.toLocaleLowerCase("et");
-    expect(priorities.some((word) => haystack.includes(word))).toBe(true);
-    // A badge line and a headline at minimum. Evidence is optional per signal
-    // since the board struck the sentences that restated their headlines, so
-    // two lines is the floor rather than three.
-    expect(text.trim().split("\n").length).toBeGreaterThan(1);
-  }
-});
-
-test("the seeded register produces at least one signal", async ({ page }) => {
-  /*
-   * Separate from the contract test above on purpose. This one is about the
-   * *seed*: if it stops producing a signal, the section's populated branch is
-   * never exercised by any browser run, and the contract test would pass on the
-   * quiet state forever without anyone noticing.
-   */
-  const attention = page.getByRole("region", { name: "Mis vajab tähelepanu?" });
-
-  await expect(attention.locator("li").first()).toBeVisible();
-});
-
 test("the timeline is chronological and every row is dated", async ({ page }) => {
-  const timeline = page.getByRole("region", { name: "Järgmised 30 päeva" });
+  const timeline = page.getByRole("region", { name: "Eesolevad tegevused" });
 
   await expect(timeline.getByText("Lähiajal ei ole tähtaegu ega sündmusi.")).toHaveCount(0);
 
@@ -136,18 +85,6 @@ test("the timeline is chronological and every row is dated", async ({ page }) =>
   expect(stamps.length).toBeGreaterThan(0);
   expect(stamps.length).toBeLessThanOrEqual(10);
   expect([...stamps].sort()).toEqual(stamps);
-});
-
-test("each interest panel states its own metric and its own period", async ({ page }) => {
-  const interest = page.getByRole("region", { name: "Praegu huvi pakkuv" });
-
-  for (const domain of ["Koduleht", "Uudised", "Sündmused", "E-pood"]) {
-    await expect(interest.getByRole("heading", { name: domain, level: 3 })).toBeVisible();
-  }
-  // Four different metrics. Nothing ranks them against one another, so no panel
-  // may borrow another's unit.
-  await expect(interest.getByText("lehevaatamist")).toBeVisible();
-  await expect(interest.getByText("ühikut ostetud")).toBeVisible();
 });
 
 test("a failed refresh keeps the figures and discloses itself", async ({ page }) => {
@@ -177,7 +114,7 @@ test("a failed refresh keeps the figures and discloses itself", async ({ page })
 });
 
 test("the channel audiences are never totalled", async ({ page }) => {
-  const channels = page.getByRole("region", { name: "Kanalite auditoorium" });
+  const channels = page.getByRole("region", { name: "Kanalid" });
 
   await expect(channels).toBeVisible();
   for (const forbidden of ["Kokku auditoorium", "Auditoorium kokku", "Kogu auditoorium"]) {

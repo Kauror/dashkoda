@@ -217,37 +217,40 @@ def test_the_page_loads_only_local_bundled_assets(client, authenticate_viewer, i
 
 
 def test_overview_keeps_its_empty_state_without_a_snapshot(client, authenticate_viewer):
-    """The Huvikaitse pillar says it has no source, and still offers the page.
+    """The route survives the pillar, and still never shows a nought.
 
-    The overview used to hide `Vaata õigusloomet` when there was nothing to
-    show. The executive overview keeps it: a pillar is a permanent part of the
-    page's structure, its route exists either way, and a reader who cannot see
-    where a strategic area lives learns less than one who arrives at an honest
-    empty page. What must never appear is a nought standing in for the count.
+    The `Huvikaitse` card left the overview on 2026-08-16, so the claim this
+    test used to make — that a pillar is a permanent part of the page's
+    structure — is no longer true of this domain. What has to remain true is
+    the part that mattered: the overview still offers a way through to an
+    honest empty Õigusloome page, and never prints a nought standing in for a
+    count nobody made.
     """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
 
-    assert "Huvikaitse" in content
+    assert "Huvikaitse" not in content, "the pillar left on 2026-08-16"
     assert "Andmeallikas ei ole ühendatud." in content
-    assert "Vaata õigusloomet" in content
+    assert reverse("legal-work") in content, "the overview still routes there"
     assert "arvamust sellel aastal" not in content
 
 
 def test_overview_shows_real_legal_work_data_once_imported(
     client, authenticate_viewer, imported_snapshot
 ):
-    """The pillar carries the figure and the workbook's own reporting date.
+    """The figure left the overview with its card; the page still carries it.
 
-    The list of topics moved to the Õigusloome page — the front page states how
-    much work is being carried and links through, rather than previewing rows.
+    Until 2026-08-16 the `Huvikaitse` pillar stated how much work was being
+    carried. The card is gone, so the assertion follows the figure to the
+    Õigusloome page, which is where it is now read.
     """
     authenticate_viewer(client)
 
-    content = client.get("/").content.decode()
+    overview = client.get("/").content.decode()
+    assert "Huvikaitse" not in overview
 
-    assert "Huvikaitse" in content
+    content = client.get(reverse("legal-work")).content.decode()
     # `Arvamusi välja saadetud tänavu` was the caption under the figure. It came
     # off the card on 2026-08-15 and the window moved into the unit, so the
     # headline states its own scope: `165 arvamust sellel aastal`.
@@ -385,7 +388,9 @@ def test_an_overview_row_without_a_resolved_address_is_plain_text(
     # property of the markup, not of any row, and what made the first version
     # of this assertion fail.
     section = client.get("/").content.decode().split('id="oigusloome"', 1)[1]
-    section = section.split("Praegu huvi pakkuv", 1)[0]
+    # Bounded by the section that follows it. `Praegu huvi pakkuv` was the
+    # delimiter until it left the page on 2026-08-16.
+    section = section.split('aria-labelledby="section-channels"', 1)[0]
     lists = re.findall(r"<ul[ >].*?</ul>", section, flags=re.S)
 
     assert lists, "the section rendered no list to inspect"
