@@ -15,6 +15,7 @@ from django.urls import reverse
 from django.utils.html import strip_tags
 
 from apps.dashboard import executive, freshness
+from apps.event_programme.executive import get_events_executive
 from apps.event_programme.selectors import (
     EventProgrammeSummary,
     get_event_programme_summary,
@@ -117,7 +118,7 @@ def test_the_kaasamine_pillar_reads_the_workbook(viewer, published_programme):
     # asserted where it is still produced. The rule this protects is unchanged:
     # the pillar reads the programme workbook, and a label-only assertion would
     # pass on one that had lost its figures.
-    pillar = executive._events_pillar(get_event_programme_summary())
+    pillar = executive._events_pillar(get_events_executive(get_event_programme_summary()))
 
     assert pillar.label == "Kaasamine"
     assert "Algab 30 päeva jooksul 1" in f"{pillar.headline.label} {pillar.headline.value}"
@@ -177,7 +178,7 @@ def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_p
 
     page = text_of(viewer.get(reverse("home")))
     freshness = text_of(viewer.get(reverse("dashboard-freshness")))
-    pillar = executive._events_pillar(get_event_programme_summary())
+    pillar = executive._events_pillar(get_events_executive(get_event_programme_summary()))
 
     assert "Vananenud: 1" in freshness
     # Asserted on the builder since the card left the overview on 2026-08-16.

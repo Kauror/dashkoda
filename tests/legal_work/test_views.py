@@ -276,7 +276,10 @@ def test_overview_shows_real_legal_work_data_once_imported(
     wording = _legal_pillar_wording()
     assert "arvamust sellel aastal" in wording
     assert "Arvamusi välja saadetud tänavu" not in wording
-    assert "Teemasid töös" in content
+    # `Teemasid töös` is the pillar's label and left the overview with it, so
+    # it is asserted on the same builder as the figure above. The route did not
+    # go: the timeline's Õigusloome block still links through.
+    assert "Teemasid töös" not in content
     assert "Vaata õigusloomet" in content
     # The workbook's own date is claimed in `Andmete seis`, which moved to
     # `/haldus/` on 2026-08-15. The overview no longer dates its own figures,
