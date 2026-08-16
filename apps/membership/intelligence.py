@@ -279,33 +279,46 @@ def build_headlines(
         note="" if total_comparison.is_available else _baseline_note(total_comparison),
     )
 
-    # 2. Liitumised ja väljaarvamised. Two reported counts and the gap between
-    #    them — never described as the membership's net change.
-    joined = latest.value("new_members_ytd")
-    removed = latest.value("removed_members_ytd")
-    difference = joined - removed if joined is not None and removed is not None else None
+    # 2. Liikmed ja tasunud liikmeid. Replaced `Liitumised ja väljaarvamised`
+    #    on 2026-08-16 at the owner's request.
+    #
+    #    The two counts side by side and the gap between them. `Vahe` is the
+    #    only figure here that was not already somewhere on the page — the pair
+    #    itself is also the detail line of `Tasunute osakaal` below, which is a
+    #    duplication to resolve rather than a bug to fix, and the note is here
+    #    so whoever resolves it can see both at once.
+    #
+    #    The gap is **members who have not paid**, not a movement: nobody left,
+    #    nobody joined, and describing it as a change would be the same error the
+    #    card it replaced existed to avoid.
+    gap = total - paid if total is not None and paid is not None else None
     movement = MembershipHeadline(
-        key="movement_ytd",
-        label="Liitumised ja väljaarvamised",
+        key="members_and_paid",
+        label="Liikmed ja tasunud liikmeid",
         value=(
-            " · ".join(
-                part
-                for part in (
-                    f"{integer(joined)} liitus" if joined is not None else "",
-                    f"{integer(removed)} välja arvati" if removed is not None else "",
-                )
-                if part
-            )
+            f"{integer(total)} · {integer(paid)}" if total is not None and paid is not None else ""
         ),
         detail=(
-            f"vahe {signed_integer(difference)}"
-            if difference is not None
+            f"vahe {integer(gap)}"
+            if gap is not None
             else "Vahet ei saa arvutada, sest üks pooltest puudub."
         ),
-        direction=_direction(difference),
-        tone=_tone(difference, rising_is_good=True),
-        comparison_label="aasta algusest",
-        note="",
+        change=(
+            f"{signed_integer(total_comparison.absolute)}" if total_comparison.is_available else ""
+        ),
+        change_label=(
+            f"{signed_integer(total_comparison.absolute)} liiget võrreldes aastataguse vaatlusega"
+            if total_comparison.is_available
+            else ""
+        ),
+        direction=_direction(total_comparison.absolute),
+        tone=_tone(total_comparison.absolute, rising_is_good=True),
+        comparison_label=(
+            f"aasta tagasi · {_comparison_label(total_comparison)[3:]}"
+            if total_comparison.is_available
+            else ""
+        ),
+        note="" if total_comparison.is_available else _baseline_note(total_comparison),
     )
 
     # 3. Tasunute osakaal, moved in percentage points rather than percent.

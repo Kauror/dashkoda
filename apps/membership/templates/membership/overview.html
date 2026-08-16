@@ -377,27 +377,21 @@ by a rule written for this one.
         <dl class="flex flex-wrap gap-x-10 gap-y-4">
           {% if movement_summary.joined %}
             <div class="min-w-0">
-              <dt class="text-sm text-text-secondary">Liitus</dt>
+              <dt class="text-sm text-text-secondary">Liitunud</dt>
               <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.joined }}</dd>
             </div>
           {% endif %}
           {% if movement_summary.removed %}
             <div class="min-w-0">
-              <dt class="text-sm text-text-secondary">Välja arvati</dt>
+              <dt class="text-sm text-text-secondary">Väljaarvatud</dt>
               <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.removed }}</dd>
             </div>
           {% endif %}
-          {% if movement_summary.has_difference %}
-            <div class="min-w-0">
-              <dt class="text-sm text-text-secondary">Liitumiste ja väljaarvamiste vahe</dt>
-              <dd class="flex items-baseline gap-2">
-                <span class="text-xl font-semibold tracking-tight tabular-nums{% if movement_summary.difference_tone == 'positive' %} text-success{% elif movement_summary.difference_tone == 'negative' %} text-danger{% else %} text-text{% endif %}">
-                  {% if movement_summary.difference_direction == "up" %}↑{% elif movement_summary.difference_direction == "down" %}↓{% else %}→{% endif %}
-                  {{ movement_summary.difference }}
-                </span>
-              </dd>
-            </div>
-          {% endif %}
+          {% comment %}
+          The difference row left on 2026-08-16. `movement_summary.difference`
+          is still computed and still carries its tone and direction; nothing
+          renders it.
+          {% endcomment %}
           {% if movement_summary.suspended %}
             <div class="min-w-0">
               <dt class="text-sm text-text-secondary">Peatatud liikmeid</dt>
@@ -405,9 +399,14 @@ by a rule written for this one.
             </div>
           {% endif %}
         </dl>
-        <p class="dk-meta mt-3">
-          Vahe on kahe aruandes esitatud arvu vahe, mitte liikmeskonna muutus.
-        </p>
+        {% comment %}
+        The sentence that went with the row above it. It said the difference was
+        the gap between two reported counts rather than the membership's net
+        change — with no difference printed, there is nothing left on this page
+        for it to qualify. If the row ever returns, this must return with it:
+        the two figures are reported separately and subtracting them does not
+        reconcile the stock.
+        {% endcomment %}
       </div>
     </section>
   {% endif %}

@@ -106,7 +106,7 @@ def test_the_page_leads_with_four_questions_not_nine_figures():
     assert len(headlines) == 4
     assert [headline.key for headline in headlines] == [
         "total_members",
-        "movement_ytd",
+        "members_and_paid",
         "paid_share",
         "fee_collection",
     ]
@@ -160,28 +160,33 @@ def test_a_withheld_total_is_treated_as_missing_rather_than_drawn():
     assert headlines["paid_share"].is_available is False
 
 
-def test_joins_and_removals_are_reported_as_a_difference_never_as_a_net_change():
-    """The two are separate reported counts. Subtracting them is not stock movement."""
-    latest = point(LATEST, new_ytd=111, removed_ytd=146)
+def test_the_members_and_paid_card_states_the_gap_without_calling_it_movement():
+    """The card that replaced `Liitumised ja väljaarvamised` on 2026-08-16.
 
-    movement = by_key(build_headlines(latest, ()))["movement_ytd"]
-    words = f"{movement.label} {movement.value} {movement.detail}".lower()
+    It puts the two counts side by side and names the gap between them. The gap
+    is members who have not paid — nobody joined and nobody left — so the same
+    vocabulary the old card was forbidden is forbidden here, for a different
+    reason and just as firmly.
+    """
+    latest = point(LATEST, total=3429, paid=3426)
 
-    assert "111" in movement.value
-    assert "146" in movement.value
-    assert f"{MINUS_SIGN}35" in movement.detail
-    for forbidden in ("neto", "netokasv", "liikmeskonna muutus"):
+    card = by_key(build_headlines(latest, ()))["members_and_paid"]
+    words = f"{card.label} {card.value} {card.detail}".lower()
+
+    # `integer` groups thousands with a non-breaking space; compare digits only.
+    digits = lambda s: "".join(ch for ch in s if ch.isdigit())  # noqa: E731
+    assert digits(card.value) == "34293426"
+    assert digits(card.detail) == "3"
+    for forbidden in ("neto", "netokasv", "liikmeskonna muutus", "liitus", "välja arvati"):
         assert forbidden not in words
 
 
-def test_the_difference_is_withheld_when_only_one_side_was_reported():
-    latest = point(LATEST, new_ytd=111, removed_ytd=None)
+def test_the_gap_is_withheld_when_only_one_side_was_reported():
+    latest = point(LATEST, total=3429, paid=None)
 
-    movement = by_key(build_headlines(latest, ()))["movement_ytd"]
+    card = by_key(build_headlines(latest, ()))["members_and_paid"]
 
-    assert "111" in movement.value
-    assert "146" not in movement.value
-    assert "vahe" not in movement.detail.lower() or "ei saa" in movement.detail.lower()
+    assert "ei saa" in card.detail.lower()
 
 
 def test_paid_share_moves_in_percentage_points_not_percent():

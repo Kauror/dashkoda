@@ -263,7 +263,7 @@ def test_the_headline_strip_answers_four_questions_not_nine(viewer_client, impor
     assert "Peamised näitajad" in body
     for label in (
         "Liikmeid kokku",
-        "Liitumised ja väljaarvamised",
+        "Liikmed ja tasunud liikmeid",
         "Tasunute osakaal",
         "Liikmemaksu laekumine",
     ):
@@ -288,16 +288,21 @@ def test_the_difference_is_never_presented_as_a_net_membership_change(
     Subtracting them gives the gap between two reports, not the movement of the
     membership stock, and the page must not claim otherwise.
 
-    `liikmeskonna muutus` is checked rather than merely forbidden, because the
-    page uses the phrase once — to deny it. Every occurrence must be that
-    denial; an affirmative use would be the defect this test exists to catch.
+    The difference row left the page on 2026-08-16 and the sentence denying it
+    was a net change went with it — with nothing subtracted on screen there was
+    nothing left for that sentence to qualify. So the count check is gone too:
+    the page no longer uses the phrase at all, in either direction.
+
+    What survives is the part that still bites. The words remain forbidden, and
+    the row is asserted absent — because if it ever returns without its denial,
+    that is exactly the defect this test was written for.
     """
     body = _page(viewer_client).casefold()
 
     assert "netokasv" not in body
     assert "netomuutus" not in body
-    assert body.count("liikmeskonna muutus") == body.count("mitte liikmeskonna muutus")
-    assert "liitumiste ja väljaarvamiste vahe" in body
+    assert "liikmeskonna muutus" not in body
+    assert "liitumiste ja väljaarvamiste vahe" not in body
 
 
 def test_an_unknown_focus_renders_the_overview_rather_than_raising(viewer_client, imported_package):
