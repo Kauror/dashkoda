@@ -20,7 +20,11 @@ from being reflected back into an address.
   <div class="flex flex-wrap items-end justify-between gap-3">
     <div class="flex min-w-0 flex-col gap-1">
       <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">{{ page.title }}</h1>
-      <p class="dk-meta">{{ page.freshness_note }}</p>
+      {% comment %}
+      The freshness line left every Koduleht view on 2026-08-16. It is not lost:
+      `Andmete kohta` on `/haldus/` states where GA4 coverage begins and ends,
+      in a table built for exactly that question.
+      {% endcomment %}
     </div>
   </div>
 

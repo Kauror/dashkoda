@@ -44,7 +44,6 @@ rank themselves.
           </div>
         {% endif %}
       </dl>
-      <p class="dk-meta mt-2">Kõige rohkem külastusi mõõdetud üksikul päeval. See ei ole kordumatute külastajate arv.</p>
     </div>
   </section>
 {% endif %}
@@ -58,4 +57,7 @@ rank themselves.
   </section>
 {% endif %}
 
-{% include "visibility/koduleht/_quality.html" with page=page only %}
+{% comment %}
+`Tehnilised signaalid` left this view on 2026-08-16. `_quality.html` and
+`page.quality_table` are untouched; nothing includes them.
+{% endcomment %}
