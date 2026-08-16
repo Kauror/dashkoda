@@ -500,14 +500,20 @@ def test_the_social_figures_still_exist_after_the_rename(submit, viewer_client, 
 
 
 def test_manual_entry_is_no_longer_a_primary_koduleht_action(submit, staff_client):
-    """Still reachable for staff, but out of the analytical hierarchy: it sits
-    in `Andmete kohta` rather than in the page header."""
+    """Still reachable for staff, and now one page further out.
+
+    It sat in `Andmete kohta` at the foot of Koduleht; that whole block moved to
+    `/haldus/` on 2026-08-16 and the link went with it. Both halves are asserted,
+    because a link dropped in the move would pass the Koduleht side on its own.
+    """
     submit(facebook_followers=4200)
 
-    page = body(staff_client.get(PAGE_URL))
+    koduleht = body(staff_client.get(PAGE_URL))
+    admin = body(staff_client.get("/haldus/"))
 
-    assert "/admin/data-entry/visibility/new/" in page
-    assert "Andmete kohta" in page
+    assert "/admin/data-entry/visibility/new/" not in koduleht
+    assert "Andmete kohta" not in koduleht
+    assert "/admin/data-entry/visibility/new/" in admin
 
 
 def test_an_ordinary_viewer_sees_no_editing_control(submit, viewer_client):

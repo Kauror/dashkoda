@@ -40,9 +40,16 @@ uncompressed, and the log recorded `exit=0 … 3 nightly archives retained`.
 The whole chain runs **05:15–06:50 Europe/Tallinn**, so every figure on the
 dashboard is fresh before anyone looks at it at 07:00.
 
-`sync_ga4`, `sync_smaily` and `sync_smaily_campaigns` lead it and are not part
-of the dependency ordering: none of them shares a snapshot, an advisory lock or
-a source with the feeds, so nothing waits for them and they wait for nothing.
+`sync_ga4`, `sync_ga4_period_users`, `sync_smaily` and `sync_smaily_campaigns`
+lead it and are not part of the dependency ordering: none of them shares a
+snapshot, an advisory lock or a source with the feeds, so nothing waits for them
+and they wait for nothing.
+
+`sync_ga4_period_users` is the one pair in that group with an ordering of its
+own: it resolves the Koduleht period presets against GA4 coverage, so it wants
+the reconciliation three minutes earlier to have published last night's day. If
+the reconciliation overruns, it fetches windows that are a day short for one
+night and correct the next.
 
 `sync_smaily` is the one job whose missed runs cannot be made up. Smaily reports
 what a mailing list holds *now* and has no endpoint for what it held last year,
@@ -59,6 +66,7 @@ identical EET/EEST offsets.
 | Tallinn | UTC (summer, EEST) | UTC (winter, EET) | Guard | Job |
 | --- | --- | --- | --- | --- |
 | **05:15** | `15 2 * * *` | `15 3 * * *` | `05` | `sync_ga4` |
+| **05:18** | `18 2 * * *` | `18 3 * * *` | `05` | `sync_ga4_period_users` |
 | **05:20** | `20 2 * * *` | `20 3 * * *` | `05` | `sync_smaily` |
 | **05:25** | `25 2 * * *` | `25 3 * * *` | `05` | `sync_smaily_campaigns` |
 | **05:30** | `30 2 * * *` | `30 3 * * *` | `05` | `sync_oigusloome_public` |

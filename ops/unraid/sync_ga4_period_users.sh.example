@@ -1,0 +1,113 @@
+#!/bin/bash
+#
+# DashKoda Google Analytics period user counts.
+#
+# GENERATED FILE — edit `ops/unraid/generate_examples.py` and re-run it.
+# The schedule is described once there; these examples and the documented times
+# are checked against each other by `tests/core/test_ops_wrappers.py`.
+#
+# Intended for the Unraid host's own scheduler. Copy this file, set the
+# deployment directory, make it executable, and schedule it. This repository
+# installs nothing and enables nothing.
+#
+#   cp sync_ga4_period_users.sh.example \
+#     /boot/config/plugins/user.scripts/sync_ga4_period_users.sh
+#   chmod +x /boot/config/plugins/user.scripts/sync_ga4_period_users.sh
+#
+# Run it by hand once before scheduling it, and check the exit code. The guard
+# below would otherwise skip it outside its own hour:
+#
+#   DASHKODA_FORCE=1 DASHKODA_DEPLOYMENT_DIRECTORY=/mnt/user/appdata/dashkoda \
+#     /boot/config/plugins/user.scripts/sync_ga4_period_users.sh; echo "exit=$?"
+#
+# Intended schedule — 05:18 every day, Europe/Tallinn.
+#
+# The pilot host cannot express Tallinn time: `/etc/localtime` is absent, so the
+# clock and crond both run on UTC. The job is installed as a PAIR of UTC entries
+# and the hour guard runs only the occurrence that is 05:18 in Tallinn:
+#
+#   18 2 * * * /boot/config/plugins/user.scripts/sync_ga4_period_users.sh &> /dev/null
+#   18 3 * * * /boot/config/plugins/user.scripts/sync_ga4_period_users.sh &> /dev/null
+#
+#   summer (EEST, UTC+3): the 02:18 UTC entry runs, the 03:18 one skips
+#   winter (EET,  UTC+2): the 03:18 UTC entry runs, the 02:18 one skips
+#
+# The skipped occurrence is a no-op. `Europe/Tallinn` is missing from that host's
+# trimmed zoneinfo, so the guard reads `Europe/Athens`, which has identical
+# EET/EEST offsets. On a host that really is on Europe/Tallinn, install a single
+# entry at `18 5 * * *` and the guard passes anyway.
+#
+# The whole chain runs 05:30–06:30, so every figure is fresh before 07:00.
+# `docs/operations-runbook.md` lists it in order.
+#
+# Three minutes after the reconciliation, because it resolves the period
+# presets against coverage and wants last night's day already published.
+# If the reconciliation overruns, this one resolves against coverage that
+# is a day short — the windows it fetches are then a day behind for one
+# night and correct again the next. It holds its own lock and blocks
+# nothing in the chain that follows.
+#
+# This is the one website figure that cannot be computed from the stored
+# daily rows. Users are distinct people, so a period's count is not the
+# sum of its days; it has to be asked of GA4 with the period as the query's
+# own date range.
+#
+# One request per selectable window — each period preset resolved against
+# coverage, plus each preset's comparison window, de-duplicated. On a
+# property with a few years of history that is roughly ten requests.
+#
+# Hand-picked custom ranges are not fetched and are not meant to be. The
+# card says the window was never asked rather than showing a number
+# belonging to a different period.
+#
+# The JSON is counts only: how many windows were asked, stored, unchanged
+# and unanswered. Never a date range, a property ID or a credential path.
+#
+# Expected exit codes:
+#
+#   0  counts were fetched, nothing had changed, or a successful dry run
+#   1  failed — the previously stored counts stay, and the cards keep
+#      showing them
+#   3  another run was still going
+#
+# This job takes its own PostgreSQL advisory lock, so it can neither block nor
+# be blocked by another feed. The flock below is host-side defence in depth
+# against two copies of this script overlapping.
+
+set -euo pipefail
+
+# Europe/Athens stands in for Europe/Tallinn: identical offsets, and present in
+# the trimmed zoneinfo where Tallinn is not.
+TALLINN_TZ="Europe/Athens"
+TARGET_HOUR="05"
+
+if [ "${DASHKODA_FORCE:-0}" != "1" ]; then
+  if [ "$(TZ="${TALLINN_TZ}" date +%H)" != "${TARGET_HOUR}" ]; then
+    exit 0
+  fi
+fi
+
+# Set this in the User Scripts environment, or edit the fallback below.
+DEPLOYMENT_DIRECTORY="${DASHKODA_DEPLOYMENT_DIRECTORY:-<DASHKODA_DEPLOYMENT_DIRECTORY>}"
+
+if [ ! -d "${DEPLOYMENT_DIRECTORY}" ]; then
+  echo "Deployment directory not found: ${DEPLOYMENT_DIRECTORY}" >&2
+  echo "Set DASHKODA_DEPLOYMENT_DIRECTORY or edit this script." >&2
+  exit 1
+fi
+
+cd "${DEPLOYMENT_DIRECTORY}"
+
+# Both Compose files are named explicitly when the deployment has a host
+# override. Bare `docker compose` would recreate `web` without the host's bind
+# mounts on a stack that was created from both.
+COMPOSE_FILES=(-f compose.yaml)
+if [ -f compose.unraid.yaml ]; then
+  COMPOSE_FILES+=(-f compose.unraid.yaml)
+fi
+
+# Targets the Compose service by name rather than a generated container name,
+# so a recreated container does not silently break the schedule.
+exec flock --nonblock /tmp/dashkoda-sync-ga4-period-users.lock \
+  docker compose "${COMPOSE_FILES[@]}" exec -T web \
+    python manage.py sync_ga4_period_users --json
