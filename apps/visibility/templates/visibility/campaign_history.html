@@ -25,10 +25,12 @@ Context: history, active_section
   back to the overview, so no separate return link is needed.
   {% endcomment %}
   <header class="flex min-w-0 flex-col gap-2">
+    {% comment %}
+    No subtitle. `Kõik Smailyst välja saadetud kampaaniad` said what the
+    section header immediately below it already says — `Kõik saadetised` — and
+    the heading names the objects in the table. Removed 2026-08-16.
+    {% endcomment %}
     <h1 class="text-2xl font-semibold tracking-tight text-text">Saadetud uudiskirjad</h1>
-    <p class="text-sm text-text-secondary">
-      Kõik Smailyst välja saadetud kampaaniad
-    </p>
   </header>
 
   {% include "visibility/partials/_mailings_nav.html" with active_section=active_section only %}
