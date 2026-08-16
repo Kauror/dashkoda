@@ -207,7 +207,7 @@ def test_the_product_page_names_the_page_its_rate_divides_by():
     assert "Sündmuse lehe vaatamised" in event
     assert "Registreerimisi / 100 vaatamist" in event
     assert "Tootelehe vaatamised" in document
-    assert "Soetamisi / 100 vaatamist" in document
+    assert "Oste / 100 vaatamist" in document
 
 
 def test_an_event_page_says_a_registration_is_not_an_attendee():

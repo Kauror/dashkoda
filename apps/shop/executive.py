@@ -32,7 +32,7 @@ reaches this dataset. The pillar's wording says `tellitud väärtus` and never
 `periods.resolve_period` counts back from Commerce coverage end. The source is a
 manual export that stops on a stated day, and a "last 30 days" measured from the
 reader's calendar would drift past the data and eventually select nothing —
-a pillar reading `0 soetatud` for a month nobody has imported. The pillar states
+a pillar reading `0 ostetud` for a month nobody has imported. The pillar states
 the export's own date beside its figures for the same reason.
 """
 
@@ -110,10 +110,10 @@ class ShopExecutive:
         if not self.has_headline:
             return ""
         if self.free_share is None:
-            return f"Mitte-sündmuse tooteid soetati {integer(self.units)} ühikut."
+            return f"Mitte-sündmuse tooteid osteti {integer(self.units)} ühikut."
         return (
             f"Tasuta tooted moodustasid {percent(self.free_share)} "
-            f"{integer(self.units)} soetatud ühikust."
+            f"{integer(self.units)} ostetud ühikust."
         )
 
 
@@ -205,7 +205,7 @@ def _with_signals(executive: ShopExecutive, coverage: ShopCoverage) -> ShopExecu
     signal = DomainSignal(
         key="shop-units",
         headline=(
-            f"Soetatud ühikute arv {'langes' if falling else 'kasvas'} "
+            f"Ostetud ühikute arv {'langes' if falling else 'kasvas'} "
             f"{percent(abs(change))} võrreldes eelmise sama pika perioodiga."
         ),
         evidence=(

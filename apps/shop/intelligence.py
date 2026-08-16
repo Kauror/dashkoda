@@ -180,10 +180,10 @@ def build_attention_matrix(rows, *, minimum_views: int) -> AttentionMatrix:
         buckets[key].append(row)
 
     labels = {
-        "high_high": "Palju vaatamisi, tugev soetamise määr",
-        "high_low": "Palju vaatamisi, nõrk soetamise määr",
-        "low_high": "Vähem vaatamisi, tugev soetamise määr",
-        "low_low": "Vähem vaatamisi, nõrk soetamise määr",
+        "high_high": "Palju vaatamisi, tugev ostmise määr",
+        "high_low": "Palju vaatamisi, nõrk ostmise määr",
+        "low_high": "Vähem vaatamisi, tugev ostmise määr",
+        "low_low": "Vähem vaatamisi, nõrk ostmise määr",
     }
     return AttentionMatrix(
         cells=tuple(
@@ -226,10 +226,10 @@ def build_signals(
         signals.append(
             Signal(
                 kind="weak_acquisition",
-                text=f"„{worst.title}“ saab tähelepanu, kuid soetusi on vähe.",
+                text=f"„{worst.title}“ saab tähelepanu, kuid oste on vähe.",
                 detail=(
                     f"{_thousands(worst.views)} vaatamist, "
-                    f"{_rate(worst.rate)} soetust 100 vaatamise kohta."
+                    f"{_rate(worst.rate)} ostu 100 vaatamise kohta."
                 ),
                 href=focus_query("nahtavus"),
             )
@@ -241,10 +241,10 @@ def build_signals(
         signals.append(
             Signal(
                 kind="strong_acquisition",
-                text=f"„{best.title}“ soetatakse vaatamiste kohta sageli.",
+                text=f"„{best.title}“ ostetakse vaatamiste kohta sageli.",
                 detail=(
                     f"{_thousands(best.views)} vaatamist, "
-                    f"{_rate(best.rate)} soetust 100 vaatamise kohta."
+                    f"{_rate(best.rate)} ostu 100 vaatamise kohta."
                 ),
                 href=focus_query("nahtavus"),
             )
@@ -256,7 +256,7 @@ def build_signals(
         signals.append(
             Signal(
                 kind="product_decline",
-                text=f"„{worst.title}“ soetati {_abs_units(worst.change)} võrra vähem.",
+                text=f"„{worst.title}“ osteti {_abs_units(worst.change)} võrra vähem.",
                 detail=(
                     f"{_thousands(int(worst.previous_units))} → "
                     f"{_thousands(int(worst.current_units))} ühikut."
@@ -288,7 +288,7 @@ def build_signals(
                 Signal(
                     kind="free_share",
                     text=(
-                        f"Tasuta soetuste osakaal {direction} "
+                        f"Tasuta ostude osakaal {direction} "
                         f"{_points(abs(movement))} protsendipunkti."
                     ),
                     detail=(
@@ -305,14 +305,14 @@ def build_signals(
             detail = ""
             if concentration.long_tail_count is not None:
                 detail = (
-                    f"80% soetustest tuleb {concentration.long_tail_count} tootest "
+                    f"80% ostudest tuleb {concentration.long_tail_count} tootest "
                     f"({concentration.population} seast)."
                 )
             signals.append(
                 Signal(
                     kind="concentration",
                     text=(
-                        f"Top 10 toodet moodustavad {_percent(concentration.top_share)} soetustest."
+                        f"Top 10 toodet moodustavad {_percent(concentration.top_share)} ostudest."
                     ),
                     detail=detail,
                     href=focus_query("tooted"),
@@ -327,7 +327,7 @@ def build_signals(
             Signal(
                 kind="units_trend",
                 text=(
-                    f"Soetused {direction} võrreldes eelmise sama pika perioodiga "
+                    f"Ostud {direction} võrreldes eelmise sama pika perioodiga "
                     f"{_percent(abs(units_percentage))}."
                 ),
                 href=focus_query("ostud"),

@@ -23,7 +23,11 @@ value are not the same list, and a single ranking would quietly answer only one.
     {% else %}
       {% include "dashboard/components/empty_state.html" with message="Selle perioodi kohta ei ole piisavalt punkte joone joonistamiseks." only %}
     {% endif %}
-    <p class="dk-meta">Tellitud väärtus on lõpetatud tellimuste summa käibemaksuta. See ei ole raamatupidamislik tulu ega laekumine.</p>
+      {% comment %}
+      The line that said this is not revenue moved to `Andmete kohta` on
+      2026-08-16. A euro total with no such line beside it is read as money
+      received, which is the one reading this figure must never be given.
+      {% endcomment %}
   </div>
 </section>
 
@@ -50,33 +54,18 @@ value are not the same list, and a single ranking would quietly answer only one.
     {% include "dashboard/components/section_header.html" with title="Suurima tellitud väärtusega tooted" heading_id="section-valueproduct" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "shop/_bars.html" with rows=overview.value_bars only %}
-      <p class="dk-meta">Need ei ole tingimata kõige rohkem soetatud tooted. Koguse järgi järjestuse leiab vaatest „Tooted“.</p>
+      <p class="dk-meta">Need ei ole tingimata kõige rohkem ostetud tooted. Koguse järgi järjestuse leiab vaatest „Tooted“.</p>
       {% if overview.value_concentration_note %}<p class="dk-meta">{{ overview.value_concentration_note }}</p>{% endif %}
     </div>
   </section>
 {% endif %}
 
-<section aria-labelledby="section-valueaverages" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Keskmised" heading_id="section-valueaverages" only %}
-  <div class="dk-section-body flex flex-col gap-3">
-    <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-      {% if overview.order_structure.has_per_order %}
-        <div>
-          <dt class="text-sm text-text-secondary">Keskmine tellitud väärtus tellimuse kohta</dt>
-          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.order_structure.value_per_order }}</dd>
-        </div>
-      {% endif %}
-      <div>
-        <dt class="text-sm text-text-secondary">Tellitud väärtus ühe soetatud ühiku kohta</dt>
-        <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.order_structure.value_per_unit }}</dd>
-      </div>
-    </dl>
-    {% if not overview.order_structure.has_per_order and overview.order_structure.withheld_note %}
-      <p class="dk-meta">{{ overview.order_structure.withheld_note }}</p>
-    {% endif %}
-    <p class="dk-meta">Ühiku kohta arvutatud väärtus on valitud tootevaliku aritmeetiline keskmine, mitte ühegi toote hind: tooteliikide segu muudab seda.</p>
-  </div>
-</section>
+{% comment %}
+`Keskmised` — value per order and value per acquired unit — left this view on
+2026-08-16. Both are still computed in `apps/shop/page.py`; nothing renders
+them. The per-unit figure was the one most easily misread: it is the mean of a
+product mix, not the price of anything.
+{% endcomment %}
 
 {% include "shop/_payment_mix.html" %}
 

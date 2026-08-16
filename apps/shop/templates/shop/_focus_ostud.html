@@ -13,7 +13,7 @@ that does not say so reads as a collapse at both ends.
 
 {# --- monthly, on the chosen metric --- #}
 <section aria-labelledby="section-months" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Soetamine ajas" heading_id="section-months" only %}
+  {% include "dashboard/components/section_header.html" with title="Ostmine ajas" heading_id="section-months" only %}
   <div class="dk-section-body flex flex-col gap-3">
     {% include "shop/_metric_switch.html" %}
     {% if overview.trend %}
@@ -27,7 +27,7 @@ that does not say so reads as a collapse at both ends.
 {# --- calendar years --- #}
 {% if overview.years %}
   <section aria-labelledby="section-years" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Soetatud aastate lõikes" heading_id="section-years" only %}
+    {% include "dashboard/components/section_header.html" with title="Ostetud aastate lõikes" heading_id="section-years" only %}
     <div class="dk-section-body flex flex-col gap-3">
       <ul class="flex min-w-0 flex-col gap-2">
         {% for year in overview.years %}
@@ -44,12 +44,11 @@ that does not say so reads as a collapse at both ends.
           </li>
         {% endfor %}
       </ul>
-      <p class="dk-meta">Osalised aastad on märgitud eraldi: neis ei kata imporditud ajalugu tervet kalendriaastat, seega ei ole nad täisaastatega võrreldavad.</p>
       <details class="text-sm text-text-secondary">
         <summary class="cursor-pointer text-text">Vaata andmeid</summary>
         <div class="mt-3 w-full min-w-0 overflow-x-auto">
           <table class="w-full border-collapse text-sm">
-            <caption class="sr-only">Soetamine ja tellitud väärtus aastate lõikes</caption>
+            <caption class="sr-only">Ostmine ja tellitud väärtus aastate lõikes</caption>
             <thead>
               <tr>
                 <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Aasta</th>
@@ -76,7 +75,7 @@ that does not say so reads as a collapse at both ends.
 {# --- product-type mix --- #}
 {% if overview.type_bars %}
   <section aria-labelledby="section-typemix" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Soetused tooteliigi järgi" heading_id="section-typemix" only %}
+    {% include "dashboard/components/section_header.html" with title="Ostud tooteliigi järgi" heading_id="section-typemix" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "shop/_bars.html" with rows=overview.type_bars only %}
       <p class="dk-meta">Ühikud ja väärtus liituvad tooteliikide vahel. Eri tellimuste arv ei liitu: üks tellimus võib sisaldada mitut tooteliiki ja kuuluks siis mitmesse ritta.</p>
@@ -87,7 +86,7 @@ that does not say so reads as a collapse at both ends.
 {# --- free vs paid over time --- #}
 {% if overview.free_paid_series_known %}
   <section aria-labelledby="section-freetrend" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Tasuta soetuste osakaal ajas" heading_id="section-freetrend" only %}
+    {% include "dashboard/components/section_header.html" with title="Tasuta ostude osakaal ajas" heading_id="section-freetrend" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "shop/_bars.html" with rows=overview.free_paid_series only %}
       <p class="dk-meta">Osakaal arvutatakse klassifitseeritud ühikutest. Määramata ühikud jäävad nimetajast välja, sest osakaal koguhulgast, mis sisaldab „ei tea“, ei kirjelda midagi.</p>
@@ -96,38 +95,10 @@ that does not say so reads as a collapse at both ends.
 {% endif %}
 
 {# --- order structure --- #}
-<section aria-labelledby="section-orderstructure" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Tellimuse struktuur" heading_id="section-orderstructure" only %}
-  <div class="dk-section-body flex flex-col gap-3">
-    {% if overview.order_structure.has_per_order %}
-      <dl class="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <div>
-          <dt class="text-sm text-text-secondary">Ühikuid tellimuse kohta</dt>
-          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.order_structure.units_per_order }}</dd>
-        </div>
-        <div>
-          <dt class="text-sm text-text-secondary">Tellitud väärtus tellimuse kohta</dt>
-          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.order_structure.value_per_order }}</dd>
-        </div>
-        <div>
-          <dt class="text-sm text-text-secondary">Tellitud väärtus ühiku kohta</dt>
-          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.order_structure.value_per_unit }}</dd>
-        </div>
-      </dl>
-      <p class="dk-meta">Tellimuse kohta arvutatud näitajad kasutavad eri tellimuste arvu. Ühiku kohta arvutatud väärtus on valitud tootevaliku keskmine, mitte toote hind.</p>
-    {% else %}
-      <dl class="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div>
-          <dt class="text-sm text-text-secondary">Tellitud väärtus ühiku kohta</dt>
-          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.order_structure.value_per_unit }}</dd>
-        </div>
-      </dl>
-      {% if overview.order_structure.withheld_note %}
-        <p class="dk-meta">{{ overview.order_structure.withheld_note }}</p>
-      {% endif %}
-    {% endif %}
-  </div>
-</section>
+{% comment %}
+`Tellimuse struktuur` — units per order, value per order, value per unit — left
+this view on 2026-08-16. The figures are still built; nothing renders them.
+{% endcomment %}
 
 {# --- payment composition --- #}
 {% include "shop/_payment_mix.html" %}

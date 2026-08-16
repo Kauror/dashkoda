@@ -91,7 +91,7 @@ FOCUSES: tuple[Focus, ...] = (
     Focus(
         key=FOCUS_PURCHASES,
         label="Ostud",
-        question="Kuidas soetamise aktiivsus ajas muutub?",
+        question="Kuidas ostmise aktiivsus ajas muutub?",
     ),
     Focus(
         key=FOCUS_PRODUCTS,
@@ -101,7 +101,7 @@ FOCUSES: tuple[Focus, ...] = (
     Focus(
         key=FOCUS_VISIBILITY,
         label="Nähtavus",
-        question="Mis saab tähelepanu, mis soetatakse ja kus on tõendatud võimalus?",
+        question="Mis saab tähelepanu, mis ostetakse ja kus on tõendatud võimalus?",
     ),
     Focus(
         key=FOCUS_VALUE,
@@ -124,7 +124,7 @@ def parse_focus(raw: str | None) -> Focus:
 # Trend metric
 # ---------------------------------------------------------------------------
 
-METRIC_UNITS = "soetatud"
+METRIC_UNITS = "ostetud"
 METRIC_ORDERS = "tellimused"
 METRIC_VALUE = "vaartus"
 METRIC_KEYS = (METRIC_UNITS, METRIC_ORDERS, METRIC_VALUE)
@@ -324,7 +324,7 @@ def period_options(active: ResolvedShopPeriod, **state) -> tuple[PeriodOption, .
 #:
 #: `SORT_UNITS` is also a query value. It is the default, so it is omitted from
 #: generated URLs, and `parse_sort` falls back to the default for anything it
-#: does not recognise — an old `?jarjesta=soetatud` link therefore still lands
+#: does not recognise — an old `?jarjesta=ostetud` link therefore still lands
 #: on this same ordering rather than erroring.
 SORT_UNITS = "ostetud"
 SORT_VALUE = "vaartus"

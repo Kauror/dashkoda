@@ -47,7 +47,6 @@ answer only one of them.
           </table>
         </div>
       </details>
-      <p class="dk-meta">Kategoriseerimata tooted on eraldi real „Kategooriata“, mitte välja jäetud. Vaatamised loetakse ostulehtede kaupa üks kord, seega ühist lehte jagavaid tooteid ei loeta kaks korda.</p>
     </div>
   </section>
 {% endif %}
@@ -60,7 +59,6 @@ answer only one of them.
       {% if overview.concentration_note %}<p class="text-sm text-text">{{ overview.concentration_note }}</p>{% endif %}
       {% if overview.long_tail_note %}<p class="text-sm text-text">{{ overview.long_tail_note }}</p>{% endif %}
       {% if overview.value_concentration_note %}<p class="text-sm text-text-secondary">{{ overview.value_concentration_note }}</p>{% endif %}
-      <p class="dk-meta">Koondumine on kirjeldus, mitte hinnang. Lepingunäidiste valik on oma olemuselt koondunud.</p>
     </div>
   </section>
 {% endif %}
@@ -92,7 +90,6 @@ answer only one of them.
           </div>
         </div>
       {% endif %}
-      <p class="dk-meta">Järjestatud absoluutse muutuse järgi, mitte protsendi järgi: ühelt neljale kasvanud toode ei ole perioodi lugu. „Uus perioodil“ tähendab, et eelmisel perioodil soetusi ei olnud — mitte et toode oleks uus.</p>
     </div>
   </section>
 {% endif %}
@@ -107,26 +104,12 @@ answer only one of them.
           <dt class="text-sm text-text-secondary">Tooteid valikus</dt>
           <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.catalogue.products }}</dd>
         </div>
-        <div>
-          <dt class="text-sm text-text-secondary">Hinnaga</dt>
-          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.catalogue.with_list_price }}</dd>
-        </div>
-        <div>
-          <dt class="text-sm text-text-secondary">Liikme hinnaga</dt>
-          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.catalogue.with_member_price }}</dd>
-        </div>
-        <div>
-          <dt class="text-sm text-text-secondary">Ostulehega</dt>
-          <dd class="text-metric font-semibold tabular-nums text-text">{{ overview.catalogue.with_acquisition_path }}</dd>
-        </div>
       </dl>
       {% include "shop/_bars.html" with rows=overview.catalogue.by_type only %}
       {% if overview.catalogue.listing_gate_open %}
         <p class="dk-meta">E-poes nähtavaid tooteid: {{ overview.catalogue.publicly_listed }}.</p>
       {% else %}
-        <p class="dk-meta">„E-poes nähtav“ ei ole näidatud: allikas ei ole kinnitanud, et Drupalis avaldatud toode on ka avalikus e-poes nimekirjas. Avaldatud tooteid on {{ overview.catalogue.published }}.</p>
       {% endif %}
-      <p class="dk-meta">See on viimase impordi hetkeseis, mitte ajalugu. Praegused hinnad ei selgita varasemat tellitud väärtust.</p>
     </div>
   </section>
 {% endif %}
