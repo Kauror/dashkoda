@@ -251,15 +251,10 @@ dashboard overview. They stay on the default focus and keep their ids;
             <dt class="text-sm text-text-secondary">Teemasid, kus liikmed andsid tagasisidet</dt>
             <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.with_feedback }}</dd>
           </div>
+          {# `Tagasiside mõõdetud` left on 2026-08-16; the figures are still built. #}
           <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
-            <dt class="text-sm text-text-secondary">Tagasiside mõõdetud</dt>
-            <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.tracked_topics }}</dd>
-            <p class="dk-meta">teemal; {{ page.feedback.measured_zero }} neist mõõdetud nulliga</p>
-          </div>
-          <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
-            <dt class="text-sm text-text-secondary">Liikmete tagasiside juhtumeid teemade lõikes</dt>
+            <dt class="text-sm text-text-secondary">Liikmete tagasiside kokku</dt>
             <dd class="text-xl font-semibold tabular-nums text-text">{{ page.feedback.feedback_instances|default_if_none:"—" }}</dd>
-            <p class="dk-meta">ei ole unikaalsete liikmete arv</p>
           </div>
         </dl>
         {% if page.focus == "ulevaade" %}
@@ -660,6 +655,18 @@ dashboard overview. They stay on the default focus and keep their ids;
     {% include "dashboard/components/section_header.html" with title="Andmete seis" heading_id="section-data-state" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "legal_work/partials/data_state.html" %}
+      {% comment %}
+      Moved here on 2026-08-16 from under `Liikmete tagasiside kokku`, whose own
+      caption went with the declutter. It matters more after that rename, not
+      less: `kokku` invites the figure to be read as a number of members, and it
+      is a number of feedback instances. One member commenting on six topics is
+      six.
+      {% endcomment %}
+      <p class="dk-meta">
+        Liikmete tagasiside on juhtumite arv teemade lõikes — see
+        <strong>ei ole unikaalsete liikmete arv</strong>. Üks liige, kes andis
+        tagasisidet kuuel teemal, on kuus juhtumit.
+      </p>
       {% if summary.has_data %}
         <dl class="flex flex-wrap gap-x-6 gap-y-2 border-t border-border pt-3 text-sm">
           <div class="flex items-center gap-1.5">
