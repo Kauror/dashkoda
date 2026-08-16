@@ -53,7 +53,6 @@ from . import analytics, attention, charts, commerce
 from .page import REGISTER_FOCUS
 from .public_links import attach_public_links
 from .selectors import (
-    NEAR_TERM_DAYS,
     YEAR_ALL,
     EventProgrammeSummary,
     count_events_starting_within,
@@ -422,7 +421,6 @@ def _changes(snapshot, *, year: int | None, today: date) -> tuple[Change, ...]:
                 value=integer(ytd_now),
                 change=signed_integer(ytd_delta) if ytd_delta else "muutumatu",
                 direction=_direction(ytd_delta),
-                note=f"sama periood {previous}. aastal",
             )
         )
 
@@ -461,13 +459,16 @@ def build_overview(snapshot, *, year: int | None, today: date) -> OverviewView:
     if year is None:
         period_words = "kogu programmis"
     elif year == today.year:
-        period_words = "sellel aastal"
+        period_words = "aasta algusest"
     else:
         period_words = f"{year}. aastal"
     headline = [
         Headline(
             value=integer(starting),
-            unit=f"sündmust järgmise {NEAR_TERM_DAYS} päeva jooksul",
+            # `kuu` rather than `{NEAR_TERM_DAYS} päeva` since 2026-08-16. The
+            # wording no longer derives from the constant, so if the window ever
+            # stops being thirty days this string has to change with it.
+            unit="sündmust järgmise kuu jooksul",
         ),
         Headline(value=integer(state.past), unit=f"sündmust toimunud {period_words}"),
     ]
@@ -530,12 +531,11 @@ def build_overview(snapshot, *, year: int | None, today: date) -> OverviewView:
                 prices.status,
                 payload_id="events-price-status",
                 title="Hinnastruktuur",
-                question="Kui suur osa programmist on tasuta ja kui suur tasuline?",
-                footnotes=(
-                    "Allika enda hinnaolek, mitte hinna puudumisest tuletatud järeldus. "
-                    "„Hind teadmata“ ei ole tasuta.",
-                    "Need on programmi planeeritud hinnad, mitte tehingud.",
-                ),
+                # Both notes moved to `Andmete kohta` on `/haldus/` on
+                # 2026-08-16, where the rest of Sündmused' provenance already
+                # lives. They were kept here in an earlier round precisely
+                # because they are not chrome, and that reasoning is unchanged —
+                # only the place a reader finds them.
                 empty_message="Hinnaolekut ei ole üheski kirjes.",
             )
             if prices.status.total

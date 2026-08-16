@@ -75,7 +75,7 @@ to the stylesheet build anyway.
 {% endif %}
 
 <section aria-labelledby="section-mix" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Mida korraldame?" heading_id="section-mix" description="Suurimad kategooriad valitud perioodil. Täispildi jaoks vaata „Formaadid ja teemad“." only %}
+  {% include "dashboard/components/section_header.html" with title="Mida korraldame?" heading_id="section-mix" only %}
   {% comment %}
   Two columns since 2026-08-15: the `Teema` preview was struck. `Formaadid ja
   teemad` still ranks every theme, and the link below goes there.
@@ -157,7 +157,6 @@ to the stylesheet build anyway.
         Said here rather than left to a reader's assumption: a page view is not
         a person, and the word "vaatamist" is doing real work.
         {% endcomment %}
-        <p class="dk-meta mt-3">Lehevaatamised, mitte inimesed: üks lugeja kahel korral on kaks vaatamist.</p>
       {% else %}
         {% include "dashboard/components/empty_state.html" with message="Ühelgi tulevasel sündmusel ei ole mõõdetud avalikku lehte." detail="Veebihuvi saab näidata ainult siis, kui sündmus on seotud koda.ee lehega, mida Google Analytics mõõdab." only %}
       {% endif %}
