@@ -14,7 +14,8 @@ they are absent, the section says so rather than leaving a gap.
 {# ---------------- Content mix ---------------- #}
 {% if page.content_mix.has_data %}
   <section aria-labelledby="section-sisujaotus" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Vaadatud sisu jaotus" heading_id="section-sisujaotus" description="Osakaal kõigi järjestatavaks sisuks loetud lehtede lehevaatamistest — kogu kodulehe liiklus on sellest suurem." only %}
+    {# description removed 2026-08-16 #}
+{% include "dashboard/components/section_header.html" with title="Vaadatud sisu jaotus" heading_id="section-sisujaotus" only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% if page.content_mix_chart %}
         {% include "dashboard/components/chart_figure.html" with chart=page.content_mix_chart only %}
@@ -58,34 +59,25 @@ they are absent, the section says so rather than leaving a gap.
 {# ---------------- Attention x engagement ---------------- #}
 {% if page.matrix_chart %}
   <section aria-labelledby="section-maatriks" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Tähelepanu ja kaasatus" heading_id="section-maatriks" description="Analüütiline rühmitus, mitte hinnang sisu kvaliteedile." only %}
+    {# description removed 2026-08-16 #}
+{% include "dashboard/components/section_header.html" with title="Tähelepanu ja kaasatus" heading_id="section-maatriks" only %}
     <div class="dk-section-body">
       {% include "dashboard/components/chart_figure.html" with chart=page.matrix_chart only %}
     </div>
   </section>
 {% endif %}
 
-{# ---------------- Concentration ---------------- #}
-{% if page.concentration.total_page_views %}
-  <section aria-labelledby="section-koondumine" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kui koondunud tähelepanu on" heading_id="section-koondumine" description="Kui suure osa sisu vaatamistest võtavad kõige loetumad lehed." only %}
-    <div class="dk-section-body">
-      <dl class="flex flex-wrap gap-x-8 gap-y-3">
-        {% for readout in page.concentration_readouts %}
-          <div class="flex min-w-0 flex-col gap-0.5">
-            <dt class="text-sm text-text-secondary">{{ readout.label }}</dt>
-            <dd class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ readout.value }}</dd>
-          </div>
-        {% endfor %}
-      </dl>
-    </div>
-  </section>
-{% endif %}
+{% comment %}
+`Kui koondunud tähelepanu on` left this view on 2026-08-16 — the same section
+name, and the same decision, as the one removed from Uudiste mõju that day.
+`page.concentration` and `page.concentration_readouts` are still built.
+{% endcomment %}
 
 {# ---------------- Language ---------------- #}
 {% if page.language.has_data %}
   <section aria-labelledby="section-keeled" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Lehevaatamised sisukeele järgi" heading_id="section-keeled" description="Näitab vaadatud lehe keeleversiooni, mitte külastaja rahvust, riiki ega eelistatud keelt." only %}
+    {# description removed 2026-08-16 #}
+{% include "dashboard/components/section_header.html" with title="Lehevaatamised sisukeele järgi" heading_id="section-keeled" only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% if page.language_chart %}
         {% include "dashboard/components/chart_figure.html" with chart=page.language_chart only %}

@@ -15,7 +15,8 @@ The form is an ordinary GET and works with no JavaScript.
 {% endcomment %}
 
 <section aria-labelledby="section-otsing" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Otsi lehte" heading_id="section-otsing" description="Otsi nime, aadressi või kleebitud Koda.ee lingi järgi. Otsing käib üle kõigi mõõdetud lehtede." only %}
+  {# description removed 2026-08-16 #}
+{% include "dashboard/components/section_header.html" with title="Otsi lehte" heading_id="section-otsing" only %}
   <div class="dk-section-body flex flex-col gap-4">
     <form method="get" action="" class="flex flex-wrap items-end gap-3">
       <input type="hidden" name="fookus" value="{{ page.focus.key }}">
