@@ -156,7 +156,11 @@ test("an unknown focus falls back to the overview rather than erroring", async (
   await page.goto("/epood/?fookus=ei-ole-olemas");
 
   await expect(page.getByRole("heading", { level: 1, name: "E-pood" })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: "Ülevaade" })).toBeVisible();
+  // The per-focus heading block went with the declutter; the active chip is
+  // what names the view now.
+  await expect(
+    page.locator('nav[aria-label="Vaade"] a[aria-current="page"]'),
+  ).toHaveText("Ülevaade");
 });
 
 test("changing the focus keeps the period and the product type", async ({ page }) => {

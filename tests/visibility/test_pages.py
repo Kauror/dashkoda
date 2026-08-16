@@ -96,7 +96,7 @@ def test_a_published_value_replaces_the_empty_slot(submit, viewer_client, today)
 
     page = body(viewer_client.get(reverse("home")))
 
-    assert "4200" in page
+    assert "4 200" in page
     assert f"{today.day}.{today:%m.%y}" in page
 
 
@@ -113,7 +113,7 @@ def test_the_band_carries_no_provenance_caption(submit, viewer_client):
 
     page = body(viewer_client.get(reverse("home")))
 
-    assert "4200" in page
+    assert "4 200" in page
     assert "Käsitsi sisestatud" not in page
     assert "Automaatselt kogutud" not in page
 
@@ -134,7 +134,7 @@ def test_a_typed_figure_is_never_worded_as_a_collected_one(submit, viewer_client
 
     page = body(viewer_client.get(reverse("home")))
 
-    assert "4200" in page
+    assert "4 200" in page
     for feed_word in ("sünkroonitud", "API-ga ühendatud", "automaatselt uuendatud"):
         assert feed_word not in page.lower()
 
@@ -160,7 +160,7 @@ def test_no_card_claims_an_automatic_feed(submit, viewer_client):
 
     band = channel_band(viewer_client.get(reverse("home"))).lower()
 
-    assert "4200" in band, "the band is expected to contain the published figure"
+    assert "4 200" in band, "the band is expected to contain the published figure"
     assert "sünkroon" not in band
     assert "api-ga ühendatud" not in band
     assert "automaatselt uuendatud" not in band
@@ -178,7 +178,7 @@ def test_a_stale_reading_is_marked_on_the_band(submit, viewer_client, days_ago):
     page = body(viewer_client.get(reverse("home")))
 
     assert "Vajab uuendamist" in page
-    assert "4200" in page, "a stale figure is still the last thing anybody counted"
+    assert "4 200" in page, "a stale figure is still the last thing anybody counted"
 
 
 def test_each_social_card_links_to_the_correct_public_page(submit, viewer_client):
@@ -270,7 +270,7 @@ def test_the_band_lists_each_newsletter_and_totals_none_of_them(submit, viewer_c
 
     for label in ("e-Teataja", "eNews", "e-Vestnik"):
         assert label in page
-    assert "1200" in page
+    assert "1 200" in page
     assert "800" in page
     assert "150" in page
     # 2150 is the sum. It would be the audience only if nobody were on two
@@ -283,7 +283,7 @@ def test_the_band_names_the_newsletters_nobody_has_entered(submit, viewer_client
 
     page = body(viewer_client.get(reverse("home")))
 
-    assert "1200" in page
+    assert "1 200" in page
     # Named as unentered rather than drawn as a zero.
     assert "Sisestamata" in page
     assert "eNews" in page
@@ -360,7 +360,7 @@ def test_the_social_cards_link_nowhere(submit, viewer_client):
 
     # The figures themselves are still there, and the outbound profile links —
     # which are a different thing — are untouched.
-    assert "4200" in page
+    assert "4 200" in page
     assert "https://www.facebook.com/" in page
 
 
@@ -497,7 +497,8 @@ def test_the_social_figures_still_exist_after_the_rename(submit, viewer_client, 
     facebook = next(r for r in summary.social if "Facebook" in r.label)
 
     assert facebook.value == 4200
-    assert "4200" in body(viewer_client.get(reverse("home")))
+    # Grouped on the way out: the card renders the measured integer as 4 200.
+    assert "4 200" in body(viewer_client.get(reverse("home")))
 
 
 def test_manual_entry_is_no_longer_a_primary_koduleht_action(submit, staff_client):

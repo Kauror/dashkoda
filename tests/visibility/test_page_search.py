@@ -406,8 +406,10 @@ def test_the_rendered_page_searches_when_asked(viewer_client, day):
     because every one of them called the builder directly.
 
     So this asserts through the view: the term must survive the request, and
-    the response must be in the other mode. The page is Koduleht now and the
-    search lives in its `Lehed` view, but the lesson is unchanged.
+    the response must be in the other mode. The explorer lives at the foot of
+    `Sisu ja lehed` now, whose own ranking legitimately names the busiest page
+    above the search — so the not-a-filtered-ranking half is asserted on the
+    results region, which is the surface the defect was about.
     """
     day(START, pages=(("/et/pood", 900), ("/et/liikmed/liikmemaks", 5)))
 
@@ -415,9 +417,10 @@ def test_the_rendered_page_searches_when_asked(viewer_client, day):
         reverse("visibility"), {"fookus": "lehed", "periood": "koik", "otsing": "liikmemaks"}
     ).content.decode()
 
-    assert "/et/liikmed/liikmemaks" in page
+    results = page.split("koduleht-otsingutulemused", 1)[1]
+    assert "/et/liikmed/liikmemaks" in results
     # Not a ranking with a filter over it: the busiest page is not in the answer.
-    assert "/et/pood" not in page
+    assert "/et/pood" not in results
     # And the box still holds what was typed, so the term is visible.
     assert 'value="liikmemaks"' in page
 
@@ -437,9 +440,12 @@ def test_the_rendered_page_carries_the_result_page_number(viewer_client, day):
     ).content.decode()
 
     assert "Lehekülg 2 / 2" in second
-    # Page two holds the tail of the ordering, not the head.
-    assert "/et/pood/toode-29" in second
-    assert "/et/pood/toode-00" not in second
+    # Page two holds the tail of the ordering, not the head. Scoped to the
+    # results region: the view's own ranking above the explorer may name the
+    # head pages on its own account.
+    results = second.split("koduleht-otsingutulemused", 1)[1]
+    assert "/et/pood/toode-29" in results
+    assert "/et/pood/toode-00" not in results
 
 
 def test_a_search_that_finds_nothing_still_offers_the_way_back(viewer_client, day):
