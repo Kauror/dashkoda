@@ -1741,7 +1741,15 @@ def seasonality_chart(by_year: dict[int, tuple[MonthlyValue, ...]]) -> ChartPayl
                     str(row["month"]): {
                         "title": f"{row['name']} {current_year}",
                         "rows": [
-                            {"label": "Liitus", "value": integer(row["value"]), "emphasis": False},
+                            # `Liitunud`, matching the readouts and the
+                            # reconciliation table. This is a label beside a
+                            # count, not the verb sense used in the cohort
+                            # chart's titles below.
+                            {
+                                "label": "Liitunud",
+                                "value": integer(row["value"]),
+                                "emphasis": False,
+                            },
                             {
                                 # Whole members in the tooltip; the table below
                                 # carries the unrounded average, which is where
