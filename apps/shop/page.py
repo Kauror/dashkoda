@@ -712,10 +712,6 @@ class ShopOverview:
         return self.focus == "nahtavus"
 
     @property
-    def is_value(self) -> bool:
-        return self.focus == "vaartus"
-
-    @property
     def has_rows(self) -> bool:
         return bool(self.products)
 

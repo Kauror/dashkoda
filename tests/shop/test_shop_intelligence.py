@@ -19,6 +19,8 @@ from apps.shop.intelligence import (
 from apps.shop.periods import (
     DEFAULT_FOCUS,
     FOCUS_PRODUCTS,
+    FOCUS_PURCHASES,
+    FOCUSES,
     METRIC_UNITS,
     METRIC_VALUE,
     build_query,
@@ -300,6 +302,21 @@ def test_the_period_direction_is_only_stated_when_nothing_specific_was_found():
 # ---------------------------------------------------------------------------
 # Focus and metric state
 # ---------------------------------------------------------------------------
+
+
+def test_the_retired_value_focus_lands_on_ostud_not_the_overview():
+    """`vaartus` merged into `Ostud` on 2026-08-16 and is still in shared links.
+
+    The failure this guards against is silent: an unknown key falls back to
+    `Ülevaade`, so leaving `vaartus` to fall through would answer a request for
+    value with the one view that does not carry it, and nothing would look
+    broken.
+    """
+    from apps.shop.periods import RETIRED_FOCUS_VALUE
+
+    assert parse_focus(RETIRED_FOCUS_VALUE).key == FOCUS_PURCHASES
+    assert parse_focus(RETIRED_FOCUS_VALUE) is not DEFAULT_FOCUS
+    assert RETIRED_FOCUS_VALUE not in {focus.key for focus in FOCUSES}
 
 
 def test_an_unknown_focus_lands_on_the_overview():

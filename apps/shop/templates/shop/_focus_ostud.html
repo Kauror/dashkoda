@@ -1,5 +1,8 @@
 {% comment %}
-`Ostud` — how acquisition activity develops over time.
+`Ostud` — how acquisition activity develops over time, in units and in euros.
+
+`Tellitud väärtus` merged into this view on 2026-08-16 at the owner's request;
+see the comment above its sections below.
 
 The long view lives here rather than on the overview: a manager wants the
 direction in five seconds, and an analyst wants the shape of six years. Putting
@@ -79,6 +82,56 @@ that does not say so reads as a collapse at both ends.
     <div class="dk-section-body flex flex-col gap-3">
       {% include "shop/_bars.html" with rows=overview.type_bars only %}
       <p class="dk-meta">Ühikud ja väärtus liituvad tooteliikide vahel. Eri tellimuste arv ei liitu: üks tellimus võib sisaldada mitut tooteliiki ja kuuluks siis mitmesse ritta.</p>
+    </div>
+  </section>
+{% endif %}
+
+{# --- the same cuts, measured in euros --- #}
+{% comment %}
+`Tellitud väärtus` was a focus of its own until 2026-08-16, when it merged into
+this one. Its first section was this view's first section: the same
+`overview.trend`, the same metric switch, the same empty state, under a
+different heading — `Tellitud väärtus ajas` was `Ostmine ajas` with the euro
+chip selected. Two names for one chart is what settled it.
+
+What came across is the three cuts that are genuinely about money, and they sit
+directly under their volume counterparts on purpose: the products taken most
+often and the products carrying the most ordered value are different lists, and
+that is only visible when the two rankings are next to each other.
+
+Every euro figure below is **ordered value excluding VAT** — unit price ×
+quantity over completed Commerce orders. Not revenue, not turnover, not money
+received: Koda.ee records no payment receipt, has no refund or cancellation
+concept, and roughly 77% of orders are invoices marked sent and never paid.
+That sentence lives in `Andmete kohta`, where it applies to every euro on the
+page rather than to one section of it.
+{% endcomment %}
+
+{% if overview.value_type_bars %}
+  <section aria-labelledby="section-valuetype" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Tellitud väärtus tooteliigi järgi" heading_id="section-valuetype" only %}
+    <div class="dk-section-body">
+      {% include "shop/_bars.html" with rows=overview.value_type_bars only %}
+    </div>
+  </section>
+{% endif %}
+
+{% if overview.value_category_bars %}
+  <section aria-labelledby="section-valuecategory" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Tellitud väärtus kategooria järgi" heading_id="section-valuecategory" only %}
+    <div class="dk-section-body">
+      {% include "shop/_bars.html" with rows=overview.value_category_bars only %}
+    </div>
+  </section>
+{% endif %}
+
+{% if overview.value_bars %}
+  <section aria-labelledby="section-valueproduct" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Suurima tellitud väärtusega tooted" heading_id="section-valueproduct" only %}
+    <div class="dk-section-body flex flex-col gap-3">
+      {% include "shop/_bars.html" with rows=overview.value_bars only %}
+      <p class="dk-meta">Need ei ole tingimata kõige rohkem ostetud tooted. Koguse järgi järjestuse leiab vaatest „Tooted“.</p>
+      {% if overview.value_concentration_note %}<p class="dk-meta">{{ overview.value_concentration_note }}</p>{% endif %}
     </div>
   </section>
 {% endif %}

@@ -362,10 +362,20 @@ than raising, so a link that outlives a rename still opens.
 | Focus | Answers |
 | --- | --- |
 | `ulevaade` | what is happening, and what deserves attention |
-| `ostud` | how acquisition activity develops over time |
+| `ostud` | how acquisition activity develops over time, in units and in euros |
 | `tooted` | which products and categories carry the shop |
 | `nahtavus` | what gets attention, what gets acquired, where the evidence supports acting |
-| `vaartus` | what value has been ordered, and what it is made of |
+
+`vaartus` was a fifth focus until 2026-08-16, when it merged into `ostud`. Its
+first section was `ostud`'s first section — the same `overview.trend` and the
+same metric switch, headed `Tellitud väärtus ajas` instead of `Ostmine ajas` —
+so the two views drew one chart under two names. The three cuts that are
+genuinely about money moved across and sit directly under their volume
+counterparts, which is what makes the difference between them visible.
+
+`parse_focus` resolves `vaartus` to `ostud` rather than letting it fall through
+to the overview, because a shared link asking for value would otherwise land on
+the one view that does not carry it.
 
 Every control composes through `periods.build_query`, so changing the focus
 keeps the period, product type, categories and search — and the URL stays
