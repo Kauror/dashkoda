@@ -15,7 +15,7 @@ import datetime as dt
 
 import pytest
 
-from apps.news import page
+from apps.news import analytics, page
 from apps.news.categories import NewsCategory
 from apps.news.measurement import resolve_reading
 from apps.news.periods import resolve_period
@@ -126,18 +126,28 @@ def test_category_performance_separates_output_from_fair_performance(ga4):
         views[extra.path] = {published: 20}
     ga4(views=views)
 
-    built = page.build_impact(
-        reading=resolve_reading("30", coverage=coverage()),
-        coverage=coverage(),
-        lens=page.LENS_MONTH,
+    # `Koja ja Sõprade uudised` left the page on 2026-08-16 and `build_impact`
+    # stopped composing it, so this asserts the selector that still exists and
+    # still holds the rule. The figures are raw here rather than formatted,
+    # which is the only difference from what the section used to render.
+    reading = resolve_reading("30", coverage=coverage())
+    cover = coverage()
+    cohorts = analytics.benchmark_cohorts(coverage=cover)
+    cohort_start = cover.latest - dt.timedelta(days=analytics.BENCHMARK_COHORT_DAYS - 1)
+    rows = analytics.category_performance(
+        cohorts=cohorts,
+        cohort_start=cohort_start,
+        cohort_end=cover.latest,
+        reading_start=reading.start,
+        reading_end=reading.end,
     )
-    by_key = {row.key: row for row in built["categories"]}
+    by_key = {row.key: row for row in rows}
 
-    assert by_key[NewsCategory.CHAMBER].published == "15"
-    assert by_key[NewsCategory.PARTNER].published == "12"
+    assert by_key[NewsCategory.CHAMBER].published == 15
+    assert by_key[NewsCategory.PARTNER].published == 12
     # Same median: publishing more did not make each article better read.
-    assert by_key[NewsCategory.CHAMBER].median == "20"
-    assert by_key[NewsCategory.PARTNER].median == "20"
+    assert by_key[NewsCategory.CHAMBER].median_first_month == 20
+    assert by_key[NewsCategory.PARTNER].median_first_month == 20
 
 
 # -- publishing ---------------------------------------------------------------

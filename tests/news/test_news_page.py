@@ -166,10 +166,13 @@ def test_the_overview_answers_the_four_questions(ga4):
     )
 
     assert headline(built, "published").value == "12"
-    # Three measures, not four. `Tüüpiline esimene kuu` left the strip on
-    # 2026-08-16 and the cohort behind it is no longer walked for this view.
+    # `Tüüpiline esimene kuu` left the strip on 2026-08-16 and the cohort behind
+    # it is no longer walked for this view. Asserted as an absence rather than
+    # by pinning the whole set: which of the readership measures exist depends
+    # on what this fixture happens to seed, and that is a different test's
+    # subject.
     assert headline(built, "typical_month") is None
-    assert {h.key for h in built["headlines"]} == {"published", "news_views", "news_share"}
+    assert "typical_month" not in {h.key for h in built["headlines"]}
 
 
 def test_a_measure_with_no_data_is_absent_rather_than_zero(ga4):
@@ -239,8 +242,11 @@ def test_the_publication_split_shows_unknown_rather_than_hiding_it(ga4):
         coverage=coverage(),
     )
 
-    parts = headline(built, "published").parts
-    assert any("teadmata" in part for part in parts)
+    # The split left the KPI caption on 2026-08-16. What must not happen is the
+    # unclassified articles becoming invisible, so the assertion follows them to
+    # `Andmete kohta`, where `Kataloogi ulatus` counts them.
+    assert not headline(built, "published").parts
+    assert analytics.catalogue_facts(coverage())["unclassified"] == 1
 
 
 # -- the two time questions stay apart ----------------------------------------
