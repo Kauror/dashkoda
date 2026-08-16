@@ -17,7 +17,7 @@ import pytest
 from django.urls import reverse
 from django.utils import timezone
 
-from apps.visibility.content_sections import SECTION_EVENTS, SECTION_NEWS
+from apps.visibility.content_sections import PARAM_CONTENT, SECTION_EVENTS, SECTION_NEWS
 from apps.visibility.ga4_selectors import search_pages
 from apps.visibility.models import Ga4DailySnapshot, Ga4PageDaily
 from apps.visibility.traffic_page import SEARCH_PER_PAGE, build_traffic_section
@@ -460,6 +460,55 @@ def test_a_search_that_finds_nothing_still_offers_the_way_back(viewer_client, da
     assert "Ühtegi lehte ei leitud." in page
     assert 'name="otsing"' in page
     assert "Tühjenda" in page
+
+
+# -- the content filter ------------------------------------------------------
+
+
+def test_the_content_filter_is_reachable_without_typing_a_url(viewer_client, day):
+    """The defect this closes: `sisu` worked and nothing offered it.
+
+    It was parsed, validated, narrowed the search and travelled as a hidden
+    field so a keystroke could not drop it — and no template rendered a control,
+    so the only way to set it was to type it into the address bar. Every
+    behavioural test passed throughout, because every one of them passed the
+    section in directly.
+
+    Asserted as links rather than by count: a chip that is not an anchor is not
+    a control a reader can use.
+    """
+    day(START, pages=(("/et/uudised/lugu", 90), ("/et/sundmused/koolitus", 40)))
+
+    page = viewer_client.get(
+        reverse("visibility"), {"fookus": "lehed", "periood": "koik"}
+    ).content.decode()
+
+    for label in ("Kõik lehed", "Uudised", "Sündmused", "Teenused"):
+        assert label in page, f"the content filter is missing {label}"
+    assert f"{PARAM_CONTENT}={SECTION_NEWS.key}" in page
+
+
+def test_choosing_a_section_narrows_the_search_and_keeps_the_term(viewer_client, day):
+    """The chips carry the whole query state, which is why they are built in Python."""
+    day(
+        START,
+        pages=(("/et/uudised/liikmemaks", 90), ("/et/sundmused/liikmemaks", 40)),
+    )
+
+    page = viewer_client.get(
+        reverse("visibility"),
+        {
+            "fookus": "lehed",
+            "periood": "koik",
+            "otsing": "liikmemaks",
+            PARAM_CONTENT: SECTION_NEWS.key,
+        },
+    ).content.decode()
+
+    assert "/et/uudised/liikmemaks" in page
+    assert "/et/sundmused/liikmemaks" not in page
+    # Switching section must not throw the term away.
+    assert "otsing=liikmemaks" in page
 
 
 # -- the selector's own contract ---------------------------------------------

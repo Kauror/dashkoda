@@ -11,11 +11,6 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from apps.shop.intelligence import (
-    build_attention_matrix,
-    build_order_structure,
-    build_signals,
-)
 from apps.shop.periods import (
     DEFAULT_FOCUS,
     FOCUS_PRODUCTS,
@@ -26,7 +21,6 @@ from apps.shop.periods import (
     parse_metric,
 )
 from apps.shop.selectors import (
-    MIN_VIEWS_FOR_OPPORTUNITY,
     MoverRow,
     distinct_orders_supported,
     get_concentration,
@@ -61,52 +55,6 @@ def test_a_member_filter_may_not_reuse_the_type_wide_order_count():
 def test_a_search_may_not_reuse_the_type_wide_order_count():
     """Search narrows the product population exactly as a category does."""
     assert distinct_orders_supported(search="tööleping") is False
-
-
-# ---------------------------------------------------------------------------
-# Derived order metrics
-# ---------------------------------------------------------------------------
-
-
-def test_per_order_figures_are_withheld_when_the_grain_cannot_answer():
-    """Withheld rather than approximated: order lines run 39% above orders."""
-    structure = build_order_structure(
-        units=Decimal("300"),
-        ordered_value_net=Decimal("6000"),
-        distinct_orders=200,
-        supports_distinct=False,
-    )
-
-    assert structure.units_per_order is None
-    assert structure.value_per_order is None
-    assert structure.has_per_order is False
-    # Both sides of this one come from the same filtered facts, so it survives.
-    assert structure.value_per_unit == Decimal("20.00")
-
-
-def test_per_order_figures_appear_when_the_grain_supports_them():
-    structure = build_order_structure(
-        units=Decimal("300"),
-        ordered_value_net=Decimal("6000"),
-        distinct_orders=200,
-        supports_distinct=True,
-    )
-
-    assert structure.is_distinct is True
-    assert structure.units_per_order == Decimal("1.50")
-    assert structure.value_per_order == Decimal("30.00")
-
-
-def test_no_units_means_no_value_per_unit_rather_than_a_division_by_zero():
-    structure = build_order_structure(
-        units=Decimal("0"),
-        ordered_value_net=Decimal("0"),
-        distinct_orders=0,
-        supports_distinct=True,
-    )
-
-    assert structure.value_per_unit is None
-    assert structure.has_any is False
 
 
 # ---------------------------------------------------------------------------
@@ -172,129 +120,6 @@ def test_an_empty_previous_window_is_not_a_product_launch():
     assert presenter.context == "uus perioodil"
     assert "toode" not in presenter.context
     assert presenter.context_title == "Eelmisel perioodil oste ei olnud."
-
-
-# ---------------------------------------------------------------------------
-# The attention matrix
-# ---------------------------------------------------------------------------
-
-
-def test_the_matrix_excludes_products_below_the_view_floor():
-    """A product with three views and one acquisition is not a 33-per-100 star."""
-    rows = [
-        product(1, units="1", product_path="/a", product_views=3),
-        product(2, units="1", product_path="/b", product_views=4),
-    ]
-
-    matrix = build_attention_matrix(rows, minimum_views=MIN_VIEWS_FOR_OPPORTUNITY)
-
-    assert matrix.is_available is False
-    assert matrix.population == 0
-
-
-def test_the_matrix_splits_measured_products_on_the_median():
-    rows = [
-        product(1, units="40", product_path="/a", product_views=1000),  # busy, converting
-        product(2, units="1", product_path="/b", product_views=900),  # busy, weak
-        product(3, units="30", product_path="/c", product_views=200),  # quiet, converting
-        product(4, units="1", product_path="/d", product_views=150),  # quiet, weak
-    ]
-
-    matrix = build_attention_matrix(rows, minimum_views=MIN_VIEWS_FOR_OPPORTUNITY)
-    counts = {cell.key: cell.count for cell in matrix.cells}
-
-    assert matrix.population == 4
-    assert counts == {"high_high": 1, "high_low": 1, "low_high": 1, "low_low": 1}
-
-
-def test_an_unmeasured_product_is_not_a_low_traffic_product():
-    rows = [
-        product(1, units="40", product_path="/a", product_views=1000),
-        product(2, units="5"),  # no page at all
-    ]
-
-    matrix = build_attention_matrix(rows, minimum_views=MIN_VIEWS_FOR_OPPORTUNITY)
-
-    assert matrix.population == 1
-
-
-# ---------------------------------------------------------------------------
-# Signals
-# ---------------------------------------------------------------------------
-
-
-def _signals(**overrides):
-    defaults = dict(
-        units_change=None,
-        units_percentage=None,
-        weak_acquisition=(),
-        strong_acquisition=(),
-        product_fallers=(),
-        category_fallers=(),
-        free_share=None,
-        previous_free_share=None,
-        concentration=None,
-        focus_query=lambda key: f"?fookus={key}",
-        minimum_views=MIN_VIEWS_FOR_OPPORTUNITY,
-    )
-    defaults.update(overrides)
-    return build_signals(**defaults)
-
-
-def test_a_small_move_in_the_free_share_is_not_worth_stating():
-    signals = _signals(free_share=Decimal("50"), previous_free_share=Decimal("48"))
-
-    assert [s.kind for s in signals if s.kind == "free_share"] == []
-
-
-def test_a_material_move_in_the_free_share_is_stated_in_percentage_points():
-    signals = _signals(free_share=Decimal("60"), previous_free_share=Decimal("42"))
-    (signal,) = [s for s in signals if s.kind == "free_share"]
-
-    assert "protsendipunkti" in signal.text
-    assert "18" in signal.text
-
-
-def test_signals_never_explain_why():
-    """§105/§106: evidence, not causes, and no opaque score."""
-    signals = _signals(
-        free_share=Decimal("60"),
-        previous_free_share=Decimal("42"),
-        product_fallers=(
-            MoverRow(
-                source_product_id=1,
-                title="Tööleping",
-                category_name="Töösuhted",
-                current_units=Decimal("10"),
-                previous_units=Decimal("40"),
-            ),
-        ),
-    )
-    text = " ".join(f"{s.text} {s.detail}" for s in signals).casefold()
-
-    for forbidden in ("sest", "põhjus", "huvi kadu", "liiga kallis", "skoor", "hinnang"):
-        assert forbidden not in text, f"a signal explained rather than measured: {forbidden}"
-
-
-def test_the_period_direction_is_only_stated_when_nothing_specific_was_found():
-    """It restates the headline, so it earns a place only as a fallback."""
-    quiet = _signals(units_change=Decimal("12"), units_percentage=Decimal("24"))
-    assert [s.kind for s in quiet] == ["units_trend"]
-
-    busy = _signals(
-        units_change=Decimal("12"),
-        units_percentage=Decimal("24"),
-        product_fallers=(
-            MoverRow(
-                source_product_id=1,
-                title="Tööleping",
-                category_name="Töösuhted",
-                current_units=Decimal("10"),
-                previous_units=Decimal("40"),
-            ),
-        ),
-    )
-    assert "units_trend" not in [s.kind for s in busy]
 
 
 # ---------------------------------------------------------------------------

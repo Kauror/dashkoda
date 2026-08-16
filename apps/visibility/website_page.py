@@ -46,7 +46,13 @@ from apps.core.query_state import parse_page as core_parse_page
 from apps.core.query_state import parse_search as core_parse_search
 
 from .content_performance import ContentPerformanceRow, describe_pages, paths_for_title
-from .content_sections import PARAM_CONTENT, ContentSection, all_index_paths, parse_section
+from .content_sections import (
+    CONTENT_SECTIONS,
+    PARAM_CONTENT,
+    ContentSection,
+    all_index_paths,
+    parse_section,
+)
 from .ga4_selectors import (
     Coverage,
     PageTotal,
@@ -210,6 +216,34 @@ class FocusOption:
     @property
     def label(self) -> str:
         return self.focus.label
+
+
+@dataclass(frozen=True)
+class SectionOption:
+    """One chip of the content filter on `Lehed`, with its link already built.
+
+    The `sisu` parameter has been read, validated and carried since the filter
+    was written: `_pages_view` narrows the search by it, `WebsiteQuery.build`
+    emits it, and the search form on `Lehed` holds it as a hidden field so a
+    keystroke cannot drop it. Nothing ever *set* it — no template rendered a
+    control — so it could only be reached by typing it into the address bar.
+
+    These are that control. Built here for the same reason `FocusOption` is:
+    the link carries the whole query state, and a template assembling one would
+    be the second place the page's URL grammar lived.
+    """
+
+    section: ContentSection
+    is_active: bool
+    query: str
+
+    @property
+    def key(self) -> str:
+        return self.section.key
+
+    @property
+    def label(self) -> str:
+        return self.section.label
 
 
 # ---------------------------------------------------------------------------
@@ -1222,6 +1256,9 @@ class WebsiteIntelligencePage:
     quality: tuple[WebsiteQualitySignal, ...] = ()
     quality_table: TableView | None = None
     section: ContentSection | None = None
+    #: The content filter's chips. Only `Lehed` renders them — it is the only
+    #: view `sisu` narrows.
+    section_options: tuple[SectionOption, ...] = ()
 
     @property
     def title(self) -> str:
@@ -1410,6 +1447,17 @@ def build_website_page(
         "comparison": comparison,
         "today": today or coverage.latest or date.today(),
         "section": section,
+        "section_options": tuple(
+            SectionOption(
+                section=option,
+                is_active=option.key == section.key,
+                # Changing the section resets the result page and keeps the
+                # term: narrowing a search to Uudised is still that search, and
+                # page four of the wider one is not a position in the narrower.
+                query=query.build(section="" if option.is_everything else option.key, page=1),
+            )
+            for option in CONTENT_SECTIONS
+        ),
     }
 
     if not period.has_window:
@@ -1750,6 +1798,7 @@ __all__ = [
     "QUADRANT_LABELS",
     "Focus",
     "FocusOption",
+    "SectionOption",
     "PageSearchResults",
     "SecondaryReadout",
     "TableRow",

@@ -18,6 +18,25 @@ The form is an ordinary GET and works with no JavaScript.
   {# description removed 2026-08-16 #}
 {% include "dashboard/components/section_header.html" with title="Otsi lehte" heading_id="section-otsing" only %}
   <div class="dk-section-body flex flex-col gap-4">
+    {% comment %}
+    The content filter. `sisu` has been read, validated and carried since it was
+    written — `_pages_view` narrows the search by it and the hidden field below
+    keeps it across a keystroke — but until 2026-08-16 no template rendered a
+    control for it, so the only way to set it was to type it into the address
+    bar. These chips are that control.
+
+    A link rather than a fourth hidden field, because switching section is a new
+    question and should not require pressing `Otsi`. Each carries the whole
+    query state, built in `website_page.SectionOption`.
+    {% endcomment %}
+    <nav aria-label="Sisu" class="flex flex-wrap gap-2">
+      {% for option in page.section_options %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="?{{ option.query }}#section-otsing"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+      {% endfor %}
+    </nav>
+
     <form method="get" action="" class="flex flex-wrap items-end gap-3">
       <input type="hidden" name="fookus" value="{{ page.focus.key }}">
       <input type="hidden" name="periood" value="{{ page.query.period }}">

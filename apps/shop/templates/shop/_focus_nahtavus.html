@@ -61,10 +61,11 @@ might be measured next month.
     </section>
   {% endif %}
 
-  {% if overview.matrix.is_available %}
-    {% comment %}
-    `Tähelepanu ja ostmine` — the four-quadrant split of products by views and
-    rate — left this view on 2026-08-16. `overview.matrix` is still built.
-    {% endcomment %}
-  {% endif %}
+  {% comment %}
+  `Tähelepanu ja ostmine` — the four-quadrant split of products by views and
+  rate — left this view on 2026-08-16. `build_attention_matrix` and the
+  `overview.matrix` field it filled followed it out of the code later the same
+  day; the `{% templatetag openblock %} if %}` that used to guard this block went with them, since it was
+  testing an attribute nothing sets.
+  {% endcomment %}
 {% endif %}
