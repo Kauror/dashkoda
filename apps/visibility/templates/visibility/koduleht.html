@@ -53,16 +53,17 @@ Four things are deliberate and should stay that way:
       </div>
     </section>
   {% else %}
+    {% comment %}
+    Three views since 2026-08-16. `liiklus` resolved into the overview it had
+    come to duplicate, and the `lehed` explorer lives at the foot of Sisu ja
+    lehed — both retired keys land on their inheritor in `parse_focus`.
+    {% endcomment %}
     {% if page.focus.key == "ulevaade" %}
       {% include "visibility/koduleht/_overview.html" with page=page only %}
-    {% elif page.focus.key == "liiklus" %}
-      {% include "visibility/koduleht/_traffic.html" with page=page only %}
     {% elif page.focus.key == "sisu" %}
       {% include "visibility/koduleht/_content.html" with page=page only %}
     {% elif page.focus.key == "kanalid" %}
       {% include "visibility/koduleht/_channels.html" with page=page only %}
-    {% elif page.focus.key == "lehed" %}
-      {% include "visibility/koduleht/_pages.html" with page=page only %}
     {% endif %}
   {% endif %}
 

@@ -4,13 +4,20 @@ The selectors say what is stored, `website_analytics` derives what it means, and
 this module decides what is shown, in what order, and — the part that matters
 most — **what is not shown because it could not be trusted**.
 
-## Five views, one measurement window
+## Three views, one measurement window
 
 `fookus` chooses the view and `periood` chooses the window, and the two are
 independent: changing what you are looking at never silently changes the period
 you are looking at it over. Every control is an ordinary GET link carrying the
 whole state, so a view is bookmarkable, shareable and reload-safe, and nothing
 here needs JavaScript to work.
+
+There were five. `Liiklus` retired on 2026-08-16 because it had become the
+overview minus two sections — the same KPI strip and the same trend chart,
+rendered from the same builders — and `Lehed` was a search box on an otherwise
+empty page. The overview inherited the weekday chart, the content view
+inherited the page explorer, and both retired keys resolve to the view that
+actually holds their content, so a saved link still answers its question.
 
 Each view builds only its own analysis. The overview does not run the movement
 query and the page explorer does not build the channel mix, because a dashboard
@@ -69,24 +76,18 @@ from .website_analytics import (
     WEEKDAY_NAMES,
     EngagementMatrix,
     PageMovementResult,
-    PeakDay,
-    TrafficConcentration,
     WebsiteChannelPerformance,
     WebsiteContentMix,
     WebsiteLanguageMix,
     WebsitePageDetail,
     WebsitePageMovement,
-    WebsiteQualitySignal,
     WebsiteTrafficSummary,
     get_channel_performance,
-    get_concentration,
     get_content_mix,
     get_engagement_matrix,
     get_language_mix,
     get_page_detail,
     get_page_movement,
-    get_peak_day,
-    get_quality_signals,
     get_traffic_summary,
     get_weekday_pattern,
     rank_channel_movement,
@@ -168,10 +169,9 @@ class Focus:
 
 FOCUSES: tuple[Focus, ...] = (
     Focus(key=FOCUS_OVERVIEW, label="Ülevaade", question="Kuidas Koda.ee-l läheb?"),
-    Focus(key=FOCUS_TRAFFIC, label="Liiklus", question="Kuidas kodulehe kasutus muutub?"),
     Focus(
         key=FOCUS_CONTENT,
-        label="Sisu",
+        label="Sisu ja lehed",
         question="Millised osad ja lehed tähelepanu saavad?",
     ),
     Focus(
@@ -179,21 +179,34 @@ FOCUSES: tuple[Focus, ...] = (
         label="Kanalid",
         question="Kust liiklus tuleb ja kui kaasatud see on?",
     ),
-    Focus(key=FOCUS_PAGES, label="Lehed", question="Kuidas läks ühel kindlal lehel?"),
 )
 
 DEFAULT_FOCUS = FOCUSES[0]
 
 _FOCUS_BY_KEY = {focus.key: focus for focus in FOCUSES}
 
+#: Retired views, each resolving to the view that inherited its content.
+#: `liiklus` had become the overview's own strip and trend under a second
+#: heading, and the overview took its weekday chart when it went; the page
+#: explorer that was `lehed` lives at the foot of `Sisu ja lehed`. An explicit
+#: map rather than the unknown-key fallback, because a bookmark asking for
+#: traffic answered with the one view that *didn't* carry it would look fine
+#: and be wrong — the same reasoning as the shop's `vaartus`.
+RETIRED_FOCUSES: dict[str, str] = {
+    FOCUS_TRAFFIC: FOCUS_OVERVIEW,
+    FOCUS_PAGES: FOCUS_CONTENT,
+}
+
 
 def parse_focus(raw: str | None) -> Focus:
     """The view asked for, or the overview. Never raises.
 
-    An unknown value is a rotted bookmark rather than an error, and the overview
-    is the view that answers the most without being asked.
+    A retired key lands on the view that inherited its content; an unknown
+    value is a rotted bookmark rather than an error, and the overview is the
+    view that answers the most without being asked.
     """
-    return _FOCUS_BY_KEY.get((raw or "").strip(), DEFAULT_FOCUS)
+    key = (raw or "").strip()
+    return _FOCUS_BY_KEY.get(RETIRED_FOCUSES.get(key, key), DEFAULT_FOCUS)
 
 
 @dataclass(frozen=True)
@@ -223,7 +236,7 @@ class SectionOption:
     """One chip of the content filter on `Lehed`, with its link already built.
 
     The `sisu` parameter has been read, validated and carried since the filter
-    was written: `_pages_view` narrows the search by it, `WebsiteQuery.build`
+    was written: `_content_view` narrows the search by it, `WebsiteQuery.build`
     emits it, and the search form on `Lehed` holds it as a hidden field so a
     keystroke cannot drop it. Nothing ever *set* it — no template rendered a
     control — so it could only be reached by typing it into the address bar.
@@ -793,16 +806,6 @@ def build_movement_table(
     )
 
 
-def build_concentration_readouts(
-    concentration: TrafficConcentration,
-) -> tuple[SecondaryReadout, ...]:
-    return (
-        SecondaryReadout(label="Top 5 osakaal", value=_share(concentration.top_5_share)),
-        SecondaryReadout(label="Top 10 osakaal", value=_share(concentration.top_10_share)),
-        SecondaryReadout(label="Järjestatud lehti", value=integer(concentration.ranked_pages)),
-    )
-
-
 def build_search_table(results: PageSearchResults, query: WebsiteQuery) -> TableView:
     """Search results, each row linking to that page's own analysis.
 
@@ -878,26 +881,6 @@ def build_detail_readouts(detail: WebsitePageDetail) -> tuple[SecondaryReadout, 
         SecondaryReadout(label="Mõõdetud päevi perioodil", value=integer(detail.days_seen))
     )
     return tuple(readouts)
-
-
-def build_quality_table(signals: tuple[WebsiteQualitySignal, ...]) -> TableView:
-    rows = tuple(
-        TableRow(
-            label=signal.label,
-            values=(
-                integer(signal.page_views) if signal.page_views is not None else "–",
-                _share(signal.share_of_page_views),
-                _relative(signal.relative_change),
-            ),
-            direction=_direction(signal.relative_change),
-        )
-        for signal in signals
-    )
-    return TableView(
-        caption="Tehnilised signaalid",
-        headers=("Signaal", "Lehevaatamised", "Osakaal kõigist", "Muutus"),
-        rows=rows,
-    )
 
 
 def build_secondary_readouts(summary: WebsiteTrafficSummary) -> tuple[SecondaryReadout, ...]:
@@ -1089,7 +1072,7 @@ def build_opportunities(
                 subject=_name(top.path),
                 evidence=evidence,
                 path=top.path,
-                query=query.build(focus=FOCUS_PAGES, detail=top.path, search="", page=1),
+                query=query.build(focus=FOCUS_CONTENT, detail=top.path, search="", page=1),
             )
         )
 
@@ -1108,7 +1091,7 @@ def build_opportunities(
                         f"kaasatus üle perioodi mediaani, vaatamisi alla selle."
                     ),
                     path=best.path,
-                    query=query.build(focus=FOCUS_PAGES, detail=best.path, search="", page=1),
+                    query=query.build(focus=FOCUS_CONTENT, detail=best.path, search="", page=1),
                 )
             )
 
@@ -1126,7 +1109,7 @@ def build_opportunities(
                         f"vaatamisi üle perioodi mediaani, kaasatust alla selle."
                     ),
                     path=busiest.path,
-                    query=query.build(focus=FOCUS_PAGES, detail=busiest.path, search="", page=1),
+                    query=query.build(focus=FOCUS_CONTENT, detail=busiest.path, search="", page=1),
                 )
             )
 
@@ -1220,7 +1203,6 @@ class WebsiteIntelligencePage:
     trend: WebsiteChart | None = None
     metric_options: tuple[tuple[str, str, bool, str], ...] = ()
     weekday: WebsiteChart | None = None
-    peak_day: PeakDay | None = None
 
     content_mix: WebsiteContentMix | None = None
     content_mix_table: TableView | None = None
@@ -1232,8 +1214,6 @@ class WebsiteIntelligencePage:
     falling_table: TableView | None = None
     matrix: EngagementMatrix | None = None
     matrix_chart: WebsiteChart | None = None
-    concentration: TrafficConcentration | None = None
-    concentration_readouts: tuple[SecondaryReadout, ...] = ()
     language: WebsiteLanguageMix | None = None
     language_table: TableView | None = None
     language_chart: WebsiteChart | None = None
@@ -1253,11 +1233,9 @@ class WebsiteIntelligencePage:
     detail_readouts: tuple[SecondaryReadout, ...] = ()
     detail_chart: WebsiteChart | None = None
 
-    quality: tuple[WebsiteQualitySignal, ...] = ()
-    quality_table: TableView | None = None
     section: ContentSection | None = None
-    #: The content filter's chips. Only `Lehed` renders them — it is the only
-    #: view `sisu` narrows.
+    #: The content filter's chips. Only `Sisu ja lehed` renders them — its
+    #: search is the surface `sisu` narrows, and its ranking follows.
     section_options: tuple[SectionOption, ...] = ()
 
     @property
@@ -1325,25 +1303,12 @@ class WebsiteIntelligencePage:
         return self.query.build(detail="")
 
     @property
-    def link_to_traffic(self) -> str:
-        return self.query.build(focus=FOCUS_TRAFFIC, page=1)
-
-    @property
     def link_to_content(self) -> str:
         return self.query.build(focus=FOCUS_CONTENT, page=1)
 
     @property
     def link_to_channels(self) -> str:
         return self.query.build(focus=FOCUS_CHANNELS, page=1)
-
-    @property
-    def link_to_pages(self) -> str:
-        """The explorer, cleared of any page a previous view had selected.
-
-        A "look at the pages" link is an invitation to search, not a return to
-        whatever single page the reader last opened from an opportunity card.
-        """
-        return self.query.build(focus=FOCUS_PAGES, detail="", search="", page=1)
 
     @property
     def coverage_status(self) -> tuple[str, str]:
@@ -1401,8 +1366,15 @@ def build_website_page(
     page: str | int | None = None,
     detail_path: str | None = None,
     today: date | None = None,
+    search_only: bool = False,
 ) -> WebsiteIntelligencePage:
-    """Read the stored history once and shape it for the requested view."""
+    """Read the stored history once and shape it for the requested view.
+
+    `search_only` is the htmx fragment's contract: just the base state and the
+    search results, none of the view's analysis. A keystroke re-renders only
+    the results region, and running the content mix, the movement and the
+    matrix to answer it would make typing cost what a page load costs.
+    """
     coverage = get_coverage()
     focus = parse_focus(focus_key)
     period = parse_period(period_key, coverage, raw_from=date_from, raw_to=date_to)
@@ -1467,16 +1439,19 @@ def build_website_page(
     previous_start = comparison.start if comparison.is_available else None
     previous_end = comparison.end if comparison.is_available else None
 
-    if focus.key == FOCUS_PAGES:
-        return _pages_view(
-            base, query, start, end, previous_start, previous_end, section, term, number
+    if search_only:
+        results = _page_search_results(term, start, end, section, number)
+        return WebsiteIntelligencePage(
+            **base,
+            search=results,
+            search_table=build_search_table(results, query) if results else None,
         )
     if focus.key == FOCUS_CHANNELS:
         return _channels_view(base, start, end, previous_start, previous_end, comparison)
     if focus.key == FOCUS_CONTENT:
-        return _content_view(base, query, start, end, previous_start, previous_end, comparison)
-    if focus.key == FOCUS_TRAFFIC:
-        return _traffic_view(base, start, end, previous_start, previous_end, comparison, metric)
+        return _content_view(
+            base, query, start, end, previous_start, previous_end, comparison, section, term, number
+        )
     return _overview(base, query, start, end, previous_start, previous_end, comparison, metric)
 
 
@@ -1571,6 +1546,14 @@ def _overview(base, query, start, end, previous_start, previous_end, comparison,
         ),
         trend=build_traffic_trend_chart(series, metric=metric),
         metric_options=_metric_options(query, metric),
+        # Inherited from the retired `Liiklus` view. The pattern itself refuses
+        # a window under eight weeks, so on the default month this is `None`
+        # and the overview stays exactly as short as it was.
+        weekday=(
+            build_weekday_chart(pattern, names=WEEKDAY_NAMES)
+            if (pattern := get_weekday_pattern(start=start, end=end))
+            else None
+        ),
         channels=top_channels,
         channel_table=build_channel_table(top_channels),
         channel_chart=(
@@ -1582,37 +1565,36 @@ def _overview(base, query, start, end, previous_start, previous_end, comparison,
     )
 
 
-def _traffic_view(base, start, end, previous_start, previous_end, comparison, metric):
-    """How overall use of the website is changing."""
-    summary, previous = _summaries(start, end, previous_start, previous_end)
-    series = get_traffic_series(start=start, end=end)
-    pattern = get_weekday_pattern(start=start, end=end)
-    quality = get_quality_signals(
+def _page_search_results(term, start, end, section, number) -> PageSearchResults | None:
+    """One search over the whole measured population, or `None` without a term.
+
+    The catalogues turn a title into paths; nothing here guesses one from a
+    slug, so a page DashKoda cannot name is still found by path.
+    """
+    if not term:
+        return None
+    matches, total = search_pages(
+        term=term,
         start=start,
         end=end,
-        previous_start=previous_start,
-        previous_end=previous_end,
-        total_page_views=summary.page_views,
+        extra_paths=paths_for_title(term),
+        prefix=section.prefixes,
+        limit=SEARCH_PER_PAGE,
+        offset=(number - 1) * SEARCH_PER_PAGE,
     )
-
-    return WebsiteIntelligencePage(
-        **base,
-        summary=summary,
-        previous_summary=previous,
-        headlines=build_headlines(
-            summary, previous, comparison, is_custom_period=base["period"].is_custom
-        ),
-        secondary=build_secondary_readouts(summary),
-        trend=build_traffic_trend_chart(series, metric=metric),
-        metric_options=_metric_options(base["query"], metric),
-        weekday=build_weekday_chart(pattern, names=WEEKDAY_NAMES) if pattern else None,
-        peak_day=get_peak_day(start=start, end=end),
-        quality=quality,
-        quality_table=build_quality_table(quality),
+    total_pages = max((total + SEARCH_PER_PAGE - 1) // SEARCH_PER_PAGE, 1)
+    return PageSearchResults(
+        term=term,
+        rows=describe_pages(matches, section=section),
+        total=total,
+        page_number=min(number, total_pages),
+        total_pages=total_pages,
     )
 
 
-def _content_view(base, query, start, end, previous_start, previous_end, comparison):
+def _content_view(
+    base, query, start, end, previous_start, previous_end, comparison, section, term, number
+):
     """Which parts of the site hold attention, and which pages are changing."""
     compare_pages = comparison.can_compare_pages
     mix = get_content_mix(
@@ -1627,8 +1609,6 @@ def _content_view(base, query, start, end, previous_start, previous_end, compari
         previous_start=previous_start if compare_pages else None,
         previous_end=previous_end if compare_pages else None,
     )
-    concentration = get_concentration(start=start, end=end)
-    section = base["section"]
     top = describe_pages(
         get_top_pages(
             start=start,
@@ -1660,6 +1640,29 @@ def _content_view(base, query, start, end, previous_start, previous_end, compari
     named_paths.update(page.path for page in matrix.pages[:MATRIX_DRAWN_LIMIT])
     titles = _titles_for(named_paths) if named_paths else {}
 
+    # The page explorer, inherited from the retired `Lehed` view. Search runs
+    # over the whole measured population rather than the ranking above it, and
+    # a selected page's own analysis renders at the foot of this view.
+    search_results = _page_search_results(term, start, end, section, number)
+
+    detail = None
+    detail_title = ""
+    detail_chart = None
+    detail_readouts: tuple[SecondaryReadout, ...] = ()
+    if query.detail:
+        detail = get_page_detail(
+            path=query.detail,
+            start=start,
+            end=end,
+            previous_start=previous_start,
+            previous_end=previous_end,
+        )
+        if detail is not None:
+            detail_title = _titles_for((detail.path,)).get(detail.path, detail.path)
+            series = get_page_series(path=detail.path, start=start, end=end)
+            detail_chart = build_traffic_trend_chart(series, metric="lehevaatamised")
+            detail_readouts = build_detail_readouts(detail)
+
     return WebsiteIntelligencePage(
         **base,
         content_mix=mix,
@@ -1684,14 +1687,18 @@ def _content_view(base, query, start, end, previous_start, previous_end, compari
         matrix_chart=build_engagement_matrix_chart(matrix, labels=titles, limit=MATRIX_DRAWN_LIMIT)
         if matrix.has_data
         else None,
-        concentration=concentration,
-        concentration_readouts=build_concentration_readouts(concentration),
         language=language,
         language_table=build_language_table(language),
         language_chart=build_language_chart(language) if language.has_data else None,
         opportunities=build_opportunities(
             movement=movement, matrix=matrix, channels=(), titles=titles, query=query
         ),
+        search=search_results,
+        search_table=build_search_table(search_results, query) if search_results else None,
+        detail=detail,
+        detail_title=detail_title,
+        detail_readouts=detail_readouts,
+        detail_chart=detail_chart,
     )
 
 
@@ -1727,59 +1734,6 @@ def _channels_view(base, start, end, previous_start, previous_end, comparison):
     )
 
 
-def _pages_view(base, query, start, end, previous_start, previous_end, section, term, number):
-    """The deep page explorer: search the whole population, then read one page."""
-    search_results = None
-    if term:
-        matches, total = search_pages(
-            term=term,
-            start=start,
-            end=end,
-            # The catalogues turn a title into paths; nothing here guesses one
-            # from a slug, so a page DashKoda cannot name is still found by path.
-            extra_paths=paths_for_title(term),
-            prefix=section.prefixes,
-            limit=SEARCH_PER_PAGE,
-            offset=(number - 1) * SEARCH_PER_PAGE,
-        )
-        total_pages = max((total + SEARCH_PER_PAGE - 1) // SEARCH_PER_PAGE, 1)
-        search_results = PageSearchResults(
-            term=term,
-            rows=describe_pages(matches, section=section),
-            total=total,
-            page_number=min(number, total_pages),
-            total_pages=total_pages,
-        )
-
-    detail = None
-    detail_title = ""
-    detail_chart = None
-    detail_readouts: tuple[SecondaryReadout, ...] = ()
-    if query.detail:
-        detail = get_page_detail(
-            path=query.detail,
-            start=start,
-            end=end,
-            previous_start=previous_start,
-            previous_end=previous_end,
-        )
-        if detail is not None:
-            detail_title = _titles_for((detail.path,)).get(detail.path, detail.path)
-            series = get_page_series(path=detail.path, start=start, end=end)
-            detail_chart = build_traffic_trend_chart(series, metric="lehevaatamised")
-            detail_readouts = build_detail_readouts(detail)
-
-    return WebsiteIntelligencePage(
-        **base,
-        search=search_results,
-        search_table=build_search_table(search_results, query) if search_results else None,
-        detail=detail,
-        detail_title=detail_title,
-        detail_readouts=detail_readouts,
-        detail_chart=detail_chart,
-    )
-
-
 __all__ = [
     "DEFAULT_FOCUS",
     "FOCUSES",
@@ -1809,7 +1763,6 @@ __all__ = [
     "WebsiteOpportunity",
     "WebsiteQuery",
     "build_channel_table",
-    "build_concentration_readouts",
     "build_detail_readouts",
     "build_headlines",
     "build_language_table",
@@ -1817,7 +1770,6 @@ __all__ = [
     "build_movement_table",
     "build_insights",
     "build_opportunities",
-    "build_quality_table",
     "build_search_table",
     "build_secondary_readouts",
     "build_website_page",

@@ -86,13 +86,19 @@ test("the focus navigation offers every view", async ({ page }) => {
   await openKoduleht(page);
 
   const views = page.getByRole("navigation", { name: "Vaade" });
-  for (const label of ["Ülevaade", "Liiklus", "Sisu", "Kanalid", "Lehed"]) {
+  for (const label of ["Ülevaade", "Sisu ja lehed", "Kanalid"]) {
     await expect(views.getByRole("link", { name: label, exact: true })).toBeVisible();
+  }
+  // The two retired views are not offered — their bookmarks resolve, their
+  // tabs are gone.
+  for (const label of ["Liiklus", "Lehed"]) {
+    await expect(views.getByRole("link", { name: label, exact: true })).toHaveCount(0);
   }
 });
 
 test("each focus view is a real URL that renders on its own", async ({ page }) => {
-  // Not an SPA: every view is bookmarkable, shareable and reload-safe.
+  // Not an SPA: every view is bookmarkable, shareable and reload-safe. The two
+  // retired keys stay in the list on purpose: a saved link must keep rendering.
   await signIn(page);
 
   for (const focus of ["ulevaade", "liiklus", "sisu", "kanalid", "lehed"]) {

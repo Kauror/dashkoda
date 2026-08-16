@@ -436,10 +436,11 @@ def test_the_old_address_carries_the_saved_state_into_the_view_that_answers_it(
 
 
 def test_a_saved_search_lands_in_the_page_explorer(viewer_client):
+    """The explorer lives at the foot of `Sisu ja lehed` since `lehed` retired."""
     response = viewer_client.get(f"{LEGACY_PAGE_URL}?otsing=liikmemaks")
 
     assert response.status_code == 302
-    assert "fookus=lehed" in response.url
+    assert "fookus=sisu" in response.url
     assert "otsing=liikmemaks" in response.url
 
 

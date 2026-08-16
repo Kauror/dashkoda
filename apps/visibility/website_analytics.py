@@ -38,7 +38,7 @@ from datetime import date
 from django.db.models import Case, Count, F, Max, Min, Q, Sum, Value, When
 from django.db.models.functions import Coalesce, ExtractIsoWeekDay
 
-from .content_ranking import ERROR_DOCUMENT_PREFIXES, LANGUAGES
+from .content_ranking import LANGUAGES
 from .content_sections import SECTION_EVENTS, SECTION_NEWS, SECTION_SERVICES, ContentSection
 from .ga4_paths import canonical_path
 from .ga4_selectors import current_channels, current_days, current_pages, only_rankable
@@ -238,31 +238,6 @@ def get_traffic_summary(*, start: date | None, end: date | None) -> WebsiteTraff
         sessions_with_engaged=totals["sessions_when_engaged"],
         sessions_with_seconds=totals["sessions_when_seconds"],
     )
-
-
-@dataclass(frozen=True)
-class PeakDay:
-    """The busiest measured day of a window, named rather than left as a maximum."""
-
-    day: date
-    sessions: int
-    page_views: int | None = None
-
-
-def get_peak_day(*, start: date | None, end: date | None) -> PeakDay | None:
-    """The single day with the most sessions. `None` when none were measured."""
-    if start is None or end is None:
-        return None
-    row = (
-        current_days()
-        .filter(report_date__gte=start, report_date__lte=end, sessions__isnull=False)
-        .order_by("-sessions", "report_date")
-        .values("report_date", "sessions", "page_views")
-        .first()
-    )
-    if not row:
-        return None
-    return PeakDay(day=row["report_date"], sessions=row["sessions"], page_views=row["page_views"])
 
 
 @dataclass(frozen=True)
@@ -847,43 +822,6 @@ def get_engagement_matrix(*, start: date, end: date) -> EngagementMatrix:
 
 
 # ---------------------------------------------------------------------------
-# Concentration
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class TrafficConcentration:
-    """How much of the content traffic the busiest few pages carry.
-
-    Denominator is rankable content page views, the same one the mix and the
-    ranking use, so the three figures reconcile.
-    """
-
-    top_5_share: float | None
-    top_10_share: float | None
-    total_page_views: int | None
-    ranked_pages: int
-
-
-def get_concentration(*, start: date, end: date) -> TrafficConcentration:
-    """Top-5 and top-10 share, from one grouped read of the ranked population."""
-    grouped = (
-        only_rankable(current_pages().filter(report_date__gte=start, report_date__lte=end))
-        .values("path")
-        .annotate(views=Sum("page_views"))
-        .order_by("-views", "path")
-    )
-    views = [row["views"] or 0 for row in grouped]
-    total = sum(views) or None
-    return TrafficConcentration(
-        top_5_share=_ratio(sum(views[:5]), total),
-        top_10_share=_ratio(sum(views[:10]), total),
-        total_page_views=total,
-        ranked_pages=len(views),
-    )
-
-
-# ---------------------------------------------------------------------------
 # Content language
 # ---------------------------------------------------------------------------
 
@@ -1002,103 +940,6 @@ def get_language_mix(
 
 
 # ---------------------------------------------------------------------------
-# Technical guardrails
-# ---------------------------------------------------------------------------
-
-#: Internal search prefixes, taken from the same registry the content ranking
-#: excludes by, so the two can never disagree about what a search path is.
-INTERNAL_SEARCH_PREFIXES: tuple[str, ...] = (
-    *(f"/{language}/search" for language in LANGUAGES),
-    "/search",
-)
-
-
-@dataclass(frozen=True)
-class WebsiteQualitySignal:
-    """One quiet guardrail: a measured count and its share of all page views.
-
-    Only families the exclusion registry names explicitly. Not every excluded
-    route is an error — the cart, Drupal node aliases and taxonomy listings are
-    ordinary working pages that simply are not content — and counting them here
-    would report a fault the site does not have.
-    """
-
-    key: str
-    label: str
-    page_views: int | None
-    previous_page_views: int | None = None
-    share_of_page_views: float | None = None
-
-    @property
-    def relative_change(self) -> float | None:
-        return _change(self.page_views, self.previous_page_views)
-
-
-def _prefix_filter(prefixes: Sequence[str], *, segment: bool) -> Q:
-    condition = Q()
-    for prefix in prefixes:
-        if segment:
-            condition |= Q(path=prefix) | Q(path__startswith=prefix + "/")
-        else:
-            # Error documents are anchored at the start rather than
-            # segment-matched, because GA4 records them with the failed address
-            # appended: `/404.html%3Fpage=/et/…`.
-            condition |= Q(path__startswith=prefix)
-    return condition
-
-
-def get_quality_signals(
-    *,
-    start: date,
-    end: date,
-    previous_start: date | None = None,
-    previous_end: date | None = None,
-    total_page_views: int | None = None,
-) -> tuple[WebsiteQualitySignal, ...]:
-    """Error-document and internal-search traffic, in one grouped query each."""
-    lower = previous_start or start
-    rows = current_pages().filter(report_date__gte=lower, report_date__lte=end)
-    compare = previous_start is not None and previous_end is not None
-
-    families = (
-        (
-            "vead",
-            "Veadokumentide vaatamised",
-            _prefix_filter(ERROR_DOCUMENT_PREFIXES, segment=False),
-        ),
-        (
-            "siseotsing",
-            "Siseotsingu lehevaatamised",
-            _prefix_filter(INTERNAL_SEARCH_PREFIXES, segment=True),
-        ),
-    )
-
-    aggregates = {}
-    for key, _label, condition in families:
-        aggregates[f"{key}_views"] = Sum(
-            "page_views", filter=condition & Q(report_date__gte=start, report_date__lte=end)
-        )
-        if compare:
-            aggregates[f"{key}_previous"] = Sum(
-                "page_views",
-                filter=condition
-                & Q(report_date__gte=previous_start, report_date__lte=previous_end),
-            )
-
-    totals = rows.aggregate(**aggregates)
-    return tuple(
-        WebsiteQualitySignal(
-            key=key,
-            label=label,
-            page_views=totals.get(f"{key}_views"),
-            previous_page_views=totals.get(f"{key}_previous"),
-            share_of_page_views=_ratio(totals.get(f"{key}_views"), total_page_views),
-        )
-        for key, label, _condition in families
-    )
-
-
-# ---------------------------------------------------------------------------
 # One page
 # ---------------------------------------------------------------------------
 
@@ -1197,7 +1038,6 @@ def get_page_detail(
 
 
 __all__ = [
-    "INTERNAL_SEARCH_PREFIXES",
     "LANGUAGE_LABELS",
     "MATRIX_DRAWN_LIMIT",
     "MIN_CHANNEL_SESSIONS_FLOOR",
@@ -1216,8 +1056,6 @@ __all__ = [
     "EngagementMatrix",
     "LanguageShare",
     "PageMovementResult",
-    "PeakDay",
-    "TrafficConcentration",
     "WeekdayAverage",
     "WebsiteChannelPerformance",
     "WebsiteContentMix",
@@ -1225,17 +1063,13 @@ __all__ = [
     "WebsitePageDetail",
     "WebsitePageEngagement",
     "WebsitePageMovement",
-    "WebsiteQualitySignal",
     "WebsiteTrafficSummary",
     "get_channel_performance",
-    "get_concentration",
     "get_content_mix",
     "get_engagement_matrix",
     "get_language_mix",
     "get_page_detail",
     "get_page_movement",
-    "get_peak_day",
-    "get_quality_signals",
     "get_traffic_summary",
     "get_weekday_pattern",
     "min_channel_sessions_for",
