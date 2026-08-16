@@ -210,20 +210,18 @@ def _headlines(snapshot, year: int) -> tuple[Headline, ...]:
 
     return (
         Headline(
-            label=f"{year}. aasta teemad",
+            label=f"{year}. aasta teemasid kokku",
             value=integer(topics),
-            note="registri enda aastajaotus",
         ),
         Headline(
-            label=f"{year}. aastal arvamusi välja läinud",
+            label=f"{year}. aastal arvamusi välja",
             value=integer(sent),
-            note=f"seisuga {snapshot.reporting_date:%d.%m.%Y}",
         ),
         Headline(
             label="Arvamuste muutus võrreldes eelmise aastaga",
             value=yoy.change or "–",
             note=(
-                f"{integer(sent_change.current)} vs {integer(sent_change.previous)} sama kuupäevani"
+                f"{integer(sent_change.current)} vs {integer(sent_change.previous)}"
                 if sent_change is not None
                 else ""
             ),
@@ -237,43 +235,32 @@ def _headlines(snapshot, year: int) -> tuple[Headline, ...]:
         Headline(
             label="Hetkel töös",
             value=integer(active),
-            note="aktiivseid teemasid",
+            note="Aktiivsed teemad hetkeseisuga",
         ),
     )
 
 
 def _secondary(snapshot, year: int) -> tuple[Headline, ...]:
-    """The smaller readouts, kept off the hero row.
+    """The one smaller readout, kept off the hero row.
 
-    Every one is a real measurement rather than a field that happened to exist.
-    Arrivals are clamped to the reporting date on both sides, so the figure
-    means the same thing every time the page is loaded.
+    It is a real measurement rather than a field that happened to exist.
+
+    `Sisse tulnud sel aastal` and `Tähtaeg 7 päeva jooksul` left on 2026-08-16,
+    and their selectors went with them: this function no longer calls
+    `topics_year_on_year` or `deadline_pressure`, because a figure nothing
+    renders is a query nobody needed. Both selectors are untouched and still
+    tested, and `deadline_pressure` still drives the `Lähenevad tähtajad`
+    insight from `_insights`.
     """
-    from apps.core.formatting import integer
-
-    arrivals = topics_year_on_year(snapshot)
     windows = {entry.year: entry for entry in response_window_by_year(snapshot)}
     this_year = windows.get(year)
-    pressure = deadline_pressure(snapshot)
 
-    readouts = [
-        Headline(
-            label="Sisse tulnud sel aastal",
-            value=integer(arrivals.current) if arrivals else "–",
-            note=f"seisuga {snapshot.reporting_date:%d.%m.%Y}",
-        ),
-        Headline(
-            label="Tähtaeg 7 päeva jooksul",
-            value=integer(pressure.due_within_7),
-            note="aktiivsetel teemadel",
-        ),
-    ]
+    readouts: list[Headline] = []
     if this_year is not None and this_year.median is not None:
         readouts.append(
             Headline(
                 label="Mediaan arvamuse esitamiseks antud päevi",
                 value=f"{this_year.median:.0f}",
-                note=f"{integer(this_year.eligible)} teemal mõõdetud",
             )
         )
     return tuple(readouts)
@@ -337,29 +324,6 @@ def _insights(snapshot, year: int) -> tuple[Insight, ...]:
                 detail=(
                     f"{integer(pressure.due_within_7)} aktiivsel teemal on tähtaeg "
                     "seitsme päeva jooksul."
-                ),
-            )
-        )
-    if pressure.overdue_pending:
-        found.append(
-            Insight(
-                label="Tähtaeg möödas, arvamus ootel",
-                detail=(
-                    f"{integer(pressure.overdue_pending)} avatud teemal on tähtaeg "
-                    "möödunud ja arvamus veel saatmata."
-                ),
-            )
-        )
-
-    stages = stage_breakdown(snapshot)
-    if stages.stages and stages.largest_share is not None:
-        top = stages.stages[0]
-        found.append(
-            Insight(
-                label="Aktiivse töö koondumine",
-                detail=(
-                    f"Suurim hetkeseis on „{top.label}“ {integer(top.count)} teemaga, "
-                    f"see on {stages.largest_share:.0f}% aktiivsetest teemadest."
                 ),
             )
         )

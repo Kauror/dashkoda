@@ -118,7 +118,7 @@ def test_an_unknown_focus_still_renders_the_overview(client, authenticate_viewer
 
     content = get(client, "midagi-muud")
 
-    assert "2026. aasta teemad" in content
+    assert "2026. aasta teemasid kokku" in content
 
 
 def test_the_navigation_marks_exactly_one_focus_as_current(client, authenticate_viewer, register):
@@ -147,8 +147,8 @@ def test_the_overview_carries_the_mandatory_headline_figures(client, authenticat
 
     content = get(client)
 
-    assert "2026. aasta teemad" in content
-    assert "2026. aastal arvamusi välja läinud" in content
+    assert "2026. aasta teemasid kokku" in content
+    assert "2026. aastal arvamusi välja" in content
     assert "Arvamuste muutus võrreldes eelmise aastaga" in content
     assert "Hetkel töös" in content
 
@@ -217,11 +217,18 @@ def test_no_member_response_rate_is_offered_anywhere(client, authenticate_viewer
 
 
 def test_the_feedback_view_states_what_it_is_not(client, authenticate_viewer, register):
+    """The caption moved to `Andmete seis` on 2026-08-16; the rule did not.
+
+    It matters more after that move, not less: the figure was renamed to
+    `Liikmete tagasiside kokku`, and `kokku` invites exactly the reading —
+    a count of members — that this sentence exists to refuse.
+    """
     authenticate_viewer(client)
 
     content = get(client, "tagasiside")
 
-    assert "ei ole unikaalsete liikmete arv" in content or "unikaalsete liikmetega" in content
+    assert "ei ole unikaalsete liikmete arv" in content
+    assert "Liikmete tagasiside kokku" in content
 
 
 def test_a_measured_zero_stays_distinct_from_an_untracked_row(

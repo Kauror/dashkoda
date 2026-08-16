@@ -127,7 +127,6 @@ def active_stage_chart(breakdown: StageBreakdown) -> ChartPayload:
     return ChartPayload(
         payload_id="legal-active-stages",
         title=f"Aktiivsed teemad hetkeseisu kaupa – kokku {integer(breakdown.total)}",
-        question="Kus asuvad praegu töös olevad teemad õigusloome protsessis?",
         option=option,
         table_headers=("Hetkeseis", "Teemasid", "Osakaal"),
         table_rows=tuple(
