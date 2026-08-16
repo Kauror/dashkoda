@@ -210,7 +210,7 @@ collapsed to make room for it.
 
 The overview card keeps its single headline figure and gains nothing.
 
-### The five views
+### The three views
 
 `fookus` chooses the question and `periood` chooses the window it is asked over,
 and the two are independent — changing one never silently changes the other.
@@ -220,13 +220,16 @@ bookmarkable, shareable and reload-safe without JavaScript.
 | `fookus` | Answers |
 | --- | --- |
 | `ulevaade` | how much traffic, whether it is changing, how engaged, what moved |
-| `liiklus` | the trend, the weekday pattern, the busiest day, technical signals |
-| `sisu` | the section mix, the ranking, what grew and fell, engagement, language |
+| `sisu` | the section mix, the ranking, what grew and fell, language — and the page explorer: search the whole measured population, then read one page |
 | `kanalid` | where sessions came from and how engaged each channel's were |
-| `lehed` | search the whole measured population, then read one page |
 
-An unknown value resolves to `ulevaade` rather than to an error, the same rule
-the period follows.
+There were five. `liiklus` retired on 2026-08-16 — it had become the overview's
+own strip and trend under a second heading, and the overview took its weekday
+chart when it went — and `lehed` was the page explorer on an otherwise empty
+view, so it lives at the foot of `Sisu ja lehed` now. Both retired keys resolve
+to the view that inherited their content, so a saved link keeps answering its
+question. An unknown value resolves to `ulevaade` rather than to an error, the
+same rule the period follows.
 
 ### What is shown, and what is refused
 
