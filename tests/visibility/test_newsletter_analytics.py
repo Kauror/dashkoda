@@ -317,6 +317,11 @@ def test_a_section_with_no_sends_has_nothing_to_show(viewer_client):
     single list had been read, so an account with three lists and no campaigns
     rendered a populated section listing sizes and nothing else. This section is
     about sends; with none, it says so.
+
+    It says so *inside the results region* since 2026-08-16 rather than in place
+    of the whole section. The search box and the type chips render either way —
+    the archive this section absorbed always drew its form, and hiding it would
+    have taken the search off a property that had collected nothing.
     """
     read(DAY)
 

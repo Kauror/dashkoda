@@ -74,5 +74,24 @@ offering to clear a search the reader had already typed away.
     </nav>
   {% endif %}
 {% else %}
-  {% include "dashboard/components/empty_state.html" with message="Ühtegi saadetud uudiskirja ei leitud." detail="Muuda otsingut või vali mõni teine tüüp." only %}
+  {% comment %}
+  Two empty states, because they are two different facts and only one of them
+  is the reader's doing.
+
+  A search or a type that matches nothing is a question with no answer, and the
+  advice is to change the question. **Nothing collected at all** is not that: no
+  wording about narrowing a search helps a property that has never synchronised,
+  and the sentence has to say collection starts from now rather than implying
+  nothing was ever sent.
+
+  It lives here rather than around the whole section. Hiding the section was how
+  the `Saadetised` merge nearly took the search box away from an empty property
+  — the archive page it absorbed always rendered its form — so the box stays and
+  this region carries the explanation, where a keystroke can replace it.
+  {% endcomment %}
+  {% if history.is_filtered or history.search %}
+    {% include "dashboard/components/empty_state.html" with message="Ühtegi saadetud uudiskirja ei leitud." detail="Muuda otsingut või vali mõni teine tüüp." only %}
+  {% else %}
+    {% include "dashboard/components/empty_state.html" with message="Andmed puuduvad." detail="Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist." only %}
+  {% endif %}
 {% endif %}
