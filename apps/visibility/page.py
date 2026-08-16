@@ -143,7 +143,7 @@ def _website_slot(status: Ga4ConnectionStatus, traffic: WebsiteTraffic) -> Chann
     return ChannelSlot(
         label=WEBSITE_LABEL,
         value=traffic.sessions,
-        unit="seanssi",
+        unit="külastust",
         secondary=secondary,
         as_of=traffic.period_end,
         # One of the two automated figures on this band, the other being the
@@ -227,8 +227,8 @@ def _social_slot(reading: MetricReading) -> ChannelSlot:
         value=reading.value,
         # No unit beside the figure. `Facebooki jälgijad · 12 230 jälgijat`
         # says "followers" twice; the card's own title is the unit. The website
-        # card keeps `seanssi` because sessions are not visits and its title
-        # does not say which of the two the number is.
+        # card keeps its `külastust` unit because its title does not say
+        # whether the number counts visits or page views.
         unit="",
         secondary=secondary,
         as_of=reading.as_of,

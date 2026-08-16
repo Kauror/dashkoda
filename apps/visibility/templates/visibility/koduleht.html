@@ -67,12 +67,12 @@ Four things are deliberate and should stay that way:
   {% endif %}
 
   {% comment %}
-  Outside the branch above on purpose. A page with nothing collected is exactly
-  when a reader most needs to know what is measured, what is missing and why the
-  page is empty — and it is the only place the operator's manual-entry link
-  lives now, so hiding it with the analysis would take that away too.
+  `Andmete kohta` used to sit here, outside the branch above, on every focus
+  view. It moved to `/haldus/` on 2026-08-16 along with the operator's
+  manual-entry link — see `visibility/admin/_data_about.html`. What a reader of
+  an *empty* page needs is still said: the empty state above names the source
+  and what has to happen before figures appear.
   {% endcomment %}
-  {% include "visibility/koduleht/_methodology.html" with page=page can_add_data=can_add_data only %}
 
 </div>
 {% endblock %}

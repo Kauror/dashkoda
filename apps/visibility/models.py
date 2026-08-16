@@ -432,14 +432,14 @@ class Ga4DailySnapshot(models.Model):
     )
     is_current_for_date = models.BooleanField(default=False, verbose_name="Kehtiv sel paeval")
 
-    sessions = models.PositiveIntegerField(null=True, blank=True, verbose_name="Seansid")
+    sessions = models.PositiveIntegerField(null=True, blank=True, verbose_name="Külastused")
     active_users = models.PositiveIntegerField(
         null=True, blank=True, verbose_name="Aktiivsed kasutajad"
     )
     new_users = models.PositiveIntegerField(null=True, blank=True, verbose_name="Uued kasutajad")
     page_views = models.PositiveIntegerField(null=True, blank=True, verbose_name="Lehevaatamised")
     engaged_sessions = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name="Kaasatud seansid"
+        null=True, blank=True, verbose_name="Kaasatud külastused"
     )
     user_engagement_seconds = models.PositiveIntegerField(
         null=True, blank=True, verbose_name="Kaasatuse kestus (s)"
@@ -609,9 +609,9 @@ class Ga4ChannelDaily(models.Model):
     )
     report_date = models.DateField(verbose_name="Aruandepaev")
     channel = models.CharField(max_length=120, verbose_name="Kanal")
-    sessions = models.PositiveIntegerField(verbose_name="Seansid")
+    sessions = models.PositiveIntegerField(verbose_name="Külastused")
     engaged_sessions = models.PositiveIntegerField(
-        null=True, blank=True, verbose_name="Kaasatud seansid"
+        null=True, blank=True, verbose_name="Kaasatud külastused"
     )
 
     class Meta:
@@ -1211,3 +1211,50 @@ class SmailyCampaignStats(models.Model):
 
     def delete(self, *args, **kwargs):
         raise VisibilityRecordImmutable("Smaily campaign statistics cannot be deleted.")
+
+
+class Ga4PeriodUsers(models.Model):
+    """Distinct users over one date range, as Google Analytics counted them.
+
+    Its own table rather than a column, because a period user count is not a
+    property of a day. `Ga4DailySnapshot.active_users` answers "how many people
+    on this Tuesday"; two Tuesdays' answers cannot be added, so the period
+    question has to be asked of GA4 separately with the whole range as its date
+    range. This is where those answers are kept.
+
+    **Not an immutable revision.** The daily snapshots are versioned because a
+    published figure that GA4 later revises must stay auditable. A row here is a
+    cache of one deterministic question and carries no published history: when
+    GA4's answer for a settled range changes, the newer answer simply replaces
+    it. `fetched_at` says how old the answer is.
+
+    A range whose row is absent has **not been asked**, which is different from
+    a range whose answer was zero. Callers distinguish the two: a missing row is
+    reported as an unfetched period and never drawn as a zero.
+    """
+
+    start_date = models.DateField(verbose_name="Algus")
+    end_date = models.DateField(verbose_name="Lõpp")
+    active_users = models.PositiveIntegerField(verbose_name="Kasutajad")
+    fetched_at = models.DateTimeField(auto_now=True, verbose_name="Päritud")
+
+    class Meta:
+        ordering = ("-end_date", "-start_date")
+        verbose_name = "Perioodi kasutajad"
+        verbose_name_plural = "Perioodi kasutajad"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["start_date", "end_date"],
+                name="ga4perioduser_one_row_per_range",
+            ),
+        ]
+        indexes = [
+            models.Index(fields=["start_date", "end_date"]),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.start_date:%d.%m.%Y}–{self.end_date:%d.%m.%Y}: {self.active_users}"
+
+    def clean(self):
+        if self.end_date < self.start_date:
+            raise ValidationError({"end_date": "Vahemiku lõpp ei saa olla enne algust."})

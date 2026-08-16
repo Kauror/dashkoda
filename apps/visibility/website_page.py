@@ -56,6 +56,7 @@ from .ga4_selectors import (
     get_traffic_series,
     search_pages,
 )
+from .period_users import get_period_users
 from .website_analytics import (
     MATRIX_DRAWN_LIMIT,
     QUADRANT_LABELS,
@@ -365,7 +366,62 @@ def _count_headline(
         label=label,
         value=integer(current),
         change=signed_percent(relative),
-        change_label=f"{signed_integer(current - previous)} võrreldes eelmise perioodiga",
+        change_label=f"{signed_integer(current - previous)} võrreldes eelneva perioodiga",
+        direction=_direction(relative),
+        comparison_period=comparison_period,
+    )
+
+
+def _users_headline(
+    *,
+    current: int | None,
+    previous: int | None,
+    can_compare: bool,
+    comparison_period: str,
+    unavailable_note: str,
+    is_custom: bool,
+) -> WebsiteHeadline:
+    """Distinct people over the window — the figure GA4's own dashboard leads with.
+
+    Unlike every other headline this one is not computed from the stored daily
+    rows, because it cannot be: users are distinct people and days do not add.
+    It is a cached answer to a separate GA4 query whose date range *is* this
+    period, and a window nobody asked that query for has **no** value here.
+
+    A hand-picked range is the ordinary case of that, and it says so. The
+    alternative — quietly showing the nearest preset's number, or summing the
+    daily counts — would put a figure under this label that answers a different
+    question, which is the one failure this metric is most likely to produce and
+    the hardest to notice.
+    """
+    label = "Kasutajad"
+    if current is None:
+        return WebsiteHeadline(
+            key="kasutajad",
+            label=label,
+            value="",
+            note=(
+                "Valitud vahemiku kohta ei ole kasutajate arvu päritud."
+                if is_custom
+                else "Ei ole veel päritud."
+            ),
+        )
+
+    if not can_compare or previous is None or not previous:
+        return WebsiteHeadline(
+            key="kasutajad",
+            label=label,
+            value=integer(current),
+            note=unavailable_note,
+        )
+
+    relative = (current - previous) / previous * 100
+    return WebsiteHeadline(
+        key="kasutajad",
+        label=label,
+        value=integer(current),
+        change=signed_percent(relative),
+        change_label=f"{signed_integer(current - previous)} võrreldes eelneva perioodiga",
         direction=_direction(relative),
         comparison_period=comparison_period,
     )
@@ -401,7 +457,7 @@ def _rate_headline(
         label=label,
         value=percent(current * 100),
         change=percentage_points(points),
-        change_label=f"{percentage_points(points)} võrreldes eelmise perioodiga",
+        change_label=f"{percentage_points(points)} võrreldes eelneva perioodiga",
         direction=_direction(points),
         comparison_period=comparison_period,
     )
@@ -415,7 +471,7 @@ def _duration_headline(
     comparison_period: str,
     unavailable_note: str,
 ) -> WebsiteHeadline:
-    label = "Keskmine kaasatuse aeg / seanss"
+    label = "Keskmine kaasatuse aeg / külastus"
     if current is None:
         return WebsiteHeadline(key="kaasatuse_aeg", label=label, value="")
 
@@ -443,12 +499,23 @@ def build_headlines(
     summary: WebsiteTrafficSummary,
     previous: WebsiteTrafficSummary | None,
     comparison: WebsiteComparison,
+    *,
+    is_custom_period: bool = False,
 ) -> tuple[WebsiteHeadline, ...]:
     """The primary figures, in the order a manager reads them.
+
+    `Kasutajad` leads, which is the order Google Analytics' own dashboard uses
+    and the order the Chamber reads them in. It is the one card here whose value
+    is fetched rather than derived — see `period_users` — so it is also the one
+    that can be blank while the rest of the strip is full.
 
     Four when engagement time was measured, three when it was not — the layout
     tolerates both, and a card for a metric this property does not carry would be
     an empty box claiming a measurement exists.
+
+    `Kaasatud külastuste osakaal` left this strip on 2026-08-16. It was not
+    dropped from the page: it is still one of the comparisons in `Perioodi
+    muutus`, and its definition is still in `Andmete kohta` on `/haldus/`.
     """
     can_compare = comparison.can_compare_site
     window = comparison.range_label
@@ -456,9 +523,17 @@ def build_headlines(
     previous = previous or WebsiteTrafficSummary(start=None, end=None, days=0)
 
     headlines = [
+        _users_headline(
+            current=get_period_users(summary.start, summary.end),
+            previous=get_period_users(comparison.start, comparison.end),
+            can_compare=can_compare,
+            comparison_period=window,
+            unavailable_note=note,
+            is_custom=is_custom_period,
+        ),
         _count_headline(
             key="seansid",
-            label="Seansid",
+            label="Külastused",
             current=summary.sessions,
             previous=previous.sessions,
             can_compare=can_compare,
@@ -470,15 +545,6 @@ def build_headlines(
             label="Lehevaatamised",
             current=summary.page_views,
             previous=previous.page_views,
-            can_compare=can_compare,
-            comparison_period=window,
-            unavailable_note=note,
-        ),
-        _rate_headline(
-            key="kaasatuse_maar",
-            label="Kaasatud seansside osakaal",
-            current=summary.engagement_rate,
-            previous=previous.engagement_rate,
             can_compare=can_compare,
             comparison_period=window,
             unavailable_note=note,
@@ -496,6 +562,31 @@ def build_headlines(
             )
         )
     return tuple(headlines)
+
+
+def build_unstripped_measures(
+    summary: WebsiteTrafficSummary,
+    previous: WebsiteTrafficSummary | None,
+    comparison: WebsiteComparison,
+) -> tuple[WebsiteHeadline, ...]:
+    """Measures that are still computed but no longer carry a card.
+
+    `Kaasatud külastuste osakaal` left the KPI strip on 2026-08-16 and did not
+    leave the page: it is still one of the movements in `Perioodi muutus`, and
+    its definition is still in `Andmete kohta`. It is built here rather than in
+    `build_headlines` so that nothing renders it as a card by accident.
+    """
+    previous = previous or WebsiteTrafficSummary(start=None, end=None, days=0)
+    rate = _rate_headline(
+        key="kaasatuse_maar",
+        label="Kaasatud külastuste osakaal",
+        current=summary.engagement_rate,
+        previous=previous.engagement_rate,
+        can_compare=comparison.can_compare_site,
+        comparison_period=comparison.range_label,
+        unavailable_note=_comparison_note(comparison),
+    )
+    return (rate,) if rate is not None else ()
 
 
 def _comparison_note(comparison: WebsiteComparison) -> str:
@@ -626,9 +717,9 @@ def build_channel_table(channels: tuple[WebsiteChannelPerformance, ...]) -> Tabl
         caption="Kanalid",
         headers=(
             "Kanal",
-            "Seansid",
+            "Külastused",
             "Osakaal",
-            "Kaasatud seansid",
+            "Kaasatud külastused",
             "Kaasatuse määr",
             "Muutus",
             "Suhteline",
@@ -789,23 +880,25 @@ def build_secondary_readouts(summary: WebsiteTrafficSummary) -> tuple[SecondaryR
     if summary.views_per_session is not None:
         readouts.append(
             SecondaryReadout(
-                label="Lehevaatamisi seansi kohta",
+                label="Lehevaatamisi külastuse kohta",
                 value=f"{summary.views_per_session:.1f}".replace(".", ","),
-                note="Ei ole sama mis erinevate lehtede arv.",
             )
         )
     if summary.peak_active_users is not None:
-        when = (
-            f" ({long_date(summary.peak_active_users_on)})" if summary.peak_active_users_on else ""
-        )
         readouts.append(
             SecondaryReadout(
-                label="Tipppäeva aktiivsed kasutajad",
-                value=integer(summary.peak_active_users),
+                label="Kõige aktiivsem päev",
+                # The unit rides with the figure here. The label no longer says
+                # `kasutajad`, and this readout now sits under a top-row card
+                # that *is* a period user count — an unlabelled 443 beside it
+                # would read as a second, smaller answer to the same question.
+                value=f"{integer(summary.peak_active_users)} kasutajat",
                 note=(
-                    f"Kõige aktiivsem üksik päev{when}. "
-                    "Perioodi kasutajate arv ei ole päevade summa."
-                ),
+                    f"{long_date(summary.peak_active_users_on)}. "
+                    if summary.peak_active_users_on
+                    else ""
+                )
+                + "Perioodi kasutajate arv ei ole päevade summa.",
             )
         )
     return tuple(readouts)
@@ -835,12 +928,34 @@ def build_insights(
     headlines: tuple[WebsiteHeadline, ...],
     channels: tuple[WebsiteChannelPerformance, ...],
     mix: WebsiteContentMix | None,
+    *,
+    unstripped: tuple[WebsiteHeadline, ...] = (),
 ) -> tuple[WebsiteInsight, ...]:
     """Three or four movements worth stating, largest first.
 
     Only signals whose comparison survived the coverage check reach here, because
     a headline with no delta has nothing to say about change.
+
+    `unstripped` is for measures that are still measured and still worth stating
+    as a movement, but no longer have a card in the KPI strip. The engagement
+    rate is the first of them: it left the strip on 2026-08-16, and because this
+    function derives its labels *from* the strip, dropping the card would
+    otherwise have deleted the movement too — silently, since nothing else
+    mentions it.
     """
+    # Insertion order decided which movements survived the cap below, which is
+    # how adding `Kasutajad` to the strip silently truncated the engagement rate
+    # out of this section: five measures, four places, and the rate appended
+    # last. The order is stated instead. Average engagement time is deliberately
+    # last of the five — it moves least and explains least — so the four that
+    # get printed are the counts, the users and the rate.
+    priority = ("kasutajad", "seansid", "lehevaatamised", "kaasatuse_maar", "kaasatuse_aeg")
+    measures = sorted(
+        (headline for headline in (*headlines, *unstripped) if headline.has_change),
+        key=lambda headline: (
+            priority.index(headline.key) if headline.key in priority else len(priority)
+        ),
+    )
     insights: list[WebsiteInsight] = [
         WebsiteInsight(
             label=headline.label,
@@ -848,8 +963,7 @@ def build_insights(
             direction=headline.direction,
             detail=headline.change_label,
         )
-        for headline in headlines
-        if headline.has_change
+        for headline in measures
     ]
 
     leader = next((channel for channel in channels if channel.share is not None), None)
@@ -859,7 +973,7 @@ def build_insights(
                 label=f"Suurima kanali osakaal — {leader.channel}",
                 value=percentage_points(leader.share_change_points),
                 direction=_direction(leader.share_change_points),
-                detail=f"{percent(leader.share * 100)} kõigist seanssidest.",
+                detail=f"{percent(leader.share * 100)} kõigist külastustest.",
             )
         )
 
@@ -1338,7 +1452,9 @@ def _metric_options(query: WebsiteQuery, active: str):
 def _overview(base, query, start, end, previous_start, previous_end, comparison, metric):
     """The first screen: answers before the reader interacts with anything."""
     summary, previous = _summaries(start, end, previous_start, previous_end)
-    headlines = build_headlines(summary, previous, comparison)
+    headlines = build_headlines(
+        summary, previous, comparison, is_custom_period=base["period"].is_custom
+    )
 
     series = get_traffic_series(start=start, end=end)
     channels = get_channel_performance(
@@ -1396,7 +1512,12 @@ def _overview(base, query, start, end, previous_start, previous_end, comparison,
         previous_summary=previous,
         headlines=headlines,
         secondary=build_secondary_readouts(summary),
-        insights=build_insights(headlines, top_channels, mix),
+        insights=build_insights(
+            headlines,
+            top_channels,
+            mix,
+            unstripped=build_unstripped_measures(summary, previous, comparison),
+        ),
         opportunities=build_opportunities(
             movement=movement, matrix=matrix, channels=top_channels, titles=titles, query=query
         ),
@@ -1430,7 +1551,9 @@ def _traffic_view(base, start, end, previous_start, previous_end, comparison, me
         **base,
         summary=summary,
         previous_summary=previous,
-        headlines=build_headlines(summary, previous, comparison),
+        headlines=build_headlines(
+            summary, previous, comparison, is_custom_period=base["period"].is_custom
+        ),
         secondary=build_secondary_readouts(summary),
         trend=build_traffic_trend_chart(series, metric=metric),
         metric_options=_metric_options(base["query"], metric),

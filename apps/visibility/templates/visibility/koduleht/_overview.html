@@ -6,9 +6,10 @@ whether it is rising, how engaged it is, what changed, and only then the
 drawings. There is no channel-card strip and no twenty-row table on this screen;
 both belong to a focus view, and both used to be the first thing a manager saw.
 
-Nothing here is a composite index and nothing is generated text. `Mis muutus?`
-is the set of comparisons that survived the coverage check, and `Võimalused`
-is four deterministic rules stated with the measurements that triggered them.
+Nothing here is a composite index and nothing is generated text. `Perioodi
+muutus` is the set of comparisons that survived the coverage check, and
+`Huvitavat` is four deterministic rules stated with the measurements that
+triggered them.
 {% endcomment %}
 
 {# ---------------- Primary figures ---------------- #}
@@ -19,10 +20,10 @@ is four deterministic rules stated with the measurements that triggered them.
   </div>
 </section>
 
-{# ---------------- Mis muutus? ---------------- #}
+{# ---------------- Perioodi muutus ---------------- #}
 {% if page.insights %}
   <section aria-labelledby="section-muutus" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-muutus" description="Võrdlus vahetult eelneva sama pikkusega perioodiga." only %}
+    {% include "dashboard/components/section_header.html" with title="Perioodi muutus" heading_id="section-muutus" only %}
     <div class="dk-section-body">
       <dl class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {% for insight in page.insights %}
@@ -43,7 +44,7 @@ is four deterministic rules stated with the measurements that triggered them.
 {# ---------------- Main traffic trend ---------------- #}
 {% if page.trend %}
   <section aria-labelledby="section-trend" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Liiklus ajas" heading_id="section-trend" only %}
+    {% include "dashboard/components/section_header.html" with title="Kodulehe liiklus" heading_id="section-trend" only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% include "visibility/koduleht/_metric_switch.html" with options=page.metric_options only %}
       {% include "dashboard/components/chart_figure.html" with chart=page.trend only %}
@@ -54,7 +55,7 @@ is four deterministic rules stated with the measurements that triggered them.
 {# ---------------- Kust tullakse ---------------- #}
 {% if page.channels %}
   <section aria-labelledby="section-kust" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kust tullakse" heading_id="section-kust" description="Suurimad kanalid ja nende osakaal kogu kodulehe seanssidest." only %}
+    {% include "dashboard/components/section_header.html" with title="Kust tullakse" heading_id="section-kust" only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% if page.channel_chart %}
         {% include "dashboard/components/chart_figure.html" with chart=page.channel_chart only %}
@@ -64,10 +65,10 @@ is four deterministic rules stated with the measurements that triggered them.
   </section>
 {% endif %}
 
-{# ---------------- Mida vaadatakse ---------------- #}
+{# ---------------- Enim külastatud lehed ---------------- #}
 {% if page.top_pages %}
   <section aria-labelledby="section-mida" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Mida vaadatakse" heading_id="section-mida" description="Enim vaadatud sisulehed valitud perioodil." only %}
+    {% include "dashboard/components/section_header.html" with title="Enim külastatud lehed" heading_id="section-mida" only %}
     <div class="dk-section-body flex flex-col gap-3">
       <ol class="flex flex-col">
         {% for row in page.top_pages %}
@@ -85,7 +86,7 @@ is four deterministic rules stated with the measurements that triggered them.
   </section>
 {% endif %}
 
-{# ---------------- Võimalused ---------------- #}
+{# ---------------- Huvitavat ---------------- #}
 {% if page.opportunities %}
   {% include "visibility/koduleht/_opportunities.html" with opportunities=page.opportunities heading_id="section-voimalused" only %}
 {% endif %}

@@ -329,6 +329,24 @@ class _SeedGa4Collector:
         )
 
 
+class _SeedPeriodUserCollector:
+    """Stands in for the period-users query at the same seam the real one uses.
+
+    The answer is deliberately **not** a sum of the seeded daily users, and is
+    deliberately smaller than one: a window's distinct people are fewer than its
+    days' counts added up, and a seed that produced the sum would make the one
+    mistake this metric exists to avoid look correct in every browser test.
+
+    Sub-linear in the window's length — a longer window catches more of the same
+    people again — and deterministic, so a screenshot diff has nothing to churn
+    on.
+    """
+
+    def collect_period_users(self, *, start: dt.date, end: dt.date) -> int:
+        days = (end - start).days + 1
+        return 400 + days * 12
+
+
 def seed_website_analytics(today: dt.date) -> str:
     """Publish a synthetic GA4 history so the traffic section exists at all.
 
@@ -340,6 +358,7 @@ def seed_website_analytics(today: dt.date) -> str:
     it empties.
     """
     from apps.visibility.ga4_sync import synchronize_ga4
+    from apps.visibility.period_users import synchronize_period_users
 
     # `synchronize_ga4` clamps to the last completed day itself; the window is
     # stated in full so the seeded span does not depend on that clamp.
@@ -350,9 +369,18 @@ def seed_website_analytics(today: dt.date) -> str:
         end=end,
         today=today,
     )
+
+    # Period user counts are fetched, not derived, so seeding the daily history
+    # leaves every `Kasutajad` card blank. Seeded through the real resolution
+    # path rather than by inserting rows: a window written straight into the
+    # table that is one day off from the one the page resolves would leave the
+    # card empty in exactly the way this seed exists to prevent.
+    users = synchronize_period_users(_SeedPeriodUserCollector())
+
     return (
         f"veebistatistika: {outcome.result} "
-        f"({ANALYTICS_DAYS} päeva, {len(ANALYTICS_PAGES)} lehekülge päevas)"
+        f"({ANALYTICS_DAYS} päeva, {len(ANALYTICS_PAGES)} lehekülge päevas, "
+        f"{users.stored} perioodi kasutajate arvu)"
     )
 
 

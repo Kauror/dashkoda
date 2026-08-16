@@ -7,6 +7,8 @@ from apps.events.selectors import count_upcoming_within, get_event_summary
 from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
+from apps.visibility.ga4_selectors import get_coverage
+from apps.visibility.website_period import get_period_coverage
 
 from .executive import build_data_status, build_executive_overview
 from .freshness import current_freshness
@@ -103,6 +105,19 @@ def admin_area(request):
     """
     programme = get_event_programme_summary()
     public_calendar = get_event_summary()
+
+    # Koduleht's coverage is reported over the **whole** collected history, not
+    # over a default window. There is no period control on this page, and a
+    # table quietly describing the last thirty days would be read as describing
+    # the source. `get_period_coverage` needs a span, so it is given the one the
+    # history actually has.
+    website_coverage = get_coverage()
+    website_period_coverage = (
+        get_period_coverage(website_coverage.earliest, website_coverage.latest)
+        if website_coverage.has_data
+        else None
+    )
+
     return render(
         request,
         "dashboard/admin.html",
@@ -117,6 +132,9 @@ def admin_area(request):
                 if public_calendar.has_data
                 else None
             ),
+            "website_coverage": website_coverage,
+            "website_period_coverage": website_period_coverage,
+            "can_add_data": request.user.is_authenticated and request.user.is_staff,
         },
     )
 

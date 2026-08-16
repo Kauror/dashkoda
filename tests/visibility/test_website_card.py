@@ -72,7 +72,7 @@ def test_the_figure_is_visits_because_that_is_what_the_card_is_labelled(reading)
     the same cell."""
     slot = _website_slot(connected(), reading)
 
-    assert slot.unit == "seanssi"
+    assert slot.unit == "külastust"
     assert slot.value == reading.sessions
 
 

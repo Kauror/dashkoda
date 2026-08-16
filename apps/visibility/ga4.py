@@ -82,6 +82,11 @@ SITE_METRICS = (
 )
 PAGE_METRICS = ("screenPageViews", "activeUsers", "userEngagementDuration")
 CHANNEL_METRICS = ("sessions", "engagedSessions")
+#: Asked over a whole range with **no date dimension**, which is the only way a
+#: period's distinct-user count exists. Daily `activeUsers` rows answer a
+#: different question and cannot be added into this one — see
+#: `ga4_selectors`' opening note.
+PERIOD_METRICS = ("activeUsers",)
 
 
 class Ga4NotConfigured(RuntimeError):
@@ -269,7 +274,7 @@ class DayReading:
                 raise Ga4ResponseError("Lehevaatamiste arv ei saa olla negatiivne.")
         for row in self.channels:
             if row.sessions < 0:
-                raise Ga4ResponseError("Seansside arv ei saa olla negatiivne.")
+                raise Ga4ResponseError("Külastuste arv ei saa olla negatiivne.")
         return self
 
     def canonical_payload(self) -> dict:
@@ -340,6 +345,19 @@ class Ga4Collector(Protocol):
         with_pages: bool = True,
         with_channels: bool = True,
     ) -> RangeCollection: ...
+
+
+class Ga4PeriodUserCollector(Protocol):
+    """One period, one distinct-user count.
+
+    Kept apart from :class:`Ga4Collector` rather than added to it. The two
+    answer different questions — a range of days versus one aggregate over a
+    range — and every existing collector, including the seeded one, implements
+    only the first. Widening the narrow protocol would oblige each of them to
+    grow a method none of them has a use for.
+    """
+
+    def collect_period_users(self, *, start: date, end: date) -> int | None: ...
 
 
 class Ga4ApiCollector:
@@ -520,6 +538,37 @@ class Ga4ApiCollector:
             ).validate()
 
         return collection
+
+    def collect_period_users(self, *, start: date, end: date) -> int | None:
+        """Distinct users over `[start, end]`, as one aggregate.
+
+        No `date` dimension, so GA4 de-duplicates a person seen on six days into
+        one. This is the only source of a period user count that exists: the
+        stored daily rows cannot be added into it, and a sum of them would be
+        larger than the Chamber's real audience while looking entirely ordinary.
+
+        `None` means the property answered with no row at all — a range before
+        collection began, typically. That is an absence, and the caller must not
+        record it as a zero.
+        """
+        if end < start:
+            raise ValueError("Vahemiku lõpp ei saa olla enne algust.")
+
+        counts = CollectionCounts()
+        document = self._run_report(
+            {
+                "dateRanges": [{"startDate": start.isoformat(), "endDate": end.isoformat()}],
+                "metrics": [{"name": name} for name in PERIOD_METRICS],
+            },
+            counts,
+        )
+        rows = _rows(document)
+        if not rows:
+            return None
+        (users,) = _metrics(rows[0], len(PERIOD_METRICS))
+        if users is not None and users < 0:
+            raise Ga4ResponseError("Kasutajate arv ei saa olla negatiivne.")
+        return users
 
 
 # ---------------------------------------------------------------------------

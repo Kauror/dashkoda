@@ -113,6 +113,36 @@ def test_the_events_provenance_block_arrived(viewer_client):
     assert "Koda.ee avalik kalender" in content
 
 
+def test_the_koduleht_data_block_arrived(viewer_client):
+    """Koduleht's `Andmete kohta`, moved off all five focus views on 2026-08-16.
+
+    Asserted by its contents rather than its heading. The rule about users not
+    being summable is the single most load-bearing sentence in it, and a move
+    that kept the title and dropped the arithmetic would pass a heading check.
+
+    No GA4 history is seeded here on purpose: the prose has to render for a
+    property that has collected nothing, because that is exactly when a
+    maintainer opens this page.
+    """
+    content = viewer_client.get(reverse("dashboard-admin")).content.decode()
+
+    assert "Näitajate definitsioonid" in content
+    assert "ei ole 780" in content
+    assert "Mis liidetakse ja mis mitte" in content
+
+
+def test_the_koduleht_page_no_longer_carries_its_data_block(viewer_client):
+    """Moved, not copied — the other half of the pair above.
+
+    Named here as well as in the Koduleht suite because a block deleted from one
+    page and never rendered on the other passes either assertion alone.
+    """
+    content = viewer_client.get("/koduleht/").content.decode()
+
+    assert "Andmete kohta" not in content
+    assert "Kaetus, mõisted ja allikas" not in content
+
+
 def test_andmete_seis_arrived_and_keeps_its_anchor(viewer_client):
     """The other half of the move off Koja töölaud.
 

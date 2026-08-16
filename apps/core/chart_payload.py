@@ -75,6 +75,13 @@ class ChartPayload:
     # five-year time series do not want the same frame, and JavaScript is not
     # needed to say so.
     size: str = "medium"
+    #: Draw the chart without printing its title above it. The title is still
+    #: required and still travels with the payload, because it is the data
+    #: table's `sr-only` caption — a chart whose accessible table is captioned
+    #: with nothing is worse than one whose heading repeats its section. Set
+    #: this only where the section header directly above already says the same
+    #: words.
+    title_hidden: bool = False
 
     @property
     def has_data(self) -> bool:

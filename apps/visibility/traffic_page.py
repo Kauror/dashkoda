@@ -488,7 +488,9 @@ def _chart(series: TrafficSeries) -> TrendChart | None:
     sources = []
     if len(sessions) >= 2:
         sources.append(
-            TrendSource(label="Seansid", style="solid", source="Google Analytics", series=sessions)
+            TrendSource(
+                label="Külastused", style="solid", source="Google Analytics", series=sessions
+            )
         )
     if len(views) >= 2:
         sources.append(
@@ -504,7 +506,9 @@ def _figures(series: TrafficSeries) -> tuple[TrafficFigure, ...]:
     figures: list[TrafficFigure] = []
 
     if series.total_sessions is not None:
-        figures.append(TrafficFigure(label="Seansse", value=group_thousands(series.total_sessions)))
+        figures.append(
+            TrafficFigure(label="Külastusi", value=group_thousands(series.total_sessions))
+        )
     if series.total_page_views is not None:
         figures.append(
             TrafficFigure(label="Lehevaatamisi", value=group_thousands(series.total_page_views))
@@ -528,7 +532,7 @@ def _figures(series: TrafficSeries) -> tuple[TrafficFigure, ...]:
     if engaged and series.total_sessions:
         figures.append(
             TrafficFigure(
-                label="Kaasatud seansse",
+                label="Kaasatud külastusi",
                 value=percent(100 * sum(engaged) / series.total_sessions),
             )
         )

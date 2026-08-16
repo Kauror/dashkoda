@@ -1,5 +1,5 @@
 {% comment %}
-Võimalused — evidence, never a verdict.
+Huvitavat — evidence, never a verdict.
 
 Each item is one deterministic rule from `apps.visibility.website_page`, stated
 with the measurements that triggered it. Nothing here is generated text, nothing
@@ -12,7 +12,7 @@ Context:
   heading_id    – required, referenced by the section's aria-labelledby
 {% endcomment %}
 <section aria-labelledby="{{ heading_id }}" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Võimalused" heading_id=heading_id description="Mõõdetud tähelepanekud, mida tasub lähemalt vaadata. Need ei ütle, miks näitaja muutus." only %}
+  {% include "dashboard/components/section_header.html" with title="Huvitavat" heading_id=heading_id only %}
   <div class="dk-section-body">
     <ul class="flex flex-col gap-4">
       {% for opportunity in opportunities %}

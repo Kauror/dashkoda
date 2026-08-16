@@ -37,8 +37,15 @@ Context:
               <span aria-hidden="true">{% if headline.direction == "up" %}↑{% elif headline.direction == "down" %}↓{% else %}→{% endif %}</span>
               {{ headline.change }}
               <span class="sr-only">({{ headline.change_label }})</span>
+              {% comment %}
+              The window is named once, as a hover title, rather than spelled on
+              every card. Four cards each ending in the same date range read as
+              four different comparisons at a glance; the phrase says what the
+              comparison is and the title still answers *which* period when
+              somebody needs it.
+              {% endcomment %}
               {% if headline.comparison_period %}
-                <span class="text-text-muted">vs {{ headline.comparison_period }}</span>
+                <span class="text-text-muted" title="{{ headline.comparison_period }}">vs eelnev periood</span>
               {% endif %}
             </dd>
           {% elif headline.note %}

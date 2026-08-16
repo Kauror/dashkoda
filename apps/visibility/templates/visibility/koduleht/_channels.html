@@ -16,7 +16,7 @@ source/medium and no campaign here, because neither is stored — a row saying
 
 {% if page.channel_chart %}
   <section aria-labelledby="section-kanalid" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Seansid kanalite kaupa" heading_id="section-kanalid" description="Osakaal on arvutatud kogu kodulehe seansside suhtes." only %}
+    {% include "dashboard/components/section_header.html" with title="Külastused kanalite kaupa" heading_id="section-kanalid" only %}
     <div class="dk-section-body">
       {% include "dashboard/components/chart_figure.html" with chart=page.channel_chart only %}
     </div>
@@ -25,7 +25,7 @@ source/medium and no campaign here, because neither is stored — a row saying
 
 {% if page.channel_engagement_chart %}
   <section aria-labelledby="section-kanalite-kaasatus" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kanalite kaasatus" heading_id="section-kanalite-kaasatus" description="Kaasatud seansid jagatud sama kanali seanssidega samal perioodil." only %}
+    {% include "dashboard/components/section_header.html" with title="Kanalite kaasatus" heading_id="section-kanalite-kaasatus" description="Kaasatud külastused jagatud sama kanali külastustega samal perioodil." only %}
     <div class="dk-section-body">
       {% include "dashboard/components/chart_figure.html" with chart=page.channel_engagement_chart only %}
     </div>
@@ -86,7 +86,7 @@ source/medium and no campaign here, because neither is stored — a row saying
         </div>
       </div>
       <p class="dk-meta">
-        Arvestatud on kanaleid, millel oli vähemalt {{ page.channel_minimum_sessions }} seanssi ühes
+        Arvestatud on kanaleid, millel oli vähemalt {{ page.channel_minimum_sessions }} külastust ühes
         kahest võrreldavast perioodist. DashKodal ei ole kanalite kulu- ega tulusandmeid, nii et
         siin ei öelda, kuhu tasuks rohkem panustada.
       </p>
