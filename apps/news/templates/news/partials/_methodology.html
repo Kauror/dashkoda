@@ -143,6 +143,14 @@ Context: page
         Kataloogis on {{ page.facts.total|integer }} uudist,
         neist {{ page.facts.dated|integer }} teadaoleva avaldamiskuupäevaga
         ja {{ page.facts.undated|integer }} ilma.
+        {% comment %}
+        The composition rows moved here from the `Statistika` section when the
+        `Avaldamine` focus folded into the overview — the windowed split lives
+        beside the cadence chart, and the all-time split is a fact about the
+        catalogue, which is what this block describes.
+        {% endcomment %}
+        Koja uudiseid on {{ page.facts.chamber|integer }} ja Sõprade uudiseid
+        {{ page.facts.partner|integer }}.
         {{ page.facts.unclassified|integer }} uudise liik ei ole teada; neid ei liigitata
         ei Koja ega Sõprade uudiseks.
       </p>

@@ -4,9 +4,11 @@
 {% comment %}
 The news intelligence dashboard.
 
-Four focus views over one address. The shell here is the part every focus
+Three focus views over one address. The shell here is the part every focus
 shares — the heading, the source freshness, the focus navigation and the
 methodology disclosure — and each focus contributes its own partial.
+`Avaldamine` was a fourth and folded into the overview on 2026-08-16; its
+retired key resolves there.
 
 The page used to open on the archive table, which answered "find me the article
 about excise duty" and answered "how are we doing" somewhere in the middle of
@@ -64,8 +66,8 @@ should stay that way.
   {% comment %}
   The focus navigation. Ordinary links, each a real URL carrying the whole page
   state, so back and forward work and a colleague can be sent the exact view.
-  It scrolls rather than wraps on a narrow screen, so the four stay on one line
-  and the reader can see there are four.
+  It scrolls rather than wraps on a narrow screen, so the tabs stay on one line
+  and the reader can see how many there are.
   {% endcomment %}
   <nav aria-label="Vaade" class="-mx-4 min-w-0 overflow-x-auto px-4 sm:mx-0 sm:px-0">
     <ul class="flex w-max gap-2 sm:w-auto sm:flex-wrap">
@@ -89,8 +91,6 @@ should stay that way.
     {% include "news/partials/_focus_overview.html" with page=page reading_state=reading_state only %}
   {% elif page.is_impact %}
     {% include "news/partials/_focus_impact.html" with page=page reading_state=reading_state only %}
-  {% elif page.is_publishing %}
-    {% include "news/partials/_focus_publishing.html" with page=page only %}
   {% elif page.is_archive %}
     {% include "news/partials/_focus_archive.html" with archive=archive only %}
   {% endif %}

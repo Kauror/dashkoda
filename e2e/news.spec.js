@@ -3,25 +3,27 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
 /*
- * The Uudised intelligence dashboard and its four focus views.
+ * The Uudised intelligence dashboard and its three focus views.
  *
- * There were five. The newsletters were the fourth and are `Otsepostitused`
- * now, at their own address under Koduleht — `otsepostitused.spec.js` holds
- * that half, including that none of it is still here.
+ * There were five. The newsletters left for `Otsepostitused`, at their own
+ * address under Koduleht — `otsepostitused.spec.js` holds that half, including
+ * that none of it is still here — and `Avaldamine` folded into the overview on
+ * 2026-08-16; its retired key resolves there.
  *
  * The page used to be one scroll: an archive table with the newsletter material
- * beneath it. It is now four focus views over one address, so what these assert
- * is which view holds what, that the focus links navigate, and that state
- * survives moving between them.
+ * beneath it. It is now three focus views over one address, so what these
+ * assert is which view holds what, that the focus links navigate, and that
+ * state survives moving between them.
  *
  * CI runs against a container with an empty database, so what these assert is
  * the layout, the controls and the *truthful empty state*.
  */
 
-/** The four focus views, by the parameter that selects each. */
+/** The three focus views, by the parameter that selects each — plus the
+ * retired publishing key, kept because a saved link must keep rendering. */
 const OVERVIEW = "/uudised/";
 const IMPACT = "/uudised/?fookus=moju";
-const PUBLISHING = "/uudised/?fookus=avaldamine";
+const RETIRED_PUBLISHING = "/uudised/?fookus=avaldamine";
 const ARCHIVE = "/uudised/?fookus=arhiiv";
 
 /** Sign in, then open one focus of Uudised. */
@@ -31,18 +33,19 @@ async function openNews(page, url = OVERVIEW) {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Uudised");
 }
 
-test("the four focus views are all reachable as links", async ({ page }) => {
+test("the three focus views are all reachable as links", async ({ page }) => {
   const errors = watchConsole(page);
 
   await openNews(page);
 
   const nav = page.getByRole("navigation", { name: "Vaade" });
   await expect(nav).toBeVisible();
-  for (const label of ["Ülevaade", "Uudiste mõju", "Avaldamine", "Arhiiv"]) {
+  for (const label of ["Ülevaade", "Uudiste mõju", "Arhiiv"]) {
     await expect(nav.getByRole("link", { name: label, exact: true })).toBeVisible();
   }
-  // The retired fifth is gone from the navigation entirely.
+  // The retired views are gone from the navigation entirely.
   await expect(nav.getByRole("link", { name: "Uudiskirjad", exact: true })).toHaveCount(0);
+  await expect(nav.getByRole("link", { name: "Avaldamine", exact: true })).toHaveCount(0);
 
   // Ordinary navigation: a real URL, so back returns to the overview.
   await nav.getByRole("link", { name: "Arhiiv", exact: true }).click();
@@ -106,10 +109,10 @@ test("switching focus keeps the archive's period", async ({ page }) => {
 
   await page
     .getByRole("navigation", { name: "Vaade" })
-    .getByRole("link", { name: "Avaldamine", exact: true })
+    .getByRole("link", { name: "Uudiste mõju", exact: true })
     .click();
 
-  await expect(page).toHaveURL(/fookus=avaldamine/);
+  await expect(page).toHaveURL(/fookus=moju/);
   await expect(page).toHaveURL(/periood=1a/);
 });
 
@@ -152,7 +155,7 @@ test("no focus view scrolls sideways", async ({ page }) => {
   // category table and the focus navigation itself are each capable of widening
   // the page, and only one of them is on screen at a time.
   await signIn(page);
-  for (const url of [OVERVIEW, IMPACT, PUBLISHING, ARCHIVE]) {
+  for (const url of [OVERVIEW, IMPACT, RETIRED_PUBLISHING, ARCHIVE]) {
     await page.goto(url);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Uudised");
     await expectNoHorizontalOverflow(page);

@@ -56,7 +56,6 @@ test("capture each news focus view", async ({ page }, testInfo) => {
   for (const [name, url] of [
     ["news-overview", "/uudised/"],
     ["news-impact", "/uudised/?fookus=moju"],
-    ["news-publishing", "/uudised/?fookus=avaldamine"],
     ["mailings", "/otsepostitused/"],
   ]) {
     await page.goto(url);
