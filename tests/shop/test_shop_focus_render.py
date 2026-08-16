@@ -137,12 +137,25 @@ def test_every_focus_is_reachable_from_every_other_one():
         assert f"fookus={focus.key}" in html, f"{focus.key} was unreachable"
 
 
-def test_the_as_of_date_is_stated_near_the_heading():
-    """§47: the only indication of a frozen export must not be buried at the foot."""
-    html = _render("shop/overview.html", {"overview": _overview(FOCUSES[0])})
-    head = html[: html.index("Ülevaade")]
+@pytest.mark.parametrize("focus", FOCUSES, ids=[focus.key for focus in FOCUSES])
+def test_the_as_of_date_is_stated_on_every_focus(focus):
+    """A frozen export must say so on whichever view the reader lands on.
 
-    assert "11.08.2026" in head
+    This asserted the date sat *above* the heading until 2026-08-16, when Kaur
+    removed that line: it repeated the opening sentence of `Andmete kohta`,
+    which says the same date and adds that the export is compiled by hand.
+
+    What the header line bought was placement, and that is now gone — the
+    original argument for it was that a date at the foot lets every figure
+    above it read as live. The date's *presence* is the half that survives,
+    and it is worth more here than it was: `Andmete kohta` renders outside the
+    focus conditional, so this now covers all five views rather than the one
+    the old assertion reached.
+    """
+    html = _render("shop/overview.html", {"overview": _overview(focus)})
+
+    assert "11.08.2026" in html
+    assert "Andmete kohta" in html
 
 
 def test_a_page_without_a_source_still_renders():
