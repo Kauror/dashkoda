@@ -166,11 +166,10 @@ def test_the_overview_answers_the_four_questions(ga4):
     )
 
     assert headline(built, "published").value == "12"
-    # The typical-first-month figure is a median over the eligible cohort.
-    typical = headline(built, "typical_month")
-    assert typical is not None
-    assert "vaatamist" in typical.value
-    assert "mediaan" in typical.detail
+    # Three measures, not four. `Tüüpiline esimene kuu` left the strip on
+    # 2026-08-16 and the cohort behind it is no longer walked for this view.
+    assert headline(built, "typical_month") is None
+    assert {h.key for h in built["headlines"]} == {"published", "news_views", "news_share"}
 
 
 def test_a_measure_with_no_data_is_absent_rather_than_zero(ga4):
@@ -190,7 +189,6 @@ def test_a_measure_with_no_data_is_absent_rather_than_zero(ga4):
     assert headline(built, "published") is not None
     assert headline(built, "news_views") is None
     assert headline(built, "news_share") is None
-    assert headline(built, "typical_month") is None
 
 
 def test_the_share_change_is_in_percentage_points(ga4):
@@ -269,7 +267,13 @@ def test_publication_and_measurement_windows_are_separate_controls(ga4):
 
 
 def test_signals_state_evidence_and_never_a_cause(ga4):
-    """`Tähelepanu` may say where a figure sits; it may not say why."""
+    """Evidence, never explanation — now asserted where the signals still are.
+
+    `Tähelepanu` left the overview on 2026-08-16 and `build_overview` stopped
+    composing it. `Alla tavapärase` on `Uudiste mõju` is the same kind of
+    statement from the same cohorts, and it is the one that still reaches a
+    reader, so the rule is asserted against it.
+    """
     published = dt.date(2026, 2, 1)
     views = {}
     for index in range(12):
@@ -279,12 +283,44 @@ def test_signals_state_evidence_and_never_a_cause(ga4):
     views[weak.path] = {published: 1}
     ga4(views=views)
 
+    built = page.build_impact(
+        reading=resolve_reading("30", coverage=coverage()),
+        coverage=coverage(),
+        lens=page.parse_lens(None),
+    )
+
+    text = " ".join(signal.evidence + signal.label for signal in built["below_normal"])
+    for forbidden in ("pealkiri", "peaks", "sest", "halb", "vale"):
+        assert forbidden not in text.lower()
+
+
+def test_the_overview_no_longer_pays_for_what_it_stopped_showing(ga4):
+    """Three sections left the overview; three builders had to stop running.
+
+    `changes`, `first_week` and `signals` each cost at least one query, and this
+    module's rule is that a focus builds only what it renders. Absent keys, not
+    empty ones — an empty tuple would mean the work ran and found nothing.
+    """
+    article("lugu", published=dt.date(2026, 3, 1))
+
     built = page.build_overview(
         reading=resolve_reading("30", coverage=coverage()),
         period=page.resolve_period("koik"),
         coverage=coverage(),
     )
 
-    text = " ".join(signal.evidence + signal.label for signal in built["signals"])
-    for forbidden in ("pealkiri", "peaks", "sest", "halb", "vale"):
-        assert forbidden not in text.lower()
+    assert set(built) == {"headlines", "most_read"}
+
+
+def test_the_impact_view_no_longer_pays_for_its_removed_sections(ga4):
+    """Same rule, other focus: two sections went, two selectors stopped running."""
+    article("lugu", published=dt.date(2026, 3, 1))
+
+    built = page.build_impact(
+        reading=resolve_reading("30", coverage=coverage()),
+        coverage=coverage(),
+        lens=page.parse_lens(None),
+    )
+
+    for absent in ("concentration", "categories", "lens_question"):
+        assert absent not in built

@@ -61,21 +61,15 @@ Context: page
 </section>
 
 <section aria-labelledby="section-catalogue" class="dk-section dk-section-body">
-  <h2 id="section-catalogue" class="text-sm font-medium text-text">Mida kataloog sisaldab</h2>
+  <h2 id="section-catalogue" class="text-sm font-medium text-text">Statistika</h2>
   {% comment %}
-  The limits of the catalogue, stated where somebody asking about publishing
-  volume will meet them. `Kõik` means every article DashKoda knows about, which
-  is not the same as every article the Chamber has ever published.
+  The catalogue's **composition**. Its *completeness* — how many articles are
+  known, how many carry a publication date, how far back the archive reaches —
+  left this section on 2026-08-16 and is stated in `Andmete kohta` under
+  `Kataloogi ulatus`, which already carried every one of those numbers. Nothing
+  was lost in the move; a duplicate was.
   {% endcomment %}
   <dl class="mt-3 grid grid-cols-1 gap-x-8 gap-y-2 sm:grid-cols-2">
-    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
-      <dt class="text-sm text-text-secondary">Teadaolevaid uudiseid</dt>
-      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.total|integer }}</dd>
-    </div>
-    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
-      <dt class="text-sm text-text-secondary">Avaldamiskuupäevaga</dt>
-      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.dated|integer }}</dd>
-    </div>
     <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
       <dt class="text-sm text-text-secondary">Koja uudiseid</dt>
       <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.chamber|integer }}</dd>
@@ -88,16 +82,5 @@ Context: page
       <dt class="text-sm text-text-secondary">Liik teadmata</dt>
       <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.unclassified|integer }}</dd>
     </div>
-    <div class="flex items-baseline justify-between gap-3 border-b border-border py-2">
-      <dt class="text-sm text-text-secondary">Kuupäevata</dt>
-      <dd class="text-sm font-semibold tabular-nums text-text">{{ page.facts.undated|integer }}</dd>
-    </div>
   </dl>
-  {% if page.facts.earliest %}
-    <p class="dk-meta mt-3">
-      Varaseim teadaolev uudis {{ page.facts.earliest|date:"d.m.Y" }},
-      viimane {{ page.facts.latest|date:"d.m.Y" }}.
-      „Kõik“ tähendab kõiki DashKodale teadaolevaid uudiseid, mitte kogu Koja arhiivi.
-    </p>
-  {% endif %}
 </section>

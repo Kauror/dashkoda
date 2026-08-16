@@ -52,81 +52,33 @@ readership to the next, is the mistake this page is built to avoid.
   </div>
 </section>
 
-{% if page.changes %}
-  <section aria-labelledby="section-changes" class="dk-section dk-section-body">
-    <h2 id="section-changes" class="text-sm font-medium text-text">Mis muutus?</h2>
-    <p class="dk-meta mt-1">Võrreldes vahetult eelneva võrdse pikkusega perioodiga.</p>
-    <dl class="mt-3 flex flex-col divide-y divide-border">
-      {% for row in page.changes %}
-        <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 py-2.5">
-          <dt class="min-w-0 text-sm text-text">{{ row.label }}</dt>
-          <dd class="flex items-baseline gap-3 tabular-nums">
-            <span class="text-sm text-text-secondary">{{ row.previous }} →</span>
-            <span class="text-base font-semibold text-text">{{ row.current }}</span>
-            <span class="dk-meta{% if row.direction == 'up' %} text-success{% elif row.direction == 'down' %} text-danger{% endif %}">
-              {% if row.direction == "up" %}↑{% elif row.direction == "down" %}↓{% else %}→{% endif %}
-              {{ row.change }}
-            </span>
-          </dd>
-        </div>
-      {% endfor %}
-    </dl>
-  </section>
-{% endif %}
-
-<div class="grid min-w-0 grid-cols-1 gap-5 lg:grid-cols-2">
-  <section aria-labelledby="section-most-read" class="dk-section dk-section-body">
-    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-      <h2 id="section-most-read" class="text-sm font-medium text-text">Loetakse praegu</h2>
-      <a class="dk-link-quiet text-sm" href="?fookus=moju&amp;vaade=praegu">Vaata uudiste mõju →</a>
-    </div>
+{% comment %}
+`Mis muutus?`, `Esimese nädala tugevamad` and `Tähelepanu` all left this view on
+2026-08-16. None of the three measurements went with them: the period comparison
+is still built and still shown on `Uudiste mõju`, the first-week cohort still
+drives the benchmark columns there, and the signals still exist for the views
+that investigate. What went is this screen's habit of answering five questions
+before the reader has asked one.
+{% endcomment %}
+<section aria-labelledby="section-most-read" class="dk-section dk-section-body">
+  <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+    <h2 id="section-most-read" class="text-sm font-medium text-text">Populaarsed uudised</h2>
     {% comment %}
-    Ranked by views inside the reading window, whatever the publication date. An
-    article from two years ago belongs at the top of this list if that is what
-    people are reading, and a quarter of the Chamber's news reading goes to
-    articles over a year old.
+    The label says `kõiki uudiseid` but the destination is unchanged — the
+    ranked view on `Uudiste mõju`, which is where every article the window
+    measured actually is. A renamed label does not get to re-route a link.
     {% endcomment %}
-    <p class="dk-meta mt-1">Vaatamisi {{ page.reading.label|lower }} jooksul, olenemata avaldamisajast.</p>
-    {% include "news/partials/_article_list.html" with rows=page.most_read empty="Valitud perioodil ei ole ühtegi uudist loetud." only %}
-  </section>
-
-  <section aria-labelledby="section-first-week" class="dk-section dk-section-body">
-    <h2 id="section-first-week" class="text-sm font-medium text-text">Esimese nädala tugevamad</h2>
-    {% comment %}
-    Named for what it measures. `Parimad artiklid` would claim more than a first
-    week can show — it describes the attention an article opened with, not its
-    value — and only articles whose whole first week has been measured are in it.
-    {% endcomment %}
-    <p class="dk-meta mt-1">
-      Hiljuti avaldatud uudised, mille esimesed 7 päeva on tervikuna mõõdetud.
-    </p>
-    {% include "news/partials/_article_list.html" with rows=page.first_week empty="Ühelgi hiljutisel uudisel ei ole veel täielikku esimest nädalat mõõdetud." only %}
-  </section>
-</div>
-
-{% if page.signals %}
-  <section aria-labelledby="section-signals" class="dk-section dk-section-body">
-    <h2 id="section-signals" class="text-sm font-medium text-text">Tähelepanu</h2>
-    {% comment %}
-    Evidence, never explanation. Each line says what was measured and where it
-    sits; why it happened is a judgement about audience, timing and promotion
-    that this data does not contain and the communications team does.
-    {% endcomment %}
-    <p class="dk-meta mt-1">Tähelepanekud mõõdetud andmetest. Põhjust need ei ütle.</p>
-    <ul class="mt-3 flex flex-col divide-y divide-border">
-      {% for signal in page.signals %}
-        <li class="flex flex-col gap-1 py-2.5">
-          <span class="text-sm font-medium text-text">{{ signal.label }}</span>
-          <span class="text-sm text-text-secondary">{{ signal.evidence }}</span>
-          {% if signal.url %}
-            <a class="dk-link-quiet relative text-sm" href="{{ signal.url }}" target="_blank" rel="noopener noreferrer">
-              Ava uudis<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
-            </a>
-          {% endif %}
-        </li>
-      {% endfor %}
-    </ul>
-  </section>
-{% endif %}
+    <a class="dk-link-quiet text-sm" href="?fookus=moju&amp;vaade=praegu">Vaata kõiki uudiseid →</a>
+  </div>
+  {% comment %}
+  Ranked by views inside the reading window, whatever the publication date. An
+  article from two years ago belongs at the top of this list if that is what
+  people are reading, and a quarter of the Chamber's news reading goes to
+  articles over a year old. That caveat now lives in `Andmete kohta`; the line
+  here says only which window is ranked.
+  {% endcomment %}
+  <p class="dk-meta mt-1">Viimased {{ page.reading.label|lower }}</p>
+  {% include "news/partials/_article_list.html" with rows=page.most_read empty="Valitud perioodil ei ole ühtegi uudist loetud." only %}
+</section>
 
 {% endif %}

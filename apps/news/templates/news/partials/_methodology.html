@@ -19,6 +19,26 @@ Context: page
 
   <div class="mt-4 flex flex-col gap-4 text-sm text-text-secondary">
 
+    {% comment %}
+    The two source dates were a row under the page heading until 2026-08-16.
+    They are here now, with the reason they differ — which is the part that
+    could never fit in a header.
+    {% endcomment %}
+    <div class="flex flex-col gap-1">
+      <h3 class="font-medium text-text">Kui värsked need andmed on</h3>
+      <p>
+        {% if page.facts.latest %}
+          Uudiste kataloog ulatub {{ page.facts.latest|date:"d.m.Y" }}-ni.
+        {% endif %}
+        {% if page.coverage.latest %}
+          Google Analyticsi mõõtmine ulatub {{ page.coverage.latest|date:"d.m.Y" }}-ni.
+        {% endif %}
+        Kaks kuupäeva erinevad tavaliselt: kataloogi loetakse iga tund, Google Analyticsi
+        aruandepäev valmib alles järgmisel päeval. Üks ühine „viimati uuendatud“ oleks
+        vähemalt ühe allika kohta vale.
+      </p>
+    </div>
+
     <div class="flex flex-col gap-1">
       <h3 class="font-medium text-text">Kaks eri ajaküsimust</h3>
       <p>
@@ -55,6 +75,32 @@ Context: page
         uudise kaks korda, on kaks lehevaatamist ja üks lugeja. Päevaseid kasutajaid
         ei liideta perioodi peale kokku, sest eri päevade kasutajad on suures osas
         samad inimesed.
+      </p>
+    </div>
+
+    {% comment %}
+    These three lines were captions under the figures themselves until
+    2026-08-16. They are here rather than gone: a share with no stated
+    denominator, and a ranking with no stated window, are the two ways this page
+    can be read as saying something it does not.
+    {% endcomment %}
+    <div class="flex flex-col gap-1">
+      <h3 class="font-medium text-text">Mida näitajad tähendavad</h3>
+      <p>
+        <strong>Uudiste osakaal</strong> on uudiste lehevaatamised jagatud kogu kodulehe
+        vaatamistega samal perioodil. Mõlemad pooled on liidetavad lehevaatamised samadelt
+        päevadelt.
+      </p>
+      <p>
+        <strong>Populaarsed uudised</strong> on järjestatud vaatamiste järgi valitud
+        lugemisaknas, <strong>olenemata avaldamisajast</strong>. Aastatetagune uudis kuulub
+        selle nimekirja etteotsa, kui just seda praegu loetakse.
+      </p>
+      <p>
+        <strong>Avaldatud uudiseid</strong> loendab avaldamisakent, mitte lugemisakent, ja
+        jaguneb Koja ning Sõprade uudisteks. Kataloogis on
+        {{ page.facts.unclassified|integer }} uudist, mille liik ei ole teada; neid ei
+        liigitata kummagi alla.
       </p>
     </div>
 

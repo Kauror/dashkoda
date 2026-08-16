@@ -65,14 +65,16 @@ LEGACY_FOCUS_NEWSLETTERS = "uudiskirjad"
 class Focus:
     """One view of the news page.
 
-    `question` is what the view is for, in the words a reader would use. It is
-    rendered under the heading of every focus except the overview, whose four
-    headline figures already say what it is.
+    There was a `question` here — a sentence restating what each view was for,
+    rendered under the navigation. It went on 2026-08-16 along with the three
+    strings that filled it. The tab labels already name the question, and a line
+    repeating the tab the reader has just clicked is one they learn to skip. The
+    field is gone rather than left unrendered, so nothing has to keep three
+    Estonian sentences true that nothing displays.
     """
 
     key: str
     label: str
-    question: str = ""
 
     @property
     def is_default(self) -> bool:
@@ -81,21 +83,9 @@ class Focus:
 
 FOCUSES: tuple[Focus, ...] = (
     Focus(key=FOCUS_OVERVIEW, label="Ülevaade"),
-    Focus(
-        key=FOCUS_IMPACT,
-        label="Uudiste mõju",
-        question="Mida loetakse, mis algas tugevalt ja mis püsib loetavana.",
-    ),
-    Focus(
-        key=FOCUS_PUBLISHING,
-        label="Avaldamine",
-        question="Kui palju ja mida me avaldame.",
-    ),
-    Focus(
-        key=FOCUS_ARCHIVE,
-        label="Arhiiv",
-        question="Leia üksik uudis.",
-    ),
+    Focus(key=FOCUS_IMPACT, label="Uudiste mõju"),
+    Focus(key=FOCUS_PUBLISHING, label="Avaldamine"),
+    Focus(key=FOCUS_ARCHIVE, label="Arhiiv"),
 )
 
 DEFAULT_FOCUS = FOCUSES[0]

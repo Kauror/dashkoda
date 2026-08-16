@@ -113,7 +113,6 @@ def publishing_cadence(
     return ChartPayload(
         payload_id="news-publishing-cadence",
         title="Avaldatud uudised",
-        question="Kui palju me avaldame ja kuidas jaguneb Koja ja Sõprade uudiste vahel?",
         option=option,
         table_headers=("Periood", "Kokku", "Koja", "Sõprade", "Liik teadmata", "Märkus"),
         table_rows=rows,
@@ -185,7 +184,6 @@ def first_month_distribution(values: list[int], stats) -> ChartPayload:
     return ChartPayload(
         payload_id="news-first-month-distribution",
         title="Esimese 30 päeva vaatamised",
-        question="Mis on uudise puhul tavaline tulemus?",
         option=option,
         table_headers=("Vaatamisi esimese 30 päevaga", "Uudiseid"),
         table_rows=rows,
