@@ -123,6 +123,19 @@ class WebsitePeriod:
             return ""
         return f"{self.start:%d.%m.%Y}–{self.end:%d.%m.%Y}"
 
+    @property
+    def window_label(self) -> str:
+        """The window as a section says it: `30 päeva · 17.07.2026–15.08.2026`.
+
+        Sections on a long page are read far from the period control at the top,
+        and a ranking whose window a reader has to scroll up to check is a
+        ranking they will assume covers something else. Composed here so every
+        section that states it states it the same way.
+        """
+        if not self.has_window:
+            return ""
+        return f"{self.label} · {self.range_label}"
+
 
 def parse_period(
     raw: str | None,
