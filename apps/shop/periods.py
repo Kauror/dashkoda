@@ -80,7 +80,10 @@ FOCUS_OVERVIEW = "ulevaade"
 FOCUS_PURCHASES = "ostud"
 FOCUS_PRODUCTS = "tooted"
 FOCUS_VISIBILITY = "nahtavus"
-FOCUS_VALUE = "vaartus"
+#: Retired on 2026-08-16, when `Tellitud väärtus` merged into `Ostud`. The key
+#: is kept because it is in shared links and in readers' history — `parse_focus`
+#: resolves it to `Ostud`, which is where its sections went.
+RETIRED_FOCUS_VALUE = "vaartus"
 
 FOCUSES: tuple[Focus, ...] = (
     Focus(
@@ -91,7 +94,7 @@ FOCUSES: tuple[Focus, ...] = (
     Focus(
         key=FOCUS_PURCHASES,
         label="Ostud",
-        question="Kuidas ostmise aktiivsus ajas muutub?",
+        question="Kuidas ostmise aktiivsus ajas muutub, ühikutes ja eurodes?",
     ),
     Focus(
         key=FOCUS_PRODUCTS,
@@ -103,11 +106,6 @@ FOCUSES: tuple[Focus, ...] = (
         label="Nähtavus",
         question="Mis saab tähelepanu, mis ostetakse ja kus on tõendatud võimalus?",
     ),
-    Focus(
-        key=FOCUS_VALUE,
-        label="Tellitud väärtus",
-        question="Kui palju väärtust on e-poe kaudu tellitud ja millest see koosneb?",
-    ),
 )
 
 DEFAULT_FOCUS = FOCUSES[0]
@@ -116,8 +114,16 @@ _FOCUS_BY_KEY = {focus.key: focus for focus in FOCUSES}
 
 
 def parse_focus(raw: str | None) -> Focus:
-    """The requested view, or the overview. An unknown key is never an error."""
-    return _FOCUS_BY_KEY.get((raw or "").strip(), DEFAULT_FOCUS)
+    """The requested view, or the overview. An unknown key is never an error.
+
+    `vaartus` is not unknown, though — it is retired. Left to fall through it
+    would land on `Ülevaade`, which is the one view that does not hold what the
+    reader asked for; it resolves to `Ostud`, which absorbed those sections.
+    """
+    key = (raw or "").strip()
+    if key == RETIRED_FOCUS_VALUE:
+        return _FOCUS_BY_KEY[FOCUS_PURCHASES]
+    return _FOCUS_BY_KEY.get(key, DEFAULT_FOCUS)
 
 
 # ---------------------------------------------------------------------------
@@ -362,7 +368,7 @@ __all__ = [
     "FOCUS_OVERVIEW",
     "FOCUS_PRODUCTS",
     "FOCUS_PURCHASES",
-    "FOCUS_VALUE",
+    "RETIRED_FOCUS_VALUE",
     "FOCUS_VISIBILITY",
     "MAX_SEARCH_LENGTH",
     "METRIC_KEYS",

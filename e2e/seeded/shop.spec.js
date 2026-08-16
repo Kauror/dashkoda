@@ -132,12 +132,23 @@ test("every focus view opens and none scrolls sideways", async ({ page }) => {
    */
   await signIn(page);
 
-  for (const focus of ["ulevaade", "ostud", "tooted", "nahtavus", "vaartus"]) {
+  for (const focus of ["ulevaade", "ostud", "tooted", "nahtavus"]) {
     await page.goto(`/epood/?fookus=${focus}&periood=koik`);
     await expect(page.getByRole("heading", { level: 1, name: "E-pood" })).toBeVisible();
     await expect(page.locator('nav[aria-label="Vaade"] a[aria-current="page"]')).toHaveCount(1);
     await expectNoHorizontalOverflow(page);
   }
+
+  // `vaartus` merged into `ostud` on 2026-08-16. A shared link still opens the
+  // sections it was pointing at, so it is checked as an alias rather than
+  // dropped from the loop — landing it on the overview would be silent.
+  await page.goto("/epood/?fookus=vaartus&periood=koik");
+  await expect(
+    page.locator('nav[aria-label="Vaade"] a[aria-current="page"]'),
+  ).toHaveText("Ostud");
+  await expect(
+    page.getByRole("heading", { name: "Tellitud väärtus kategooria järgi" }),
+  ).toBeVisible();
 });
 
 test("an unknown focus falls back to the overview rather than erroring", async ({ page }) => {
