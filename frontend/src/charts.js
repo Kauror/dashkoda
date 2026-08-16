@@ -58,7 +58,9 @@ const AXIS_BASE = () => ({
   axisLabel: { color: token("--color-text-secondary", "#9aa7b4") },
   axisLine: { lineStyle: { color: token("--color-border-strong", "#3d4954") } },
   axisTick: { show: false },
-  splitLine: { lineStyle: { color: token("--color-border-strong", "#3d4954") } },
+  splitLine: {
+    lineStyle: { color: token("--color-border-strong", "#3d4954") },
+  },
 });
 
 /**
@@ -273,9 +275,32 @@ function tooltipNode(readout) {
  */
 const GROUP = " ";
 
+const group = (digits) => digits.replace(/\B(?=(\d{3})+(?!\d))/g, GROUP);
+
 function groupThousands(value) {
-  const whole = Math.round(Math.abs(value));
-  return String(whole).replace(/\B(?=(\d{3})+(?!\d))/g, GROUP);
+  return group(String(Math.round(Math.abs(value))));
+}
+
+/**
+ * A number as a tooltip states it.
+ *
+ * Unlike an axis tick this **must not round**: a tick is a scale marker, a
+ * readout is the value itself, so a median of 14.5 days cannot be shown as
+ * `15`. Whatever fraction the datum carries is kept and spelled with a comma,
+ * and trailing zeros are dropped so a whole number still reads as one.
+ */
+function readoutNumber(value) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return value === null || value === undefined ? "" : String(value);
+  }
+  const absolute = Math.abs(value);
+  const whole = Math.floor(absolute);
+  const decimals = (absolute - whole).toFixed(2).slice(2).replace(/0+$/, "");
+  return (
+    (value < 0 ? "−" : "") +
+    group(String(whole)) +
+    (decimals ? "," + decimals : "")
+  );
 }
 
 const AXIS_FORMATS = {
@@ -316,6 +341,55 @@ function tooltipFormatter(readouts) {
      */
     const named = points.find((point) => point && point.seriesName);
     return named ? tooltipNode({ title: named.seriesName, rows: [] }) : "";
+  };
+}
+
+/**
+ * The readout for a chart that ships no server-rendered one.
+ *
+ * ECharts' own default is a single run of text per row, so a bar counting
+ * topics by stage read `Eesti seisukoht3` — the label and its value with
+ * nothing between them, because the panel shrinks to its content and the
+ * default's separator is a margin that collapses. Fourteen charts on
+ * Õigusloome were in that state; every other chart on the dashboard carries a
+ * readout built in Python and looked nothing like them.
+ *
+ * So the fallback builds the same node the server-fed path builds: the same
+ * label-left, figure-right grid, the same classes, the same DOM-not-markup
+ * rule. A chart that has not been given a bespoke readout still states its
+ * values the way the rest of the dashboard does.
+ *
+ * What it deliberately does not do is invent meaning. It states the category,
+ * the series and the number, and nothing else — no derived share, no unit it
+ * was never told. Where a chart needs more than that, the answer is a
+ * server-rendered readout, which is the mechanism that already exists.
+ */
+function defaultTooltipFormatter() {
+  return (params) => {
+    const points = (Array.isArray(params) ? params : [params]).filter(Boolean);
+    if (points.length === 0) {
+      return "";
+    }
+    /*
+     * A stacked or grouped point carries the axis category; an item hover on a
+     * ranking bar carries the bar's own name. Both land in `name`, and
+     * `axisValueLabel` covers the axis-trigger case where they differ.
+     */
+    const [first] = points;
+    const title = first.name || first.axisValueLabel || "";
+
+    const rows = points
+      .filter((point) => point.value !== null && point.value !== undefined)
+      .map((point) => ({
+        label: point.seriesName || "",
+        value: readoutNumber(
+          Array.isArray(point.value)
+            ? point.value[point.value.length - 1]
+            : point.value,
+        ),
+      }));
+
+    return tooltipNode({ title, rows });
   };
 }
 
@@ -430,6 +504,15 @@ export function mountChart(figure) {
        * lived here.
        */
       formatter: tooltipFormatter(dashkoda.tooltip),
+    };
+  } else if (option.tooltip) {
+    /*
+     * Only where the chart already asked for a tooltip. A chart that wants no
+     * tooltip must not be given one by a fallback.
+     */
+    option.tooltip = {
+      ...option.tooltip,
+      formatter: defaultTooltipFormatter(),
     };
   }
 

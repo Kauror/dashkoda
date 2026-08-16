@@ -20,7 +20,11 @@ import { PAGES } from "./pages.js";
  * "Teataja" alone is deliberately not listed: `e-Teataja` is a real newsletter
  * name the seed publishes, and only the out-of-scope *metric* is forbidden.
  */
-const FORBIDDEN = ["Uusi liikmeid sel aastal", "orgusaar", "koda.ee/et/uudised/2"];
+const FORBIDDEN = [
+  "Uusi liikmeid sel aastal",
+  "orgusaar",
+  "koda.ee/et/uudised/2",
+];
 
 /*
  * Heading order, console cleanliness and page wording do not depend on the
@@ -36,7 +40,9 @@ const oncePerRun = () =>
   );
 
 for (const page_ of PAGES) {
-  test(`${page_.name} renders content without a console error`, async ({ page }) => {
+  test(`${page_.name} renders content without a console error`, async ({
+    page,
+  }) => {
     oncePerRun();
     const errors = watchConsole(page);
 
@@ -54,15 +60,17 @@ for (const page_ of PAGES) {
     expect(errors).toEqual([]);
   });
 
-  test(`${page_.name} keeps one h1 and no skipped heading level`, async ({ page }) => {
+  test(`${page_.name} keeps one h1 and no skipped heading level`, async ({
+    page,
+  }) => {
     oncePerRun();
     await signIn(page);
     await page.goto(page_.path);
 
     const levels = await page.evaluate(() =>
-      Array.from(document.querySelectorAll("main h1, main h2, main h3, main h4")).map((node) =>
-        Number(node.tagName.slice(1)),
-      ),
+      Array.from(
+        document.querySelectorAll("main h1, main h2, main h3, main h4"),
+      ).map((node) => Number(node.tagName.slice(1))),
     );
 
     expect(levels.filter((level) => level === 1)).toHaveLength(1);
@@ -73,7 +81,9 @@ for (const page_ of PAGES) {
     }
   });
 
-  test(`${page_.name} shows nothing that looks like real Chamber data`, async ({ page }) => {
+  test(`${page_.name} shows nothing that looks like real Chamber data`, async ({
+    page,
+  }) => {
     oncePerRun();
     await signIn(page);
     await page.goto(page_.path);
@@ -85,7 +95,9 @@ for (const page_ of PAGES) {
   });
 }
 
-test("every chart keeps its accessible table alongside the drawing", async ({ page }) => {
+test("every chart keeps its accessible table alongside the drawing", async ({
+  page,
+}) => {
   oncePerRun();
   await signIn(page);
 
@@ -136,8 +148,9 @@ test("every chart keeps its accessible table alongside the drawing", async ({ pa
  * been asserting a defect.
  */
 
-
-test("an explicit zero reads differently from a missing value", async ({ page }) => {
+test("an explicit zero reads differently from a missing value", async ({
+  page,
+}) => {
   /*
    * The seed publishes one board report with `suspended_members = 0` and
    * another with it absent. "Nobody was suspended" and "nobody counted" are
@@ -173,7 +186,9 @@ test("the mobile drawer still works on a populated page", async ({ page }) => {
   await expect(drawer).toBeHidden();
 });
 
-test("a seeded list is long enough to have exercised scrolling", async ({ page }) => {
+test("a seeded list is long enough to have exercised scrolling", async ({
+  page,
+}) => {
   oncePerRun();
   await signIn(page);
   await page.goto("/oigusloome/");
@@ -182,4 +197,112 @@ test("a seeded list is long enough to have exercised scrolling", async ({ page }
   // rather than a two-row fixture that always fits.
   const rows = page.locator("main table tbody tr");
   expect(await rows.count()).toBeGreaterThanOrEqual(4);
+});
+
+/**
+ * Every mounted chart on the page that asks for a tooltip but ships no
+ * server-built readout — the charts that fall through to the browser default.
+ */
+const bareReadoutCharts = (page) =>
+  page.evaluate(() =>
+    Array.from(document.querySelectorAll("[data-chart]"))
+      .map((figure) => figure.dataset.chartPayload)
+      .filter((id) => {
+        const block = document.getElementById(id || "");
+        if (!block) return false;
+        let payload;
+        try {
+          payload = JSON.parse(block.textContent);
+        } catch {
+          return false;
+        }
+        const mounted = document.querySelector(
+          `[data-chart-payload="${id}"] canvas`,
+        );
+        return Boolean(
+          mounted && payload.tooltip && !payload.dashkoda?.tooltip,
+        );
+      }),
+  );
+
+/*
+ * Sweep the plot rather than hovering its middle.
+ *
+ * `trigger: "item"` only fires while the pointer is actually over a mark, so a
+ * horizontal ranking chart with a few short bars has plenty of canvas that
+ * answers nothing — the middle included. The first version of this test hovered
+ * the centre and failed for that reason rather than for the defect.
+ */
+async function hoverUntilTooltip(page, canvas) {
+  const box = await canvas.boundingBox();
+  for (const fy of [0.3, 0.5, 0.7, 0.15, 0.85]) {
+    for (const fx of [0.2, 0.35, 0.5, 0.65, 0.8]) {
+      await page.mouse.move(box.x + box.width * fx, box.y + box.height * fy);
+      const tooltip = page.locator(".dk-chart-tooltip").first();
+      if (await tooltip.isVisible()) return tooltip;
+    }
+  }
+  return null;
+}
+
+test("a chart with no server-built readout still states its value separately", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * Õigusloome is where the charts that ship no `dashkoda.tooltip` live, so they
+   * fell through to ECharts' own default: one run of text per row, which
+   * rendered as `Eesti seisukoht3` — the label and its figure with nothing
+   * between them. The value was correct and unreadable, the same defect class as
+   * the white tooltip panel and the dim legend before it.
+   *
+   * Asserted through the DOM the fallback builds rather than through its text,
+   * because "the label and the value are separate elements" is the actual
+   * contract; a text assertion would pass on any string containing a space.
+   */
+  await signIn(page);
+
+  /*
+   * Which view carries such a chart depends on what the seed published, so the
+   * test finds one rather than assuming a page. `toovoog` is tried first
+   * because its charts trigger on the axis, which any point in the plot
+   * reaches.
+   */
+  let bare = [];
+  for (const view of [
+    "/oigusloome/?fookus=toovoog",
+    "/oigusloome/",
+    "/oigusloome/?fookus=aktiivsed",
+    "/oigusloome/?fookus=arvamused",
+  ]) {
+    await page.goto(view);
+    bare = await bareReadoutCharts(page);
+    if (bare.length > 0) break;
+  }
+  expect(
+    bare.length,
+    "no seeded chart ships without a server-built readout",
+  ).toBeGreaterThan(0);
+
+  const canvas = page.locator(`[data-chart-payload="${bare[0]}"] canvas`);
+  const tooltip = await hoverUntilTooltip(page, canvas);
+  expect(tooltip, "no point on the chart produced a tooltip").not.toBeNull();
+
+  /*
+   * The contract, and the whole of it: the category names the row, and the
+   * series and its figure are separate elements. Being separate elements is
+   * what makes the run-together impossible — a text assertion cannot express
+   * that, which is why this is asserted structurally.
+   *
+   * Nothing here may assert that a label does *not* end in a digit: the series
+   * on this chart are named `2025` and `2026`. An earlier version did, and
+   * failed on correct output.
+   */
+  await expect(tooltip.locator(".dk-chart-tooltip-title")).not.toBeEmpty();
+  const label = tooltip.locator("dt").first();
+  const value = tooltip.locator("dd").first();
+  await expect(label).not.toBeEmpty();
+  await expect(value).toHaveText(/^\d/);
+  expect(await label.evaluate((node) => node.tagName)).toBe("DT");
+  expect(await value.evaluate((node) => node.tagName)).toBe("DD");
 });
