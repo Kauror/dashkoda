@@ -44,13 +44,12 @@ offering to clear a search the reader had already typed away.
     </table>
   </div>
 
-  <p class="dk-meta">
-    Avamismäär ja klikimäär arvutatakse kohale toimetatud kirjadest, mitte
-    saadetutest: tagasi põrkunud kirja ei olnud võimalik avada. Klikimäär loeb
-    unikaalseid klikkijaid, mitte klikke. Pealkiri avab Smaily eelvaate seal,
-    kus see on olemas — kustutatud malliga saadetisel eelvaadet ei ole, kuid
-    selle tulemused on alles.
-  </p>
+  {% comment %}
+  The rate definitions moved to `Andmete kohta` on `/haldus/` on 2026-08-16
+  with the rest of them. What they said still governs every percentage in the
+  table above: the denominator is delivered mail, not sent, and the click rate
+  counts unique clickers.
+  {% endcomment %}
 
   {% comment %}
   Ordinary links, not htmx. A reader asking for page two has stopped typing, and

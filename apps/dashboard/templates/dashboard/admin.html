@@ -68,6 +68,12 @@ never be given.
       section was built for.
       {% endcomment %}
       {% include "visibility/admin/_data_about.html" with coverage=website_coverage period_coverage=website_period_coverage can_add_data=can_add_data only %}
+      {% comment %}
+      Otsepostitused' block, moved here 2026-08-16. Third into this section,
+      and it absorbed two rate-definition copies that lived elsewhere on that
+      dashboard rather than only the one disclosure it replaces.
+      {% endcomment %}
+      {% include "visibility/admin/_mailings_data_about.html" %}
     </div>
   </section>
 
