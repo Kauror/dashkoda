@@ -379,14 +379,14 @@ def test_the_mailings_page_reads_no_news_parameter(viewer_client):
 
 
 # ======================================================================
-# The send archive is the section's second view
+# The send archive is the section's sends table
 # ======================================================================
 
 
 def test_the_canonical_archive_is_under_otsepostitused(viewer_client):
     send(1, "Kutse ärifoorumile")
 
-    response = viewer_client.get(reverse("mailings-history"))
+    response = viewer_client.get(MAILINGS_URL)
 
     assert response.status_code == 200
     content = page(response)
@@ -397,29 +397,27 @@ def test_the_canonical_archive_is_under_otsepostitused(viewer_client):
     assert "Tagasi nähtavuse lehele" not in content
 
 
-def test_the_archive_marks_mailings_as_the_active_section(viewer_client):
+def test_the_old_archive_address_still_answers(viewer_client):
+    """A permanent redirect, not a 404. It was linked from here for months."""
     response = viewer_client.get(reverse("mailings-history"))
 
-    assert response.context["active_nav"] == "mailings"
+    assert response.status_code == 301
+    assert response.url.startswith(reverse("mailings"))
 
 
-def test_both_views_offer_the_section_navigation(viewer_client):
-    """Two routes, one section: each has to be reachable from the other."""
-    overview = page(viewer_client.get(MAILINGS_URL))
-    history = page(viewer_client.get(reverse("mailings-history")))
+def test_the_page_offers_no_view_navigation(viewer_client):
+    """One view, so no chips — and no link to the address the archive left.
 
-    for content in (overview, history):
-        assert reverse("mailings") in content
-        assert reverse("mailings-history") in content
-
-
-def test_the_recent_sends_link_to_the_send_archive(viewer_client):
-    """`Vaata kõiki` must not point at either of the two old routes."""
+    `Vaata kõiki` and the `Ülevaade` / `Saadetised` chips all pointed at
+    `/otsepostitused/ajalugu/`. A link from this page to a redirect back to
+    this page is a loop with an extra request in it.
+    """
     read()
     for campaign_id in range(1, 20):
         send(campaign_id, f"Saadetis {campaign_id}")
 
     content = page(viewer_client.get(MAILINGS_URL))
 
-    assert reverse("mailings-history") in content
+    assert reverse("mailings-history") not in content
     assert reverse("news-newsletter-history") not in content
+    assert "Vaata kõiki" not in content

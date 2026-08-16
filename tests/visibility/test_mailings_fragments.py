@@ -27,7 +27,6 @@ from apps.visibility.models import SmailyCampaign, VisibilityMetric
 
 pytestmark = pytest.mark.django_db
 
-NEWSLETTER_SEARCH = "mailings-search"
 ARCHIVE_SEARCH = "mailings-history-search"
 
 ETEATAJA = VisibilityMetric.NEWSLETTER_ETEATAJA
@@ -45,13 +44,17 @@ def send(campaign_id, name, *, newsletter=ETEATAJA, days_ago=1):
     )
 
 
-# -- the newsletter sends box ------------------------------------------------
+# -- the sends box ----------------------------------------------------------
+#
+# One box since 2026-08-16. `Saadetised` merged into `Otsepostitused` and the
+# overview's own fifteen-row table went with it, so `mailings-search` no longer
+# exists — these are the rules it held, now asserted against the box that stayed.
 
 
-def test_the_newsletter_fragment_is_a_fragment(viewer_client):
+def test_the_fragment_is_a_fragment(viewer_client):
     send(1, "Kutse ärifoorumile")
 
-    content = viewer_client.get(reverse(NEWSLETTER_SEARCH)).content.decode()
+    content = viewer_client.get(reverse(ARCHIVE_SEARCH)).content.decode()
 
     assert "Kutse ärifoorumile" in content
     for shell in ("<html", "<body", "Peamenüü", "Koja töölaud"):
@@ -63,29 +66,30 @@ def test_the_newsletter_fragment_is_a_fragment(viewer_client):
     assert "<form" not in content
 
 
-def test_the_newsletter_fragment_narrows_by_term_and_newsletter(viewer_client):
+def test_the_fragment_narrows_by_term_and_newsletter(viewer_client):
     send(1, "Aastakoosolek", newsletter=ETEATAJA)
     send(2, "Aastakoosolek", newsletter=ENEWS)
     send(3, "Midagi muud", newsletter=ETEATAJA)
 
-    both = viewer_client.get(reverse(NEWSLETTER_SEARCH), {"otsi": "aastakoosolek"})
+    both = viewer_client.get(reverse(ARCHIVE_SEARCH), {"otsi": "aastakoosolek"})
     assert both.content.decode().count("Aastakoosolek") >= 2
 
     narrowed = viewer_client.get(
-        reverse(NEWSLETTER_SEARCH), {"otsi": "aastakoosolek", "uudiskiri": str(ENEWS)}
+        reverse(ARCHIVE_SEARCH), {"otsi": "aastakoosolek", "uudiskiri": str(ENEWS)}
     ).content.decode()
     assert "Aastakoosolek" in narrowed
     assert "Midagi muud" not in narrowed
 
 
-def test_the_newsletter_fragment_pushes_otsepostitused(viewer_client):
+def test_the_fragment_pushes_otsepostitused(viewer_client):
     """The point of the move, in one assertion.
 
-    The fragment pushed `/nahtavus/` once and `/uudised/` after that. Left
-    either way, a reader typing in the subject box would watch their address bar
-    change to a page that no longer has one.
+    The fragment pushed `/nahtavus/` once, `/uudised/` after that, and its own
+    `/otsepostitused/ajalugu/` until the archive moved onto the overview. Left
+    at any of them, a reader typing in the subject box would watch their address
+    bar change to a page that no longer has one.
     """
-    response = viewer_client.get(reverse(NEWSLETTER_SEARCH), {"otsi": "ärifoorum"})
+    response = viewer_client.get(reverse(ARCHIVE_SEARCH), {"otsi": "ärifoorum"})
 
     pushed = response.headers["HX-Push-Url"]
     assert pushed.startswith(reverse("mailings"))
@@ -95,7 +99,7 @@ def test_the_newsletter_fragment_pushes_otsepostitused(viewer_client):
     assert pushed.endswith("#section-newsletter-analytics")
 
 
-def test_the_newsletter_fragment_carries_no_news_state(viewer_client):
+def test_the_fragment_carries_no_news_state(viewer_client):
     """A news parameter on the current URL must not ride along.
 
     This section used to sit on `/uudised/` and carried the article archive's
@@ -105,7 +109,7 @@ def test_the_newsletter_fragment_carries_no_news_state(viewer_client):
     about what is on screen.
     """
     response = viewer_client.get(
-        reverse(NEWSLETTER_SEARCH),
+        reverse(ARCHIVE_SEARCH),
         {"otsi": "x"},
         headers={
             "HX-Current-URL": (
@@ -120,9 +124,6 @@ def test_the_newsletter_fragment_carries_no_news_state(viewer_client):
         assert key not in pushed
 
 
-# -- the send archive's subject box ------------------------------------------
-
-
 def test_the_archive_fragment_narrows_and_resets_the_page(viewer_client):
     send(1, "Kutse ärifoorumile")
     send(2, "Sündmuste kalender", newsletter="")
@@ -135,7 +136,7 @@ def test_the_archive_fragment_narrows_and_resets_the_page(viewer_client):
     assert "<html" not in content
 
     pushed = response.headers["HX-Push-Url"]
-    assert pushed.startswith(reverse("mailings-history"))
+    assert pushed.startswith(reverse("mailings"))
     assert "lk=" not in pushed
 
 
@@ -154,10 +155,10 @@ def test_the_archive_fragment_offers_to_clear_the_search_it_is_showing(viewer_cl
     assert "Tühjenda otsing" not in without.content.decode()
 
 
-# -- both are ordinary protected routes --------------------------------------
+# -- an ordinary protected route ---------------------------------------------
 
 
-@pytest.mark.parametrize("name", [NEWSLETTER_SEARCH, ARCHIVE_SEARCH])
+@pytest.mark.parametrize("name", [ARCHIVE_SEARCH])
 def test_a_fragment_is_behind_the_viewer_gate(client, name):
     response = client.get(reverse(name))
 
@@ -165,7 +166,7 @@ def test_a_fragment_is_behind_the_viewer_gate(client, name):
     assert response.url.startswith("/sisene/?")
 
 
-@pytest.mark.parametrize("name", [NEWSLETTER_SEARCH, ARCHIVE_SEARCH])
+@pytest.mark.parametrize("name", [ARCHIVE_SEARCH])
 def test_an_expired_session_redirects_rather_than_swapping_a_login_form(client, name):
     response = client.get(reverse(name), headers={"HX-Request": "true"})
 

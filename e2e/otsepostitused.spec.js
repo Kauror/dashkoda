@@ -17,7 +17,8 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
  */
 
 const OVERVIEW = "/otsepostitused/";
-const HISTORY = "/otsepostitused/ajalugu/";
+// `/otsepostitused/ajalugu/` is a redirect since 2026-08-16, not a view.
+const OLD_HISTORY = "/otsepostitused/ajalugu/";
 
 async function openMailings(page, url = OVERVIEW) {
   await signIn(page);
@@ -38,20 +39,16 @@ test("the section renders at its own address", async ({ page }) => {
   expect(errors).toEqual([]);
 });
 
-test("the two views are reachable from each other", async ({ page }) => {
+test("one view, and the address the second one left still answers", async ({ page }) => {
+  // `Saadetised` merged into `Ülevaade` on 2026-08-16. There is no view
+  // navigation left to click, and the archive is a section of this page.
   await openMailings(page);
 
-  const nav = page.getByRole("navigation", { name: "Vaade" });
-  await expect(nav).toBeVisible();
-  await nav.getByRole("link", { name: "Saadetised", exact: true }).click();
+  await expect(page.getByRole("navigation", { name: "Vaade" })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
 
-  await expect(page).toHaveURL(/\/otsepostitused\/ajalugu\/$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Saadetud uudiskirjad");
-
-  await page
-    .getByRole("navigation", { name: "Vaade" })
-    .getByRole("link", { name: "Ülevaade", exact: true })
-    .click();
+  await page.goto(OLD_HISTORY);
+  await expect(page).toHaveURL(/\/otsepostitused\/$|\/otsepostitused\/#/);
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
 });
 
@@ -112,17 +109,17 @@ test("every retired address arrives in this section", async ({ page }) => {
 
   for (const [old, expected] of [
     ["/uudised/?fookus=uudiskirjad", /\/otsepostitused\/$/],
-    ["/uudised/uudiskirjad/", /\/otsepostitused\/ajalugu\/$/],
-    ["/nahtavus/uudiskirjad/", /\/otsepostitused\/ajalugu\/$/],
+    ["/uudised/uudiskirjad/", /\/otsepostitused\/$/],
+    ["/nahtavus/uudiskirjad/", /\/otsepostitused\/$/],
   ]) {
     await page.goto(old);
     await expect(page).toHaveURL(expected);
   }
 });
 
-test("neither view scrolls sideways", async ({ page }) => {
+test("the page does not scroll sideways", async ({ page }) => {
   await signIn(page);
-  for (const url of [OVERVIEW, HISTORY]) {
+  for (const url of [OVERVIEW]) {
     await page.goto(url);
     await expectNoHorizontalOverflow(page);
   }

@@ -4,9 +4,14 @@ One page of the archive — the region a keystroke replaces.
 Context:
   history – a CampaignHistory from `apps.visibility.campaign_history`
 
-Rendered by `campaign_history.html` on a full page load and alone by
-`campaign_history_search_fragment` on every keystroke, so a reader who types and
+Rendered inside `visibility/_newsletters.html` on a full page load and alone by
+`mailings_history_search_fragment` on every keystroke, so a reader who types and
 a reader who submits are looking at the same template.
+
+It was `campaign_history.html`'s until 2026-08-16, when `Saadetised` merged into
+`Ülevaade`. Every link in here is relative — `?uudiskiri=…` — which is why the
+move needed no rewriting: they address whichever page rendered it. The anchors
+are new, because on the merged page there is a screenful above this table.
 
 The type chips and the search box stay outside: htmx replaces this element's
 contents, and an input inside would lose its caret on every keystroke.
@@ -18,7 +23,7 @@ offering to clear a search the reader had already typed away.
 <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
   <p class="dk-meta">{{ history.summary }}</p>
   {% if history.search %}
-    <a class="dk-link text-sm" href="?uudiskiri={{ history.active }}">Tühjenda otsing</a>
+    <a class="dk-link text-sm" href="?uudiskiri={{ history.active }}#section-newsletter-analytics">Tühjenda otsing</a>
   {% endif %}
 </div>
 
@@ -59,12 +64,12 @@ offering to clear a search the reader had already typed away.
     <nav aria-label="Leheküljed" class="flex flex-wrap items-center gap-3">
       {% if history.has_previous %}
         <a class="dk-button dk-button-secondary"
-           href="?uudiskiri={{ history.active }}&amp;lk={{ history.previous_page }}{% if history.search %}&amp;otsi={{ history.search|urlencode }}{% endif %}">Eelmine</a>
+           href="?uudiskiri={{ history.active }}&amp;lk={{ history.previous_page }}{% if history.search %}&amp;otsi={{ history.search|urlencode }}{% endif %}#section-newsletter-analytics">Eelmine</a>
       {% endif %}
       <span class="dk-meta">Lehekülg {{ history.page_number }} / {{ history.total_pages }}</span>
       {% if history.has_next %}
         <a class="dk-button dk-button-secondary"
-           href="?uudiskiri={{ history.active }}&amp;lk={{ history.next_page }}{% if history.search %}&amp;otsi={{ history.search|urlencode }}{% endif %}">Järgmine</a>
+           href="?uudiskiri={{ history.active }}&amp;lk={{ history.next_page }}{% if history.search %}&amp;otsi={{ history.search|urlencode }}{% endif %}#section-newsletter-analytics">Järgmine</a>
       {% endif %}
     </nav>
   {% endif %}

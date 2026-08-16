@@ -294,7 +294,9 @@ def test_filtering_narrows_the_issues_and_adds_the_rates():
 
     section = build_newsletter_section(newsletter_key=ETEATAJA)
     assert section.is_filtered
-    assert [row.campaign_id for row in section.issues] == [1]
+    # The rows themselves are `build_campaign_history`'s since 2026-08-16; what
+    # the filter narrows here is the population the rates are computed over.
+    assert section.total_sends == 1
     assert section.figures
 
     # The figures stopped naming their denominators on 2026-08-16; the
@@ -411,7 +413,6 @@ def test_the_section_searches_stored_subjects():
     issue(2, name="Uudiskiri nr 400")
 
     found = build_newsletter_section(search="ärifoorum")
-    assert [row.campaign_id for row in found.issues] == [1]
     assert found.is_searching
     assert found.total_sends == 1
     assert found.result_summary == "1 saadetud uudiskiri."
@@ -423,7 +424,7 @@ def test_the_search_and_the_newsletter_filter_combine():
     issue(2, name="Aastakoosolek", newsletter=ENEWS)
 
     narrowed = build_newsletter_section(newsletter_key=ENEWS, search="aastakoosolek")
-    assert [row.campaign_id for row in narrowed.issues] == [2]
+    assert narrowed.total_sends == 1
 
 
 def test_a_search_term_is_bounded():
@@ -439,11 +440,15 @@ def test_a_search_matching_nothing_keeps_the_section_on_the_page(viewer_client):
     section collapsed to `Andmed puuduvad` — taking with it the box holding the
     term and the link that would clear it. The reader was left on a page with
     no way back except editing the URL.
+
+    `has_issues` became `has_sends` on 2026-08-16, when the rows moved to
+    `build_campaign_history`; the rule is the same one and the failure it
+    guards against is the same.
     """
     issue(1, name="Kutse ärifoorumile")
 
     section = build_newsletter_section(search="ei leidu midagi")
-    assert not section.has_issues
+    assert not section.has_sends
     assert section.has_any_data
 
     page = viewer_client.get(reverse(MAILINGS), {"otsi": "ei leidu midagi"}).content.decode()
@@ -459,12 +464,14 @@ def test_the_filter_chips_carry_the_search_and_clearing_keeps_the_newsletter():
     assert section.clear_query == f"uudiskiri={ETEATAJA}"
 
 
-def test_the_archive_link_carries_both_rather_than_reopening_everything():
-    """`Vaata kõiki` asks the archive the question this section is asking.
+def test_the_count_beside_the_table_is_the_filtered_one():
+    """A total that ignores the filter misdescribes what is on screen.
 
-    It used to link to a bare `/nahtavus/uudiskirjad/` and print the unfiltered
-    total beside it, so a reader looking at three e-Teataja matches was offered
-    "see all 3 194" and landed on fourteen unfiltered years.
+    It was once the unfiltered count printed beside a `Vaata kõiki` link, so a
+    reader looking at three e-Teataja matches was offered "see all 3 194". The
+    link went with the archive's own page on 2026-08-16 — there is nowhere left
+    to go, the rows are right there — but the count is still here and still has
+    to describe the question being asked.
     """
     read(DAY)
     for campaign_id in range(1, 4):
@@ -473,7 +480,6 @@ def test_the_archive_link_carries_both_rather_than_reopening_everything():
 
     section = build_newsletter_section(newsletter_key=ETEATAJA, search="ärifoorum")
     assert section.total_sends == 3
-    assert section.archive_query == f"uudiskiri={ETEATAJA}&otsi=%C3%A4rifoorum"
 
 
 def test_the_page_reads_otsi_and_not_the_page_search(viewer_client):

@@ -12,7 +12,7 @@ Three rules this markup exists to keep:
     starts from now rather than implying nothing was ever sent;
   * the search never hides the filter chips or itself. A term matching nothing
     still renders the form, because the control that clears the search is inside
-    it — see the `has_issues or is_searching` guard below.
+    it — see the `has_sends or is_searching` guard below.
 
 **How many people are on each list is not here.** It is one card up, under
 `Uudiskirjad`, where `build_newsletter_slot` lists all three. This section had
@@ -57,15 +57,15 @@ throughout.
       {% endif %}
 
       {% comment %}
-      No guard of its own: `has_any_data` above *is* `has_issues or
-      is_searching` now that the audience rows are gone, so a second identical
-      condition here would only be a place for the two to drift apart.
+      No guard of its own: `has_any_data` above *is* `has_sends or
+      is_searching`, so a second identical condition here would only be a place
+      for the two to drift apart.
       {% endcomment %}
       <div class="flex min-w-0 flex-col gap-3">
         {% comment %}
         A constant heading. It sits outside the region a keystroke replaces, so
         it cannot describe the search — which mode the rows are in is stated
-        inside `partials/_newsletter_results.html`, where it can keep up.
+        inside `partials/_campaign_history_results.html`, where it can keep up.
         {% endcomment %}
         <h3 class="sr-only">Saadetud uudiskirjad</h3>
 
@@ -82,9 +82,10 @@ throughout.
         real rather than a placeholder, because a placeholder disappears the
         moment somebody types.
 
-        It searches the subject stored in PostgreSQL and never contacts Smaily,
-        exactly as the archive page's box does — same parameter name, same
-        question, so the "vaata kõiki" link below can simply carry it across.
+        It searches the subject stored in PostgreSQL and never contacts Smaily.
+        There used to be a second box on `/otsepostitused/ajalugu/` asking the
+        same question through the same `otsi` parameter; that page merged into
+        this one on 2026-08-16 and this is the box that survived.
 
         Four attributes carry the live behaviour, and each is load-bearing:
 
@@ -113,9 +114,9 @@ throughout.
                    placeholder="Pealkirja osa…"
                    autocomplete="off"
                    class="dk-input w-full min-w-0"
-                   hx-get="{% url 'mailings-search' %}"
+                   hx-get="{% url 'mailings-history-search' %}"
                    hx-trigger="input changed delay:250ms, search"
-                   hx-target="#newsletter-results"
+                   hx-target="#history-results"
                    hx-swap="innerHTML"
                    hx-include="closest form"
                    hx-sync="this:replace"
@@ -147,10 +148,21 @@ throughout.
         change, so a screen reader is told rather than left on a page that
         silently became a different page.
         {% endcomment %}
-        <div id="newsletter-results"
+        {% comment %}
+        The swapped region, and since 2026-08-16 the archive rather than the
+        fifteen most recent sends. `Saadetised` was this table with no limit and
+        a paginator, under the same headings, reading the same `uudiskiri` and
+        `otsi`; merging the two pages meant one of them had to go, and the one
+        that shows everything is the one worth keeping.
+
+        `aria-live="polite"`: the rows arrive without a page change, so a screen
+        reader is told rather than left on a page that silently became a
+        different page.
+        {% endcomment %}
+        <div id="history-results"
              aria-live="polite"
              class="flex min-w-0 flex-col gap-3">
-          {% include "visibility/partials/_newsletter_results.html" with newsletters=newsletters only %}
+          {% include "visibility/partials/_campaign_history_results.html" with history=history only %}
         </div>
       </div>
     {% else %}

@@ -42,10 +42,8 @@ from .smaily_campaigns import AUDIENCE_MEMBERS, AUDIENCE_NON_MEMBERS, OTHER_KEY,
 from .smaily_segments import NEWSLETTERS
 from .smaily_selectors import (
     MAX_SEARCH_LENGTH,
-    CampaignPerformance,
     NewsletterAggregate,
     campaign_queryset,
-    get_campaign_performance,
     get_newsletter_aggregate,
     has_unclassified_campaigns,
 )
@@ -57,10 +55,6 @@ PARAM_NEWSLETTER = "uudiskiri"
 #: one thing across both pages, and carrying it from here to the archive is then
 #: a matter of copying the value rather than translating it.
 PARAM_SEARCH = "otsi"
-
-#: How many issues the performance table lists. Long enough to show a pattern,
-#: short enough that nobody scrolls past the point of interest.
-TOP_ISSUES = 15
 
 #: How many recent issues an aggregate rate is computed over. About a quarter of
 #: e-Teataja's cadence, which is recent enough to describe how the newsletter
@@ -212,14 +206,14 @@ class NewsletterSection:
     active: str
     options: tuple[NewsletterOption, ...]
     figures: tuple[PerformanceFigure, ...]
-    issues: tuple[CampaignPerformance, ...]
     aggregate: NewsletterAggregate | None
     #: The subject search in force, already trimmed and bounded.
     search: str = ""
-    #: How many completed sends match the current newsletter *and* search — the
-    #: population the fifteen rows are the newest of. It was once the unfiltered
-    #: total, which read as "3 194 more where these came from" beside a table
-    #: showing e-Teataja alone.
+    #: How many completed sends match the current newsletter *and* search. It
+    #: was once the unfiltered total, which read as "3 194 more where these came
+    #: from" beside a table showing e-Teataja alone. Since 2026-08-16 it is also
+    #: the only thing that tells this section whether it has anything to show:
+    #: the rows themselves are `campaign_history`'s now.
     total_sends: int = 0
     #: The news archive's state, carried through every link this section builds
     #: that stays on `/uudised/`. Empty when the section is rendered anywhere
@@ -231,12 +225,14 @@ class NewsletterSection:
         return bool(self.search)
 
     @property
-    def has_more_sends(self) -> bool:
-        return self.total_sends > len(self.issues)
+    def has_sends(self) -> bool:
+        """Whether anything matches the current newsletter and search.
 
-    @property
-    def has_issues(self) -> bool:
-        return bool(self.issues)
+        Replaced `has_issues` on 2026-08-16, when the archive absorbed this
+        section's fifteen-row table. There are no rows here to be truthy any
+        more, and `total_sends` was already counted.
+        """
+        return bool(self.total_sends)
 
     @property
     def has_any_data(self) -> bool:
@@ -250,7 +246,7 @@ class NewsletterSection:
         ranking the same way: a search matching nothing must not take the whole
         section off the page, because the box that would clear it goes with it.
         """
-        return self.has_issues or self.is_searching
+        return self.has_sends or self.is_searching
 
     @property
     def is_filtered(self) -> bool:
@@ -271,23 +267,9 @@ class NewsletterSection:
 
         Clearing a search is not starting again: the reader still wants
         e-Teataja, they have simply finished looking for one issue — and they
-        are still looking at whatever news archive they had narrowed to, which
-        is why this carries it and `archive_query` below does not.
+        are still looking at whatever news archive they had narrowed to.
         """
         return _query(self.active, carried=self.carried)
-
-    @property
-    def archive_query(self) -> str:
-        """The archive, asking the question this section is asking.
-
-        Both pages read `uudiskiri` and `otsi`, so "see all" opens the same
-        newsletter and the same term rather than fourteen unfiltered years.
-
-        Deliberately without `carried`: this link leaves the news archive for a
-        page that has none, and `periood` or `kategooria` in that URL would be
-        parameters the archive page does not understand.
-        """
-        return _query(self.active, self.search)
 
 
 def build_newsletter_section(
@@ -295,9 +277,15 @@ def build_newsletter_section(
 ) -> NewsletterSection:
     """Read the stored campaign history once and shape it for the page.
 
-    Three queries and no subscriber reading: this section is about sends now, so
+    Two queries and no subscriber reading: this section is about sends now, so
     the three `get_all_subscriber_series` calls it used to make on every render
     are gone with the rows they fed.
+
+    It no longer reads the sends themselves either. `Saadetised` merged into
+    `Ülevaade` on 2026-08-16, and the archive — every completed send, paginated
+    — is the table under this section now, so the fifteen most recent would be
+    the same rows twice. What is left here is the filter and the aggregate
+    rates, which the archive does not compute.
 
     `carried` is the news archive's own query string, already built and already
     validated by the caller. It is threaded onto the links that stay on
@@ -307,7 +295,6 @@ def build_newsletter_section(
     term = parse_search(search)
     metric = None if active == ALL_NEWSLETTERS else active
 
-    issues = get_campaign_performance(metric=metric, limit=TOP_ISSUES, search=term)
     aggregate = (
         get_newsletter_aggregate(metric, limit=AGGREGATE_ISSUES)
         if metric is not None and metric != OTHER_KEY
@@ -320,7 +307,6 @@ def build_newsletter_section(
             active, with_other=has_unclassified_campaigns(), search=term, carried=carried
         ),
         figures=_figures(aggregate) if aggregate is not None else (),
-        issues=issues,
         aggregate=aggregate,
         search=term,
         total_sends=campaign_queryset(metric=metric, search=term).count(),
@@ -385,7 +371,6 @@ __all__ = [
     "ALL_NEWSLETTERS",
     "PARAM_NEWSLETTER",
     "PARAM_SEARCH",
-    "TOP_ISSUES",
     "NewsletterOption",
     "NewsletterSection",
     "PerformanceFigure",
