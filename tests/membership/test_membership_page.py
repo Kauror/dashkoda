@@ -349,3 +349,29 @@ def test_every_range_preset_keeps_the_reader_on_its_focus(viewer_client, importe
     assert hrefs, "the growth focus rendered no in-section links to check"
     for href in hrefs:
         assert "fookus=kasv" in href, href
+
+
+def test_one_word_per_quantity_for_joins_and_exclusions(viewer_client, imported_package):
+    """The page names a flow the same way wherever it appears.
+
+    On 2026-08-16 the `Sel aastal` readouts were relabelled `Liitunud` and
+    `Väljaarvatud`, and the reconciliation table below them was left saying
+    `Liitus` and `Välja arvati` — one page, two words, one quantity. Nothing
+    failed, because every check named a title.
+
+    So this names the *old* words. It is deliberately not a heading assertion:
+    the labels sit in `<dt>`s, in `<th>`s and in a chart's tooltip payload, and
+    the only property that holds across all three is that the retired forms are
+    gone from the rendered page.
+
+    `Liitus <year>` in the cohort chart's tooltip titles is a verb in a
+    sentence — "joined in 2020" — not a label beside a number, which is why the
+    match is anchored rather than a bare substring.
+    """
+    body = _page(viewer_client)
+
+    assert ">Liitunud<" in body
+    assert ">Väljaarvatud<" in body
+    assert ">Liitus<" not in body
+    assert "Välja arvati" not in body
+    assert '"label": "Liitus"' not in body and '"label":"Liitus"' not in body
