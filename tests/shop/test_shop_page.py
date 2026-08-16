@@ -304,16 +304,37 @@ def test_a_stale_export_does_not_show_a_rate_for_unimported_days(
     import_shop_package(build_package(tmp_path, manifest=manifest, daily_facts=rows), dry_run=False)
 
     authenticate_viewer(client)
-    response = client.get("/epood/?periood=kohandatud&alates=2026-07-01&kuni=2026-07-31")
+    # `Veeb ja ostmine` left the overview on 2026-08-16; the acquisition-page
+    # figures and this refusal are on `Nähtavus`, the focus whose subject they
+    # are, so the assertion follows them rather than the overview.
+    response = client.get(
+        "/epood/?fookus=nahtavus&periood=kohandatud&alates=2026-07-01&kuni=2026-07-31"
+    )
     content = response.content.decode()
 
     assert response.status_code == 200
     # Scoped to the web section, and asserting the absence of the rate rather
     # than only the presence of a sentence. A refusal that still printed a
     # number underneath it would pass a wording check and fail the reader.
-    web = content.split('aria-labelledby="section-web"')[1].split("</section>")[0]
+    web = content.split('aria-labelledby="section-webhead"')[1].split("</section>")[0]
     assert "Veebivõrdlus ei ole selle perioodi kohta võimalik" in web
     assert "/ 100 vaatamist" not in web
+
+
+def test_the_overview_no_longer_carries_the_web_pair(client, authenticate_viewer, seeded):
+    """Moved, not copied — the other half of the assertion above.
+
+    The pair was on two screens and its narrower-window caveat had to be
+    restated on both. A section deleted from one page and never rendered on the
+    other would satisfy the Nähtavus test on its own.
+    """
+    content = _get(client, authenticate_viewer).content.decode()
+    main = content.split("<main", 1)[1].split("</main>", 1)[0]
+
+    assert 'aria-labelledby="section-web"' not in main
+
+    nahtavus = _get(client, authenticate_viewer, "/epood/?fookus=nahtavus").content.decode()
+    assert 'aria-labelledby="section-webhead"' in nahtavus
 
 
 def test_the_shop_appears_in_the_navigation(client, authenticate_viewer, seeded):
