@@ -296,7 +296,16 @@ def test_filtering_narrows_the_issues_and_adds_the_rates():
     assert section.is_filtered
     assert [row.campaign_id for row in section.issues] == [1]
     assert section.figures
-    assert any("kohale toimetatud" in figure.note.lower() for figure in section.figures)
+
+    # The figures stopped naming their denominators on 2026-08-16; the
+    # definitions are in `Andmete kohta` on `/haldus/`, and
+    # `tests/dashboard/test_admin_area.py` asserts they arrived. What still
+    # matters here is that the pair with *different* denominators is both
+    # present and distinguishable — `Klikimäär` is clickers over delivered,
+    # `Klikid` is clickers over opens.
+    labels = [figure.label for figure in section.figures]
+    assert {"Klikimäär", "Klikid"} <= set(labels)
+    assert not any(figure.note for figure in section.figures)
 
 
 def test_a_section_with_no_sends_has_nothing_to_show(viewer_client):

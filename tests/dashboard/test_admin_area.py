@@ -143,6 +143,34 @@ def test_the_koduleht_page_no_longer_carries_its_data_block(viewer_client):
     assert "Kaetus, mõisted ja allikas" not in content
 
 
+def test_the_mailings_data_block_arrived(viewer_client):
+    """Otsepostitused' `Andmete kohta`, moved here on 2026-08-16.
+
+    It absorbed two further copies of the rate definitions on the way — the
+    weighted note under the comparison table and the paragraph under the sends
+    table — so the assertions name a sentence from each, not just the heading.
+    """
+    content = viewer_client.get(reverse("dashboard-admin")).content.decode()
+
+    assert "Otsepostitused (Smaily)" in content
+    # The rule the whole block exists for.
+    assert "Nimekirju ei liideta" in content or "ei liideta" in content
+    # The pair with different denominators, which the page no longer explains.
+    # Named as the page names it today, or a reader looking `Klikid` up finds
+    # only its old name.
+    assert "Klikid:" in content
+    assert "teine küsimus" in content
+    # The weighted-rate note, from under the comparison table.
+    assert "üksiksaadetiste protsentide keskmine" in content
+
+
+def test_the_mailings_page_no_longer_carries_its_data_block(viewer_client):
+    """Moved, not copied."""
+    content = viewer_client.get("/otsepostitused/").content.decode()
+
+    assert "Andmete kohta" not in content
+
+
 def test_andmete_seis_arrived_and_keeps_its_anchor(viewer_client):
     """The other half of the move off Koja töölaud.
 
