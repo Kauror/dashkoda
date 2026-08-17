@@ -98,11 +98,14 @@ def test_the_page_never_claims_the_definitions_match(
     assert "Liikmeid kataloogis" not in body
 
 
-def test_conflict_notice_is_truthful_and_counted(viewer_client, imported_package):
+def test_conflict_notice_no_longer_reaches_this_page(viewer_client, imported_package):
+    """`Andmete seis` — the section this notice lived in — moved to
+    `/haldus/` on 2026-08-17. See
+    `tests/dashboard/test_admin_area.py::test_the_membership_data_block_states_the_report_facts`.
+    """
     body = _page(viewer_client)
 
-    assert "vastuolude tõttu graafikult välja jäetud" in body
-    assert "Vastuolulisi väärtusi ei asendata nulliga." in body
+    assert "vastuolude tõttu graafikult välja jäetud" not in body
 
 
 def test_no_source_path_or_warning_code_reaches_the_viewer(viewer_client, imported_package):

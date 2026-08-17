@@ -67,6 +67,23 @@ dashboard overview. They stay on the default focus and keep their ids;
     </ul>
   </nav>
 
+  {% if not summary.has_data %}
+    {% comment %}
+    The one truthful-empty-state guarantee every focus needs, now that
+    `Andmete seis` (which used to say this unconditionally at the foot of
+    every focus) has moved to `/haldus/`. Without this, a sub-focus with no
+    workbook imported would show its nav and nothing else — silently blank
+    rather than honest about why. Matches the pattern
+    `visibility/koduleht.html` uses for the same reason.
+    {% endcomment %}
+    <section aria-labelledby="section-empty" class="dk-section">
+      <h2 id="section-empty" class="sr-only">Andmed</h2>
+      <div class="dk-section-body">
+        {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
+      </div>
+    </section>
+  {% else %}
+
   {% if page.focus == "ulevaade" %}
     {# ---------------- Hero figures ---------------- #}
     {% comment %}
@@ -651,6 +668,11 @@ dashboard overview. They stay on the default focus and keep their ids;
       {% endif %}
     </section>
   {% endif %}
+
+  {% endif %}
+  {% comment %}
+  Closes `{% if not summary.has_data %}` opened right under the focus nav.
+  {% endcomment %}
 
   {% comment %}
   `Andmete seis` moved off this page to `/haldus/` on 2026-08-17, whole — the

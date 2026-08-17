@@ -99,6 +99,10 @@ def legal_work_overview(request):
             # already read one of them, so it hands that one back instead of
             # paying for it twice.
             "freshness": current_freshness(summary),
+            # Not the eyebrow line any more — just the one thing that decides
+            # whether the page has anything to draw at all. See the truthful
+            # empty state right under the focus nav in the template.
+            "summary": summary,
             "page": page,
             "open_items": present_topics(open_items, links),
             "sent_items": present_topics(sent_items, links),

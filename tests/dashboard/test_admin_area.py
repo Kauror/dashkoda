@@ -234,6 +234,31 @@ def test_the_legal_work_data_block_states_the_workbook_date(
     assert "Kirjeid kokku" in content
 
 
+def test_the_legal_work_data_block_states_a_failed_check(
+    client, authenticate_viewer, legal_work_snapshot
+):
+    """The stale-after-failure callout, moved off `/oigusloome/` on
+    2026-08-17 along with the rest of `Andmete seis`. See
+    `tests/legal_work/test_views.py::test_a_failed_check_is_no_longer_disclosed_on_this_page`.
+    """
+    from apps.legal_work.bootstrap import ensure_legal_work_source
+    from apps.legal_work.models import SyncResult
+    from apps.legal_work.sync import get_feed_state
+
+    state = get_feed_state(ensure_legal_work_source())
+    state.last_result = SyncResult.FAILED
+    state.last_error_summary = "Sünteetiline sisemine viga."
+    state.save()
+    authenticate_viewer(client)
+
+    content = client.get(reverse("dashboard-admin")).content.decode()
+
+    assert "Viimane kontroll ebaõnnestus." in content
+    assert "Kuvatakse viimase eduka impordi andmeid." in content
+    # The viewer never sees the internal diagnostic, here either.
+    assert "Sünteetiline sisemine viga." not in content
+
+
 def test_the_legal_work_page_no_longer_states_the_workbook_date(
     client, authenticate_viewer, legal_work_snapshot
 ):
@@ -265,7 +290,14 @@ def test_the_membership_data_block_arrived(viewer_client):
 
 def test_the_membership_data_block_states_the_report_facts(client, authenticate_viewer, tmp_path):
     """The other half: with an internal report imported, the source stamps,
-    the quality badge and the two-sources-are-different rule are all here."""
+    the quality badge, the conflict notice and the two-sources-are-different
+    rule are all here.
+
+    The default synthetic package carries at least one conflicted metric —
+    the same fact `tests/membership/test_membership_page.py`'s
+    `test_conflict_notice_no_longer_reaches_this_page` used to check on the
+    page itself, before this notice moved here on 2026-08-17.
+    """
     from apps.membership.history_import import import_history_package
     from tests.membership.package_factory import build_package
 
@@ -275,6 +307,7 @@ def test_the_membership_data_block_states_the_report_facts(client, authenticate_
     content = client.get(reverse("dashboard-admin")).content.decode()
 
     assert "Sisemine aruanne" in content
+    assert "vastuolude tõttu graafikult välja jäetud" in content
     assert "Avalik liikmekataloog ja sisemine aruanne loendavad eri asju" in content
 
 
