@@ -1,33 +1,42 @@
-"""Which of the three Uudised views a reader is looking at.
+"""One view of the Uudised page — everything, on one screen.
 
 The page used to answer its questions in one scroll — an archive table with
-statistics beneath it. That works for "find me the article about excise duty"
-and works badly for "how are we doing", because the answer to the second was
-somewhere in the middle of the first.
+statistics beneath it. That worked for "find me the article about excise duty"
+and worked badly for "how are we doing", so on 2026-08-16 the page grew a
+**focus**: `Ülevaade`, `Uudiste mõju` and `Arhiiv`, three real `GET` links a
+reader chose between.
 
-So the page carries a **focus**: three ordinary `GET` links, each a real URL
-that can be bookmarked, shared and reached with the browser's back button. No
-SPA, no tab state in JavaScript, no fragment that has to be re-fetched.
+On 2026-08-17 they merged back into one. `Uudiste mõju` had already lost its
+own ranking section on 2026-08-17 earlier the same round and was down to one
+chart; `Arhiiv` is a self-contained section with its own controls and search.
+Splitting three sections across three addresses cost more clicks than it saved
+scroll, so the page is one view again — this time with the dashboard drawn
+first and the exact-lookup table last, the order the three-focus page had
+already settled on.
 
-    /uudised/                     → Ülevaade      (the default)
-    /uudised/?fookus=moju         → Uudiste mõju
-    /uudised/?fookus=arhiiv       → Arhiiv
+    /uudised/                     → Ülevaade      (the only view)
+    /uudised/?fookus=moju         → retired, resolves to Ülevaade
+    /uudised/?fookus=arhiiv       → retired, resolves to Ülevaade
 
-`fookus=avaldamine` was a fourth. Its two sections were one chart and a short
-list, and the overview it sat beside was itself two sections — so on
-2026-08-16 the publishing material moved onto the overview and the key
-retired. It still resolves, to the overview that now carries its content,
-because a saved link should keep answering its question.
+`fookus=avaldamine` retired first, on 2026-08-16: its two sections were one
+chart and a short list, and the overview it sat beside was itself two
+sections, so the publishing material moved onto the overview whole. `moju` and
+`arhiiv` followed it into `RETIRED_FOCUSES` on 2026-08-17 — each still
+resolves, to the one view that now carries every section's content, because a
+saved link should keep answering its question.
 
-`fookus=uudiskirjad` was the fifth. The newsletters are `Otsepostitused` now,
-at their own address under Koduleht, and this page no longer has a view of
-them — so the key is not in `FOCUSES` and resolves like any other unknown
-value. `apps/news/views.py` intercepts it before that happens and redirects,
-so a saved link arrives at the page that answers it instead of silently
-landing on the overview.
+`fookus=uudiskirjad` retired earlier still. The newsletters are
+`Otsepostitused` now, at their own address under Koduleht, and this page no
+longer has a view of them — so the key is not in `FOCUSES` and resolves like
+any other unknown value. `apps/news/views.py` intercepts it before that
+happens and redirects, so a saved link arrives at the page that answers it
+instead of silently landing on the overview.
 
 An unreadable focus resolves to the overview rather than to a 404: a focus is a
-lens on one page, and a rotted bookmark should still show the news.
+lens on one page, and a rotted bookmark should still show the news. `FOCUSES`
+keeps the single-item shape — and `focus_options`/`FocusOption` stay real —
+so a section reappearing behind its own address is a matter of adding one
+`Focus` back, not rebuilding the navigation.
 
 ## Why the default is not written into the URL
 
@@ -38,10 +47,10 @@ default ordering.
 
 ## What each focus carries
 
-Every focus link carries the **whole** validated page state. The archive's period
-survives a trip through the publishing view and is still in force on the way
-back, which is what makes the four links a navigation rather than four separate
-pages that forget each other.
+Every focus link carries the **whole** validated page state. That mattered when
+the archive's period had to survive a trip through another view and back; a
+single-item navigation still builds its one link the same way, so nothing here
+special-cases the count.
 
 What is never carried is `request.GET` itself. The state is rebuilt from resolved
 values by `apps/news/periods.py`, so a hand-typed parameter this page does not
@@ -86,20 +95,22 @@ class Focus:
         return self.key == FOCUS_OVERVIEW
 
 
-FOCUSES: tuple[Focus, ...] = (
-    Focus(key=FOCUS_OVERVIEW, label="Ülevaade"),
-    Focus(key=FOCUS_IMPACT, label="Uudiste mõju"),
-    Focus(key=FOCUS_ARCHIVE, label="Arhiiv"),
-)
+FOCUSES: tuple[Focus, ...] = (Focus(key=FOCUS_OVERVIEW, label="Ülevaade"),)
 
 DEFAULT_FOCUS = FOCUSES[0]
 
 _BY_KEY = {focus.key: focus for focus in FOCUSES}
 
 #: Retired keys and the view that inherited each one's content. `avaldamine`
-#: moved onto the overview whole, so the resolve is exact rather than a
-#: fallback — the same pattern as the shop's `vaartus`.
-RETIRED_FOCUSES: dict[str, str] = {FOCUS_PUBLISHING: FOCUS_OVERVIEW}
+#: moved onto the overview whole on 2026-08-16; `moju` and `arhiiv` followed
+#: on 2026-08-17, each carrying its own section onto the same page. Every
+#: resolve here is exact rather than a fallback — the same pattern as the
+#: shop's `vaartus`.
+RETIRED_FOCUSES: dict[str, str] = {
+    FOCUS_PUBLISHING: FOCUS_OVERVIEW,
+    FOCUS_IMPACT: FOCUS_OVERVIEW,
+    FOCUS_ARCHIVE: FOCUS_OVERVIEW,
+}
 
 
 def parse_focus(raw: str | None) -> Focus:

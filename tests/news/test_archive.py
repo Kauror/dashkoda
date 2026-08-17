@@ -157,8 +157,9 @@ def test_the_archive_reaches_articles_the_feed_no_longer_lists(viewer_client, me
     assert len(seen) == 30, "the archive is still bounded by the feed"
 
     # And through the real view, so the reachability is not only a selector fact.
-    # The archive is the `arhiiv` focus now — the page no longer opens on it —
-    # but it is the same builder answering the same question.
+    # `fookus=arhiiv` is a no-op since the focus merged into the one view on
+    # 2026-08-17 — kept here as a stale-bookmark check — but it is the same
+    # builder answering the same question either way.
     response = viewer_client.get(reverse("news"), {"periood": "koik", "fookus": "arhiiv"})
     assert response.status_code == 200
     assert response.context["archive"].total == 30

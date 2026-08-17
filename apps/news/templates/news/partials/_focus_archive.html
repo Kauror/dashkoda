@@ -2,13 +2,17 @@
 `Arhiiv` — the exact-lookup layer beneath the dashboard.
 
 Unchanged in behaviour: the same builder, the same period, category, search,
-ordering and pagination the archive has always had. What changed is that it is a
-focus a reader chooses rather than the first thing the page shows, because
-"find me the article about excise duty" and "how are we doing" are different
-errands and the archive only answers the first one well.
+ordering and pagination the archive has always had. It was a focus a reader
+chose between 2026-08-16 and 2026-08-17; now it is simply the last section on
+the one screen, because "find me the article about excise duty" and "how are
+we doing" are different errands and this section only answers the first one
+well.
 
-Every control carries the whole state — including the focus, without which a
-period chip would quietly return the reader to the overview.
+Every control still carries the whole state — the period, sort, category and
+search a chip or a keystroke would otherwise drop. `fookus=arhiiv` used to be
+part of that state too, so a chip click could not quietly return the reader to
+a different focus; there is only the one focus left to return to, so it is
+gone from every control here.
 
 Context: archive
 {% endcomment %}
@@ -47,7 +51,6 @@ Context: archive
       disagrees with the list under it.
       {% endcomment %}
       <form method="get" class="flex min-w-0 flex-wrap items-end gap-2">
-        <input type="hidden" name="fookus" value="arhiiv">
         <input type="hidden" name="periood" value="{{ archive.period.key }}">
         {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
         {% if archive.search %}<input type="hidden" name="otsing" value="{{ archive.search }}">{% endif %}
@@ -84,7 +87,6 @@ Context: archive
       "nothing found" for anything matching fewer results than that page.
       {% endcomment %}
       <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
-        <input type="hidden" name="fookus" value="arhiiv">
         <input type="hidden" name="periood" value="{{ archive.period.key }}">
         {% if archive.period.period.is_custom %}
           <input type="hidden" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}">

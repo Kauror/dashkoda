@@ -1,6 +1,6 @@
 """The Uudised page. Reads PostgreSQL only; never fetches the RSS feed.
 
-The page carries four focus views over the news catalogue, which this app owns.
+The page carries one view over the news catalogue, which this app owns.
 
 ## Newsletters are not here any more
 
@@ -16,17 +16,17 @@ What is kept is arrival. Three retired addresses redirect at the bottom of this
 module, and `news_overview` intercepts the retired `fookus=uudiskirjad` before
 the focus parser can quietly resolve it to the overview.
 
-## Four views, one address
+## One view, one address
 
-`fookus` chooses which view renders. Every focus is an ordinary `GET` link
-carrying the whole validated state, so the period a reader set in the archive is
-still in force when they come back from the publishing view. Nothing is echoed
-from `request.GET`: the state is rebuilt from resolved values, so a parameter
-this page does not understand cannot ride along into the next view.
-
-**Each focus builds only what it renders.** The archive's paginated query runs
-under `fookus=arhiiv` and nowhere else. Building all four on every request would
-put four views' worth of queries behind whichever one is on screen.
+The page carried three focuses — `Ülevaade`, `Uudiste mõju`, `Arhiiv` — between
+2026-08-16 and 2026-08-17. They merged back into one: the dashboard, its one
+remaining chart from `Uudiste mõju`, and the archive table, top to bottom on
+one screen. `fookus` is still read and still resolved — a `?fookus=moju` or
+`?fookus=arhiiv` bookmark lands on the same page rather than raising, via
+`RETIRED_FOCUSES` in `apps/news/focus.py` — it just no longer decides what the
+page builds. Nothing is echoed from `request.GET`: the state is rebuilt from
+resolved values, so a parameter this page does not understand cannot ride
+along into a pushed URL.
 """
 
 from django.shortcuts import redirect, render
@@ -40,7 +40,6 @@ from apps.dashboard.navigation import NAVIGATION
 from .archive import build_news_archive
 from .categories import parse_category
 from .focus import (
-    FOCUS_ARCHIVE,
     LEGACY_FOCUS_NEWSLETTERS,
     PARAM_FOCUS,
     parse_focus,
@@ -145,7 +144,7 @@ def _page_state(request, *, exclude: tuple[str, ...] = ()) -> str:
 
 @require_GET
 def news_overview(request):
-    """The Chamber's news intelligence dashboard, in whichever focus was asked for.
+    """The Chamber's news intelligence dashboard — dashboard and archive, one screen.
 
     Every parameter is validated before it reaches a selector: an unreadable
     focus, an unreadable period, a reversed date range, a rotted page number and
@@ -155,12 +154,13 @@ def news_overview(request):
     `fookus=uudiskirjad` is the one value handled before that. It is a real
     address people saved, and letting it fall through `parse_focus` would land
     them on the news overview with no indication that the thing they asked for
-    exists somewhere else.
+    exists somewhere else. A `fookus=moju` or `fookus=arhiiv` bookmark needs no
+    such handling: both retired into this one view on 2026-08-17, so
+    `parse_focus` already lands them exactly where their content is.
     """
     if (request.GET.get(PARAM_FOCUS) or "").strip() == LEGACY_FOCUS_NEWSLETTERS:
         return _redirect_to_mailings(request)
 
-    focus = parse_focus(request.GET.get(PARAM_FOCUS))
     page = build_news_page(
         focus_key=request.GET.get(PARAM_FOCUS),
         read_key=request.GET.get(PARAM_READ),
@@ -179,20 +179,20 @@ def news_overview(request):
         # Built without the reading parameter, so a window chip replaces the
         # window rather than appending a second one.
         "reading_state": _page_state(request, exclude=(PARAM_READ,)),
+        **_archive_context(request),
     }
-
-    if focus.key == FOCUS_ARCHIVE:
-        context.update(_archive_context(request))
 
     return render(request, "news/overview.html", context)
 
 
 def _archive_context(request) -> dict:
-    """The archive view: the exact-lookup layer beneath the dashboard.
+    """The archive section: the exact-lookup layer beneath the dashboard.
 
     Unchanged in behaviour — the same builder, the same parameters, the same
-    pagination and search. What changed is that it is now a focus a reader
-    chooses rather than the first thing the page shows.
+    pagination and search. It used to carry `fookus=arhiiv` through every
+    link so a chip click stayed on the archive focus; since `arhiiv` retired
+    into the one view on 2026-08-17, there is nothing left for a link to
+    stay on, and `carried` goes back to its unset default.
     """
     archive = build_news_archive(
         period_key=request.GET.get(PARAM_PERIOD),
@@ -202,7 +202,6 @@ def _archive_context(request) -> dict:
         search=parse_search(request.GET.get(PARAM_SEARCH)),
         category=parse_category(request.GET.get(PARAM_CATEGORY)),
         page=parse_page(request.GET.get(PARAM_PAGE)),
-        carried=f"{PARAM_FOCUS}={FOCUS_ARCHIVE}",
     )
     return {"archive": archive}
 
@@ -219,9 +218,13 @@ def news_search_fragment(request):
     as the full page reads them, so typing narrows what the reader is already
     looking at rather than quietly widening it to everything.
 
-    The focus and the reading window are in `PAGE_PARAMS` but not in this form,
-    so they reach the pushed URL from `HX-Current-URL` and survive untouched:
-    typing in the news box must not return the reader to the overview.
+    The reading window is in `PAGE_PARAMS` but not in this form, so it reaches
+    the pushed URL from `HX-Current-URL` and survives untouched. The focus
+    used to be asserted here too, pinning every search to `fookus=arhiiv`
+    regardless of what `HX-Current-URL` carried — since `arhiiv` retired into
+    the one view on 2026-08-17, a search no longer has a focus to stay on, and
+    whatever `fookus` value (if any) was already in the address bar simply
+    carries through like every other allowed parameter.
     """
     archive = build_news_archive(
         period_key=request.GET.get(PARAM_PERIOD),
@@ -230,7 +233,6 @@ def news_search_fragment(request):
         sort=parse_sort(request.GET.get(PARAM_SORT)),
         search=parse_search(request.GET.get(PARAM_SEARCH)),
         category=parse_category(request.GET.get(PARAM_CATEGORY)),
-        carried=f"{PARAM_FOCUS}={FOCUS_ARCHIVE}",
     )
     return search_fragment(
         request,
@@ -240,15 +242,12 @@ def news_search_fragment(request):
             request,
             path=reverse("news"),
             allowed=PAGE_PARAMS,
-            # The validated category rather than the raw parameter, and empty for
-            # `Kõik` so the unfiltered page keeps an unfiltered URL. The focus is
-            # asserted rather than carried: this fragment only ever answers for
-            # the archive.
+            # The validated category rather than the raw parameter, and empty
+            # for `Kõik` so the unfiltered page keeps an unfiltered URL.
             updates={
                 PARAM_SEARCH: archive.search,
                 PARAM_CATEGORY: archive.category,
                 PARAM_PAGE: "",
-                PARAM_FOCUS: FOCUS_ARCHIVE,
             },
         ),
     )
