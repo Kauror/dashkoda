@@ -343,6 +343,6 @@ def test_an_unreadable_page_number_renders_the_first_page(viewer_client, registe
 @pytest.mark.django_db
 def test_the_other_focuses_never_render_member_rows(viewer_client, register):
     """A row-level page is one page, not a thing every focus starts doing."""
-    for focus in ("ulevaade", "kasv", "liikumine"):
+    for focus in ("ulevaade", "kasv"):
         response = viewer_client.get(reverse("membership"), {"fookus": focus})
         assert "Kuutõrvaja Masinaehitus" not in response.content.decode()

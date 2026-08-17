@@ -42,12 +42,14 @@ from apps.sources.services import (
 pytestmark = pytest.mark.django_db
 
 
-# Board decisions live under their own focus now: the page is five views
+# Board decisions live under their own focus now: the page is three views
 # behind one URL and `fookus` names which one is drawn. A test that asked for
 # the bare path would be asserting about the overview, which does not draw
 # them — deliberately, because a batch is one decision's own list and is not
-# addable to anything the overview shows.
-MOVEMENT_VIEW = "/liikmeskond/?fookus=liikumine"
+# addable to anything the overview shows. `Liikumine ja põhjused` merged into
+# `Sisse-välja` on 2026-08-17 and `liikumine` retired to `kasv`; either query
+# renders the same page, and this points at the surviving key.
+MOVEMENT_VIEW = "/liikmeskond/?fookus=kasv"
 
 
 @pytest.fixture

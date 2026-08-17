@@ -31,18 +31,23 @@ behind this page, and `test_membership_stores_no_member_rows` enforces that.
 
 ## Shape of the page
 
-  header + what each source is as of
+  header
   focus navigation
   four headline answers        (overview only)
-  Sel aastal                   (overview only)
-  the membership trend
   Mis muutus?                  (overview only)
-  the focus's own analysis
+  Kes on meie liikmed?         (overview only)
+  Sel aastal                   (overview only)
+  the membership trend, then the composition distributions  (overview only)
+  the focus's own analysis     (Sisse-välja, Liikmete nimekiri)
   Andmete kohta
 
-The overview is built to be read without interaction. The other focuses are
-where the analysis lives, and every control that governs a chart sits inside the
-same section as the chart.
+`Mis muutus?` and `Kes on meie liikmed?` moved to sit right under the
+headline answers on 2026-08-17 — a reader's next two questions after "how
+many", answered before the trend chart rather than after it.
+
+The overview is built to be read without interaction. `Sisse-välja` is where
+the turnover analysis lives, and every control that governs a chart sits
+inside the same section as the chart.
 
 Every class here is either a design-system `dk-*` class or a Tailwind utility.
 This page adds no CSS of its own, so no other dashboard section can be changed
@@ -195,7 +200,80 @@ by a rule written for this one.
     </section>
   {% endif %}
 
-  {# ---------------- 3a. Sel aastal ---------------- #}
+  {# ---------------- 3a. Mis muutus? ---------------- #}
+  {% comment %}
+  Moved to sit directly under the headline strip on 2026-08-17, ahead of `Sel
+  aastal` and the trend itself — the reader's first question after "how many"
+  is "what changed", and this answers it before anything else on the page.
+
+  Deterministic signals computed from the same numbers the charts draw, in a
+  fixed priority order. No generated prose, no model inference, and no composite
+  "health score" — a single number with no unit that nobody can check is not an
+  answer, it is a way of avoiding one.
+
+  Each signal names the baseline it was measured against, so a reader can go and
+  check it. A signal that cannot be computed is absent rather than shown as
+  "no change".
+  {% endcomment %}
+  {% if insights %}
+    <section aria-labelledby="section-insights" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-insights" only %}
+      <div class="dk-section-body">
+        <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          {% for insight in insights %}
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <dt class="text-sm text-text-secondary">{{ insight.label }}</dt>
+              <dd class="flex flex-col gap-0.5">
+                <span class="flex flex-wrap items-baseline gap-x-2">
+                  <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ insight.value }}</span>
+                  <span class="text-sm font-medium tabular-nums{% if insight.tone == 'positive' %} text-success{% elif insight.tone == 'negative' %} text-danger{% else %} text-text-secondary{% endif %}">
+                    {% if insight.direction == "up" %}↑{% elif insight.direction == "down" %}↓{% else %}→{% endif %}
+                    {{ insight.change }}
+                    <span class="sr-only"> ({{ insight.change_label }})</span>
+                  </span>
+                </span>
+                <span class="dk-meta tabular-nums">{{ insight.detail }}</span>
+              </dd>
+            </div>
+          {% endfor %}
+        </dl>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- 3b. Kes on meie liikmed? ---------------- #}
+  {% comment %}
+  Moved up beside `Mis muutus?` on 2026-08-17, the same day the composition
+  focus these four facts used to link out to retired into this page — see
+  `section-structure` further down, where the distributions behind each fact
+  are now drawn directly rather than through a link.
+
+  Absent entirely when no roster has been imported — no placeholder, no
+  decorative empty frame, and no figure standing in for a source that does not
+  exist yet.
+  {% endcomment %}
+  {% if composition_preview %}
+    <section aria-labelledby="section-composition-preview" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Kes on meie liikmed?" heading_id="section-composition-preview" description=composition_preview.snapshot_label only %}
+      <div class="dk-section-body">
+        <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          {% for fact in composition_preview.facts %}
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <dt class="text-sm text-text-secondary">{{ fact.label }}</dt>
+              <dd class="flex flex-col gap-0.5">
+                <span class="text-lg font-semibold tracking-tight text-text">{{ fact.value }}</span>
+                {% if fact.detail %}
+                  <span class="dk-meta tabular-nums">{{ fact.detail }}</span>
+                {% endif %}
+              </dd>
+            </div>
+          {% endfor %}
+        </dl>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- 3c. Sel aastal ---------------- #}
   {% comment %}
   Moved up to sit directly under the headline strip on 2026-08-17 — it reads as
   this year's continuation of those figures, not as a footnote several sections
@@ -204,8 +282,8 @@ by a rule written for this one.
   The current year's movement, as typography rather than a chart: two counts,
   their difference and the suspended total are four numbers, and drawing four
   numbers as bars adds a canvas, an axis and a legend to a fact that fits on one
-  line. The size-band diverging chart under `Liikumine ja põhjused` is where the
-  question that genuinely needs a picture is answered.
+  line. The size-band diverging chart under `Sisse-välja`'s own movement section
+  is where the question that genuinely needs a picture is answered.
 
   The difference is labelled as the difference between two reported counts. It
   is **not** the change in the membership: `new_members_ytd` and
@@ -254,15 +332,7 @@ by a rule written for this one.
     </section>
   {% endif %}
 
-  {% comment %}
-  `Koosseisu ulatus` — the as-of date and the export's row count, stated once
-  at the top of the composition view — left on 2026-08-17. Its heading was
-  already `sr-only`, so nothing above the charts named this section for a
-  sighted reader either; only its two sentences did, and both are gone with
-  it. `composition_snapshot` is still built and still feeds the charts below.
-  {% endcomment %}
-
-  {# ---------------- 3c. The members list ---------------- #}
+  {# ---------------- 3d. The members list ---------------- #}
   {% comment %}
   Two sources, side by side and never merged, exactly as the rest of this page
   treats the two membership totals:
@@ -429,7 +499,7 @@ by a rule written for this one.
     </section>
   {% endif %}
 
-  {# ---------------- 3d. Nimekiri ja avalik kataloog ---------------- #}
+  {# ---------------- 3e. Nimekiri ja avalik kataloog ---------------- #}
   {% comment %}
   The comparison, stated as what it is: two sources listing members on two
   different days, compared by registration code. A member in one and not the
@@ -536,9 +606,10 @@ by a rule written for this one.
 
   {# ---------------- 4. Analytical sections ---------------- #}
   {% comment %}
-  On the overview this is the membership trend and nothing else — the dominant
-  visual, immediately under the figures it explains. On the other focuses it is
-  that focus's own analysis.
+  On the overview this is the membership trend — the dominant visual,
+  immediately under the figures it explains — and, since 2026-08-17, the
+  composition distributions `Kes on meie liikmed?` previews. On the other
+  focuses it is that focus's own analysis.
 
   Every control is an ordinary link or GET form. Switching a view is a request
   the browser can bookmark, share and go back through; nothing here holds client
@@ -651,80 +722,7 @@ by a rule written for this one.
     </section>
   {% endfor %}
 
-  {# ---------------- 5. Mis muutus? ---------------- #}
-  {% comment %}
-  Deterministic signals computed from the same numbers the charts draw, in a
-  fixed priority order. No generated prose, no model inference, and no composite
-  "health score" — a single number with no unit that nobody can check is not an
-  answer, it is a way of avoiding one.
-
-  Each signal names the baseline it was measured against, so a reader can go and
-  check it. A signal that cannot be computed is absent rather than shown as
-  "no change".
-  {% endcomment %}
-  {% if insights %}
-    <section aria-labelledby="section-insights" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Mis muutus?" heading_id="section-insights" only %}
-      <div class="dk-section-body">
-        <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
-          {% for insight in insights %}
-            <div class="flex min-w-0 flex-col gap-0.5">
-              <dt class="text-sm text-text-secondary">{{ insight.label }}</dt>
-              <dd class="flex flex-col gap-0.5">
-                <span class="flex flex-wrap items-baseline gap-x-2">
-                  <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ insight.value }}</span>
-                  <span class="text-sm font-medium tabular-nums{% if insight.tone == 'positive' %} text-success{% elif insight.tone == 'negative' %} text-danger{% else %} text-text-secondary{% endif %}">
-                    {% if insight.direction == "up" %}↑{% elif insight.direction == "down" %}↓{% else %}→{% endif %}
-                    {{ insight.change }}
-                    <span class="sr-only"> ({{ insight.change_label }})</span>
-                  </span>
-                </span>
-                <span class="dk-meta tabular-nums">{{ insight.detail }}</span>
-              </dd>
-            </div>
-          {% endfor %}
-        </dl>
-      </div>
-    </section>
-  {% endif %}
-
-  {# ---------------- 6. Kes on meie liikmed? ---------------- #}
-  {% comment %}
-  Four facts and a link, not a second copy of the composition page. A reader who
-  wants the distributions follows the link; a reader who wants a sense of the
-  membership gets one without leaving the overview.
-
-  Absent entirely when no roster has been imported — no placeholder, no
-  decorative empty frame, and no figure standing in for a source that does not
-  exist yet.
-  {% endcomment %}
-  {% if composition_preview %}
-    <section aria-labelledby="section-composition-preview" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Kes on meie liikmed?" heading_id="section-composition-preview" description=composition_preview.snapshot_label only %}
-      <div class="dk-section-body flex flex-col gap-4">
-        <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
-          {% for fact in composition_preview.facts %}
-            <div class="flex min-w-0 flex-col gap-0.5">
-              <dt class="text-sm text-text-secondary">{{ fact.label }}</dt>
-              <dd class="flex flex-col gap-0.5">
-                <span class="text-lg font-semibold tracking-tight text-text">{{ fact.value }}</span>
-                {% if fact.detail %}
-                  <span class="dk-meta tabular-nums">{{ fact.detail }}</span>
-                {% endif %}
-              </dd>
-            </div>
-          {% endfor %}
-        </dl>
-        <p>
-          <a href="{{ composition_preview.link_query }}" class="dk-link text-sm">
-            {{ composition_preview.link_label }} →
-          </a>
-        </p>
-      </div>
-    </section>
-  {% endif %}
-
-  {# ---------------- 7. Andmete kohta ---------------- #}
+  {# ---------------- 5. Andmete kohta ---------------- #}
   {% comment %}
   One line in the reading path saying whether anything was withheld, and the
   whole methodology behind a disclosure. The long version used to sit open at

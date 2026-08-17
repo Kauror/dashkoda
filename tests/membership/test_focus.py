@@ -1,6 +1,6 @@
 """The `fookus` navigation contract.
 
-The page has four views behind one URL, so the rules about what a query value
+The page has three views behind one URL, so the rules about what a query value
 may do are load-bearing: an unknown focus must render something, a focus with no
 data must not be advertised, and a focus link must not carry a control that means
 nothing where it lands.
@@ -49,6 +49,23 @@ def test_the_retired_fee_focus_resolves_to_the_overview():
     assert resolve_focus(FOCUS_FEES) == FOCUS_OVERVIEW
 
 
+def test_the_retired_movement_focus_resolves_to_growth():
+    """`Liikumine ja põhjused` merged into `kasv` on 2026-08-17 and took the
+    new name `Sisse-välja`; a saved link to the old focus lands on the
+    content it merged into, not on the overview."""
+    assert FOCUS_MOVEMENT not in FOCUS_KEYS
+    assert resolve_focus(FOCUS_MOVEMENT) == FOCUS_GROWTH
+
+
+def test_the_retired_composition_focus_resolves_to_the_overview():
+    """`Koosseis` retired on 2026-08-17. Most of its distributions joined the
+    overview; two followed `liikumine` into `kasv` instead — see
+    `RETIRED_FOCUSES` — but the overview is where a stale bookmark lands,
+    since most of the content is there."""
+    assert FOCUS_COMPOSITION not in FOCUS_KEYS
+    assert resolve_focus(FOCUS_COMPOSITION) == FOCUS_OVERVIEW
+
+
 def test_an_unknown_focus_is_the_overview_rather_than_an_error():
     """A stale bookmark or a typed URL renders the page, it does not raise.
 
@@ -64,55 +81,45 @@ def test_a_focus_with_nothing_to_draw_is_not_offered():
     offered = {link.key for link in links}
 
     assert offered == {FOCUS_OVERVIEW, FOCUS_GROWTH}
-    assert FOCUS_COMPOSITION not in offered
+    assert FOCUS_REGISTER not in offered
 
 
 def test_the_active_focus_is_listed_even_when_it_has_no_data():
     """A navigation that hides the item the reader is standing on reads as a fault."""
-    links = focus_links(FOCUS_COMPOSITION, available=frozenset({FOCUS_OVERVIEW}))
+    links = focus_links(FOCUS_REGISTER, available=frozenset({FOCUS_OVERVIEW}))
 
-    assert FOCUS_COMPOSITION in {link.key for link in links}
-    assert next(link for link in links if link.key == FOCUS_COMPOSITION).is_active
+    assert FOCUS_REGISTER in {link.key for link in links}
+    assert next(link for link in links if link.key == FOCUS_REGISTER).is_active
 
 
 def test_exactly_one_link_is_active():
-    links = focus_links(FOCUS_MOVEMENT)
+    links = focus_links(FOCUS_GROWTH)
     assert [link.is_active for link in links].count(True) == 1
-    assert next(link for link in links if link.is_active).key == FOCUS_MOVEMENT
+    assert next(link for link in links if link.is_active).key == FOCUS_GROWTH
 
 
 def test_a_focus_link_carries_the_window_forward():
     """The window means the same thing on every focus that draws a time series."""
     links = focus_links(FOCUS_OVERVIEW, carried={"alates": "2025-01-01", "kuni": "2026-01-01"})
-    params = query_of(next(link for link in links if link.key == FOCUS_MOVEMENT))
+    params = query_of(next(link for link in links if link.key == FOCUS_GROWTH))
 
     assert params["alates"] == ["2025-01-01"]
     assert params["kuni"] == ["2026-01-01"]
-    assert params[PARAM_FOCUS] == [FOCUS_MOVEMENT]
+    assert params[PARAM_FOCUS] == [FOCUS_GROWTH]
 
 
 def test_a_focus_link_does_not_carry_a_chart_toggle():
-    """`vaade` governs the recruitment chart and means nothing on the movement view.
+    """`vaade` governs the recruitment chart and means nothing on the register view.
 
     Carrying it across would land a reader on a control state that does not
     apply where they arrived, which is how a control comes to look broken.
     """
-    links = focus_links(FOCUS_GROWTH, carried={"alates": "2025-01-01"})
-    params = query_of(next(link for link in links if link.key == FOCUS_MOVEMENT))
+    links = focus_links(FOCUS_OVERVIEW, carried={"alates": "2025-01-01"})
+    params = query_of(next(link for link in links if link.key == FOCUS_REGISTER))
 
     assert "vaade" not in params
     assert "vordlus" not in params
     assert "otsus" not in params
-
-
-def test_the_register_focus_follows_the_composition_it_shares_a_source_with():
-    """The two read the same export: one counted, one listed.
-
-    The order is the page's reading order rather than an alphabet, so this pins
-    the pairing rather than the position.
-    """
-    keys = list(FOCUS_KEYS)
-    assert keys.index(FOCUS_REGISTER) == keys.index(FOCUS_COMPOSITION) + 1
 
 
 def test_the_register_focus_is_not_offered_before_a_roster_is_imported():

@@ -762,11 +762,12 @@ class CompositionFact:
 
 @dataclass(frozen=True)
 class CompositionPreview:
-    """`Kes on meie liikmed?` — four facts and a way through to the rest.
+    """`Kes on meie liikmed?` — four facts about the membership.
 
-    Deliberately not a second copy of the composition page. Four readouts and a
-    link: a reader who wants the distributions follows the link, and a reader
-    who wants a sense of the membership gets it without leaving the overview.
+    Used to link out to the composition focus for the distributions behind
+    each fact; that focus retired into the overview itself on 2026-08-17, so
+    the four readouts now sit right above the charts they preview and there
+    is nowhere left to link to.
 
     Omitted entirely when no roster has been imported. An empty panel headed
     with a question is worse than no panel, and a decorative placeholder would
@@ -775,15 +776,13 @@ class CompositionPreview:
 
     snapshot_label: str
     facts: tuple[CompositionFact, ...]
-    link_query: str
-    link_label: str = "Vaata koosseisu"
 
     @property
     def has_data(self) -> bool:
         return bool(self.facts)
 
 
-def build_composition_preview(snapshot, *, link_query: str) -> CompositionPreview | None:
+def build_composition_preview(snapshot) -> CompositionPreview | None:
     """The four facts that describe the membership in one glance.
 
     Each names the largest group in its dimension, ignoring `Teadmata`: "most
@@ -833,5 +832,4 @@ def build_composition_preview(snapshot, *, link_query: str) -> CompositionPrevie
     return CompositionPreview(
         snapshot_label=f"Seisuga {long_date(snapshot.snapshot_date)}",
         facts=tuple(facts),
-        link_query=link_query,
     )
