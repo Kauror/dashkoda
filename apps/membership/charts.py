@@ -1299,6 +1299,11 @@ def size_movement_chart(rows: tuple[dict, ...], *, observation_date: date | None
     return ChartPayload(
         payload_id="internal-membership-size-movement",
         title="Liitunud ja lahkunud suurusklassiti",
+        # The section's own heading, `Liikmete liikumine`, already says what
+        # this reads; the printed title repeated it and left on 2026-08-17.
+        # The title itself stays on the payload and still captions the
+        # accessible table below.
+        title_hidden=True,
         option=option,
         size="categorical",
         readouts=_movement_readouts(rows),

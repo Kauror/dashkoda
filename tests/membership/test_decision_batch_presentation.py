@@ -221,15 +221,23 @@ def test_a_month_with_no_distribution_returns_nothing(internal_source):
     assert get_monthly_size_distribution(2026, 8) == ()
 
 
-def test_the_page_renders_the_decision_section(viewer_client, batch):
+def test_the_page_no_longer_renders_the_decision_section(viewer_client, batch):
+    """`Juhatuse otsused` — the section, the picker, both decision-scoped
+    charts — left this focus on 2026-08-17. `get_decision_batches`,
+    `decision_batch_reasons_chart` and `decision_batch_sizes_chart` are still
+    tested above, directly; nothing on the page composes them now."""
     response = viewer_client.get(MOVEMENT_VIEW)
 
     assert response.status_code == 200
     body = response.content.decode()
-    assert "section-decisions" in body
-    assert "Juhatuse otsused" in body
-    # The caveat is on the page, not only in a code comment.
-    assert "aasta algusest kogunenud arv" in body
+    assert "section-decisions" not in body
+    assert "Juhatuse otsused" not in body
+    assert "aasta algusest kogunenud arv" not in body
+    # The URL parameter that used to choose a decision is inert now, not an
+    # error — the same rule a stale bookmark gets everywhere on this page.
+    response = viewer_client.get(f"{MOVEMENT_VIEW}&otsus=2026-08-12")
+    assert response.status_code == 200
+    assert "section-decisions" not in response.content.decode()
 
 
 def _second_decision(internal_source, batch):
@@ -260,79 +268,19 @@ def _second_decision(internal_source, batch):
     return row
 
 
-def test_the_page_defaults_to_the_newest_decision(viewer_client, internal_source, batch):
+def test_the_page_is_unchanged_by_a_second_decision_existing(viewer_client, internal_source, batch):
+    """The picker, the per-decision draw and the fallback-on-unknown rule all
+    left with the section. What's left to check is that a second decision
+    existing does not somehow bring any of that back."""
     _second_decision(internal_source, batch)
 
-    body = viewer_client.get(MOVEMENT_VIEW).content.decode()
-
-    # The 2026 decision is drawn; the 2025 one is offered but not drawn.
-    assert "12.08.2026" in body
-    assert "otsus nr 6" in body
-
-
-def test_the_control_offers_every_decision(viewer_client, internal_source, batch):
-    _second_decision(internal_source, batch)
-
-    body = viewer_client.get(MOVEMENT_VIEW).content.decode()
-
-    assert "otsus=2026-08-12" in body
-    assert "otsus=2025-03-10" in body
-    assert "section-decisions" in body
-
-
-def test_choosing_an_older_decision_draws_that_one(viewer_client, internal_source, batch):
-    _second_decision(internal_source, batch)
-
-    body = viewer_client.get("/liikmeskond/?fookus=liikumine&otsus=2025-03-10").content.decode()
-
-    assert "otsus nr 2" in body
-    assert "10.03.2025" in body
-
-
-def test_an_unknown_decision_falls_back_rather_than_erroring(viewer_client, internal_source, batch):
-    """A stale bookmark renders the page, the same rule the date window uses."""
-    _second_decision(internal_source, batch)
-
-    response = viewer_client.get("/liikmeskond/?fookus=liikumine&otsus=1999-01-01")
-
-    assert response.status_code == 200
-    assert "otsus nr 6" in response.content.decode()
-
-
-def test_a_single_decision_offers_no_control(viewer_client, batch):
-    """One choice is not a choice; the control would be broken by definition."""
-    body = viewer_client.get(MOVEMENT_VIEW).content.decode()
-
-    assert "section-decisions" in body
-    assert "otsus=" not in body
-
-
-def test_both_batches_of_one_decision_are_drawn_together(viewer_client, internal_source, batch):
-    """Termination and suspension are halves of one board meeting, not two."""
-    MembershipDecisionBatch.objects.create(
-        source=internal_source,
-        import_run=batch.import_run,
-        external_batch_id="batch_seed_susp",
-        batch_kind=DecisionBatchKind.SUSPENSION,
-        as_of_date=batch.as_of_date,
-        decision_date=batch.decision_date,
-        decision_reference=batch.decision_reference,
-        member_count=3,
-        quality_status=QualityStatus.VERIFIED,
-    )
-    MembershipDecisionBatchSizeMovement.objects.create(
-        batch=MembershipDecisionBatch.objects.get(external_batch_id="batch_seed_susp"),
-        size_band_key=SizeBand.EMPLOYEES_1_4,
-        member_count=3,
-    )
-
-    body = viewer_client.get(MOVEMENT_VIEW).content.decode()
-
-    assert "Liikmelisuse lõpetamine" in body
-    assert "Liikmelisuse peatamine" in body
-
-
-def test_the_chart_bundle_loads_when_only_a_batch_has_data(viewer_client, batch):
-    response = viewer_client.get(MOVEMENT_VIEW)
-
-    assert "build/charts.js" in response.content.decode()
+    for url in (
+        MOVEMENT_VIEW,
+        f"{MOVEMENT_VIEW}&otsus=2025-03-10",
+        f"{MOVEMENT_VIEW}&otsus=1999-01-01",
+    ):
+        response = viewer_client.get(url)
+        assert response.status_code == 200
+        body = response.content.decode()
+        assert "section-decisions" not in body
+        assert "otsus=" not in body

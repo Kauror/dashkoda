@@ -379,61 +379,22 @@ test("section controls wrap rather than pushing the page sideways", async ({
 /*
  * Board-decision batches.
  *
- * The section exists only because the seed now creates batches; before that it
- * was invisible here, which is the same blind spot that hid the website-traffic
- * section until it was seeded. A green run proves the parts work, not that
- * anything reaches them.
+ * `Juhatuse otsused` — the section, its picker and both decision-scoped
+ * charts — left this focus on 2026-08-17. The selector and chart-builder
+ * functions it drew from are still covered directly in
+ * `tests/membership/test_decision_batch_presentation.py`; this is what's left
+ * to check at the page level, that a batch existing no longer surfaces any of
+ * it here.
  */
-test("the decision section is drawn and keeps itself apart from year-to-date", async ({
+test("the decision section no longer renders even when a batch exists", async ({
   page,
 }) => {
   oncePerRun();
 
   await open_(page, MOVEMENT);
 
-  const section = page
-    .locator("#section-decisions")
-    .locator("xpath=ancestor::section[1]");
-  await expect(section).toBeVisible();
-  await expect(section.getByText("Juhatuse otsused")).toBeVisible();
-
-  // The caveat has to be on the page, not only in the code: a batch is one
-  // decision's own list and is not addable to a year-to-date figure.
-  await expect(
-    section.getByText(/ei ole aasta algusest kogunenud arv/i),
-  ).toBeVisible();
-
-  // Both of its charts mount with real dimensions.
-  const drawn = section.locator("[data-chart-canvas] canvas");
-  const count = await drawn.count();
-  expect(count).toBeGreaterThan(0);
-  for (let index = 0; index < count; index += 1) {
-    const box = await drawn.nth(index).boundingBox();
-    expect(box.width).toBeGreaterThan(0);
-    expect(box.height).toBeGreaterThan(0);
-  }
-});
-
-test("a decision chart names both of its dates", async ({ page }) => {
-  oncePerRun();
-
-  await open_(page, MOVEMENT);
-
-  const section = page
-    .locator("#section-decisions")
-    .locator("xpath=ancestor::section[1]");
-  // The appendix is compiled on one day and signed on another; a label that
-  // collapsed them would hide which day a figure describes.
-  await expect(section.getByText(/seisuga/i).first()).toBeVisible();
-  await expect(section.getByText(/otsus/i).first()).toBeVisible();
-});
-
-test("the decision section does not make the page scroll sideways", async ({
-  page,
-}) => {
-  await open_(page, MOVEMENT);
-
-  await expect(page.locator("#section-decisions")).toBeAttached();
+  await expect(page.locator("#section-decisions")).toHaveCount(0);
+  await expect(page.getByText("Juhatuse otsused")).toHaveCount(0);
   await expectNoHorizontalOverflow(page);
 });
 
