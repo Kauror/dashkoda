@@ -1,15 +1,15 @@
 """What the Uudised domain tells the main dashboard.
 
-The news half of the overview's `Nähtavus ja teavitamine` pillar, and the news
-panel of `Praegu huvi pakkuv`. The website half lives in
-`apps.visibility.executive`; the pillar shows both and never adds them.
+The news half of the overview's `Koduleht ja uudised` card, and the news
+panel of `Praegu enim huvi`. The website half lives in
+`apps.visibility.executive`; the card shows both and never adds them.
 
 ## Why news views are not added to website views
 
 They are a **subset**. `analytics.news_traffic` reads both figures as GA4 page
 views over the same days precisely so that the one can be stated as a share of
 the other: news reading is part of site reading, and a "total reach" summing
-them would count every article view twice. The pillar therefore carries a share,
+them would count every article view twice. The card therefore carries a share,
 never a sum, and the share is computed by this domain rather than by the page.
 
 ## The article panel is about now, not about lifetime
@@ -96,7 +96,7 @@ def get_news_executive(summary: NewsSummary) -> NewsExecutive:
     """Shape the news figures over the website's own measured window.
 
     The window comes from `apps.visibility` rather than from this domain's own
-    period presets, because the pillar puts news reading beside site reading and
+    period presets, because the card puts news reading beside site reading and
     two different thirty-day windows in one sentence would not be comparable.
     """
     coverage = get_coverage()

@@ -1,8 +1,10 @@
-"""Synthetic audience figures and website analytics.
+"""Synthetic audience figures, website analytics and newsletter sends.
 
-Two seeds, because the domain has two kinds of source: `seed_manual` publishes
-the four social figures a staff user types, and `seed_website_analytics`
-publishes GA4 days through the real collector with only its transport replaced.
+Three seeds, because the domain has three kinds of source: `seed_manual`
+publishes the four social figures a staff user types, `seed_website_analytics`
+publishes GA4 days through the real collector with only its transport replaced,
+and `seed_newsletter_sends` publishes completed Smaily campaigns with their
+aggregate statistics.
 
 The analytics seed is the one place that has to agree with several domains at
 once — its paths must match what news, events and shop actually publish, or a
@@ -13,6 +15,8 @@ rather than restating them.
 from __future__ import annotations
 
 import datetime as dt
+
+from django.utils import timezone
 
 from apps.shop.e2e_seed import (
     SHOP_EVENT_INDEX,
@@ -436,3 +440,108 @@ def seed_manual(today: dt.date) -> str:
             )
         )
     return f"nähtavus: {len(plan)} sisestust"
+
+
+#: How many completed sends each newsletter gets. Two blocks of the selector's
+#: own aggregate size, so `Otsepostitused` has a previous block to compare its
+#: recent one against — the front page's newsletter card states that movement in
+#: percentage points, and one block would leave it permanently absent.
+NEWSLETTER_SENDS_PER_BLOCK = 12
+
+#: Deliberately unequal, deliberately synthetic, and deliberately not round: the
+#: recent block opens better than the one before it, so the movement the card
+#: prints has a sign a test can assert. Delivery counts differ by an order of
+#: magnitude across the three letters, which is what makes a weighted rate
+#: differ visibly from a mean of percentages.
+NEWSLETTER_PLAN: tuple[tuple[str, int, float, float], ...] = (
+    ("newsletter_eteataja", 20616, 0.44, 0.51),
+    ("newsletter_enews", 755, 0.36, 0.39),
+    ("newsletter_evestnik", 527, 0.28, 0.31),
+)
+
+
+def seed_newsletter_sends(today: dt.date) -> str:
+    """Two blocks of completed sends per newsletter, with their statistics.
+
+    Written through the ordinary models rather than through `sync_smaily`,
+    because that collector's own transport is the thing under test in
+    `tests/visibility/test_sync_smaily_campaigns.py` and a seed is not the place
+    to exercise it. What matters here is that the stored shape is the real one:
+    a catalogued campaign, an immutable statistics revision marked current, and
+    an artifact and import run behind it like every other published measurement.
+
+    **No recipient reaches this, because no field can hold one.** These are
+    aggregate counts over a whole send, which is the only grain the Smaily
+    integration has.
+
+    **Re-running publishes nothing.** CI may seed a database a previous step
+    already seeded, and every other builder here is re-runnable, so this one
+    returns early rather than colliding on `campaign_id` — or, worse, doubling
+    the block a rate is weighted over and quietly changing the figure the front
+    page states. The whole batch is one artifact and one import run, which is
+    also what keeps the run count from growing with the send count.
+    """
+    from apps.sources.services import (
+        build_import_run,
+        complete_import_run,
+        register_external_reference,
+        start_import_run,
+    )
+    from apps.visibility.bootstrap import ensure_smaily_source
+    from apps.visibility.models import SmailyCampaign, SmailyCampaignStats
+
+    sends = len(NEWSLETTER_PLAN) * NEWSLETTER_SENDS_PER_BLOCK * 2
+    if SmailyCampaign.objects.exists():
+        return f"otsepostitused: {sends} saadetist (juba olemas)"
+
+    source = ensure_smaily_source()
+    artifact = register_external_reference(
+        source=source,
+        external_reference="synthetic:smaily:campaigns",
+        original_name="synthetic-campaigns.json",
+        mime_type="application/json",
+        # Fixed rather than derived: the digest is the import key, and one that
+        # moved with the clock would make a second run look like new content.
+        sha256=f"{0:064d}",
+        size_bytes=64,
+    )
+    run = build_import_run(
+        artifact=artifact,
+        importer_name="synthetic-smaily-campaigns",
+        schema_version="1.0",
+        dry_run=False,
+    )
+    start_import_run(run)
+
+    campaign_id = 0
+    for metric, delivered, older_rate, recent_rate in NEWSLETTER_PLAN:
+        for index in range(NEWSLETTER_SENDS_PER_BLOCK * 2):
+            campaign_id += 1
+            # Newest last, so the final block of twelve is the recent one.
+            is_recent = index >= NEWSLETTER_SENDS_PER_BLOCK
+            rate = recent_rate if is_recent else older_rate
+            sent_on = today - dt.timedelta(days=(NEWSLETTER_SENDS_PER_BLOCK * 2 - index) * 7)
+            campaign = SmailyCampaign.objects.create(
+                campaign_id=campaign_id,
+                name=f"Sünteetiline saadetis {campaign_id}",
+                template_name="Sünteetiline mall",
+                newsletter=metric,
+                status="COMPLETED",
+                completed_at=timezone.make_aware(dt.datetime.combine(sent_on, dt.time(9, 0))),
+            )
+            SmailyCampaignStats.objects.create(
+                campaign=campaign,
+                artifact=artifact,
+                import_run=run,
+                observed_at=timezone.now(),
+                checksum=f"{campaign_id:064d}",
+                revision=1,
+                is_current=True,
+                total_count=delivered + 40,
+                delivered_count=delivered,
+                opened_count=round(delivered * rate),
+                unique_click_count=round(delivered * rate * 0.2),
+                unsubscribe_count=2,
+            )
+    complete_import_run(run, rows_added=campaign_id)
+    return f"otsepostitused: {campaign_id} saadetist"

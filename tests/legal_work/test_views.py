@@ -1,7 +1,6 @@
 """The Õigusloome page and the overview integration."""
 
 import datetime as dt
-import re
 
 import pytest
 from django.urls import reverse
@@ -241,80 +240,142 @@ def test_the_page_loads_only_local_bundled_assets(client, authenticate_viewer, i
     assert 'style="' not in content
 
 
-def _legal_pillar_wording() -> str:
-    """The `Huvikaitse` pillar's own words, built directly.
+def _legal_card():
+    """The Õigusloome card as `Koja töölaud` builds it.
 
-    The card left `Koja töölaud` on 2026-08-16; `_legal_pillar` did not, and its
-    wording is what the two tests below are about. The Õigusloome dashboard
-    states the same figure in its own words — a different contract, asserted
-    elsewhere.
+    Built directly rather than scraped out of the rendered page, because what
+    these tests are about is the wording and the choice of headline — which
+    belong to the builder — while the page is asserted separately to render it.
     """
-    from apps.dashboard.executive import _legal_pillar
+    from apps.dashboard.executive import _legal_card
     from apps.legal_work.executive import get_legal_work_executive
     from apps.legal_work.selectors import get_legal_work_summary
 
-    pillar = _legal_pillar(get_legal_work_executive(get_legal_work_summary()))
-    if pillar.headline is None:
-        return ""
-    return f"{pillar.headline.value} {pillar.headline.unit}"
+    return _legal_card(get_legal_work_executive(get_legal_work_summary()))
 
 
 # -- overview integration ----------------------------------------------
 
 
 def test_overview_keeps_its_empty_state_without_a_snapshot(client, authenticate_viewer):
-    """The route survives the pillar, and still never shows a nought.
+    """The card is a permanent part of the page and never prints a nought.
 
-    The `Huvikaitse` card left the overview on 2026-08-16, so the claim this
-    test used to make — that a pillar is a permanent part of the page's
-    structure — is no longer true of this domain. What has to remain true is
-    the part that mattered: the overview still offers a way through to an
-    honest empty Õigusloome page, and never prints a nought standing in for a
-    count nobody made.
+    Õigusloome is one of the six domain cards again since 2026-08-17. With no
+    workbook imported it says its source is not connected — never `0 teemat`,
+    which would claim somebody counted no open matters.
     """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
 
-    assert "Huvikaitse" not in content, "the pillar left on 2026-08-16"
+    assert "Õigusloome" in content
     assert "Andmeallikas ei ole ühendatud." in content
     assert reverse("legal-work") in content, "the overview still routes there"
-    assert "arvamust sellel aastal" not in content
+    assert "teemat töös" not in content
 
 
-def test_overview_shows_real_legal_work_data_once_imported(
+def test_the_overview_card_leads_with_open_matters_not_with_output(
     client, authenticate_viewer, imported_snapshot
 ):
-    """The figure left the overview with its card; the page still carries it.
+    """The headline is the stock, and the year's output is a supporting fact.
 
-    Until 2026-08-16 the `Huvikaitse` pillar stated how much work was being
-    carried. The card is gone, so the figure is asserted on the builder that
-    still produces it, and the overview is asserted to have let it go.
+    `Arvamusi välja saadetud tänavu` led this card until 2026-08-17 and was the
+    wrong figure for a management page: it is cumulative, it can only rise, and
+    it says nothing about what the Chamber is holding right now. The count of
+    open matters changes when somebody acts, which is what a cockpit is for.
+
+    Both figures are still on the card. What this pins is which one is the
+    headline.
     """
+    from apps.core.formatting import integer
+    from apps.legal_work.analytics import sent_year_on_year
+    from apps.legal_work.selectors import get_legal_work_summary
+
+    authenticate_viewer(client)
+
+    card = _legal_card()
+    summary = get_legal_work_summary()
+
+    assert card.headline.value == integer(summary.open_count)
+    assert card.headline.unit == "teemat töös"
+    # The year's output did not leave — it moved one row down, with the
+    # like-for-like baseline beside it. Both sides stop on the same calendar
+    # day, which is `sent_year_on_year`'s own rule and not restated here.
+    sent = sent_year_on_year(summary.snapshot)
+    labels = {fact.label: fact.value for fact in card.available_facts}
+    assert labels["Arvamusi saadetud tänavu"] == integer(sent.current)
+    assert labels["Sama ajaks eelmisel aastal"] == integer(sent.previous)
+
+    content = client.get("/").content.decode()
+    assert "teemat töös" in content
+
+
+def test_the_overview_card_never_calls_opinion_volume_impact(
+    client, authenticate_viewer, imported_snapshot
+):
+    """Output is not impact.
+
+    The workbook counts opinions sent. It does not count opinions accepted or
+    provisions changed, so no word on this card may suggest it does.
+    """
+    card = _legal_card()
+
+    words = " ".join(
+        [card.label, card.headline.unit, card.period_line] + [fact.label for fact in card.facts]
+    ).casefold()
+
+    for forbidden in ("mõju", "tulemus", "edukus", "saavutus"):
+        assert forbidden not in words
+
+
+def test_a_passed_deadline_reaches_the_page_as_a_signal_and_not_as_a_quiet_fact(
+    client, authenticate_viewer, imported_snapshot
+):
+    """The most urgent number belongs in the least quiet place.
+
+    `overdue_pending` is the domain's own critical signal, and `Tähelepanu`
+    renders it with the evidence and a link to the list the rows sit in. Putting
+    it on the card as a fourth grey fact would bury it under the three figures
+    it outranks.
+    """
+    from apps.legal_work.executive import get_legal_work_executive
+    from apps.legal_work.selectors import get_legal_work_summary
+
+    executive = get_legal_work_executive(get_legal_work_summary())
+    card = _legal_card()
+
+    assert not any("möödas" in fact.label.casefold() for fact in card.facts)
+    if executive.overdue_pending:
+        keys = {signal.key for signal in executive.signals}
+        assert "legal-overdue-pending" in keys
+
+
+def test_the_overview_no_longer_reproduces_the_topic_lists(
+    client, authenticate_viewer, imported_snapshot
+):
+    """Two seven-row lists of `/oigusloome/` left the front page on 2026-08-17.
+
+    They were half of the Õigusloome dashboard, a scroll above the link to it.
+    What replaced them is the card's four figures, the deadline lane of
+    `Järgmised 30 päeva`, the domain's signals and that same link.
+
+    The lists are not merely unrendered: `LegalWorkExecutive` stopped building
+    them, so the selector reads and the link-resolution pass they cost are gone
+    too. The Õigusloome page still calls the same selectors, which is asserted
+    where that page is tested.
+    """
+    from apps.legal_work.executive import LegalWorkExecutive
+
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
-    assert "Huvikaitse" not in content
+    page = client.get("/").context["page"]
 
-    # `arvamust sellel aastal` is the pillar's own wording, so it is asserted on
-    # the builder rather than on a page — the Õigusloome dashboard states the
-    # same figure in its own words, which is a different contract.
-    # `Arvamusi välja saadetud tänavu` was the caption under the figure; it came
-    # off the card on 2026-08-15 and the window moved into the unit.
-    wording = _legal_pillar_wording()
-    assert "arvamust sellel aastal" in wording
-    assert "Arvamusi välja saadetud tänavu" not in wording
-    # `Teemasid töös` is the pillar's label and left the overview with it, so
-    # it is asserted on the same builder as the figure above. The route did not
-    # go: the timeline's Õigusloome block still links through.
-    assert "Teemasid töös" not in content
-    assert "Vaata õigusloomet" in content
-    # The workbook's own date is claimed in `Andmete seis`, which moved to
-    # `/haldus/` on 2026-08-15. The overview no longer dates its own figures,
-    # so this reads it where it is now rather than pretending it is still here.
-    stated = imported_snapshot.reporting_date
-    admin = client.get(reverse("dashboard-admin")).content.decode()
-    assert f"{stated:%d.%m.%Y}" in admin
+    assert "Viimased välja saadetud" not in content
+    fields = set(LegalWorkExecutive.__dataclass_fields__)
+    assert not fields & {"in_progress", "recently_sent"}
+    assert not hasattr(page, "legal_in_progress")
+    assert not hasattr(page, "legal_recently_sent")
 
 
 def test_overview_discloses_a_failed_sync_alongside_old_data(
@@ -333,9 +394,10 @@ def test_overview_discloses_a_failed_sync_alongside_old_data(
     freshness = client.get("/dashboard/varskus/").content.decode()
 
     assert "Vananenud: 1" in freshness
-    # The figure stays put; only its caption went. That is the half this test is
-    # about — a failed refresh must not withdraw the last good data.
-    assert "arvamust sellel aastal" in _legal_pillar_wording()
+    # The figures stay put. That is the half this test is about — a failed
+    # refresh must not withdraw the last good data.
+    cards = {card.key: card for card in client.get("/").context["page"].cards}
+    assert cards["legal_work"].is_available
     # The disclosure itself is in `Andmete seis`, on `/haldus/` since
     # 2026-08-15. Both halves are named: the figures stay, and the staleness is
     # still stated somewhere a maintainer will find it.
@@ -348,131 +410,20 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
 ):
     """The claim must be "data as of <workbook date>", not "loaded today".
 
-    The shell's own freshness region legitimately shows the current time — that
-    is a fact about the application, not about the data — so this checks the
-    legal-work claim specifically.
-
-    The pillar used to state it twice, as the headline's as-of date and as the
-    period the figure stops on. Both captions came off the card on 2026-08-15
-    and `Andmete seis` moved to `/haldus/` the same day, so that page is the one
-    place the date is claimed — which is where this now reads it.
+    The card states the workbook's own reporting date in its period line, and
+    `Andmete seis` at `/haldus/` states it again with the source named. Both are
+    checked, because the front page carrying a date whose source is a scroll and
+    a click away is only honest while that second statement exists.
     """
+    from apps.core.formatting import short_date
+
     authenticate_viewer(client)
+
+    reporting_date = imported_snapshot.reporting_date
+    assert reporting_date != dt.date.today()
+
+    assert short_date(reporting_date) in _legal_card().period_line
 
     admin = client.get(reverse("dashboard-admin")).content.decode()
-    reporting_date = imported_snapshot.reporting_date
-
-    assert reporting_date != dt.date.today()
     assert "Seis" in admin
     assert f"{reporting_date:%d.%m.%Y}" in admin
-
-
-# ---------------------------------------------------------------------------
-# The overview's Õigusloome section
-# ---------------------------------------------------------------------------
-
-
-def test_the_overview_lists_work_in_progress_and_recent_opinions(
-    client, authenticate_viewer, imported_snapshot
-):
-    """The board's two lists, added 2026-08-15.
-
-    `Töös` is ordered by the opinion deadline rather than by arrival, because
-    what a reader wants off that list is what has to leave next.
-    """
-    authenticate_viewer(client)
-
-    page = client.get("/").context["page"]
-    content = client.get("/").content.decode()
-
-    assert "Õigusloome" in content
-    assert "Töös" in content
-    assert "Viimased välja saadetud" in content
-    assert page.has_legal_lists
-
-    deadlines = [row.item.deadline_date for row in page.legal_in_progress if row.item.deadline_date]
-    assert deadlines == sorted(deadlines), "Töös must lead with what is due next"
-
-    sent = [row.item.sent_date for row in page.legal_recently_sent]
-    assert sent == sorted(sent, reverse=True), "sent opinions must lead with the newest"
-
-
-def test_neither_overview_list_exceeds_seven_rows(client, authenticate_viewer, imported_snapshot):
-    """Seven is the board's own number, and the section stays a summary.
-
-    A list that grew past it would be the Õigusloome page reproduced a scroll
-    above the link to it.
-    """
-    from apps.legal_work.executive import OVERVIEW_LIST_LIMIT
-
-    authenticate_viewer(client)
-
-    page = client.get("/").context["page"]
-
-    assert OVERVIEW_LIST_LIMIT == 7
-    assert len(page.legal_in_progress) <= OVERVIEW_LIST_LIMIT
-    assert len(page.legal_recently_sent) <= OVERVIEW_LIST_LIMIT
-
-
-def test_an_overview_row_without_a_resolved_address_is_plain_text(
-    client, authenticate_viewer, imported_snapshot
-):
-    """The rule that makes the section trustworthy.
-
-    `topic_links` refuses an address computed against a different snapshot, and
-    nothing has matched this synthetic workbook — so every row here is
-    unmatched, and not one of them may be rendered as a link. A lawyer sent to
-    last week's consultation is worse off than one sent nowhere.
-    """
-    authenticate_viewer(client)
-
-    page = client.get("/").context["page"]
-    rows = tuple(page.legal_in_progress) + tuple(page.legal_recently_sent)
-
-    assert rows, "the fixture must produce rows for this to prove anything"
-    assert all(not row.public_url for row in rows)
-    assert all(not row.is_linked for row in rows)
-
-    # The two `<ul>` lists only. Slicing to the section's own footer keeps the
-    # `Vaata õigusloomet` anchor, whose opening tag sits before its text — a
-    # property of the markup, not of any row, and what made the first version
-    # of this assertion fail.
-    section = client.get("/").content.decode().split('id="oigusloome"', 1)[1]
-    # Bounded by the section that follows it. `Praegu huvi pakkuv` was the
-    # delimiter until it left the page on 2026-08-16.
-    section = section.split('aria-labelledby="section-channels"', 1)[0]
-    lists = re.findall(r"<ul[ >].*?</ul>", section, flags=re.S)
-
-    assert lists, "the section rendered no list to inspect"
-    for markup in lists:
-        assert "<a" not in markup, "an unmatched topic became a link"
-
-
-def test_a_sent_row_never_offers_a_consultation_link(
-    client, authenticate_viewer, imported_snapshot
-):
-    """The mutual exclusivity, asserted where the two lists sit side by side.
-
-    `consultation.py` and `opinion_eligibility.py` are exclusive by
-    construction and each is tested in its own suite; this checks the guarantee
-    survives being composed into one section, which is the layer that could
-    quietly resolve both mappings and merge them the wrong way round.
-    """
-    from apps.legal_work.models import SentStatus
-
-    authenticate_viewer(client)
-
-    page = client.get("/").context["page"]
-
-    for row in page.legal_recently_sent:
-        assert row.item.sent_status == SentStatus.SENT
-        if row.public_url:
-            assert row.public_url.startswith("/oigusloome/arvamused/"), (
-                "a sent opinion must point at its own resource, never a consultation"
-            )
-    for row in page.legal_in_progress:
-        assert row.item.is_open
-        if row.public_url:
-            assert not row.public_url.startswith("/oigusloome/arvamused/"), (
-                "an open matter must not point at an opinion resource"
-            )

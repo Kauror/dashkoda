@@ -103,6 +103,10 @@ class Command(BaseCommand):
             # at all. The two are seeded deliberately disagreeing.
             membership_seed.seed_register(today),
             visibility_seed.seed_manual(today),
+            # Completed Smaily sends, so the Otsepostitused card on the
+            # front page and the section's own comparison have two blocks
+            # of issues to weight a rate over rather than an empty state.
+            visibility_seed.seed_newsletter_sends(today),
             # After the news and the events: the page rows resolve their titles
             # from those catalogues, and a ranking seeded first would show paths
             # where the finished page shows titles.

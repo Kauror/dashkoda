@@ -51,11 +51,21 @@ def test_content_security_policy_is_unchanged(client):
 
 
 def test_dashboard_still_shows_truthful_empty_states(client, authenticate_viewer):
+    """Two wordings, because two kinds of absence must stay distinguishable.
+
+    A domain card whose source nobody has connected says so; an audience row
+    whose figure nobody has entered says something else. Neither shows a zero.
+
+    The first string was `Andmeallikas ei ole veel ühendatud.` — the channel
+    band's planned website slot — until 2026-08-17, when that slot was removed
+    and the front page became six domain cards. The rule did not move; the only
+    wording of it left on the page is the card's.
+    """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
 
-    assert "Andmeallikas ei ole veel ühendatud." in content
+    assert "Andmeallikas ei ole ühendatud." in content
     assert "Andmed puuduvad." in content
 
 

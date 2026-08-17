@@ -137,12 +137,11 @@ test("every chart names itself for a reader who cannot see the drawing", async (
  * something — so the assertion this one made is still enforced, at the address
  * where the chart now lives.
  *
- * What the executive pillar may draw is a two-point sparkline of the *public
- * directory* count, and only when two comparable readings exist. The seed
- * publishes one current public observation, so on seeded content there is
- * legitimately no line to find: one reading is not a trend, and drawing it
- * would be inventing a slope. Asserting a polyline on `/` would therefore have
- * been asserting a defect.
+ * The overview drew nothing at all since 2026-08-17: the compact domain cards
+ * that replaced the tall pillars carry no sparkline, because six cards fit two
+ * rows only if none of them is tall and a trend a couple of centimetres wide
+ * cannot be read anyway. The Liikmeskond card states its year-on-year movement
+ * in words and names both of the dates it rests on.
  */
 
 test("an explicit zero reads differently from a missing value", async ({

@@ -1,6 +1,6 @@
 """What the Liikmeskond domain tells the main dashboard.
 
-A compact summary for the executive overview's Liikmeskond pillar. It is
+A compact summary for the executive overview's Liikmeskond card. It is
 deliberately **not** `intelligence.build_headlines`: that builds three headline
 figures, a trend, a movement summary and quality badges for a page that is about
 membership. The overview needs one figure, one comparison, three supporting
@@ -13,7 +13,7 @@ run every query the Liikmeskond page runs.
 page leads with the internal board report instead, and that difference is
 intentional rather than an inconsistency to be tidied away: when the Liikmeskond
 dashboard was rebuilt it took the public-catalogue section off the top of its own
-page *because* the overview carries that count. If this pillar switched to the
+page *because* the overview carries that count. If this card switched to the
 internal total, the public directory figure would not appear anywhere in
 DashKoda.
 
@@ -21,14 +21,14 @@ The two are never mixed. AGENTS.md is explicit that they count different things,
 and everything the internal report contributes here is a **ratio or a movement
 inside that report** — a paid share whose denominator is the report's own total,
 a fee collection against the report's own budget, joins and removals the report
-itself counted. No figure on this pillar divides one source by the other, and
+itself counted. No figure on this card divides one source by the other, and
 the two never appear as two unlabelled totals side by side.
 
 ## Why the comparison is a year, not thirty days
 
 The overview's old headline compared against the reading thirty days earlier.
 That window answers "did something happen recently", which the signal section
-now answers better and with a link. The pillar answers "is the membership base
+now answers better and with a link. The card answers "is the membership base
 growing or shrinking", and a year is the shortest window over which a chamber's
 membership answers that: a thirty-day move is dominated by the timing of the
 annual fee cycle and reads as decline every spring.
@@ -51,7 +51,7 @@ from .internal_selectors import (
 )
 from .selectors import MembershipChange, get_membership_change_over
 
-#: The pillar's comparison window. A year, for the reason in the module
+#: The card's comparison window. A year, for the reason in the module
 #: docstring. Public observations are written only when the count changes, so
 #: the baseline is the newest reading older than the window rather than a
 #: reading taken exactly 365 days ago.
@@ -70,7 +70,7 @@ PREDECESSOR_LOOKBACK_DAYS = 400
 
 @dataclass(frozen=True)
 class MembershipExecutive:
-    """The Liikmeskond pillar's figures, each with its own source and date."""
+    """The Liikmeskond card's figures, each with its own source and date."""
 
     #: Koda.ee directory. The headline.
     total_members: int | None = None
@@ -87,10 +87,6 @@ class MembershipExecutive:
     removed_ytd: int | None = None
     internal_as_of: date | None = None
 
-    #: The public count's recent readings, for the pillar's small trend. Same
-    #: metric as the headline, which is the only line that may be drawn here.
-    series: tuple[tuple[date, int], ...] = ()
-
     signals: tuple[DomainSignal, ...] = ()
 
     @property
@@ -105,7 +101,7 @@ class MembershipExecutive:
     def meaning(self) -> str:
         """One sentence, composed from the figures above and nothing else.
 
-        Empty when there is no comparison to describe. A pillar with a figure
+        Empty when there is no comparison to describe. A card with a figure
         and no baseline states the figure and says nothing about direction,
         rather than reaching for a word like `stabiilne` that no measurement
         supports.
@@ -124,11 +120,16 @@ class MembershipExecutive:
 
 
 def get_membership_executive() -> MembershipExecutive:
-    """Read the two membership sources once each and shape the pillar.
+    """Read the two membership sources once each and shape the card.
 
-    Three queries for the public side (current reading, baseline reading, the
-    short series the sparkline draws) and two for the internal report. Nothing
-    here grows with the size of the membership.
+    Two queries for the public side — the current reading and the baseline the
+    comparison rests on — and two for the internal report. Nothing here grows
+    with the size of the membership.
+
+    The two readings used to be carried as a `series` as well, for the sparkline
+    the pillar card drew. The compact domain cards draw no sparkline, so the
+    field went rather than being left as data nothing reads; the comparison
+    already names both of its dates in words.
     """
     change = get_membership_change_over(days=COMPARISON_DAYS)
     internal = get_internal_membership_latest()
@@ -143,7 +144,6 @@ def get_membership_executive() -> MembershipExecutive:
         joined_ytd=internal.value("new_members_ytd") if internal else None,
         removed_ytd=internal.value("removed_members_ytd") if internal else None,
         internal_as_of=internal.observation_date if internal else None,
-        series=_public_series(change),
         signals=_signals(internal),
     )
 
@@ -161,27 +161,11 @@ def _relative(change: MembershipChange) -> Decimal | None:
     return (difference / baseline * 100).quantize(Decimal("0.1"))
 
 
-def _public_series(change: MembershipChange) -> tuple[tuple[date, int], ...]:
-    """The two readings the comparison rests on, oldest first.
-
-    Deliberately not a full history. The directory writes an observation only
-    when the count changes, so a year holds a handful of points and a
-    `sparkline` over them is a line between the two dates the comparison already
-    names. Drawing exactly those two keeps the picture and the sentence agreeing.
-    """
-    points = [
-        (observation.observed_at, observation.total_members)
-        for observation in (change.previous, change.current)
-        if observation is not None
-    ]
-    return tuple(points)
-
-
 def _fee_pct(internal: ObservationPoint | None) -> Decimal | None:
     """Fee collection as the report states it, or as its own amounts give it.
 
     The reported percentage wins when both exist. The Liikmeskond page shows the
-    two side by side without reconciling them; a pillar has room for one, and
+    two side by side without reconciling them; a card has room for one, and
     the source's own statement is the one to show.
     """
     if internal is None:
@@ -193,8 +177,8 @@ def _fee_pct(internal: ObservationPoint | None) -> Decimal | None:
 def _signals(internal: ObservationPoint | None) -> tuple[DomainSignal, ...]:
     """At most one, and only for a paid share that actually moved.
 
-    The membership total's own movement is the pillar's headline and does not
-    need repeating as a signal. What the pillar cannot show is a *ratio inside
+    The membership total's own movement is the card's headline and does not
+    need repeating as a signal. What the card cannot show is a *ratio inside
     the report* turning, which is why this is the one thing the domain flags.
     """
     if internal is None:

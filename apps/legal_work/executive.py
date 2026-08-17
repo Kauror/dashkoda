@@ -1,15 +1,33 @@
 """What the Õigusloome domain tells the main dashboard.
 
-The Huvikaitse pillar's figures and the domain's own view of what deserves a
+The Õigusloome card's figures and the domain's own view of what deserves a
 manager's attention. Everything here is read off the one current workbook
 snapshot the Õigusloome page reads, through that page's own analytics, so the
 two cannot disagree about what a year-to-date opinion count is.
+
+## The card leads with the stock, not the flow
+
+`open_topics` — `X teemat töös` — is what a manager can act on today, and it is
+what the front page states. `sent` is still here and still compared like for
+like, one row down: it is a record of work carried, and a year-to-date count is
+not a description of the current state of anything.
+
+## No topic lists
+
+This summary used to carry `in_progress` and `recently_sent`, two seven-row
+lists the overview rendered as a section of its own. That section is gone — the
+front page does not reproduce half of `/oigusloome/` — and the lists went with
+it rather than being left built and unread: three selector reads and a
+link-resolution pass per overview render, for rows nothing displayed.
+`get_open_items_by_deadline`, `get_latest_sent_items` and `present_topics` are
+untouched and the Õigusloome page still calls them; what left is this module's
+own call to them.
 
 ## Output is not impact
 
 `Arvamusi välja saadetud` counts opinions Koda sent. It does not count opinions
 that were accepted, provisions that changed, or influence of any kind. The
-distinction matters enough that the pillar's own wording never uses the word
+distinction matters enough that the card's own wording never uses the word
 `mõju`: this figure is how much policy work the Chamber carried, and whether
 that work succeeded is not in the workbook.
 
@@ -42,15 +60,9 @@ from apps.core.formatting import integer, percent
 
 from .analytics import YearOnYear, deadline_pressure, sent_year_on_year, topics_year_on_year
 from .sections import SECTION_OPEN, anchor
-from .selectors import (
-    LegalWorkSummary,
-    get_latest_sent_items,
-    get_open_items_by_deadline,
-    get_upcoming_deadlines,
-)
-from .topic_links import present_topics, resolve_links_for
+from .selectors import LegalWorkSummary, get_upcoming_deadlines
 
-#: The horizon the pillar and the critical signal both use for "soon". Seven days
+#: The horizon the card and the critical signal both use for "soon". Seven days
 #: is the workbook's own weekly rhythm and the band `deadline_pressure` already
 #: counts, so the signal and the Õigusloome page's own pressure chart cannot
 #: disagree about what falls inside it.
@@ -61,16 +73,10 @@ URGENT_DAYS = 7
 #: than this would let one busy week fill it.
 TIMELINE_LIMIT = 8
 
-#: How many rows each of the overview's two Õigusloome lists carries. Seven is
-#: the board's own number: enough to see the shape of the week's work, few
-#: enough that the section stays a summary rather than becoming the Õigusloome
-#: page a scroll higher up.
-OVERVIEW_LIST_LIMIT = 7
-
 
 @dataclass(frozen=True)
 class LegalWorkExecutive:
-    """The Huvikaitse pillar's figures, all from one workbook snapshot."""
+    """The Õigusloome card's figures, all from one workbook snapshot."""
 
     #: Opinions sent 1 January → reporting date, and the same span a year back.
     sent: YearOnYear | None = None
@@ -85,20 +91,15 @@ class LegalWorkExecutive:
 
     signals: tuple[DomainSignal, ...] = ()
 
-    #: The two lists the overview's Õigusloome section renders, each already
-    #: carrying its resolved address. They are `LegalTopicPresentation`, so the
-    #: shared `legal_topic` component reads them on exactly the contract it
-    #: reads every other legal list on.
-    in_progress: tuple = ()
-    recently_sent: tuple = ()
-
     @property
     def has_headline(self) -> bool:
-        return self.sent is not None
+        """Whether a workbook snapshot exists at all.
 
-    @property
-    def has_lists(self) -> bool:
-        return bool(self.in_progress or self.recently_sent)
+        Named for the summary rather than for the card: the card's own headline
+        is `open_topics`, and it renders only when that count exists. A snapshot
+        with no open matters is a real state of the world and reports zero.
+        """
+        return self.sent is not None
 
     @property
     def meaning(self) -> str:
@@ -122,7 +123,7 @@ class LegalWorkExecutive:
 
 
 def get_legal_work_executive(summary: LegalWorkSummary) -> LegalWorkExecutive:
-    """Shape the pillar from a summary the caller already read.
+    """Shape the card from a summary the caller already read.
 
     The summary is passed in rather than read again: the overview reads it once
     for the shell freshness row and the data-status section, and this is the
@@ -134,7 +135,6 @@ def get_legal_work_executive(summary: LegalWorkSummary) -> LegalWorkExecutive:
 
     sent = sent_year_on_year(snapshot)
     pressure = deadline_pressure(snapshot)
-    in_progress, recently_sent = _overview_lists(snapshot)
     return LegalWorkExecutive(
         sent=sent,
         open_topics=summary.open_count,
@@ -143,32 +143,7 @@ def get_legal_work_executive(summary: LegalWorkSummary) -> LegalWorkExecutive:
         overdue_pending=pressure.overdue_pending,
         reporting_date=summary.reporting_date,
         signals=_signals(pressure, reporting_date=summary.reporting_date),
-        in_progress=in_progress,
-        recently_sent=recently_sent,
     )
-
-
-def _overview_lists(snapshot) -> tuple[tuple, tuple]:
-    """The two lists, with every address resolved in one pass.
-
-    `resolve_links_for` is asked once for both, which is what makes a record
-    appearing in either list link to the same place — and it is three queries
-    for the whole section rather than one per row.
-
-    **Which address a row gets is decided by the record's own status**, by
-    `resolve_consultation_links`, not here: a sent record resolves to the
-    opinion resource that carries the PDF, and an open unsent one to its
-    `Hetkel käsil` consultation — the "küsime arvamust" invitation. The two
-    eligibility rules are mutually exclusive by construction, so no row can
-    offer both, and a row whose match is stale or missing renders as plain
-    text. That last part is deliberate and is the reason this section can be
-    trusted: a lawyer sent to last week's consultation is worse off than one
-    sent nowhere.
-    """
-    in_progress = list(get_open_items_by_deadline(snapshot, limit=OVERVIEW_LIST_LIMIT))
-    recently_sent = list(get_latest_sent_items(snapshot, limit=OVERVIEW_LIST_LIMIT))
-    links = resolve_links_for(in_progress, recently_sent)
-    return present_topics(in_progress, links), present_topics(recently_sent, links)
 
 
 def _signals(pressure, *, reporting_date: date | None) -> tuple[DomainSignal, ...]:

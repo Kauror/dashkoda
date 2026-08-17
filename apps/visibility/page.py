@@ -5,20 +5,30 @@ see", once, so the overview band, the Nähtavus page and the newsletter card on
 Uudised cannot end up describing the same number differently. The templates lay
 out; neither holds a rule.
 
-Three things are decided here and nowhere else:
+## The band is audiences, and the website is not one of them
 
-- **the website slot stays planned until data exists.** It becomes a real card
-  only when a collected reporting day actually exists — configuration for the
-  `sync_ga4` collector alone is not data, so an unconfigured or not-yet-run
-  deployment carries no value, links nowhere and says why;
+There was a website slot here — `Kodulehe külastused`, sessions since the
+previous reading — and it was removed on 2026-08-17 with the section it lived
+in. `Koja töölaud` was its only consumer, and the rebuilt front page states
+sessions as the headline of its `Koduleht ja uudised` card over a properly
+measured window with a proper comparison. One measure under two labels on one
+page invites a reconciliation nobody can perform, and the slot's own comparison
+— against whichever reading happened to precede it — was the weaker of the two.
+
+So the band is what `Auditooriumid` claims it is: how large the Chamber's own
+audiences are. Sessions are not an audience; they are visits, and the same
+person visiting twice is two of them.
+
+Two things are decided here and nowhere else:
+
 - **the newsletter slot lists each newsletter and never totals them.** The
   Chamber sends three, to three lists, and nobody has counted how many people
   are on more than one. A sum would silently claim that overlap is zero, so the
   card shows the lists and no headline figure at all;
-- **neither kind ever reads as the other.** The website and newsletter cards are
-  collected and say `Automaatselt kogutud`; the four social cards are typed and
-  never say synchronised, connected or automatically updated. Every populated
-  card carries its observation date whichever it is.
+- **neither kind ever reads as the other.** The newsletter card is collected and
+  says `Automaatselt kogutud`; the four social cards are typed and never say
+  synchronised, connected or automatically updated. Every populated card carries
+  its observation date whichever it is.
 """
 
 from __future__ import annotations
@@ -28,21 +38,15 @@ from datetime import date
 
 from django.urls import reverse
 
-from apps.core.formatting import short_date, signed_integer
-
-from .ga4 import Ga4ConnectionStatus, get_connection_status
 from .models import CollectionMethod, VisibilityMetric
 from .registry import SOCIAL_METRICS
 from .selectors import (
     MetricReading,
     NewsletterSummary,
     VisibilitySummary,
-    WebsiteTraffic,
     get_visibility_summary,
-    get_website_traffic,
 )
 
-WEBSITE_LABEL = "Kodulehe külastused"
 NEWSLETTER_LABEL = "Uudiskirjad"
 
 #: Appended to every outbound profile link for screen-reader users, because the
@@ -104,55 +108,6 @@ class ChannelSlot:
     @property
     def external_link_note(self) -> str:
         return EXTERNAL_LINK_NOTE
-
-
-def _website_slot(status: Ga4ConnectionStatus, traffic: WebsiteTraffic) -> ChannelSlot:
-    """The website slot: planned until a reading exists, then the reading.
-
-    The planned branch is what shows before anything has been collected, and it
-    is not a placeholder for a number — it is the honest statement that nothing
-    has measured this yet. It stayed on the page after collection began, because
-    this returned it unconditionally while the docstring claimed otherwise: the
-    traffic was collected, stored and audited, and the card went on saying the
-    source was not connected.
-
-    It used to link nowhere, and the reason given was that a link to Google
-    Analytics would send a board member to a login screen. That is still true and
-    is no longer the only option: **Koduleht** answers this card's question in
-    DashKoda, so the heading goes there. `channel_card` links a heading only when
-    the slot is not planned, so the unconnected branch still links nowhere on its
-    own — which is right, because there would be nothing at the other end.
-    """
-    if not (status.is_connected and traffic.has_data):
-        return ChannelSlot(
-            label=WEBSITE_LABEL,
-            is_planned=True,
-            state_label="Lisamisel",
-            state_variant="neutral",
-            promise=f"{status.message} {status.detail}".strip(),
-        )
-
-    # Sessions, because the card is labelled `Kodulehe külastused` — visits, not
-    # people. Users and page views are a different question and are kept for
-    # Koduleht rather than crowded into one cell.
-    secondary = ""
-    if traffic.change is not None:
-        secondary = (
-            f"{signed_integer(traffic.change)} võrreldes {short_date(traffic.previous_period_end)}"
-        )
-    return ChannelSlot(
-        label=WEBSITE_LABEL,
-        value=traffic.sessions,
-        unit="külastust",
-        secondary=secondary,
-        as_of=traffic.period_end,
-        # One of the two automated figures on this band, the other being the
-        # newsletters. Saying it was typed would be false in the opposite
-        # direction from the four social cards.
-        state_label=CollectionMethod.AUTOMATIC.label,
-        state_variant="neutral",
-        detail_url=reverse("visibility"),
-    )
 
 
 def build_newsletter_slot(summary: NewsletterSummary, *, detail_url: str = "") -> ChannelSlot:
@@ -243,14 +198,13 @@ def _social_slot(reading: MetricReading) -> ChannelSlot:
 def build_channel_band(
     *,
     summary: VisibilitySummary | None = None,
-    ga4_status: Ga4ConnectionStatus | None = None,
     include_newsletter: bool = True,
 ) -> tuple[ChannelSlot, ...]:
-    """The six channel slots, in the order the board reads them.
+    """The audience slots, in the order the board reads them.
 
-    Website first because it is the widest audience; then the newsletter, which
-    the Chamber owns outright; then the four social channels in the order the
-    registry fixes.
+    The newsletter first, which the Chamber owns outright; then the four social
+    channels in the order the registry fixes. The website slot that used to lead
+    this band went on 2026-08-17 — see the module docstring.
 
     **Each slot's destination is decided here**, because this is the only place
     that knows which slot is which. It used to take one `detail_url` and hand the
@@ -260,8 +214,8 @@ def build_channel_band(
     after the website page became Koduleht the four social cards pointed at a
     page that deliberately shows no social figures at all.
 
-    So: the website card goes to Koduleht, the newsletter card to Otsepostitused
-    where `Uudiskirjade tulemused` lives, and the social cards nowhere — see
+    So: the newsletter card goes to Otsepostitused where
+    `Uudiskirjade tulemused` lives, and the social cards nowhere — see
     `_social_slot` for why nowhere is the honest answer rather than a gap.
 
     The newsletter card has been re-aimed twice, both times one release behind
@@ -274,10 +228,7 @@ def build_channel_band(
     the reader is about to reach.
     """
     summary = summary if summary is not None else get_visibility_summary()
-    ga4_status = ga4_status if ga4_status is not None else get_connection_status()
-    traffic = get_website_traffic()
     return (
-        _website_slot(ga4_status, traffic),
         *(
             (build_newsletter_slot(summary.newsletter, detail_url=reverse("mailings")),)
             if include_newsletter
@@ -291,7 +242,6 @@ __all__ = [
     "EXTERNAL_LINK_NOTE",
     "NEWSLETTER_LABEL",
     "SOCIAL_METRICS",
-    "WEBSITE_LABEL",
     "ChannelSlot",
     "VisibilityMetric",
     "build_channel_band",

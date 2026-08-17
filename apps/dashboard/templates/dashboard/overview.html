@@ -3,31 +3,36 @@
 {% comment %}
 Koja töölaud — the executive overview.
 
-Reading order, top to bottom:
+Reading order, top to bottom, and it is the order of the four questions the page
+exists to answer:
 
-  Koja seis            – the strategic pillars
-  Eesolevad tegevused  – the two domains that genuinely have dates
-  Kanalid              – audiences, each on its own, never totalled
+  Tähelepanu          – what needs management attention, when anything does
+  Põhinäitajad        – the state of each of the six activity domains
+  Järgmised 30 päeva  – what is coming, from the two domains that have dates
+  Praegu enim huvi    – what readers and members are attending to
+  Auditooriumid       – how large the Chamber's own channels are
 
-  (Andmete seis moved to `/haldus/` on 2026-08-15; the header links there. The
-   count beside that link went on 2026-08-16 — `3 andmemärkust` read as a score
-   for a fact about plumbing.
+  (Andmete seis lives at `/haldus/` since 2026-08-15; the header links there.
+   Data quality, source coverage, schema versions and import diagnostics stay
+   there and do not return to this page.)
 
-   `Mis vajab tähelepanu?` and `Praegu huvi pakkuv` left on 2026-08-16 too.
-   Their builders are untouched and nothing renders them, which is the largest
-   single change this page has had: the signals section was its one genuinely
-   cross-domain capability.)
+The 2026-08-16 declutter took `Mis vajab tähelepanu?` and `Praegu huvi pakkuv`
+off entirely and cut the cards to two, and it over-corrected: the front page
+kept its tidiness and lost the two things only it could do — collect what six
+domains flagged, and say what state each of them is in. Both are back here,
+tighter than they were: the signals as compact rows that render only when a
+domain raised one, and the interest strip as three columns rather than four
+cards.
+
+`Koja seis` and its two tall pillars are gone, and so is the homepage Õigusloome
+section — two seven-row lists that reproduced half of `/oigusloome/` a scroll
+above the link to it.
 
 The page holds layout and no business rule. Every number arrives formatted,
 compared and worded by `apps.dashboard.executive`, which in turn takes it from
 the domain that owns it. There is no `{% templatetag openblock %} if value > x {% templatetag closeblock %}` anywhere below, because a
-threshold in a template is a business rule nobody can test.
-
-Visual hierarchy is deliberate and unequal: the pillars are the page and the
-two sections under them are quiet. That mattered more when there were six card
-grids competing; with three, the risk has inverted — the page is now closer to
-being too quiet to prioritise anything, which is worth watching rather than
-celebrating.
+threshold in a template is a business rule nobody can test. There is no total
+across domains, no index and no score.
 {% endcomment %}
 
 {% block content %}
@@ -36,48 +41,111 @@ celebrating.
   {# ---------------- Page header ---------------- #}
   <header class="flex flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text">Koja töölaud</h1>
-    {% comment %}
-    A source-state chip, not a KPI. It counts sources with something to
-    disclose, and says nothing about how the Chamber is doing — the old
-    "Ühendatud allikaid 9/9" read as a score for a fact about plumbing.
-    {% endcomment %}
     <p class="dk-meta mt-1">
       {% comment %}
-      Points at `/haldus/` since 2026-08-15. `Andmete seis` used to sit at the
-      foot of this page and the chip was an in-page anchor; the section moved to
-      Admin with the rest of the maintainer material, and an anchor left behind
-      would be a link to nothing.
-      {% endcomment %}
-      {% comment %}
-      The count went on 2026-08-16 — `3 andmemärkust` read as a score for a
-      fact about plumbing. The link did not: it is the only route from here to
-      `Andmete seis`, and `tests/dashboard/test_admin_area.py` pins it.
+      Points at `/haldus/` since 2026-08-15, where `Andmete seis` moved with the
+      rest of the maintainer material. The count that used to sit beside it went
+      on 2026-08-16 — `3 andmemärkust` read as a score for a fact about
+      plumbing. The link did not: it is the only route from here to the source
+      states, and `tests/dashboard/test_admin_area.py` pins it.
       {% endcomment %}
       <a class="dk-link" href="{% url 'dashboard-admin' %}#andmete-seis">Andmete kohta</a>
     </p>
   </header>
 
-  {# ---------------- Koja seis ---------------- #}
-  <section aria-labelledby="koja-seis" class="flex flex-col gap-3">
-    <h2 id="koja-seis" class="text-lg font-semibold text-text">Koja seis</h2>
-    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
-      {% for pillar in page.pillars %}
-        {% include "dashboard/components/executive_pillar.html" with pillar=pillar only %}
+  {# ---------------- Tähelepanu ---------------- #}
+  {% comment %}
+  The page's one genuinely cross-domain capability: six domains each decided,
+  in their own terms and against their own thresholds, that something is worth a
+  manager's attention, and this is where those decisions meet.
+
+  **Rendered only when a domain raised something.** Silence is a real answer and
+  is not worth a section header, an empty state and a line of reassurance — a
+  reader who learns to skim `Tähelepanu` when it is full of "nothing to report"
+  will skim it on the day it is not. Nothing is invented here either: no
+  threshold, no wording and no priority is decided on this page.
+
+  Critical first, then attention, then notable; `collect_signals` sorts and
+  bounds the list before it arrives.
+  {% endcomment %}
+  {% if page.has_signals %}
+    <section aria-labelledby="tahelepanu" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Tähelepanu" heading_id="tahelepanu" only %}
+      <div class="dk-section-body">
+        <ul class="flex flex-col divide-y divide-border">
+          {% for entry in page.signals %}
+            <li class="flex flex-col gap-1 py-2.5 first:pt-0 last:pb-0">
+              <div class="flex flex-wrap items-center gap-2">
+                {% comment %}
+                Priority is a word before it is a colour, so it survives a
+                greyscale print and a reader who cannot separate the two warning
+                tones.
+                {% endcomment %}
+                <span class="dk-badge {% if entry.priority == 'critical' %}dk-badge-danger{% elif entry.priority == 'attention' %}dk-badge-warning{% else %}dk-badge-neutral{% endif %}">
+                  {{ entry.priority_label }}
+                </span>
+                <span class="dk-meta">{{ entry.domain_label }}</span>
+              </div>
+              <p class="text-sm font-medium break-words text-text">{{ entry.headline }}</p>
+              {% comment %}
+              The evidence sentence is optional per signal: the board struck the
+              ones that restated their own headline, and a domain that has
+              nothing more to add supplies an empty string rather than padding.
+              {% endcomment %}
+              {% if entry.evidence %}
+                <p class="text-sm break-words text-text-secondary">{{ entry.evidence }}</p>
+              {% endif %}
+              {% if entry.has_link %}
+                <p class="dk-meta">
+                  <a class="dk-link" href="{{ entry.href }}">Vaata {{ entry.domain_label|lower }}</a>
+                </p>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- Põhinäitajad ---------------- #}
+  {% comment %}
+  Six domain cards, one per dashboard, in the sidebar's own order.
+
+  The grid is three columns from `xl` upward, two from `sm`, one below it: six
+  divides evenly into three and into two, so no card is ever left alone on a
+  row of its own reading as a more important seventh thing. At 1280 px and
+  wider the six fill two compact rows without the page becoming a vertical
+  stack, which is the whole reason the tall pillar card was replaced.
+
+  **Three columns start at `xl`, not at `lg`.** The persistent 17rem sidebar
+  arrives at 1024 px and takes its width out of this grid, so three columns
+  there are 235 px each — narrow enough that a unit like
+  `sündmust järgmise 30 päeva jooksul` wraps to three lines and the row's
+  cards stop being the same height as each other. Two columns until 1280 is
+  the honest breakpoint once the sidebar is counted.
+  {% endcomment %}
+  <section aria-labelledby="pohinaitajad" class="flex flex-col gap-3">
+    <h2 id="pohinaitajad" class="text-lg font-semibold text-text">Põhinäitajad</h2>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {% for card in page.cards %}
+        {% include "dashboard/components/executive_domain_card.html" with card=card only %}
       {% endfor %}
     </div>
   </section>
 
-  {% comment %}
-  `Mis vajab tähelepanu?` left the overview on 2026-08-16. It was the page's
-  one genuinely cross-domain capability, and removing it is the largest change
-  in this round — `apps/dashboard/executive_signals.py` still builds the
-  signals and nothing on this page renders them, so restoring the section is
-  putting this block back rather than rebuilding it.
-  {% endcomment %}
-
   {# ---------------- Järgmised 30 päeva ---------------- #}
+  {% comment %}
+  Named for the horizon it actually has. It was `Eesolevad tegevused` between
+  2026-08-16 and 2026-08-17, which said nothing about how far ahead it looked —
+  and the horizon is the one fact a reader needs to know whether an empty list
+  means "quiet fortnight" or "quiet year".
+
+  Two lanes and no more: legal deadlines and scheduled events are the only dated
+  facts this application holds. Membership has no due dates, news has no
+  schedule DashKoda knows, and a shop product is not owed by any particular day.
+  {% endcomment %}
   <section aria-labelledby="jargmised-30" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Eesolevad tegevused" heading_id="jargmised-30" only %}
+    {% include "dashboard/components/section_header.html" with title="Järgmised 30 päeva" heading_id="jargmised-30" only %}
     <div class="dk-section-body">
       {% if page.has_upcoming %}
         <ol class="flex flex-col divide-y divide-border">
@@ -117,103 +185,93 @@ celebrating.
     </div>
   </section>
 
-  {# ---------------- Õigusloome ---------------- #}
-  {% if page.has_legal_lists %}
-    {% comment %}
-    The two lists the board reads together: what is in work and what has most
-    recently gone out.
-
-    `Töös` is ordered by the opinion deadline rather than by arrival — what a
-    reader wants off this list is what has to leave next — and something overdue
-    is in work most of all, so it leads rather than being filtered away.
-
-    **A topic is a link only when the read path resolved an address for it**,
-    and which address depends on the record's own status: a sent opinion points
-    at its resource page, which carries the PDF; an open unsent one points at
-    the `Hetkel käsil` consultation, which is the "küsime arvamust" invitation.
-    The two are mutually exclusive by construction, so no row can offer both.
-    A row whose match is stale or missing is plain text on purpose —
-    `topic_links` refuses an address computed against a different snapshot,
-    because a lawyer sent to last week's consultation is worse off than one
-    sent nowhere.
-
-    `legal_topic.html` is the same component the Õigusloome page uses, so the
-    rule about when a topic is clickable cannot hold there and not here.
-    {% endcomment %}
-    <section aria-labelledby="oigusloome" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Õigusloome" heading_id="oigusloome" only %}
-      <div class="dk-section-body grid grid-cols-1 gap-6 lg:grid-cols-2">
-
-        <div class="flex min-w-0 flex-col gap-2">
-          <h3 class="text-sm font-medium text-text">Töös</h3>
-          {% if page.legal_in_progress %}
-            <ul class="flex flex-col divide-y divide-border">
-              {% for row in page.legal_in_progress %}
-                <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
-                  {% if row.item.deadline_date %}
-                    <time datetime="{{ row.item.deadline_date|date:'Y-m-d' }}"
-                          class="w-16 shrink-0 dk-meta tabular-nums">{{ row.item.deadline_date|date:"d.m.y" }}</time>
-                  {% else %}
-                    <span class="w-16 shrink-0 dk-meta">tähtajata</span>
-                  {% endif %}
-                  {% include "dashboard/components/legal_topic.html" with item=row class_name="min-w-0 flex-1 text-sm break-words" only %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="text-sm text-text-secondary">Ühtegi avatud teemat ei ole.</p>
-          {% endif %}
-        </div>
-
-        <div class="flex min-w-0 flex-col gap-2">
-          <h3 class="text-sm font-medium text-text">Viimased välja saadetud</h3>
-          {% if page.legal_recently_sent %}
-            <ul class="flex flex-col divide-y divide-border">
-              {% for row in page.legal_recently_sent %}
-                <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 py-2 first:pt-0 last:pb-0">
-                  <time datetime="{{ row.item.sent_date|date:'Y-m-d' }}"
-                        class="w-16 shrink-0 dk-meta tabular-nums">{{ row.item.sent_date|date:"d.m.y" }}</time>
-                  {% include "dashboard/components/legal_topic.html" with item=row class_name="min-w-0 flex-1 text-sm break-words" only %}
-                </li>
-              {% endfor %}
-            </ul>
-          {% else %}
-            <p class="text-sm text-text-secondary">Ühtegi saadetud arvamust ei ole.</p>
-          {% endif %}
-        </div>
-
-      </div>
-      <div class="border-t border-border px-4 py-3 sm:px-5">
-        <a class="dk-link text-sm" href="{% url 'legal-work' %}">Vaata õigusloomet</a>
-      </div>
-    </section>
-  {% endif %}
-
+  {# ---------------- Praegu enim huvi ---------------- #}
   {% comment %}
-  `Praegu huvi pakkuv` — four panels, four domains, four different metrics —
-  left the overview on 2026-08-16. `page.interest` is still built; nothing
-  renders it.
-  {% endcomment %}
+  Three columns: the leading ordinary page, the most-read article, the
+  most-acquired product.
 
-  {# ---------------- Kanalite auditoorium ---------------- #}
-  {% comment %}
-  The heading keeps the id `section-channels`. The section was renamed from
-  `Kanalite statistika`, but the anchor is a contract other tests scope
-  themselves to — the band is the one place on the page where a hand-typed
-  figure must never borrow a synchronised feed's vocabulary, and that check
-  needs to address exactly this section.
+  Their metrics are **not comparable** — page views, article views and acquired
+  units — so each states its own metric name and its own period, none is drawn
+  as a bar against the others, and nothing ranks them. That is why this is a
+  three-column strip rather than three cards: cards of equal weight invite
+  exactly the comparison the section cannot support.
+
+  The next scheduled event was a fourth column until 2026-08-17. It answered a
+  different question — what is coming, not what is being attended to — and
+  events already hold a card above and the whole timeline between.
   {% endcomment %}
-  <section aria-labelledby="section-channels" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Kanalid" heading_id="section-channels" only %}
+  <section aria-labelledby="enim-huvi" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Praegu enim huvi" heading_id="enim-huvi" only %}
     <div class="dk-section-body">
-      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {% for slot in page.channels %}
-          {% include "dashboard/components/channel_card.html" with slot=slot only %}
+      <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {% for item in page.interest %}
+          <article class="flex min-w-0 flex-col gap-1">
+            <h3 class="dk-meta">{{ item.domain_label }}</h3>
+            {% if item.is_available %}
+              <p class="text-sm font-medium break-words text-text">
+                {% if item.has_link %}
+                  <a class="dk-link" href="{{ item.url }}"{% if item.is_external %} rel="noopener noreferrer" target="_blank"{% endif %}>
+                    {{ item.title }}{% if item.is_external %}<span class="sr-only"> (avaneb uuel vahelehel)</span>{% endif %}
+                  </a>
+                {% else %}
+                  {{ item.title }}
+                {% endif %}
+              </p>
+              <p class="text-sm text-text">
+                <span class="font-semibold tabular-nums">{{ item.metric_value }}</span>
+                <span class="text-text-secondary">{{ item.metric_label }}</span>
+              </p>
+              {% if item.period or item.context %}
+                <p class="dk-meta">{% if item.period %}{{ item.period }}{% endif %}{% if item.period and item.context %} · {% endif %}{% if item.context %}{{ item.context }}{% endif %}</p>
+              {% endif %}
+            {% else %}
+              <p class="text-sm text-text-secondary">{{ item.unavailable_note }}</p>
+            {% endif %}
+          </article>
         {% endfor %}
       </div>
     </div>
   </section>
 
+  {# ---------------- Auditooriumid ---------------- #}
+  {% comment %}
+  The heading keeps the id `section-channels`. The section has been
+  `Kanalite statistika`, `Kanalite auditoorium` and `Kanalid`; the anchor is a
+  contract other tests scope themselves to, because this is the one place on the
+  page where a hand-typed figure must never borrow a synchronised feed's
+  vocabulary and that check needs to address exactly this section.
+
+  Three things this strip must keep doing:
+
+    - **never total the newsletters.** Three lists whose overlap nobody has
+      measured, so the newsletter cell lists each on its own and carries no
+      headline figure at all. A sum would silently claim the overlap is zero;
+    - **never imply the social figures are synchronised.** They are typed by a
+      staff user. The words `sünkroonitud`, `API-ga ühendatud` and
+      `automaatselt uuendatud` appear nowhere near them, and a channel nobody
+      has entered reads `Andmed puuduvad`, never `0`;
+    - **never repeat the website.** Sessions are the `Koduleht ja uudised`
+      card's headline. The band had a `Kodulehe külastused` slot until
+      2026-08-17 and it was removed from `build_channel_band` outright, because
+      this page was its only consumer — so the template is not hiding a slot,
+      there is no slot, and the two GA4 reads behind it do not run.
+
+  It is deliberately the quietest section on the page and deliberately last:
+  audience sizes are context, and the operational intelligence above them is
+  what the page is for. Compact rows rather than the six large cards this band
+  used to be — those took more homepage space than any other section and said
+  less than any of them.
+  {% endcomment %}
+  <section aria-labelledby="section-channels" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Auditooriumid" heading_id="section-channels" only %}
+    <div class="dk-section-body">
+      <div class="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-3">
+        {% for slot in page.channels %}
+          {% include "dashboard/components/channel_row.html" with slot=slot only %}
+        {% endfor %}
+      </div>
+    </div>
+  </section>
 
 </div>
 {% endblock %}

@@ -21,9 +21,9 @@ from apps.core.executive import DomainSignal, SignalPriority
 from apps.dashboard.executive_models import (
     STATE_AVAILABLE,
     ExecutiveComparison,
+    ExecutiveDomainCard,
     ExecutiveMetric,
     ExecutiveOverviewPage,
-    ExecutivePillar,
 )
 from apps.dashboard.executive_signals import (
     PER_DOMAIN_LIMIT,
@@ -129,8 +129,8 @@ def test_the_page_computes_no_cross_domain_score():
     """There is no aggregate verdict field anywhere on the page object.
 
     A weighted index over membership, opinions, sessions and acquisitions would
-    need them to share a unit. The whole reason this page has five pillars is
-    that they do not.
+    need them to share a unit. The whole reason this page has six domain cards
+    is that they do not.
     """
     fields = set(ExecutiveOverviewPage.__dataclass_fields__)
 
@@ -157,7 +157,7 @@ def test_a_measured_zero_is_a_real_value_and_stays_distinguishable():
     assert metric.is_available
 
 
-def test_a_pillar_with_no_baseline_says_nothing_about_direction():
+def test_a_card_with_no_baseline_says_nothing_about_direction():
     """No comparison means no sentence, not a reassuring one.
 
     `stabiilne` would be a claim, and nobody measured it.
@@ -179,12 +179,12 @@ def test_a_refused_comparison_prints_its_reason_where_the_delta_would_be():
 def test_a_reported_zero_share_is_a_value_and_not_a_gap():
     """A paid share of exactly 0% is a measurement, not a missing figure.
 
-    January before anyone has paid is a real state of the world. The pillar
+    January before anyone has paid is a real state of the world. The card
     must render it as `0%`, distinguishable from a report that carries no
     share at all — truthiness on the Decimal would erase exactly that line.
     """
     from apps.core.formatting import percent
-    from apps.dashboard.executive import _membership_pillar
+    from apps.dashboard.executive import _membership_card
 
     summary = MembershipExecutive(
         total_members=3000,
@@ -194,13 +194,13 @@ def test_a_reported_zero_share_is_a_value_and_not_a_gap():
         internal_as_of=date(2026, 7, 31),
     )
 
-    pillar = _membership_pillar(summary)
-    by_label = {fact.label: fact for fact in pillar.facts}
+    card = _membership_card(summary)
+    by_label = {fact.label: fact for fact in card.facts}
 
     assert by_label["Tasunud liikmete osakaal"].value == percent(Decimal("0"))
     assert by_label["Liikmemaksu laekumine"].value == percent(Decimal("0"))
 
-    unmeasured = _membership_pillar(
+    unmeasured = _membership_card(
         MembershipExecutive(total_members=3000, total_as_of=date(2026, 8, 1))
     )
     unmeasured_by_label = {fact.label: fact for fact in unmeasured.facts}
@@ -254,20 +254,20 @@ def test_no_sentence_makes_a_causal_claim():
 # ---------------------------------------------------------------------------
 
 
-def test_the_shop_pillar_excludes_event_registrations():
-    """Kaasamine counts the programme; the shop figures count Commerce without it.
+def test_the_shop_card_excludes_event_registrations():
+    """Sündmused counts the programme; E-pood counts Commerce without it.
 
-    The Digiteenused card is gone, but the shop still reaches this page — its
-    interest panel, its signals and its `Andmete seis` row — and every one of
-    those reads `NON_EVENT_TYPES`. If `EVENT_REGISTRATION` were in this tuple
-    the same registrations would contribute to two sections at once, and the
-    page would be presenting one set of rows as two separate contributions.
+    Both cards are on the page again since 2026-08-17, so the rule is load
+    bearing in its original form: if `EVENT_REGISTRATION` were in this tuple the
+    same registrations would contribute to two cards at once, and a reader
+    adding them — which the page never invites, but readers add things — would
+    double count.
     """
     assert ProductType.EVENT_REGISTRATION not in NON_EVENT_TYPES
     assert ProductType.DOCUMENT in NON_EVENT_TYPES
 
 
-def test_the_events_pillar_reads_no_commerce_at_all():
+def test_the_events_card_reads_no_commerce_at_all():
     """The other half of the same rule, asserted at the import boundary."""
     import apps.event_programme.executive as events_executive
 
@@ -332,42 +332,287 @@ def test_a_metric_cannot_be_built_without_a_period():
 # The assembled page
 # ---------------------------------------------------------------------------
 
+#: The six domain cards, in the order the page reads them — the sidebar's own
+#: order. Written out rather than derived, because the point of the assertion is
+#: that somebody has to change this list deliberately.
+CARD_KEYS = ["membership", "legal_work", "events", "website", "mailings", "shop"]
 
-@pytest.mark.django_db
-def test_every_pillar_carries_a_period_and_a_source_in_its_data():
-    """Provenance stays in the data even though the card no longer prints it.
+CARD_LABELS = [
+    "Liikmeskond",
+    "Õigusloome",
+    "Sündmused",
+    "Koduleht ja uudised",
+    "Otsepostitused",
+    "E-pood",
+]
 
-    The board struck the question lines and the period/source rows off the
-    cards on 2026-08-15, and the Digiteenused card with them — four pillars
-    now, and the shop keeps its interest panel, its signals and its
-    `Andmete seis` row. What must not follow the chrome out is the metadata:
-    `Andmete seis` and the domain pages are built from these same objects, so
-    a metric that lost its period would be a figure nobody can check anywhere.
-    """
+
+def _overview():
     from apps.dashboard.executive import build_executive_overview
     from apps.event_programme.selectors import get_event_programme_summary
     from apps.legal_work.selectors import get_legal_work_summary
     from apps.membership.selectors import get_membership_summary
     from apps.news.selectors import get_news_summary
 
-    page = build_executive_overview(
+    return build_executive_overview(
         legal_work=get_legal_work_summary(),
         membership=get_membership_summary(),
         news=get_news_summary(),
         events=get_event_programme_summary(),
     )
 
-    # Two since 2026-08-16: `legal_work` and `events` left the strip with
-    # `Huvikaitse` and `Kaasamine`. Their builders are unchanged and tested
-    # directly — see `test_event_source_of_truth` and `test_views` in
-    # `tests/legal_work/`.
-    assert len(page.pillars) == 2
-    assert [pillar.key for pillar in page.pillars] == ["membership", "website"]
-    for pillar in page.pillars:
-        assert pillar.links, "every pillar offers a next step"
-        if pillar.headline is not None:
-            assert pillar.headline.period
-            assert pillar.headline.source
+
+@pytest.mark.django_db
+def test_the_page_carries_one_card_per_domain_dashboard():
+    """Six cards, one per sidebar entry, and every one offers a way out.
+
+    The strip has been four, then five, then two. Each of those was a subset
+    chosen by hand, which meant the front page silently decided that some of the
+    Chamber's activities did not need reporting. Six is not a taste: it is the
+    set of dashboards DashKoda has.
+    """
+    page = _overview()
+
+    assert [card.key for card in page.cards] == CARD_KEYS
+    assert [card.label for card in page.cards] == CARD_LABELS
+    for card in page.cards:
+        assert card.links, "every card offers a next step"
+
+
+@pytest.mark.django_db
+def test_every_card_carries_a_period_and_a_source_in_its_data():
+    """Provenance stays in the data even though the card no longer prints it.
+
+    The board struck the question lines and the period/source rows off the cards
+    on 2026-08-15, and the compact cards that replaced the pillars print one
+    period line instead. What must not follow the chrome out is the metadata:
+    `Andmete seis` and the domain pages are built from these same objects, so a
+    metric that lost its period would be a figure nobody can check anywhere.
+    """
+    page = _overview()
+
+    for card in page.cards:
+        if card.headline is not None:
+            assert card.headline.period
+            assert card.headline.source
+
+
+def test_the_legal_card_leads_with_the_stock_of_open_matters():
+    """`X teemat töös`, and no comparison against a year that has none.
+
+    A stock has no year-to-date pair: the workbook holds one snapshot, so
+    "open matters a year ago" is not a figure anything here can produce. The
+    metric contract says so, and a card inventing one would be the page holding
+    a definition of its own.
+    """
+    from apps.dashboard.executive import _legal_card
+    from apps.legal_work.analytics import YearOnYear
+    from apps.legal_work.executive import LegalWorkExecutive
+
+    summary = LegalWorkExecutive(
+        sent=YearOnYear(
+            current=165,
+            previous=130,
+            current_cutoff=date(2026, 8, 14),
+            previous_cutoff=date(2025, 8, 14),
+        ),
+        open_topics=42,
+        due_within_7=3,
+        reporting_date=date(2026, 8, 14),
+    )
+
+    card = _legal_card(summary)
+
+    assert card.headline.value == "42"
+    assert card.headline.unit == "teemat töös"
+    assert card.headline.comparison is None
+    labels = [fact.label for fact in card.available_facts]
+    assert "Tähtaegu 7 päeva jooksul" in labels
+    assert "Arvamusi saadetud tänavu" in labels
+
+
+def test_a_legal_snapshot_without_an_open_count_is_unavailable_and_not_nought():
+    """Missing is not zero, on the one figure the card leads with."""
+    from apps.dashboard.executive import _legal_card
+    from apps.legal_work.analytics import YearOnYear
+    from apps.legal_work.executive import LegalWorkExecutive
+
+    card = _legal_card(
+        LegalWorkExecutive(
+            sent=YearOnYear(
+                current=165,
+                previous=130,
+                current_cutoff=date(2026, 8, 14),
+                previous_cutoff=date(2025, 8, 14),
+            ),
+            open_topics=None,
+        )
+    )
+
+    assert not card.is_available
+    assert card.unavailable_note
+    assert card.links, "an unavailable card still offers the dashboard behind it"
+
+
+def test_the_events_card_leads_with_the_near_term_horizon():
+    """`X sündmust järgmise 30 päeva jooksul`, from the domain's own horizon.
+
+    The same constant the shared timeline clips to, so the headline and the
+    thirty-day list below it cannot describe different sets of events. The
+    year-to-date pair is a supporting fact with its own like-for-like basis.
+    """
+    from apps.dashboard.executive import _events_card
+    from apps.dashboard.executive_timeline import HORIZON_DAYS
+    from apps.event_programme.executive import NEAR_TERM_DAYS
+
+    card = _events_card(
+        EventsExecutive(events_ytd=85, events_ytd_previous=70, starting_soon=6, completed_ytd=79)
+    )
+
+    assert NEAR_TERM_DAYS == HORIZON_DAYS
+    assert card.headline.value == "6"
+    assert card.headline.unit == f"sündmust järgmise {NEAR_TERM_DAYS} päeva jooksul"
+    labels = [fact.label for fact in card.available_facts]
+    assert "Sündmusi tänavu" in labels
+    assert "Sama ajaks eelmisel aastal" in labels
+
+
+def test_no_card_claims_an_attendance_figure():
+    """DashKoda does not hold one, so no wording may imply it does.
+
+    The programme workbook records what was scheduled. Registrations are
+    Commerce and are gated off; attendance is not in this application at all.
+    """
+    from apps.dashboard.executive import _events_card
+
+    card = _events_card(
+        EventsExecutive(events_ytd=85, events_ytd_previous=70, starting_soon=6, completed_ytd=79)
+    )
+    words = " ".join(
+        [card.headline.unit, card.period_line] + [fact.label for fact in card.facts]
+    ).casefold()
+
+    for forbidden in ("osaleja", "osalej", "kohalolij", "registreeri"):
+        assert forbidden not in words
+
+
+def test_the_website_card_never_calls_a_page_view_a_visit():
+    """GA4 sessions are `külastused`; GA4 page views are `vaatamised`.
+
+    Two different measures of two different things, and the commonest way to
+    overstate a website is to spell the larger one with the smaller one's word.
+    """
+    from apps.dashboard.executive import _website_card
+    from apps.news.executive import NewsExecutive
+    from apps.visibility.executive import WebsiteExecutive
+
+    card = _website_card(
+        WebsiteExecutive(
+            sessions=4210,
+            engagement_rate=0.62,
+            page_views=9100,
+            start=date(2026, 7, 16),
+            end=date(2026, 8, 14),
+            days=30,
+        ),
+        NewsExecutive(news_views=2100, site_share=0.23, published=11, end=date(2026, 8, 14)),
+    )
+
+    assert card.headline.unit == "külastust"
+    labels = [fact.label for fact in card.facts]
+    assert "Uudiste vaatamised" in labels
+    assert "Uudiste osa kodulehe vaatamistest" in labels
+    # No label may spell a page view as a visit.
+    for label in labels:
+        folded = label.casefold()
+        assert not ("vaatamis" in folded and "külastus" in folded)
+    # And none may name the newsletter: the e-Teataja rate is the Otsepostitused
+    # card's headline since 2026-08-17.
+    assert not any("teataja" in label.casefold() for label in labels)
+
+
+def test_the_shop_card_never_calls_ordered_value_revenue():
+    """Order-time value net of VAT is not revenue, turnover or cash received.
+
+    An order can be cancelled, refunded or never paid, and none of that reaches
+    this dataset.
+    """
+    from apps.dashboard.executive import _shop_card
+    from apps.shop.executive import ShopExecutive
+
+    card = _shop_card(
+        ShopExecutive(
+            units=Decimal("412"),
+            previous_units=Decimal("380"),
+            ordered_value_net=Decimal("7420.50"),
+            free_share=Decimal("74"),
+            period_start=date(2026, 7, 3),
+            period_end=date(2026, 8, 1),
+            period_label="viimased 30 päeva",
+            source_as_of=date(2026, 8, 1),
+        )
+    )
+
+    assert card.headline.unit == "ühikut ostetud"
+    labels = [fact.label for fact in card.facts]
+    assert "Tellitud väärtus (KM-ta)" in labels
+    words = " ".join(labels + [card.headline.unit]).casefold()
+    for forbidden in ("tulu", "käive", "laekumine"):
+        assert forbidden not in words
+
+
+def test_the_mailings_card_carries_rates_and_never_an_audience():
+    """Three lists whose overlap nobody measured do not add up to people.
+
+    The card has no field capable of holding a subscriber count, let alone a sum
+    across the three. The list sizes are the `Auditooriumid` strip's job, one
+    per list.
+    """
+    from apps.dashboard.executive import _mailings_card
+    from apps.visibility.mailings_executive import MailingsExecutive, NewsletterRates
+
+    summary = MailingsExecutive(
+        flagship=NewsletterRates(
+            metric="newsletter_eteataja",
+            label="e-Teataja",
+            campaigns=12,
+            open_rate=0.482,
+            click_rate=0.091,
+        ),
+        flagship_previous_open_rate=0.441,
+        others=(
+            NewsletterRates(metric="newsletter_enews", label="eNews", campaigns=4, open_rate=0.37),
+            NewsletterRates(
+                metric="newsletter_evestnik", label="e-Vestnik", campaigns=3, open_rate=0.29
+            ),
+        ),
+        issues=12,
+    )
+
+    card = _mailings_card(summary)
+
+    assert card.headline.value == "48,2%"
+    assert "avamismäär" in card.headline.unit
+    # The movement is in percentage points, not percent: two rates differ by
+    # points, and `+9%` of a percentage overstates it by an order of magnitude.
+    assert "pp" in card.headline.comparison.text
+    labels = [fact.label for fact in card.available_facts]
+    assert labels == ["e-Teataja klikimäär", "eNews avamismäär", "e-Vestnik avamismäär"]
+    # Nothing on this card is an audience, and nothing is a sum.
+    words = " ".join(labels + [card.headline.unit, card.period_line]).casefold()
+    for forbidden in ("tellija", "auditoorium", "kokku", "nimekirja suurus"):
+        assert forbidden not in words
+
+
+def test_an_uncollected_newsletter_is_unavailable_rather_than_a_zero_rate():
+    from apps.dashboard.executive import _mailings_card
+    from apps.visibility.mailings_executive import MailingsExecutive
+
+    card = _mailings_card(MailingsExecutive())
+
+    assert not card.is_available
+    assert card.unavailable_note
+    assert card.links
 
 
 @pytest.mark.django_db
@@ -378,18 +623,7 @@ def test_the_data_status_section_speaks_per_source_not_per_collector():
     monthly board report are two sources with two cadences, and collapsing them
     into one row would force one freshness rule onto both.
     """
-    from apps.dashboard.executive import build_executive_overview
-    from apps.event_programme.selectors import get_event_programme_summary
-    from apps.legal_work.selectors import get_legal_work_summary
-    from apps.membership.selectors import get_membership_summary
-    from apps.news.selectors import get_news_summary
-
-    page = build_executive_overview(
-        legal_work=get_legal_work_summary(),
-        membership=get_membership_summary(),
-        news=get_news_summary(),
-        events=get_event_programme_summary(),
-    )
+    page = _overview()
 
     keys = [row.domain_key for row in page.data_status]
 
@@ -399,6 +633,34 @@ def test_the_data_status_section_speaks_per_source_not_per_collector():
         assert row.state_label
     # With nothing imported, nothing may claim to be available.
     assert all(row.state != STATE_AVAILABLE for row in page.data_status)
+
+
+@pytest.mark.django_db
+def test_the_interest_strip_is_website_news_and_shop_only():
+    """Three columns, and the next event is deliberately not one of them.
+
+    This section answers "what are people paying attention to". A scheduled date
+    is not an answer to it, and events already hold a card above and the whole
+    of `Järgmised 30 päeva` between.
+    """
+    page = _overview()
+
+    assert [item.domain_key for item in page.interest] == ["website", "news", "shop"]
+
+
+@pytest.mark.django_db
+def test_the_audience_strip_never_repeats_the_website():
+    """Sessions are the `Koduleht ja uudised` headline and appear once.
+
+    The website slot was removed from `build_channel_band` outright rather than
+    filtered out here: the overview was its only consumer, so a slot the band
+    still built would be a query nobody renders. Asserted on the label the slot
+    used to carry, because that is what a reintroduction would bring back.
+    """
+    page = _overview()
+
+    assert page.channels, "the strip still names the audiences"
+    assert all("külastused" not in slot.label.casefold() for slot in page.channels)
 
 
 @pytest.mark.django_db
@@ -430,83 +692,122 @@ def test_rendering_the_main_page_makes_no_external_request(
 
 
 # ---------------------------------------------------------------------------
-# The pillar's delta row
+# The card's delta row
 # ---------------------------------------------------------------------------
 
 
-def _pillar_card(pillar) -> str:
+def _card_markup(card) -> str:
     from django.template.loader import render_to_string
 
-    return render_to_string("dashboard/components/executive_pillar.html", {"pillar": pillar})
+    return render_to_string("dashboard/components/executive_domain_card.html", {"card": card})
 
 
-def _delta_pillar(**comparison_kwargs) -> ExecutivePillar:
-    return ExecutivePillar(
-        key="legal_work",
-        label="Huvikaitse",
+def _delta_card(**comparison_kwargs) -> ExecutiveDomainCard:
+    return ExecutiveDomainCard(
+        key="shop",
+        label="E-pood",
         headline=ExecutiveMetric(
-            label="",
-            period="1. jaanuar – 14.08.26",
-            source="Õigusloome töövihik",
-            value="165",
-            unit="arvamust sellel aastal",
+            label="Soetatud ühikud",
+            period="viimased 30 päeva",
+            source="Koda.ee e-poe väljavõte",
+            value="412",
+            unit="ühikut ostetud",
             comparison=ExecutiveComparison(**comparison_kwargs),
         ),
     )
 
 
-def test_the_pillar_draws_its_delta_and_names_the_basis():
-    card = _pillar_card(_delta_pillar(text="+26,9%", basis="vs sama periood 2025", direction="up"))
+def test_the_card_draws_its_delta_and_names_the_basis():
+    markup = _card_markup(
+        _delta_card(text="+26,9%", basis="vs eelmine sama pikk periood", direction="up")
+    )
 
-    assert "+26,9%" in card
-    assert "vs sama periood 2025" in card
+    assert "+26,9%" in markup
+    assert "vs eelmine sama pikk periood" in markup
 
 
-def test_the_delta_is_read_off_the_metric_and_not_off_the_pillar():
-    """The bug this row spent its whole first life in.
+def test_the_delta_is_read_off_the_metric_and_not_off_the_card():
+    """The bug the pillar's delta row spent its whole first life in.
 
-    `has_comparison` is a property of `ExecutiveMetric`. The template asked
+    `has_comparison` is a property of `ExecutiveMetric`. The old template asked
     `pillar.has_comparison`, Django resolved the missing attribute to falsy, and
-    the row silently drew nothing from the day the overview was built until
-    2026-08-15 — no test failed, because nothing asserted the row existed.
+    the row silently drew nothing for months — no test failed, because nothing
+    asserted the row existed.
 
-    So this pins both halves: the pillar genuinely does not carry the property,
-    and the row renders anyway. A template that reaches through the pillar again
+    So this pins both halves: the card genuinely does not carry the property,
+    and the row renders anyway. A template that reaches through the card again
     fails here instead of going quiet.
     """
-    pillar = _delta_pillar(text="+26,9%", basis="vs sama periood 2025", direction="up")
+    card = _delta_card(text="+26,9%", basis="vs eelmine sama pikk periood", direction="up")
 
-    assert not hasattr(pillar, "has_comparison"), (
-        "if the pillar ever grows this property, this test stops proving anything"
+    assert not hasattr(card, "has_comparison"), (
+        "if the card ever grows this property, this test stops proving anything"
     )
-    assert pillar.headline.has_comparison
-    assert "+26,9%" in _pillar_card(pillar)
+    assert card.headline.has_comparison
+    assert "+26,9%" in _card_markup(card)
 
 
 def test_the_delta_carries_direction_in_the_sign_not_only_in_colour():
     """A change distinguished only by hue does not exist for some readers."""
-    up = _pillar_card(_delta_pillar(text="+26,9%", basis="b", direction="up"))
-    down = _pillar_card(_delta_pillar(text="−12,0%", basis="b", direction="down"))
+    up = _card_markup(_delta_card(text="+26,9%", basis="b", direction="up"))
+    down = _card_markup(_delta_card(text="−12,0%", basis="b", direction="down"))
 
     assert "+26,9%" in up and "text-success" in up
     assert "−12,0%" in down and "text-danger" in down
 
 
 def test_a_refused_comparison_still_prints_its_reason_instead_of_a_delta():
-    card = _pillar_card(_delta_pillar(unavailable_note="Mõõtmisandmed on liiga ebaühtlased."))
+    markup = _card_markup(_delta_card(unavailable_note="Mõõtmisandmed on liiga ebaühtlased."))
 
-    assert "Mõõtmisandmed on liiga ebaühtlased." in card
-    assert "text-success" not in card
+    assert "Mõõtmisandmed on liiga ebaühtlased." in markup
+    assert "text-success" not in markup
 
 
-def test_a_pillar_without_a_comparison_draws_neither_delta_nor_note():
-    pillar = ExecutivePillar(
+def test_a_card_without_a_comparison_draws_neither_delta_nor_note():
+    card = ExecutiveDomainCard(
         key="events",
-        label="Kaasamine",
+        label="Sündmused",
         headline=ExecutiveMetric(label="", period="2026", source="Sündmuste programm", value="85"),
     )
-    card = _pillar_card(pillar)
+    markup = _card_markup(card)
 
-    assert "85" in card
-    assert "text-success" not in card
-    assert "text-danger" not in card
+    assert "85" in markup
+    assert "text-success" not in markup
+    assert "text-danger" not in markup
+
+
+def test_the_card_draws_no_sparkline_and_no_meaning_sentence():
+    """Six cards fit two rows only because none of them is tall.
+
+    Both were on the pillar card and both restated something else: the sentence
+    the comparison above it, the sparkline the two dates the comparison names.
+    """
+    card = ExecutiveDomainCard(
+        key="membership",
+        label="Liikmeskond",
+        headline=ExecutiveMetric(
+            label="Liikmeid kokku",
+            period="viimane loend",
+            source="X",
+            value="3 412",
+            unit="liiget",
+        ),
+        period_line="kataloog 14.08.26",
+    )
+    markup = _card_markup(card)
+
+    assert "<svg" not in markup
+    assert "polyline" not in markup
+    fields = set(ExecutiveDomainCard.__dataclass_fields__)
+    assert not fields & {"trend", "trend_label", "meaning"}
+
+
+def test_an_unavailable_card_prints_no_period_line_beside_no_figure():
+    """A period beside no figure describes nothing, so the line stays empty."""
+    from apps.dashboard.executive import NO_SOURCE_NOTE
+
+    card = ExecutiveDomainCard(key="shop", label="E-pood", unavailable_note=NO_SOURCE_NOTE)
+    markup = _card_markup(card)
+
+    assert NO_SOURCE_NOTE in markup
+    assert card.period_line == ""

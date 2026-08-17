@@ -1,15 +1,16 @@
-"""Assemble the executive overview from the six domain summaries.
+"""Assemble the executive overview from the seven domain summaries.
 
 The main dashboard is the decision and navigation layer of DashKoda, not another
-analytical page. It answers, in this order: where the Chamber stands, what needs
-attention, what is coming, what audiences are using, and whether the data can be
-trusted. Everything past that is a link to the dashboard that explains it.
+analytical page. It answers, in this order: what needs management attention, what
+state the Chamber's activity domains are in, what is coming in the next thirty
+days, and what readers and members are paying attention to. Everything past that
+is a link to the dashboard that explains it.
 
 ## What this module is allowed to do
 
 Read each domain's compact executive summary **once**, and turn it into the
 presentation objects in `executive_models`. Format a number. Choose a label.
-Decide which of five pillars a figure belongs to.
+Decide which domain card a figure belongs to.
 
 ## What it is not allowed to do
 
@@ -18,41 +19,47 @@ figures beyond turning a comparison the domain already made into the string that
 prints it. Every threshold, every window, every share and every signal arrives
 decided.
 
-## The two pillars, and the rule that keeps them disjoint
+## Six domain cards, one per dashboard
 
 ```text
-Liikmeskond   → public Koda.ee directory count
-Nähtavus      → website sessions + news reading + newsletter engagement
+Liikmeskond        → public Koda.ee directory count
+Õigusloome         → open matters now
+Sündmused          → events starting inside the near-term horizon
+Koduleht ja uudised → website sessions, with news reading beside them
+Otsepostitused     → e-Teataja's weighted open rate
+E-pood             → non-event units acquired
 ```
 
-There were five. `Digiteenused` went on 2026-08-15 at the board's request;
-`Huvikaitse` and `Kaasamine` went on 2026-08-16. In every case only the pillar
-card was removed — each domain keeps its own dashboard, its signals and its
-`Andmete seis` row, and `_legal_pillar` and `_events_pillar` still exist and
-still carry their rules.
+That is the same set as the sidebar, deliberately: a reader who wants more of
+what a card says opens the dashboard named on it, and a domain that is worth its
+own page is worth its own card. The strip has been four, then five, then two, and
+each of those was a subset chosen by hand — which meant the front page silently
+decided that two of the Chamber's activities did not need reporting.
 
-**The disjointness rule outlived the cards and still applies.** It governs what
-a pillar may count, not how many pillars there are, so restoring any of the
-three must not quietly reintroduce double counting: the events pillar reads the
-programme workbook and no Commerce at all, and
-everything shop-related that remains on this page excludes
-`EVENT_REGISTRATION` at the query.
+**The disjointness rule survives every one of those reorganisations**, because it
+governs what a card may *count* rather than how many cards there are:
 
-Nähtavus holds two sources that overlap by construction — news views are a
-subset of site views — and states the subset as a **share** rather than adding
-them.
+- the Sündmused card reads the programme workbook and no Commerce at all;
+- the E-pood card reads Commerce minus `EVENT_REGISTRATION`;
+- `Koduleht ja uudised` holds two sources that overlap by construction — news
+  views are a subset of site views — and states the subset as a **share** rather
+  than adding them;
+- the Otsepostitused card carries rates and no audience, and the audience strip
+  at the foot carries list sizes and never a total across them.
 
-Nothing on this page sums across pillars, and there is no total, no index and
-no score. Four numbers in different units do not have a sum, and a weighted one
-would hide exactly the trade-offs a manager opens this page to see.
+Nothing on this page sums across domains, and there is no total, no index and no
+score. Six numbers in different units do not have a sum, and a weighted one would
+hide exactly the trade-offs a manager opens this page to see.
 
-## What a pillar no longer carries
+## What a card does not carry
 
 The question lines, the period · source · seis rows and the per-fact source
-captions came off the cards in the same request. The `ExecutiveMetric` objects
-keep `period`, `source` and `as_of` — `Andmete seis` and the domain pages still
-need them — so the removal is presentation, and a figure's provenance is one
-scroll away rather than under every number.
+captions came off in the 2026-08-15 declutter and have not returned. Neither has
+the meaning sentence or the sparkline: six cards fit two rows only because each
+one is a label, a figure, a comparison, a few facts and a date. The
+`ExecutiveMetric` objects keep `period`, `source` and `as_of` — `Andmete seis`
+and the domain pages still need them — so the removal is presentation, and a
+figure's provenance is one link away rather than under every number.
 """
 
 from __future__ import annotations
@@ -60,9 +67,11 @@ from __future__ import annotations
 from django.urls import reverse
 
 from apps.core.formatting import (
+    euros,
     integer,
     long_date,
     percent,
+    percentage_points,
     short_date,
     signed_integer,
     signed_percent,
@@ -77,6 +86,7 @@ from apps.news.executive import get_news_executive
 from apps.news.selectors import get_news_summary
 from apps.shop.executive import get_shop_executive
 from apps.visibility.executive import get_website_executive
+from apps.visibility.mailings_executive import get_mailings_executive
 from apps.visibility.page import build_channel_band
 
 from .executive_models import (
@@ -89,16 +99,15 @@ from .executive_models import (
     STATE_VARIANTS,
     ExecutiveComparison,
     ExecutiveDataStatus,
+    ExecutiveDomainCard,
     ExecutiveFact,
     ExecutiveInterestItem,
     ExecutiveLink,
     ExecutiveMetric,
     ExecutiveOverviewPage,
-    ExecutivePillar,
 )
 from .executive_signals import collect_signals
 from .executive_timeline import build_timeline
-from .sparkline import build_sparkline
 
 SOURCE_PUBLIC_DIRECTORY = "Koda.ee liikmekataloog"
 SOURCE_INTERNAL_REPORT = "Koja sisemine liikmeskonna aruanne"
@@ -111,47 +120,48 @@ SOURCE_SMAILY = "Smaily"
 
 NO_SOURCE_NOTE = "Andmeallikas ei ole ühendatud."
 
-#: The strategic area covering the website, the news and the newsletters.
+#: The card covering the website and the news that sits on it.
 #:
-#: The brief proposed `Nähtavus ja teavitamine`. It is not used, because
-#: `Nähtavus` is a **retired product name**: the website surface became
-#: `Koduleht` when that dashboard was rebuilt, `/nahtavus/` survives only as a
-#: redirect, and `tests/visibility/test_pages.py` holds the front page to never
-#: showing the old word again. Reintroducing it here as a pillar heading would
-#: put a name on the main page that exists nowhere else in the product, and a
-#: reader following it would look for a `Nähtavus` dashboard that is gone.
+#: The brief that first built this page proposed `Nähtavus ja teavitamine`. It is
+#: not used, because `Nähtavus` is a **retired product name**: the website
+#: surface became `Koduleht` when that dashboard was rebuilt, `/nahtavus/`
+#: survives only as a redirect, and `tests/visibility/test_pages.py` holds the
+#: front page to never showing the old word again. Reintroducing it here as a
+#: card heading would put a name on the main page that exists nowhere else in the
+#: product, and a reader following it would look for a `Nähtavus` dashboard that
+#: is gone.
 #:
 #: The two live product names say the same thing and match the card's own two
 #: drill links.
-VISIBILITY_PILLAR_LABEL = "Koduleht ja uudised"
+WEBSITE_CARD_LABEL = "Koduleht ja uudised"
 
 
 def build_executive_overview(*, legal_work, membership, news, events) -> ExecutiveOverviewPage:
     """Read every domain once and shape the whole page.
 
     The four feed summaries arrive from the view, which also hands them to the
-    shell freshness row — so each is read exactly once per request. The six
+    shell freshness row — so each is read exactly once per request. The seven
     executive summaries are read here, once each, and every section below is
-    built from those same objects rather than from fresh queries: the pillars,
-    the signals, the timeline, the interest panels and the data status all share
-    one read.
+    built from those same objects rather than from fresh queries: the cards, the
+    signals, the timeline, the interest strip and the data status all share one
+    read.
     """
     membership_exec = get_membership_executive()
     legal_exec = get_legal_work_executive(legal_work)
     events_exec = get_events_executive(events)
     website_exec = get_website_executive()
     news_exec = get_news_executive(news)
+    mailings_exec = get_mailings_executive()
     shop_exec = get_shop_executive()
 
     return ExecutiveOverviewPage(
-        # `Huvikaitse` and `Kaasamine` left the strip on 2026-08-16 at the
-        # owner's request. `_legal_pillar` and `_events_pillar` are untouched
-        # and no longer called from here — restoring a card is putting its line
-        # back, not rebuilding it. Both domains keep their own dashboards, their
-        # signals and their `Andmete seis` rows.
-        pillars=(
-            _membership_pillar(membership_exec),
-            _visibility_pillar(website_exec, news_exec),
+        cards=(
+            _membership_card(membership_exec),
+            _legal_card(legal_exec),
+            _events_card(events_exec),
+            _website_card(website_exec, news_exec),
+            _mailings_card(mailings_exec),
+            _shop_card(shop_exec),
         ),
         signals=collect_signals(
             (
@@ -163,10 +173,13 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
                 ("shop", "E-pood", shop_exec.signals),
             )
         ),
-        legal_in_progress=legal_exec.in_progress,
-        legal_recently_sent=legal_exec.recently_sent,
         upcoming=build_timeline(legal_summary=legal_work, events_executive=events_exec),
-        interest=_interest_panels(website_exec, news_exec, events_exec, shop_exec),
+        interest=_interest_panels(website_exec, news_exec, shop_exec),
+        # Audiences only, and by construction rather than by argument: the band
+        # had a website slot until 2026-08-17, and it was removed there because
+        # this page was its only consumer. Sessions are the `Koduleht ja
+        # uudised` card's headline, and one measure under two labels on one page
+        # invites a reconciliation nobody can perform.
         channels=build_channel_band(),
         data_status=_data_status(
             legal_work=legal_work,
@@ -181,32 +194,36 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
 
 
 # ---------------------------------------------------------------------------
-# Pillars
+# Põhinäitajad — six compact domain cards
 # ---------------------------------------------------------------------------
 
 
-def _membership_pillar(summary) -> ExecutivePillar:
+def _membership_card(summary) -> ExecutiveDomainCard:
     """Liikmeskond. The public directory count leads; the report supports.
 
     The two sources never share a figure. The headline is the koda.ee directory;
-    the paid share and the fee collection are ratios inside the board report.
-    Each fact still carries its source **in the data**, though the card no
-    longer prints the captions — AGENTS.md forbids two unlabelled member
-    *totals* side by side, and since the caption rows came off, the card shows
-    exactly one total. The ratios and the joined/removed counts are not totals,
-    and `Andmete seis` states which source is which, with the warning that the
-    two must never be compared.
+    the paid share, the fee collection and the joined/removed pair are ratios and
+    movements **inside** the board report. AGENTS.md forbids two unlabelled
+    member *totals* side by side, and this card shows exactly one total.
+
+    The distinction is nevertheless visible without filling the card with
+    provenance chrome: `period_line` names both currencies once — the catalogue's
+    own reading date and the report's — so a reader can see that one figure is
+    recounted whenever it changes and the others were reported once a month.
+    Each fact still carries its `source` in the data, and `Andmete seis` at
+    `/haldus/` states which source is which with the warning that the two must
+    never be compared.
     """
     links = (ExecutiveLink(label="Vaata liikmeskonda", url=reverse("membership")),)
     if not summary.has_headline:
-        return ExecutivePillar(
+        return ExecutiveDomainCard(
             key="membership",
             label="Liikmeskond",
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
         )
 
-    return ExecutivePillar(
+    return ExecutiveDomainCard(
         key="membership",
         label="Liikmeskond",
         headline=ExecutiveMetric(
@@ -218,7 +235,6 @@ def _membership_pillar(summary) -> ExecutivePillar:
             as_of=summary.total_as_of,
             comparison=_membership_comparison(summary),
         ),
-        meaning=summary.meaning,
         facts=(
             ExecutiveFact(
                 label="Tasunud liikmete osakaal",
@@ -251,10 +267,24 @@ def _membership_pillar(summary) -> ExecutivePillar:
                 as_of=summary.internal_as_of,
             ),
         ),
-        trend=build_sparkline(summary.series),
-        trend_label="Koda.ee liikmekataloogi loend",
+        period_line=_membership_period_line(summary),
         links=links,
     )
+
+
+def _membership_period_line(summary) -> str:
+    """Both currencies in one short line, or whichever of them exists.
+
+    Two dates rather than one, because this is the only card whose figures come
+    from two sources with two cadences. Naming just the newest would let a reader
+    read a monthly ratio as a daily one.
+    """
+    parts = []
+    if summary.total_as_of:
+        parts.append(f"kataloog {short_date(summary.total_as_of)}")
+    if summary.internal_as_of:
+        parts.append(f"sisemine aruanne {short_date(summary.internal_as_of)}")
+    return " · ".join(parts)
 
 
 def _membership_comparison(summary) -> ExecutiveComparison | None:
@@ -273,53 +303,74 @@ def _membership_comparison(summary) -> ExecutiveComparison | None:
     )
 
 
-def _legal_pillar(summary) -> ExecutivePillar:
-    """Huvikaitse. Output, compared to the same calendar day a year earlier."""
+def _legal_card(summary) -> ExecutiveDomainCard:
+    """Õigusloome. The stock of open matters leads, not the year's output.
+
+    `Arvamusi välja saadetud tänavu` led this card until 2026-08-17 and was the
+    wrong headline for a management cockpit: it is a cumulative record of work
+    already done, it can only rise, and by December it says nothing about what
+    the Chamber is holding. `open_topics` — `X teemat töös` — is the state of
+    play, and it is the figure that changes when somebody acts.
+
+    Output is not impact, and neither figure on this card is ever called `mõju`:
+    the workbook records opinions sent, not provisions changed.
+
+    **A passed deadline is not here.** `overdue_pending` belongs to `Tähelepanu`,
+    where it arrives as the domain's own critical signal with a link to the list
+    the rows live in. Printing it as a fourth quiet fact would put the page's most
+    urgent number in its least urgent place.
+    """
     links = (ExecutiveLink(label="Vaata õigusloomet", url=reverse("legal-work")),)
-    if not summary.has_headline:
-        return ExecutivePillar(
+    # `has_headline` says a snapshot exists; the headline itself is the open
+    # count, so a snapshot that somehow carries no count renders unavailable
+    # rather than as a nought nobody measured.
+    if not summary.has_headline or summary.open_topics is None:
+        return ExecutiveDomainCard(
             key="legal_work",
-            label="Huvikaitse",
+            label="Õigusloome",
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
         )
 
     sent = summary.sent
-    return ExecutivePillar(
+    return ExecutiveDomainCard(
         key="legal_work",
-        label="Huvikaitse",
+        label="Õigusloome",
         headline=ExecutiveMetric(
-            label="Arvamusi välja saadetud tänavu",
-            period=f"1. jaanuar – {short_date(sent.current_cutoff)}",
+            label="Teemasid töös",
+            period="töövihiku seisu kuupäeval",
             source=SOURCE_LEGAL_WORKBOOK,
-            value=integer(sent.current),
-            # Self-describing since the caption row came off the card: the year
-            # window that `Arvamusi välja saadetud tänavu` used to state is in
-            # the unit now, per the board's wording.
-            unit="arvamust sellel aastal",
+            value=integer(summary.open_topics),
+            unit="teemat töös",
             as_of=summary.reporting_date,
-            comparison=ExecutiveComparison(
-                text=(
-                    signed_percent(sent.percent_change)
-                    if sent.percent_change is not None
-                    else signed_integer(sent.absolute_change)
-                ),
-                basis=f"vs 1. jaanuar – {short_date(sent.previous_cutoff)}",
-                direction=sent.direction,
-            ),
+            # No comparison. A stock has no year-to-date pair: the workbook
+            # holds one snapshot, and "open matters a year ago" is not a figure
+            # anything here can produce. The metric contract says so too.
+            comparison=None,
         ),
-        meaning=summary.meaning,
         facts=(
-            ExecutiveFact(
-                label="Teemasid töös",
-                value=integer(summary.open_topics) if summary.open_topics is not None else None,
-                source=SOURCE_LEGAL_WORKBOOK,
-                as_of=summary.reporting_date,
-                url=reverse("legal-work"),
-            ),
             ExecutiveFact(
                 label=f"Tähtaegu {URGENT_DAYS} päeva jooksul",
                 value=integer(summary.due_within_7) if summary.due_within_7 is not None else None,
+                source=SOURCE_LEGAL_WORKBOOK,
+                as_of=summary.reporting_date,
+            ),
+            ExecutiveFact(
+                label="Arvamusi saadetud tänavu",
+                value=integer(sent.current) if sent is not None else None,
+                source=SOURCE_LEGAL_WORKBOOK,
+                as_of=summary.reporting_date,
+            ),
+            ExecutiveFact(
+                # The comparison the old headline carried, kept as a fact so the
+                # like-for-like cutoff is still stated: both sides stop on the
+                # same calendar day.
+                label="Sama ajaks eelmisel aastal",
+                value=(
+                    integer(sent.previous)
+                    if sent is not None and sent.previous is not None
+                    else None
+                ),
                 source=SOURCE_LEGAL_WORKBOOK,
                 as_of=summary.reporting_date,
             ),
@@ -334,50 +385,66 @@ def _legal_pillar(summary) -> ExecutivePillar:
                 as_of=summary.reporting_date,
             ),
         ),
+        period_line=(
+            f"töövihiku seis {short_date(summary.reporting_date)}"
+            if summary.reporting_date
+            else "töövihiku seis"
+        ),
         links=links,
     )
 
 
-def _events_pillar(summary) -> ExecutivePillar:
-    """Kaasamine. Programme events — the grain is in the label, deliberately."""
+def _events_card(summary) -> ExecutiveDomainCard:
+    """Sündmused. What is starting soon leads; the year's programme supports.
+
+    The grain is named in the wording because the workbook also holds an
+    occurrence sheet counting something else entirely: one row is one programme
+    event, never an occurrence and never a calendar day.
+
+    No attendance figure appears here or anywhere on this page, because DashKoda
+    does not have one. The programme records what was scheduled.
+    """
     links = (ExecutiveLink(label="Vaata sündmusi", url=reverse("events")),)
-    if not summary.has_headline:
-        return ExecutivePillar(
+    if not summary.has_headline or summary.starting_soon is None:
+        return ExecutiveDomainCard(
             key="events",
-            label="Kaasamine",
+            label="Sündmused",
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
         )
 
-    return ExecutivePillar(
+    return ExecutiveDomainCard(
         key="events",
-        label="Kaasamine",
+        label="Sündmused",
         headline=ExecutiveMetric(
-            # The grain is named in the label because the workbook also holds an
-            # occurrence sheet counting something else entirely.
-            label="Sündmusi tänavu",
-            period="1. jaanuar – täna",
+            label=f"Algab {NEAR_TERM_DAYS} päeva jooksul",
+            period=f"järgmised {NEAR_TERM_DAYS} päeva",
             source=SOURCE_EVENTS,
-            value=integer(summary.events_ytd),
-            unit="sündmust",
+            value=integer(summary.starting_soon),
+            # Self-describing, because the card prints no period row: the same
+            # horizon the timeline below uses, so the two cannot describe
+            # different sets of events.
+            unit=f"sündmust järgmise {NEAR_TERM_DAYS} päeva jooksul",
             as_of=summary.observed_at,
-            comparison=ExecutiveComparison(
-                text=(
-                    signed_percent(summary.change_pct)
-                    if summary.change_pct is not None
-                    else signed_integer(summary.change)
-                ),
-                basis="vs sama ajaks eelmisel aastal",
-                direction=_direction(summary.change),
-            )
-            if summary.change is not None
-            else None,
+            # No comparison: "events starting in the next thirty days a year
+            # ago" is not a figure the programme holds. The year-to-date pair is
+            # below, where it belongs, with its own like-for-like basis.
+            comparison=None,
         ),
-        meaning=summary.meaning,
         facts=(
             ExecutiveFact(
-                label=f"Algab {NEAR_TERM_DAYS} päeva jooksul",
-                value=integer(summary.starting_soon) if summary.starting_soon is not None else None,
+                label="Sündmusi tänavu",
+                value=integer(summary.events_ytd) if summary.events_ytd is not None else None,
+                source=SOURCE_EVENTS,
+                as_of=summary.observed_at,
+            ),
+            ExecutiveFact(
+                label="Sama ajaks eelmisel aastal",
+                value=(
+                    integer(summary.events_ytd_previous)
+                    if summary.events_ytd_previous is not None
+                    else None
+                ),
                 source=SOURCE_EVENTS,
                 as_of=summary.observed_at,
             ),
@@ -388,39 +455,52 @@ def _events_pillar(summary) -> ExecutivePillar:
                 as_of=summary.observed_at,
             ),
         ),
+        period_line=(
+            f"programmi seis {short_date(summary.observed_at)}"
+            if summary.observed_at
+            else "programmi seis"
+        ),
         links=links,
     )
 
 
-def _visibility_pillar(website, news) -> ExecutivePillar:
-    """Nähtavus ja teavitamine. Three sources, side by side, never summed.
+def _website_card(website, news) -> ExecutiveDomainCard:
+    """Koduleht ja uudised. Two sources, side by side, never summed.
 
     Sessions lead because they are the closest the Chamber has to "how much is
-    the website being used". News reading sits beside them as a **share** of
-    site page views, which is the only honest relation between the two — news
-    views are a subset, and adding them would count every article view twice.
-    The newsletter figure is a rate, not an audience, so it cannot be added to
-    anything either.
+    the website being used". News reading sits beside them as a **share** of site
+    page views, which is the only honest relation between the two — news views
+    are a subset, and adding them would count every article view twice.
+
+    **The vocabulary is load-bearing.** A GA4 session is a `külastus` and a GA4
+    page view is a `vaatamine`. They are different measures of different things
+    and this card never calls a page view a `külastus`; neither is ever worded as
+    a count of people, because a session is a visit and two visits by one person
+    are two sessions.
+
+    The e-Teataja open rate used to be the fifth fact here. It is the
+    Otsepostitused card's headline since 2026-08-17: the newsletters have their
+    own dashboard, and a rate about email was the one figure on this card that
+    was not about the website.
     """
     links = (
         ExecutiveLink(label="Vaata kodulehte", url=reverse("visibility")),
         ExecutiveLink(label="Vaata uudiseid", url=reverse("news")),
     )
     if not website.has_headline:
-        return ExecutivePillar(
+        return ExecutiveDomainCard(
             key="website",
-            label=VISIBILITY_PILLAR_LABEL,
+            label=WEBSITE_CARD_LABEL,
             unavailable_note=NO_SOURCE_NOTE,
             links=links,
         )
 
-    period = f"viimased {website.days} mõõdetud päeva"
-    return ExecutivePillar(
+    return ExecutiveDomainCard(
         key="website",
-        label=VISIBILITY_PILLAR_LABEL,
+        label=WEBSITE_CARD_LABEL,
         headline=ExecutiveMetric(
             label="Kodulehe külastused",
-            period=period,
+            period=f"viimased {website.days} mõõdetud päeva",
             source=SOURCE_GA4,
             value=integer(website.sessions),
             unit="külastust",
@@ -437,7 +517,6 @@ def _visibility_pillar(website, news) -> ExecutivePillar:
                 else None
             ),
         ),
-        meaning=website.meaning,
         facts=(
             ExecutiveFact(
                 label="Kaasatuse määr",
@@ -468,15 +547,148 @@ def _visibility_pillar(website, news) -> ExecutivePillar:
                 source=SOURCE_NEWS,
                 as_of=news.end,
             ),
+        ),
+        period_line=(
+            f"{short_date(website.start)} – {short_date(website.end)}"
+            if website.start and website.end
+            else ""
+        ),
+        links=links,
+    )
+
+
+def _mailings_card(summary) -> ExecutiveDomainCard:
+    """Otsepostitused. e-Teataja's open rate leads; the others support.
+
+    Rates only. **There is no audience figure on this card at all**, and there
+    cannot be a total: the three lists overlap by an unmeasured amount, so a sum
+    would silently claim the overlap is zero. The list sizes are in
+    `Auditooriumid` at the foot of the page, one per list.
+
+    Every rate is summed opens over summed delivered across the domain's own
+    block of recent sends — never the mean of per-issue percentages, which would
+    weight a send to 755 people the same as one to 20 616. The domain computes
+    all of them; this function formats.
+    """
+    links = (ExecutiveLink(label="Vaata otsepostitusi", url=reverse("mailings")),)
+    if not summary.has_headline:
+        return ExecutiveDomainCard(
+            key="mailings",
+            label="Otsepostitused",
+            unavailable_note=NO_SOURCE_NOTE,
+            links=links,
+        )
+
+    flagship = summary.flagship
+    movement = summary.open_rate_change_points
+    return ExecutiveDomainCard(
+        key="mailings",
+        label="Otsepostitused",
+        headline=ExecutiveMetric(
+            label=f"{flagship.label} avamismäär",
+            period=f"viimased {summary.issues} saadetist",
+            source=SOURCE_SMAILY,
+            value=percent(flagship.open_rate * 100),
+            unit=f"{flagship.label} avamismäär",
+            comparison=(
+                ExecutiveComparison(
+                    # Percentage **points**, not percent: two rates differ by
+                    # points, and `+8%` of a percentage is the commonest way to
+                    # overstate a newsletter by an order of magnitude.
+                    text=percentage_points(movement),
+                    basis=f"vs eelmised {summary.issues} saadetist",
+                    direction=_direction(movement),
+                )
+                if movement is not None
+                else None
+            ),
+        ),
+        facts=(
             ExecutiveFact(
-                label="e-Teataja avamismäär",
+                label=f"{flagship.label} klikimäär",
                 value=(
-                    percent(website.newsletter_open_rate * 100)
-                    if website.newsletter_open_rate is not None
-                    else None
+                    percent(flagship.click_rate * 100) if flagship.click_rate is not None else None
                 ),
                 source=SOURCE_SMAILY,
             ),
+            *(
+                ExecutiveFact(
+                    label=f"{other.label} avamismäär",
+                    value=percent(other.open_rate * 100) if other.has_open_rate else None,
+                    source=SOURCE_SMAILY,
+                )
+                for other in summary.others
+            ),
+        ),
+        period_line=f"kaalutud viimase {summary.issues} saadetise peale",
+        links=links,
+    )
+
+
+def _shop_card(summary) -> ExecutiveDomainCard:
+    """E-pood. Acquired units over the Commerce export's own period.
+
+    **Ordered value is not revenue.** `ordered_value_net` is what the orders were
+    worth at order time excluding VAT; it is not recognised revenue, not cash
+    received and not reconciled to any ledger, because an order can be cancelled,
+    refunded or never paid and none of that reaches this dataset. The label says
+    `tellitud väärtus` and never `tulu`, `käive` or `laekumine`.
+
+    Event registrations are excluded at the query, which is what keeps this card
+    and the Sündmused card from presenting one set of rows twice.
+    """
+    links = (ExecutiveLink(label="Vaata e-poodi", url=reverse("shop")),)
+    if not summary.has_headline:
+        return ExecutiveDomainCard(
+            key="shop",
+            label="E-pood",
+            unavailable_note=NO_SOURCE_NOTE,
+            links=links,
+        )
+
+    change = summary.change_pct
+    return ExecutiveDomainCard(
+        key="shop",
+        label="E-pood",
+        headline=ExecutiveMetric(
+            label="Soetatud ühikud",
+            period=summary.period_label,
+            source=SOURCE_COMMERCE,
+            value=integer(summary.units),
+            unit="ühikut ostetud",
+            as_of=summary.source_as_of,
+            comparison=(
+                ExecutiveComparison(
+                    text=signed_percent(change),
+                    basis="vs eelmine sama pikk periood",
+                    direction=_direction(change),
+                )
+                if change is not None
+                else None
+            ),
+        ),
+        facts=(
+            ExecutiveFact(
+                label="Tellitud väärtus (KM-ta)",
+                value=(
+                    euros(summary.ordered_value_net)
+                    if summary.ordered_value_net is not None
+                    else None
+                ),
+                source=SOURCE_COMMERCE,
+                as_of=summary.source_as_of,
+            ),
+            ExecutiveFact(
+                label="Tasuta osakaal",
+                value=percent(summary.free_share) if summary.free_share is not None else None,
+                source=SOURCE_COMMERCE,
+                as_of=summary.source_as_of,
+            ),
+        ),
+        period_line=(
+            f"{short_date(summary.period_start)} – {short_date(summary.period_end)}"
+            if summary.period_start and summary.period_end
+            else summary.period_label
         ),
         links=links,
     )
@@ -494,22 +706,26 @@ def _direction(value) -> str:
 
 
 # ---------------------------------------------------------------------------
-# Praegu huvi pakkuv
+# Praegu enim huvi
 # ---------------------------------------------------------------------------
 
 
-def _interest_panels(website, news, events, shop) -> tuple[ExecutiveInterestItem, ...]:
-    """Four panels, four metrics, four periods, no shared axis.
+def _interest_panels(website, news, shop) -> tuple[ExecutiveInterestItem, ...]:
+    """Three columns, three metrics, three periods, no shared axis.
 
-    Page views, article views, an event's scheduled date and acquired units are
-    four different things. They are shown side by side because a reader wants to
-    know what is being used *now*, not because the four numbers can be compared
-    — which is why none of them is drawn as a bar against the others.
+    Page views, article views and acquired units are three different things. They
+    are shown side by side because a reader wants to know what is being used
+    *now*, not because the three numbers can be compared — which is why none of
+    them is drawn as a bar against the others and nothing here ranks them.
+
+    There were four. The next scheduled event left on 2026-08-17: it was the one
+    column that answered a different question — what is coming rather than what
+    is being attended to — and events already hold the card above and the whole
+    timeline between.
     """
     return (
         _website_panel(website),
         _news_panel(news),
-        _event_panel(events),
         _shop_panel(shop),
     )
 
@@ -532,6 +748,8 @@ def _website_panel(website) -> ExecutiveInterestItem:
         # a slug.
         title=page.label,
         metric_value=integer(page.page_views),
+        # `lehevaatamist`, not `külastust`. A page view is not a session and the
+        # two are never spelled the same way on this page.
         metric_label="lehevaatamist",
         period=f"viimased {website.days} mõõdetud päeva",
         context=page.type_label,
@@ -565,35 +783,6 @@ def _news_panel(news) -> ExecutiveInterestItem:
         # reader has to be able to see that is what happened.
         context=f"avaldatud {short_date(published)}" if published else "",
         url=article.canonical_url,
-        is_external=True,
-    )
-
-
-def _event_panel(events) -> ExecutiveInterestItem:
-    """The next scheduled event.
-
-    Deliberately the *next* one rather than the most-viewed: a completed event
-    cannot occupy a panel about what is coming, and the programme's own order is
-    the honest answer to "what is next". Page views are not shown here, because
-    an upcoming event's views belong to a window this panel does not state.
-    """
-    upcoming = getattr(events, "next_event", None)
-    if upcoming is None:
-        return ExecutiveInterestItem(
-            domain_label="Sündmused",
-            domain_key="events",
-            title="",
-            unavailable_note="Tulemas sündmusi ei ole.",
-        )
-    return ExecutiveInterestItem(
-        domain_label="Sündmused",
-        domain_key="events",
-        title=upcoming.event_name,
-        metric_value=short_date(upcoming.start_date),
-        metric_label="algab",
-        period="",
-        context=getattr(upcoming, "delivery_mode", "") or "",
-        url=upcoming.public_link.url if getattr(upcoming, "public_link", None) else "",
         is_external=True,
     )
 
@@ -634,9 +823,9 @@ def build_data_status() -> tuple[ExecutiveDataStatus, ...]:
 
     `/haldus/` renders this section since 2026-08-15 and has no page-wide read to
     borrow from, so it asks for the rows directly. The overview keeps building
-    them inside `build_executive_overview` off the reads it already has — it
-    still needs the count for its header chip — and both go through the same
-    `_data_status`, so the two can never disagree about what a source's state is.
+    them inside `build_executive_overview` off the reads it already has, and both
+    go through the same `_data_status`, so the two can never disagree about what
+    a source's state is.
     """
     legal_work = get_legal_work_summary()
     membership = get_membership_summary()
@@ -760,7 +949,7 @@ def _website_row(website) -> ExecutiveDataStatus:
 
     This is the one place a data-quality fact is allowed to change what the
     business figures claim: when coverage is too uneven to subtract two windows,
-    the pillar shows no delta and the reason appears here.
+    the card shows no delta and the reason appears here.
     """
     if not website.has_headline:
         state = STATE_NOT_CONNECTED
@@ -803,4 +992,4 @@ def _shop_row(shop) -> ExecutiveDataStatus:
     )
 
 
-__all__ = ["build_executive_overview"]
+__all__ = ["build_data_status", "build_executive_overview"]

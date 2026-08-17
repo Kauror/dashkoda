@@ -54,13 +54,21 @@ def visible_text(response) -> str:
 # ======================================================================
 
 
-def test_the_band_has_all_six_channels_in_order(viewer_client):
+def test_the_band_has_every_audience_in_order(viewer_client):
+    """Five audiences, newsletter first, then the four social channels.
+
+    Six until 2026-08-17, when the website slot went. It was the front page's
+    only consumer, and the rebuilt `Koduleht ja uudised` card states sessions
+    over a properly measured window with a proper comparison — so the slot was
+    the weaker of two statements of one measure, on one page, under two labels.
+    Sessions are not an audience anyway: they are visits, and one person
+    visiting twice is two of them.
+    """
     page = body(viewer_client.get(reverse("home")))
 
     positions = [
         page.index(label)
         for label in (
-            "Kodulehe külastused",
             "Uudiskirjad",
             "Facebooki jälgijad",
             "LinkedIni jälgijad",
@@ -69,6 +77,7 @@ def test_the_band_has_all_six_channels_in_order(viewer_client):
         )
     ]
     assert positions == sorted(positions), "the band is out of the required order"
+    assert "Kodulehe külastused" not in page
 
 
 def test_instagram_is_present(viewer_client):
@@ -239,21 +248,17 @@ def test_no_search_index_linkedin_figure_is_hard_coded():
     assert offenders == [], offenders
 
 
-def test_the_website_slot_stays_planned_and_links_nowhere(viewer_client):
+def test_the_front_page_never_links_a_reader_into_google_analytics(viewer_client):
+    """It would land a board member on a login screen.
+
+    The website slot that carried this rule is gone; the rule is not, because
+    the GA4 figures are still on the page — as the `Koduleht ja uudised` card —
+    and the place to read more of them is Koduleht.
+    """
     page = body(viewer_client.get(reverse("home")))
 
-    assert "Kodulehe külastused" in page
-    assert "Google Analytics ei ole ühendatud." in page
     assert "analytics.google.com" not in page
-
-
-def test_the_website_slot_shows_no_value_even_when_other_channels_do(submit, viewer_client):
-    submit(facebook_followers=4200)
-
-    page = body(viewer_client.get(reverse("home")))
-    band = page[page.index("Kodulehe külastused") : page.index("Uudiskirjad")]
-
-    assert re.search(r"\d", strip_tags(band)) is None
+    assert f'href="{PAGE_URL}"' in page
 
 
 # -- the newsletter slot ------------------------------------------------
@@ -317,19 +322,22 @@ def test_the_newsletter_card_links_to_the_page_that_shows_newsletters(submit, vi
     assert f'href="{reverse("news")}"' not in heading
 
 
-def test_the_website_card_links_to_koduleht(submit, viewer_client, ga4_day, today, days_ago):
-    """The one card whose subject is a page DashKoda actually has.
+def test_the_website_figures_link_to_koduleht(submit, viewer_client, ga4_day, today, days_ago):
+    """The GA4 figures on the front page offer the page that explains them.
 
-    It linked nowhere for a good reason — a link to Google Analytics would land
-    a board member on a login screen — and that reason stopped being the only
-    option when Koduleht arrived.
+    This was the channel band's website card until 2026-08-17. The card went;
+    the route did not, because `Koduleht ja uudised` in `Põhinäitajad` carries
+    the same measure and links there itself.
     """
     ga4_day(days_ago(1), sessions=120, page_views=300)
 
     page = body(viewer_client.get(reverse("home")))
-    heading = _card_heading(page, "Kodulehe külastused")
 
-    assert f'href="{PAGE_URL}"' in heading
+    # The card prints the figure and its unit rather than the metric's label —
+    # `Kodulehe külastused` is in the data, where `Andmete seis` reads it.
+    assert "külastust" in strip_tags(page)
+    assert f'href="{PAGE_URL}"' in page
+    assert "Vaata kodulehte" in page
 
 
 def test_the_social_cards_link_nowhere(submit, viewer_client):
