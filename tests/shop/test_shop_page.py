@@ -356,10 +356,12 @@ def test_the_dates_come_from_the_data_not_the_clock(client, authenticate_viewer,
     """A preset must not drift past a frozen export.
 
     Thirty days against an 11 August export ends on 11 August, whatever today
-    happens to be when the suite runs.
+    happens to be when the suite runs. Read off the resolved period rather
+    than the page text: the as-of date the page used to state left it for
+    `/haldus/` on 2026-08-17, and nothing else on this focus renders a date in
+    `d.m.Y`.
     """
     authenticate_viewer(client)
-    content = client.get("/epood/?periood=30").content.decode()
+    response = client.get("/epood/?periood=30")
 
-    assert "11.08.2026" in content
-    assert str(dt.date.today().year + 1) not in content
+    assert response.context["overview"].period.end == dt.date(2026, 8, 11)
