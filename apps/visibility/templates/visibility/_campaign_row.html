@@ -43,16 +43,14 @@ contract every outbound link on this dashboard follows.
   </td>
   {% comment %}
   The two rates lead, because they are what a reader compares between sends.
-  Delivered follows as context for them; a dash, never a zero, for a campaign
-  whose statistics have not been read yet.
+  The delivered count that used to trail them left on 2026-08-17 — it read as
+  a duplicate of the newsletter card above rather than something this row
+  needed to say for itself.
   {% endcomment %}
   <td class="border-b border-border px-3 py-2 text-right font-medium tabular-nums text-text">
     {{ issue.open_rate_label|default:"—" }}
   </td>
   <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">
     {{ issue.click_rate_label|default:"—" }}
-  </td>
-  <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-muted">
-    {{ issue.delivered_label|default:"—" }}
   </td>
 </tr>

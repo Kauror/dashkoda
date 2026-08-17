@@ -7,9 +7,7 @@ drawings. There is no channel-card strip and no twenty-row table on this screen;
 both belong to a focus view, and both used to be the first thing a manager saw.
 
 Nothing here is a composite index and nothing is generated text. `Perioodi
-muutus` is the set of comparisons that survived the coverage check, and
-`Huvitavat` is four deterministic rules stated with the measurements that
-triggered them.
+muutus` is the set of comparisons that survived the coverage check.
 {% endcomment %}
 
 {# ---------------- Primary figures ---------------- #}
@@ -101,7 +99,8 @@ this section does not exist and the overview stays as short as it was.
   </section>
 {% endif %}
 
-{# ---------------- Huvitavat ---------------- #}
-{% if page.opportunities %}
-  {% include "visibility/koduleht/_opportunities.html" with opportunities=page.opportunities heading_id="section-voimalused" only %}
-{% endif %}
+{% comment %}
+`Huvitavat` and its four rule-based observations left the overview on
+2026-08-17. The rules themselves are untouched in `apps/visibility/website_page.py`;
+nothing on this page composes them now.
+{% endcomment %}

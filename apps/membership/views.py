@@ -712,11 +712,7 @@ def _composition_sections(*, composition=None, **_ignored):
         sections.append(
             AnalyticsSection(
                 section_id="section-growth-index",
-                title="Kust kasv tuleb",
-                description=(
-                    "Viimase 12 kuu jooksul liitunud tänaste liikmete koosseis "
-                    "võrreldes kogu liikmeskonnaga."
-                ),
+                title="Aastaga liitunute valdkonnad",
                 charts=(growth,),
             )
         )

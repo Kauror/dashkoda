@@ -272,7 +272,7 @@ def _headline_news_share(
         direction = direction_of(difference)
     return Headline(
         key="news_share",
-        label="Uudiste osakaal",
+        label="Uudiste osakaal külastustest",
         value=share_percent(current.share),
         change=change,
         change_label=change_label,

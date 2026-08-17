@@ -76,7 +76,6 @@ the long view, which is its subject.
     {% include "dashboard/components/section_header.html" with title="Ostud tooteliigi järgi" heading_id="section-typemix" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "shop/_bars.html" with rows=overview.type_bars only %}
-      <p class="dk-meta">Ühikud ja väärtus liituvad tooteliikide vahel. Eri tellimuste arv ei liitu: üks tellimus võib sisaldada mitut tooteliiki ja kuuluks siis mitmesse ritta.</p>
     </div>
   </section>
 {% endif %}
@@ -125,8 +124,6 @@ page rather than to one section of it.
     {% include "dashboard/components/section_header.html" with title="Suurima tellitud väärtusega tooted" heading_id="section-valueproduct" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "shop/_bars.html" with rows=overview.value_bars only %}
-      <p class="dk-meta">Need ei ole tingimata kõige rohkem ostetud tooted. Koguse järgi järjestuse leiab vaatest „Tooted“.</p>
-      {% if overview.value_concentration_note %}<p class="dk-meta">{{ overview.value_concentration_note }}</p>{% endif %}
     </div>
   </section>
 {% endif %}
@@ -137,7 +134,6 @@ page rather than to one section of it.
     {% include "dashboard/components/section_header.html" with title="Tasuta ostud ajas" heading_id="section-freetrend" only %}
     <div class="dk-section-body flex flex-col gap-3">
       {% include "shop/_bars.html" with rows=overview.free_paid_series only %}
-      <p class="dk-meta">Osakaal arvutatakse klassifitseeritud ühikutest. Määramata ühikud jäävad nimetajast välja, sest osakaal koguhulgast, mis sisaldab „ei tea“, ei kirjelda midagi.</p>
     </div>
   </section>
 {% endif %}

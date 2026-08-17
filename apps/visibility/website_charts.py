@@ -373,13 +373,13 @@ def _composition_chart(
     *,
     payload_id: str,
     title: str,
-    question: str,
     rows: tuple,
     total: int | None,
-    denominator_note: str,
     label_of,
     views_of,
     share_of,
+    question: str = "",
+    denominator_note: str = "",
 ) -> WebsiteChart:
     """One 100% stacked horizontal bar.
 
@@ -451,7 +451,7 @@ def _composition_chart(
             for row in present
         ),
         summary=f"{len(present)} osa, kokku {integer(total)} lehevaatamist.",
-        footnotes=(denominator_note,),
+        footnotes=(denominator_note,) if denominator_note else (),
         size="categorical",
     )
 
@@ -460,14 +460,8 @@ def content_mix_chart(mix: WebsiteContentMix) -> WebsiteChart:
     return _composition_chart(
         payload_id="koduleht-sisujaotus",
         title="Vaadatud sisu jaotus",
-        question="Millised kodulehe osad tähelepanu saavad?",
         rows=mix.rows,
         total=mix.total_page_views,
-        denominator_note=(
-            "Nimetajaks on kõigi järjestatavaks sisuks loetud lehtede lehevaatamised. "
-            "Keelte avalehed, ostukorv, siseotsing ja veadokumendid ei ole sisu ega "
-            "kuulu siia — kogu kodulehe liiklus on sellest suurem."
-        ),
         label_of=lambda row: row.label,
         views_of=lambda row: row.page_views,
         share_of=lambda row: row.share,
@@ -553,7 +547,6 @@ def top_pages_chart(rows: tuple, *, total_page_views: int | None) -> WebsiteChar
         payload_id="koduleht-enim-vaadatud",
         empty_message=EMPTY_MESSAGE,
         title="Enim vaadatud sisu",
-        question="Mida perioodil kõige rohkem loeti?",
         option=option,
         table_headers=("Leht", "Tüüp", "Lehevaatamised", "Osakaal"),
         table_rows=tuple(

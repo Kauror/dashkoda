@@ -395,7 +395,6 @@ def _workflow(snapshot, year, focus, label, links) -> IntelligencePage:
             charts.monthly_flow_chart(
                 payload_id="legal-monthly-topics",
                 title="Uued teemad kuude lõikes",
-                question="Kui palju uut tööd Kojale saabub?",
                 current=current_topics,
                 previous=previous_topics,
                 series_label="Uued teemad",
@@ -403,7 +402,6 @@ def _workflow(snapshot, year, focus, label, links) -> IntelligencePage:
             charts.monthly_flow_chart(
                 payload_id="legal-monthly-sent",
                 title="Välja saadetud arvamused kuude lõikes",
-                question="Kui palju arvamusi Koda välja saadab?",
                 current=current_sent,
                 previous=previous_sent,
                 series_label="Välja saadetud arvamused",

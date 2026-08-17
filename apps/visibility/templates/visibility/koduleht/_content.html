@@ -52,15 +52,16 @@ they are absent, the section says so rather than leaving a gap.
   <p class="dk-meta px-4 pt-1 sm:px-5"><a class="dk-link-quiet" href="#periood">Muuda perioodi</a></p>
   <div class="dk-section-body flex flex-col gap-6">
     {% if page.movement %}
-      <div class="grid gap-6 xl:grid-cols-2">
-        {% include "visibility/koduleht/_movement_list.html" with title="Kasvavad lehed" table=page.rising_table empty="Ükski leht ei ületanud mahupiiri kasvupoolel." only %}
-        {% include "visibility/koduleht/_movement_list.html" with title="Vähenenud tähelepanu" table=page.falling_table empty="Ükski leht ei ületanud mahupiiri languspoolel." only %}
-      </div>
+      {% comment %}
+      `Vähenenud tähelepanu`, the declining half of this comparison, left the
+      page on 2026-08-17. `page.falling_table` is still built; nothing renders
+      it.
+      {% endcomment %}
+      {% include "visibility/koduleht/_movement_list.html" with title="Kasvavad lehed" table=page.rising_table empty="Ükski leht ei ületanud mahupiiri kasvupoolel." only %}
       <p class="dk-meta">
         Arvestatud on lehti, millel oli vähemalt {{ page.movement.minimum_page_views }} lehevaatamist
         ühes kahest võrreldavast perioodist. Järjestus käib absoluutse muutuse järgi ja suhteline
-        muutus on iga rea juures kõrval. Liikluse vähenemine ei ole iseenesest viga — sündmus võib
-        olla möödas või teema päevakorrast maas.
+        muutus on iga rea juures kõrval.
       </p>
     {% else %}
       {% include "dashboard/components/empty_state.html" with message="Kasvu ja languse võrdlust ei kuvata." detail="Selleks peavad mõlemad perioodid olema lehekaupa piisavalt kaetud. Vaata „Andmete kohta“." only %}

@@ -258,6 +258,34 @@ def test_a_zero_budget_produces_no_percentage_rather_than_a_division():
     assert fees.value == ""
 
 
+def test_fee_collection_is_compared_with_a_genuinely_comparable_year():
+    """Joined the card on 2026-08-17, the same baseline rule as the other two.
+
+    Computed on both sides, same as `build_insights`' own `fee_collection_yoy`
+    candidate: a reported percentage `quality.py` withheld cannot enter the
+    comparison from either end.
+    """
+    latest = point(LATEST, received="410000", budget="500000")
+    history = (point(YEAR_AGO, received="450000", budget="500000"), latest)
+
+    fees = by_key(build_headlines(latest, history))["fee_collection"]
+
+    assert fees.value == "82,0%"
+    assert fees.direction == "down"
+    assert fees.tone == "negative"
+    assert "pp" in fees.change
+    assert "2025" in fees.comparison_label
+
+
+def test_fee_collection_has_no_comparison_without_a_comparable_year():
+    latest = point(LATEST, received="410000", budget="500000")
+
+    fees = by_key(build_headlines(latest, ()))["fee_collection"]
+
+    assert fees.change == ""
+    assert fees.comparison_label == ""
+
+
 # ---------------------------------------------------------------------------
 # Mis muutus?
 # ---------------------------------------------------------------------------

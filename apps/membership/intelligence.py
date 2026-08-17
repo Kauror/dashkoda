@@ -334,10 +334,12 @@ def build_headlines(
         note="" if share_comparison.is_available else _baseline_note(share_comparison),
     )
 
-    return (members, movement, _fee_headline(latest))
+    return (members, movement, _fee_headline(latest, history))
 
 
-def _fee_headline(latest: ObservationPoint) -> MembershipHeadline:
+def _fee_headline(
+    latest: ObservationPoint, history: tuple[ObservationPoint, ...]
+) -> MembershipHeadline:
     """Fee collection as one readout: the completion, and the amounts under it.
 
     The percentage shown is the one the **amounts imply**, which is the same
@@ -349,12 +351,18 @@ def _fee_headline(latest: ObservationPoint) -> MembershipHeadline:
     When the amounts cannot produce a percentage but the report stated one, that
     reported figure is shown and labelled as reported. The two are never averaged
     and one never quietly stands in for the other.
+
+    The year-ago comparison joined this card on 2026-08-17, matching the other
+    two: computed percentages on both sides, same as `build_insights`' own
+    `fee_collection_yoy` candidate, so a reported figure that disagreed with its
+    own amounts still cannot enter the comparison from either end.
     """
     received = latest.value("membership_fees_received_eur")
     budget = latest.value("membership_fee_budget_eur")
     computed = latest.computed_collection_pct
     reported = latest.value("membership_fee_collection_pct_reported")
     reported_withheld = "membership_fee_collection_pct_reported" in latest.withheld
+    on = latest.observation_date
 
     if computed is not None:
         value, note = percent(computed), ""
@@ -366,16 +374,42 @@ def _fee_headline(latest: ObservationPoint) -> MembershipHeadline:
     else:
         value, note = "", "Laekumise protsenti ei saa arvutada."
 
+    detail = (
+        f"{euros(received)} / {euros(budget)} eelarvest"
+        if received is not None and budget is not None
+        else (euros(received) if received is not None else "")
+    )
+
+    collection_history = tuple(
+        (point.observation_date, point.computed_collection_pct)
+        for point in history
+        if point.computed_collection_pct is not None
+    )
+    collection_comparison = compare_with(computed, on, collection_history)
+    moved_pp = (
+        share_change(computed, collection_comparison.baseline)
+        if collection_comparison.is_available
+        else None
+    )
+
     return MembershipHeadline(
         key="fee_collection",
         label="Liikmemaksu laekumine",
         value=value,
-        detail=(
-            f"{euros(received)} / {euros(budget)}"
-            if received is not None and budget is not None
-            else (euros(received) if received is not None else "")
+        detail=detail,
+        change=percentage_points(moved_pp) if moved_pp is not None else "",
+        change_label=(
+            f"laekumine {percentage_points(moved_pp)} võrreldes aastataguse vaatlusega"
+            if moved_pp is not None
+            else ""
         ),
-        comparison_label="eelarvest",
+        direction=_direction(moved_pp),
+        tone=_tone(moved_pp, rising_is_good=True),
+        comparison_label=(
+            f"aasta tagasi · {_comparison_label(collection_comparison)[3:]}"
+            if collection_comparison.is_available
+            else ""
+        ),
         note=note,
     )
 
