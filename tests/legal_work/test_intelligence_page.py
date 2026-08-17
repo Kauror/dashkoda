@@ -9,6 +9,7 @@ the markup rather than merely absent from the analytics.
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 import pytest
 from django.urls import reverse
@@ -154,12 +155,14 @@ def test_the_overview_carries_the_mandatory_headline_figures(client, authenticat
 
 
 def test_the_overview_carries_the_mandatory_stage_chart(client, authenticate_viewer, register):
-    """Title states the total, so the bars and the headline can be checked."""
+    """The printed title states the total and left the page on 2026-08-17 —
+    see `title_hidden` on `active_stage_chart` — so the total is checked via
+    the canvas's `aria-label` instead, which carries the same figure."""
     authenticate_viewer(client)
 
     content = get(client)
 
-    assert "Aktiivsed teemad hetkeseisu kaupa – kokku 1" in content
+    assert re.search(r"\d aktiivset teemat jaguneb \d hetkeseisu vahel", content)
 
 
 def test_the_workflow_focus_carries_both_monthly_charts(client, authenticate_viewer, register):
@@ -202,9 +205,11 @@ def test_the_current_year_is_marked_as_partial(client, authenticate_viewer, regi
 def test_no_member_response_rate_is_offered_anywhere(client, authenticate_viewer, register):
     """The two feedback counts are not a valid numerator and denominator.
 
-    The word itself does appear once, in the sentence saying the rate is *not*
-    calculated. What must never appear is the claim: a percentage presented as
-    a share of members who answered, or a count of distinct people.
+    The sentence that used to say so — the rate is *not* calculated — left
+    the page on 2026-08-17 along with `Kuidas neid arve lugeda`. What must
+    still never appear, with or without that sentence, is the claim itself: a
+    percentage presented as a share of members who answered, or a count of
+    distinct people.
     """
     authenticate_viewer(client)
 
@@ -284,14 +289,20 @@ def test_the_chart_bundle_loads_only_where_something_is_drawn(
     assert "build/charts.js" not in get(client, "register")
 
 
-def test_every_chart_keeps_a_data_table(client, authenticate_viewer, register):
-    """The table is not a fallback: it stays for readers who never run the module."""
+def test_every_chart_names_itself_for_a_reader_who_cannot_see_the_canvas(
+    client, authenticate_viewer, register
+):
+    """The accessible data table left every chart on 2026-08-17. What is left
+    is `chart.summary`, rendered as the canvas's own `aria-label`."""
     authenticate_viewer(client)
 
     content = get(client, "arvamused")
 
-    assert "Andmed tabelina" in content
-    assert "data-chart-table" in content
+    assert "Andmed tabelina" not in content
+    payload_count = content.count("data-chart-payload=")
+    label_count = len(re.findall(r'data-chart-canvas[^>]*aria-label="[^"]+"', content))
+    assert payload_count > 0
+    assert label_count == payload_count
 
 
 def test_the_page_adds_no_inline_script(client, authenticate_viewer, register):
@@ -310,16 +321,21 @@ def test_a_chart_payload_rides_in_a_non_executable_block(client, authenticate_vi
     assert 'type="application/json"' in get(client, "arvamused")
 
 
-def test_the_feedback_focus_keeps_its_caveats_without_a_chart(
+def test_the_feedback_focus_no_longer_states_its_caveats_inline(
     client, authenticate_viewer, register
 ):
-    """A surface that draws no chart must not lose the notes that qualify it."""
+    """`Kuidas neid arve lugeda` and its four caveats left this focus on
+    2026-08-17. What each one described is unchanged — feedback is still
+    counted, not people; a member is still not unique across topics; no
+    response rate is still ever computed — only the on-page statement of it
+    is gone."""
     authenticate_viewer(client)
 
     content = get(client, "tagasiside")
 
-    assert "Vastamismäära ei arvutata" in content
-    assert "sama liige võib anda tagasisidet" in content
+    assert "Kuidas neid arve lugeda" not in content
+    assert "Vastamismäära ei arvutata" not in content
+    assert "sama liige võib anda tagasisidet" not in content
 
 
 def test_the_page_no_longer_dates_the_data_by_the_workbook(client, authenticate_viewer, register):

@@ -1,23 +1,26 @@
 {% comment %}
-One chart, with its accessible alternative always present.
+One chart.
 
 Contract (see `frontend/src/charts.js`): the figure carries `data-chart` and
 names a payload block; the canvas is the only part hidden when there is nothing
-to draw. The table is **not** a fallback — it stays in the document for every
-reader, so a browser that never runs the module still shows the same numbers.
+to draw.
+
+The accessible data table — `Andmed tabelina`, one row per category, always in
+the document regardless of `title_hidden` — left every chart on 2026-08-17.
+`chart.table_headers` and `chart.table_rows` are still built and still tested
+by every chart function that had them; nothing here renders them any more.
+Screen-reader access to a chart's numbers now rests entirely on
+`chart.summary`, below.
 
 `chart.summary` describes the drawing in words. The board asked for it off the
 page, so it is no longer printed as a caption — but it stays as the canvas's
 `aria-label`, because a `role="img"` with no label is an image nobody using a
 screen reader can read at all. It is written for that use now, and any
-assertion about what a reader *sees* should look at the title or the table.
+assertion about what a reader *sees* should look at the title.
 
 The payload is emitted by `json_script`, which produces a non-executable
 `application/json` block. That is what keeps `script-src` at `'self'` with no
 inline script and no `unsafe-eval`.
-
-The table owns its own horizontal scroll container, so a wide chart table never
-makes the page itself scroll sideways on a phone.
 
 Context:
   chart – a ChartPayload from `apps.membership.charts`
@@ -26,9 +29,9 @@ Context:
 <figure data-chart data-chart-payload="{{ chart.payload_id }}" class="flex w-full flex-col gap-3">
   <figcaption class="flex flex-col gap-1">
     {% comment %}
-    `title_hidden` suppresses the printed heading only. The title itself stays
-    on the payload and still captions the data table below, so hiding it here
-    never leaves a screen reader with an unnamed table.
+    `title_hidden` suppresses the printed heading. The title itself stays on
+    the payload regardless, so a chart function that sets it does not need a
+    second, conditional copy for whatever else might still read it.
     {% endcomment %}
     {% if chart.title and not chart.title_hidden %}
       <span class="text-sm font-medium text-text">{{ chart.title }}</span>
@@ -91,41 +94,6 @@ Context:
     </ul>
   {% endif %}
 
-  <details class="text-sm">
-    <summary class="cursor-pointer text-text-secondary">Andmed tabelina</summary>
-    <div class="mt-2 w-full overflow-x-auto">
-      <table data-chart-table class="w-full min-w-max border-collapse text-sm">
-        <caption class="sr-only">{{ chart.title }}</caption>
-        <thead>
-          <tr>
-            {% for header in chart.table_headers %}
-              <th scope="col"
-                  class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">
-                {{ header }}
-              </th>
-            {% endfor %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in chart.table_rows %}
-            <tr>
-              {% for cell in row %}
-                {% if forloop.first %}
-                  <th scope="row" class="border-b border-border px-4 py-2 text-left font-medium text-text">
-                    {{ cell|default_if_none:"–" }}
-                  </th>
-                {% else %}
-                  <td class="border-b border-border px-4 py-2 text-text-secondary">
-                    {{ cell|default_if_none:"–" }}
-                  </td>
-                {% endif %}
-              {% endfor %}
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    </div>
-  </details>
 </figure>
 
 {{ chart.option|json_script:chart.payload_id }}

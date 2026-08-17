@@ -315,17 +315,21 @@ test("a control link carries only resolved parameters", async ({ page }) => {
   expect(href).not.toContain("onbekend");
 });
 
-test("every chart keeps its data table alongside the drawing", async ({
+test("every chart names itself for a reader who cannot see the canvas", async ({
   page,
 }) => {
   oncePerRun();
   await open_(page);
 
-  const figures = await page.locator("[data-chart-payload]").count();
-  const tables = await page.locator("[data-chart-table]").count();
-
-  expect(figures).toBeGreaterThan(0);
-  expect(tables).toEqual(figures);
+  // The accessible data table left every chart on 2026-08-17. What is left is
+  // `chart.summary`, rendered as the canvas's own `aria-label`.
+  const canvases_ = page.locator("[data-chart-canvas]");
+  const count = await canvases_.count();
+  expect(count).toBeGreaterThan(0);
+  for (let index = 0; index < count; index += 1) {
+    const label = await canvases_.nth(index).getAttribute("aria-label");
+    expect(label?.trim()).toBeTruthy();
+  }
 });
 
 test("charts still render with reduced motion requested", async ({ page }) => {

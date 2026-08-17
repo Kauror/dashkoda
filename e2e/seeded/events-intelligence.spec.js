@@ -108,18 +108,19 @@ for (const focus of CHART_FOCUS) {
   });
 }
 
-test("every chart keeps its data table in the document", async ({ page }) => {
+test("every chart names itself for a reader who cannot see the canvas", async ({
+  page,
+}) => {
   oncePerRun();
   await open_(page, "maht");
 
-  /* The table is not a fallback that appears when something breaks. It stays for
-     every reader, and it is what makes these charts reachable by keyboard and by
-     screen reader at all — neither tooltip is. */
+  /* The accessible data table left every chart on 2026-08-17. `chart.summary`,
+     the canvas's own `aria-label`, is what is left to reach these charts by
+     keyboard or by screen reader — neither tooltip does either. */
   const figures = page.locator("figure[data-chart]");
   const count = await figures.count();
   expect(count).toBeGreaterThan(0);
   for (let index = 0; index < count; index += 1) {
-    await expect(figures.nth(index).locator("table[data-chart-table]")).toHaveCount(1);
     await expect(figures.nth(index).locator("[data-chart-canvas]")).toHaveAttribute(
       "aria-label",
       /.+/,
@@ -190,32 +191,8 @@ for (const [focus] of FOCUS) {
   });
 }
 
-test("a wide chart table scrolls inside its own container", async ({ page }) => {
-  await open_(page, "formaadid");
-
-  /* A wide table legitimately scrolls inside its wrapper. The document not
-     scrolling sideways is the invariant, and it is the one that has broken here
-     before. */
-  const tables = page.locator("figure[data-chart] table");
-  const count = await tables.count();
-  expect(count).toBeGreaterThan(0);
-  for (let index = 0; index < count; index += 1) {
-    const contained = await tables.nth(index).evaluate((node) => {
-      if (node.getBoundingClientRect().width <= node.parentElement.clientWidth + 1) {
-        return true;
-      }
-      for (let element = node.parentElement; element; element = element.parentElement) {
-        const overflowX = getComputedStyle(element).overflowX;
-        if (overflowX === "auto" || overflowX === "scroll") {
-          return true;
-        }
-        if (element.tagName === "MAIN") {
-          break;
-        }
-      }
-      return false;
-    });
-    expect(contained).toBe(true);
-  }
-  await expectNoHorizontalOverflow(page);
-});
+/* `a wide chart table scrolls inside its own container` left with the table
+   itself on 2026-08-17 — the accessible data table under every chart is gone
+   app-wide, see `chart_figure.html`. The invariant it guarded, the document
+   never scrolling sideways, is still checked for this focus by the loop
+   above. */

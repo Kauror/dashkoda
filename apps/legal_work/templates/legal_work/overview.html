@@ -255,30 +255,13 @@ dashboard overview. They stay on the default focus and keep their ids;
     </section>
   {% endif %}
 
-  {# ---------------- Lähenevad tähtajad ---------------- #}
-  {% if deadlines %}
-    <section aria-labelledby="section-deadlines" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Lähenevad tähtajad" heading_id="section-deadlines" only %}
-      <ul class="divide-y divide-border">
-        {% for deadline in deadlines %}
-          <li class="flex flex-wrap items-baseline gap-x-3 gap-y-1 px-4 py-2.5 sm:px-5">
-            {% comment %}
-            The remaining time is written as text beside the colour, so urgency
-            is never carried by hue alone.
-            {% endcomment %}
-            <span class="flex-none text-micro font-semibold tracking-wide uppercase {% if deadline.variant == 'danger' %}text-danger{% elif deadline.variant == 'warning' %}text-warning{% else %}text-info{% endif %}">{{ deadline.remaining_label }}</span>
-            {% include "dashboard/components/legal_topic.html" with item=deadline.topic class_name="min-w-0 flex-1 text-sm" only %}
-            <time class="dk-meta flex-none whitespace-nowrap tabular-nums" datetime="{{ deadline.deadline_date|date:'Y-m-d' }}">{{ deadline.deadline_date|date:"j.m.y" }}</time>
-          </li>
-        {% endfor %}
-      </ul>
-      {% if page.focus == "ulevaade" %}
-        <div class="dk-section-body pt-0">
-          <a class="dk-link text-sm" href="?fookus=aktiivsed">Aktiivsed teemad →</a>
-        </div>
-      {% endif %}
-    </section>
-  {% endif %}
+  {% comment %}
+  `Lähenevad tähtajad` and its link into `Aktiivsed teemad` left the page on
+  2026-08-17, along with the `Aktiivsed teemad` focus itself — see
+  `FOCUS_CHOICES` in `intelligence_page.py`. `deadlines` is still computed and
+  still feeds `resolve_links_for` in `views.py`, so no link resolution
+  elsewhere on the page changed; only this list's own render did.
+  {% endcomment %}
 
   {% comment %}
   The `Liikmete tagasiside` preview left the overview on 2026-08-16: it was

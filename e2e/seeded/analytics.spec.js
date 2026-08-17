@@ -40,19 +40,26 @@ const oncePerRun = () =>
     "viewport-independent; runs once on the desktop project",
   );
 
-/** The visible label of every row in a chart's accessible data table. */
-const chartTableLabels = (page, captionPrefix) =>
-  page.evaluate((prefix) => {
-    const caption = Array.from(document.querySelectorAll("main table caption")).find((node) =>
-      node.textContent.trim().startsWith(prefix),
-    );
-    if (!caption) {
+/**
+ * The category label of every row a chart draws, read from its own
+ * non-executable JSON payload rather than the accessible data table that
+ * left every chart on 2026-08-17 — see `chart_figure.html`. `dashkoda.tooltip`
+ * is keyed by row and every value carries `title`, the row's own label —
+ * built the same way whether the chart draws one category-axis bar per row
+ * or, like the composition charts, one stacked series per row on a single
+ * shared category. Reading tooltip titles works either shape; `yAxis.data`
+ * does not.
+ */
+const chartCategoryLabels = (page, payloadId) =>
+  page.evaluate((id) => {
+    const script = document.getElementById(id);
+    if (!script) {
       return [];
     }
-    return Array.from(caption.closest("table").querySelectorAll("tbody tr th")).map((cell) =>
-      cell.textContent.trim(),
-    );
-  }, captionPrefix);
+    const option = JSON.parse(script.textContent);
+    const tooltip = (option.dashkoda && option.dashkoda.tooltip) || {};
+    return Object.values(tooltip).map((row) => row.title);
+  }, payloadId);
 
 // ---------------------------------------------------------------------------
 // Ülevaade
@@ -113,18 +120,25 @@ test("the chart bundle loads only where there is something to draw", async ({ pa
   expect(scripts.some((src) => src.includes("charts.js"))).toBe(true);
 });
 
-test("every chart keeps its numbers as a table", async ({ page }) => {
+test("every chart names itself for a reader who cannot see the canvas", async ({
+  page,
+}) => {
   oncePerRun();
   await signIn(page);
   await page.goto("/koduleht/?fookus=sisu");
 
-  // The table is not a fallback: it stays in the document for every reader, and
-  // only the canvas is hidden when there is nothing to draw.
+  // The accessible data table left every chart on 2026-08-17. What is left is
+  // `chart.summary`, rendered as the canvas's own `aria-label` — a `role="img"`
+  // with no label is an image nobody using a screen reader can read at all.
   const figures = page.locator("figure[data-chart]");
   const count = await figures.count();
   expect(count).toBeGreaterThan(0);
   for (let index = 0; index < count; index += 1) {
-    await expect(figures.nth(index).locator("table[data-chart-table]")).toHaveCount(1);
+    const label = await figures
+      .nth(index)
+      .locator("[data-chart-canvas]")
+      .getAttribute("aria-label");
+    expect(label?.trim()).toBeTruthy();
   }
 });
 
@@ -137,7 +151,7 @@ test("no language root or utility path occupies a ranking position", async ({ pa
   await signIn(page);
   await page.goto("/koduleht/?fookus=sisu&periood=koik");
 
-  const labels = await chartTableLabels(page, "Enim vaadatud sisu");
+  const labels = await chartCategoryLabels(page, "koduleht-enim-vaadatud");
   expect(labels.length).toBeGreaterThan(0);
 
   /*
@@ -206,7 +220,7 @@ test("the language split disclaims what it does not measure", async ({ page }) =
   await signIn(page);
   await page.goto("/koduleht/?fookus=sisu");
 
-  const labels = await chartTableLabels(page, "Lehevaatamised sisukeele järgi");
+  const labels = await chartCategoryLabels(page, "koduleht-keeled");
   expect(labels).toContain("Eesti");
   expect(labels).toContain("Inglise");
   await expect(page.locator("main")).toContainText("mitte külastaja rahvust");
@@ -218,8 +232,22 @@ test("the opportunity matrix names measurements rather than verdicts", async ({ 
   await page.goto("/koduleht/?fookus=sisu&periood=30");
 
   await expect(page.getByRole("heading", { name: "Tähelepanu ja kaasatus" })).toBeVisible();
+
+  // The quadrant name used to reach `main` through the accessible table's
+  // `Rühm` column, which left every chart on 2026-08-17. Read from the same
+  // payload the removed table's rows were built from instead.
+  const rowValues = await page.evaluate(() => {
+    const script = document.getElementById("koduleht-kaasatuse-maatriks");
+    if (!script) {
+      return [];
+    }
+    const option = JSON.parse(script.textContent);
+    const tooltip = (option.dashkoda && option.dashkoda.tooltip) || {};
+    return Object.values(tooltip).flatMap((entry) => entry.rows.map((row) => row.value));
+  });
+  expect(rowValues).toContain("Palju vaatamisi, lühem kaasatus");
+
   const main = page.locator("main");
-  await expect(main).toContainText("Palju vaatamisi, lühem kaasatus");
   for (const verdict of ["hea sisu", "halb sisu", "ebaõnnestunud"]) {
     await expect(main).not.toContainText(verdict);
   }
@@ -248,7 +276,7 @@ test("channels are shown with the denominator their shares used", async ({ page 
   await expect(
     page.getByRole("heading", { name: "Külastused kanalite kaupa" }),
   ).toBeVisible();
-  const labels = await chartTableLabels(page, "Külastused kanalite kaupa");
+  const labels = await chartCategoryLabels(page, "koduleht-kanalid");
   expect(labels).toContain("Organic Search");
 });
 
@@ -279,7 +307,7 @@ test("searching reaches a page the ranking does not show", async ({ page }) => {
    * uncatalogued and show their paths instead.
    */
   const wanted = "Sünteetiline uudise pealkiri 12";
-  expect(await chartTableLabels(page, "Enim vaadatud sisu")).not.toContain(wanted);
+  expect(await chartCategoryLabels(page, "koduleht-enim-vaadatud")).not.toContain(wanted);
 
   // Through the control itself, not through a hand-built URL — the parameter
   // never reaching the view is exactly the defect this file was written for.

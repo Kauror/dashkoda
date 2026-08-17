@@ -20,19 +20,14 @@ from dataclasses import dataclass, field
 
 from . import charts
 from .analytics import (
-    ActiveAge,
     DataQuality,
-    DeadlinePressure,
     FeedbackSummary,
     StageBreakdown,
-    act_type_breakdown,
-    active_topic_age,
     annual_sent_opinions,
     annual_topics,
     count_sent_in_year,
     count_topics_for_year,
     data_quality,
-    deadline_pressure,
     feedback_breakdown,
     feedback_coverage_by_year,
     feedback_summary,
@@ -42,7 +37,6 @@ from .analytics import (
     recipient_breakdown,
     response_window_by_year,
     response_window_distribution,
-    sent_by_deadline,
     sent_year_on_year,
     stage_breakdown,
     top_feedback_topics,
@@ -57,18 +51,18 @@ PARAM_FOCUS = "fookus"
 
 FOCUS_OVERVIEW = "ulevaade"
 FOCUS_WORKFLOW = "toovoog"
-FOCUS_ACTIVE = "aktiivsed"
 FOCUS_OPINIONS = "arvamused"
 FOCUS_FEEDBACK = "tagasiside"
 FOCUS_REGISTER = "register"
 
 #: The closed set, in the order the navigation draws it. A value outside it is
 #: not an error the reader caused on purpose — a truncated link, an old
-#: bookmark — so it resolves to the overview instead of a 404.
+#: bookmark — so it resolves to the overview instead of a 404. `aktiivsed`
+#: left the set on 2026-08-17; a link still carrying it resolves here too,
+#: same as any other stale value.
 FOCUS_CHOICES: tuple[tuple[str, str], ...] = (
     (FOCUS_OVERVIEW, "Ülevaade"),
     (FOCUS_WORKFLOW, "Töövoog"),
-    (FOCUS_ACTIVE, "Aktiivsed teemad"),
     (FOCUS_OPINIONS, "Arvamused"),
     (FOCUS_FEEDBACK, "Liikmete tagasiside"),
     (FOCUS_REGISTER, "Register"),
@@ -165,8 +159,6 @@ class IntelligencePage:
     charts: tuple = ()
     deadlines: tuple = ()
     stage: StageBreakdown | None = None
-    age: ActiveAge | None = None
-    pressure: DeadlinePressure | None = None
     feedback: FeedbackSummary | None = None
     feedback_coverage: tuple = ()
     feedback_topics: tuple = ()
@@ -230,7 +222,6 @@ def _headlines(snapshot, year: int) -> tuple[Headline, ...]:
         Headline(
             label="Hetkel töös",
             value=integer(active),
-            note="Aktiivsed teemad hetkeseisuga",
         ),
     )
 
@@ -243,9 +234,10 @@ def _secondary(snapshot, year: int) -> tuple[Headline, ...]:
     `Sisse tulnud sel aastal` and `Tähtaeg 7 päeva jooksul` left on 2026-08-16,
     and their selectors went with them: this function no longer calls
     `topics_year_on_year` or `deadline_pressure`, because a figure nothing
-    renders is a query nobody needed. Both selectors are untouched and still
-    tested, and `deadline_pressure` still drives the `Lähenevad tähtajad`
-    insight from `_insights`.
+    renders is a query nobody needed. `topics_year_on_year` is still called
+    from `_insights`; `deadline_pressure` is untouched and still tested, and
+    still drives the executive overview's own reading — see
+    `apps.legal_work.executive`.
     """
     windows = {entry.year: entry for entry in response_window_by_year(snapshot)}
     this_year = windows.get(year)
@@ -262,31 +254,26 @@ def _secondary(snapshot, year: int) -> tuple[Headline, ...]:
 
 
 def _insights(snapshot, year: int) -> tuple[Insight, ...]:
-    """`Mis muutus?` — only comparisons the data can actually support."""
+    """`Mis muutus?` — only comparisons the data can actually support.
+
+    `Arvamusi välja saadetud`, `Arvamuse esitamiseks antud aeg` and
+    `Lähenevad tähtajad` left this section on 2026-08-17; each stated a
+    figure the headline strip or the response-time chart already carried.
+    `sent_year_on_year` is still called from `_headlines` and
+    `response_window_by_year` from `_secondary`, so nothing computed for
+    them is lost, only their repetition here. The `Aktiivsed teemad` focus
+    that `Lähenevad tähtajad` also echoed left the page the same day — see
+    `FOCUS_CHOICES`.
+    """
     from apps.core.formatting import integer, signed_integer
 
     found: list[Insight] = []
-
-    sent_change = sent_year_on_year(snapshot)
-    if sent_change is not None and sent_change.previous:
-        found.append(
-            Insight(
-                label="Arvamusi välja saadetud",
-                detail=(
-                    f"{integer(sent_change.current)} sel aastal seisuga "
-                    f"{sent_change.current_cutoff:%d.%m.%Y}, eelmisel aastal sama "
-                    f"kuupäevani {integer(sent_change.previous)} "
-                    f"({signed_integer(sent_change.absolute_change)})."
-                ),
-                direction=sent_change.direction,
-            )
-        )
 
     arrivals = topics_year_on_year(snapshot)
     if arrivals is not None and arrivals.previous:
         found.append(
             Insight(
-                label="Uusi teemasid saabunud",
+                label="Uusi teemasid sisse",
                 detail=(
                     f"{integer(arrivals.current)} sel aastal seisuga "
                     f"{arrivals.current_cutoff:%d.%m.%Y}, eelmisel aastal sama "
@@ -294,32 +281,6 @@ def _insights(snapshot, year: int) -> tuple[Insight, ...]:
                     f"({signed_integer(arrivals.absolute_change)})."
                 ),
                 direction=arrivals.direction,
-            )
-        )
-
-    windows = {entry.year: entry for entry in response_window_by_year(snapshot)}
-    this_year, last_year = windows.get(year), windows.get(year - 1)
-    if this_year and last_year and this_year.median is not None and last_year.median is not None:
-        found.append(
-            Insight(
-                label="Arvamuse esitamiseks antud aeg",
-                detail=(
-                    f"{year}. aasta mediaan on {this_year.median:.0f} päeva, "
-                    f"{year - 1}. aastal {last_year.median:.0f} päeva."
-                ),
-                direction="down" if this_year.median < last_year.median else "up",
-            )
-        )
-
-    pressure = deadline_pressure(snapshot)
-    if pressure.due_within_7:
-        found.append(
-            Insight(
-                label="Lähenevad tähtajad",
-                detail=(
-                    f"{integer(pressure.due_within_7)} aktiivsel teemal on tähtaeg "
-                    "seitsme päeva jooksul."
-                ),
             )
         )
 
@@ -346,8 +307,6 @@ def build_page(snapshot, *, focus: str, page_url: str) -> IntelligencePage:
         return _overview(snapshot, year, focus, label, links)
     if focus == FOCUS_WORKFLOW:
         return _workflow(snapshot, year, focus, label, links)
-    if focus == FOCUS_ACTIVE:
-        return _active(snapshot, year, focus, label, links)
     if focus == FOCUS_OPINIONS:
         return _opinions(snapshot, year, focus, label, links)
     if focus == FOCUS_FEEDBACK:
@@ -407,73 +366,25 @@ def _workflow(snapshot, year, focus, label, links) -> IntelligencePage:
                 series_label="Välja saadetud arvamused",
             ),
             charts.annual_topics_chart(annual_topics(snapshot)),
-            charts.category_chart(
-                act_type_breakdown(snapshot),
-                payload_id="legal-act-types",
-                title="Enim esinevad õigusakti liigid",
-                question="Milliste õigusaktidega Koda kõige rohkem tegeleb?",
-                category_header="Õigusakti liik",
-            ),
+            # `Enim esinevad õigusakti liigid` — the act-type breakdown chart
+            # — left this focus entirely on 2026-08-17, and `act_type_breakdown`
+            # went with it: a one-line wrapper over `_category_breakdown`
+            # with no other caller and no test of its own.
             charts.category_chart(
                 recipient_breakdown(snapshot),
                 payload_id="legal-recipients",
-                title="Kellele arvamusi saadetakse?",
-                question="Millistele asutustele Koja töö suundub?",
+                title="Kellele arvamusi oleme saatnud",
                 category_header="Saaja",
             ),
         ),
-        footnotes=(
-            "Sisse tulnud teemad ja välja saadetud arvamused on kaks eraldi mõõdikut. "
-            "Üks saabunud teema ei tähenda tingimata ühte arvamust ja arvamuse "
-            "saatmine ei sulge teemat.",
-        ),
-    )
-
-
-def _active(snapshot, year, focus, label, links) -> IntelligencePage:
-    stages = stage_breakdown(snapshot)
-    age = active_topic_age(snapshot)
-    pressure = deadline_pressure(snapshot)
-    return IntelligencePage(
-        focus=focus,
-        focus_label=label,
-        links=links,
-        reporting_year=year,
-        stage=stages,
-        age=age,
-        pressure=pressure,
-        charts=(
-            charts.active_stage_chart(stages),
-            charts.active_age_chart(age),
-            charts.deadline_pressure_chart(pressure),
-        ),
-        # `Hetkel töös` renders on the overview alone since 2026-08-16 — this
-        # focus repeated the table wholesale under its charts, so the query
-        # goes with the section. The deadline list stays: it is this view's
-        # own analysis, uncapped where the overview previews seven.
-        deadlines=get_upcoming_deadlines(snapshot),
+        # `Kuidas neid arve lugeda` and its one caveat left with it, on the
+        # same day.
     )
 
 
 def _opinions(snapshot, year, focus, label, links) -> IntelligencePage:
-    from apps.core.formatting import integer, percent
-
     comparison = sent_year_on_year(snapshot)
     windows = response_window_by_year(snapshot)
-    timing = sent_by_deadline(snapshot)
-
-    footnotes = [
-        "„Arvamus saadetud hiljemalt märgitud tähtajaks“ kirjeldab kuupäevi, mitte "
-        "kellegi tööd: tähtaegu lepitakse kokku, lähteandmete kuupäevi täpsustatakse "
-        "hiljem ja osa arvamusi esitatakse teadlikult pärast tähtaega.",
-    ]
-    if timing.eligible:
-        footnotes.insert(
-            0,
-            f"Arvamus saadetud hiljemalt märgitud tähtajaks: "
-            f"{integer(timing.on_or_before)} / {integer(timing.eligible)} "
-            f"({percent(timing.share_on_or_before)}).",
-        )
 
     return IntelligencePage(
         focus=focus,
@@ -487,28 +398,15 @@ def _opinions(snapshot, year, focus, label, links) -> IntelligencePage:
         ),
         # `Viimati välja läinud` renders on the overview alone since
         # 2026-08-16 — this focus repeated it — so the query goes too.
-        footnotes=tuple(footnotes),
+        # `Kuidas neid arve lugeda` and its on-time-submission footnotes left
+        # on 2026-08-17; `sent_by_deadline` is untouched and still tested,
+        # just no longer called here.
     )
 
 
 def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
     summary = feedback_summary(snapshot, year=year)
     start_year = first_tracked_feedback_year(snapshot)
-
-    footnotes = [
-        "Allikas salvestab arvud, mitte isikuid: kui palju liikmeid vastas ja kui "
-        "paljudelt otse küsiti. Liikmete nimesid ega ettevõtteid siin ei ole.",
-        "Tegemist ei ole unikaalsete liikmetega — sama liige võib anda tagasisidet "
-        "mitmel teemal ja läheb igal teemal eraldi arvesse.",
-        "Vastamismäära ei arvutata: tagasisidet andnud liikmed ei ole otse küsitute "
-        "alamhulk, sest liikmed vastavad ka uudiskirja ja üldiste pöördumiste kaudu.",
-    ]
-    if start_year is not None:
-        footnotes.insert(
-            0,
-            f"Liikmete tagasiside mõõtmine algab registris {start_year}. aastast. "
-            "Varasemaid aastaid ei kuvata nullina.",
-        )
 
     # Only drawn once there is something to describe. A breakdown built from two
     # measured topics would rank noise, and an empty bar chart beside a
@@ -523,7 +421,6 @@ def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
                     by_act_type,
                     payload_id="legal-feedback-act-types",
                     title="Milliste õigusaktide teemadel liikmed tagasisidet annavad",
-                    question="Kus liikmete osalus koondub?",
                     category_header="Õigusakti liik",
                 )
             )
@@ -533,7 +430,6 @@ def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
                     by_recipient,
                     payload_id="legal-feedback-recipients",
                     title="Tagasisidega teemad saaja järgi",
-                    question="Milliste asutuste teemadel liikmed osalevad?",
                     category_header="Saaja",
                 )
             )
@@ -548,7 +444,9 @@ def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
         feedback_start_year=start_year,
         feedback_topics=top_feedback_topics(snapshot),
         charts=tuple(breakdown_charts),
-        footnotes=tuple(footnotes),
+        # `Kuidas neid arve lugeda` and its four caveats left on 2026-08-17.
+        # `start_year` still reaches the page — see `feedback_start_year`
+        # above — so a reader can still see where the series begins.
     )
 
 

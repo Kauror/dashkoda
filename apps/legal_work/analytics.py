@@ -1180,12 +1180,6 @@ def recipient_breakdown(
     return _category_breakdown(snapshot, "recipient", limit=limit)
 
 
-def act_type_breakdown(
-    snapshot: LegalWorkSnapshot | None, *, limit: int = TOP_CATEGORY_LIMIT
-) -> tuple[CategoryRow, ...]:
-    return _category_breakdown(snapshot, "act_type", limit=limit)
-
-
 # --------------------------------------------------------------------------
 # Data quality
 # --------------------------------------------------------------------------
