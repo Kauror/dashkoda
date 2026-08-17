@@ -191,32 +191,8 @@ for (const [focus] of FOCUS) {
   });
 }
 
-test("a wide chart table scrolls inside its own container", async ({ page }) => {
-  await open_(page, "formaadid");
-
-  /* A wide table legitimately scrolls inside its wrapper. The document not
-     scrolling sideways is the invariant, and it is the one that has broken here
-     before. */
-  const tables = page.locator("figure[data-chart] table");
-  const count = await tables.count();
-  expect(count).toBeGreaterThan(0);
-  for (let index = 0; index < count; index += 1) {
-    const contained = await tables.nth(index).evaluate((node) => {
-      if (node.getBoundingClientRect().width <= node.parentElement.clientWidth + 1) {
-        return true;
-      }
-      for (let element = node.parentElement; element; element = element.parentElement) {
-        const overflowX = getComputedStyle(element).overflowX;
-        if (overflowX === "auto" || overflowX === "scroll") {
-          return true;
-        }
-        if (element.tagName === "MAIN") {
-          break;
-        }
-      }
-      return false;
-    });
-    expect(contained).toBe(true);
-  }
-  await expectNoHorizontalOverflow(page);
-});
+/* `a wide chart table scrolls inside its own container` left with the table
+   itself on 2026-08-17 — the accessible data table under every chart is gone
+   app-wide, see `chart_figure.html`. The invariant it guarded, the document
+   never scrolling sideways, is still checked for this focus by the loop
+   above. */

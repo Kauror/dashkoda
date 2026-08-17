@@ -95,7 +95,7 @@ for (const page_ of PAGES) {
   });
 }
 
-test("every chart keeps its accessible table alongside the drawing", async ({
+test("every chart names itself for a reader who cannot see the drawing", async ({
   page,
 }) => {
   oncePerRun();
@@ -103,25 +103,22 @@ test("every chart keeps its accessible table alongside the drawing", async ({
 
   /*
    * The rule is a pairing: a drawing never appears without a readable
-   * equivalent beside it. It used to be asserted as "the website page has at
-   * least one table", which held only because the social sparklines were on
-   * that page. They were struck out by the board, and for a while afterwards
-   * the seed published no GA4 history at all, so the page drew nothing here — a
-   * count would pass or fail on which sections happen to exist rather than on
-   * the guarantee. The seed publishes analytics again and Koduleht draws
-   * several charts, so this loop has something to check there too; the shape of
-   * the test stays as it is, because that is what keeps it honest either way.
+   * equivalent beside it. The accessible data table this once asserted left
+   * every chart on 2026-08-17 — see `chart_figure.html` — and what a
+   * `role="img"` pairs with now is its own `aria-label`, built from
+   * `chart.summary`. A `role="img"` with no label is an image nobody using a
+   * screen reader can read at all.
    *
    * So: assert the pairing wherever something is drawn, and assert it on a page
    * the seed does populate, or the test proves nothing.
    */
   for (const path of ["/koduleht/", "/liikmeskond/"]) {
     await page.goto(path);
-    const drawings = await page.locator('main [role="img"]').count();
-    const captions = await page.locator("main table caption").count();
-    if (drawings > 0) {
-      const why = `${path} draws ${drawings} chart(s) with no accessible table`;
-      expect(captions, why).toBeGreaterThan(0);
+    const drawings = page.locator('main [role="img"]');
+    const count = await drawings.count();
+    for (let index = 0; index < count; index += 1) {
+      const label = await drawings.nth(index).getAttribute("aria-label");
+      expect(label?.trim(), `${path} chart ${index} has no aria-label`).toBeTruthy();
     }
   }
 

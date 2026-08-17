@@ -40,19 +40,22 @@ const oncePerRun = () =>
     "viewport-independent; runs once on the desktop project",
   );
 
-/** The visible label of every row in a chart's accessible data table. */
-const chartTableLabels = (page, captionPrefix) =>
-  page.evaluate((prefix) => {
-    const caption = Array.from(document.querySelectorAll("main table caption")).find((node) =>
-      node.textContent.trim().startsWith(prefix),
-    );
-    if (!caption) {
+/**
+ * The category label of every row a chart draws, read from its own
+ * non-executable JSON payload rather than the accessible data table that
+ * left every chart on 2026-08-17 — see `chart_figure.html`. Every chart this
+ * file reads from is a horizontal category ranking, so `option.yAxis.data`
+ * is exactly the labels the removed table's row headers used to carry.
+ */
+const chartCategoryLabels = (page, payloadId) =>
+  page.evaluate((id) => {
+    const script = document.getElementById(id);
+    if (!script) {
       return [];
     }
-    return Array.from(caption.closest("table").querySelectorAll("tbody tr th")).map((cell) =>
-      cell.textContent.trim(),
-    );
-  }, captionPrefix);
+    const option = JSON.parse(script.textContent);
+    return (option.yAxis && option.yAxis.data) || [];
+  }, payloadId);
 
 // ---------------------------------------------------------------------------
 // Ülevaade
@@ -144,7 +147,7 @@ test("no language root or utility path occupies a ranking position", async ({ pa
   await signIn(page);
   await page.goto("/koduleht/?fookus=sisu&periood=koik");
 
-  const labels = await chartTableLabels(page, "Enim vaadatud sisu");
+  const labels = await chartCategoryLabels(page, "koduleht-enim-vaadatud");
   expect(labels.length).toBeGreaterThan(0);
 
   /*
@@ -213,7 +216,7 @@ test("the language split disclaims what it does not measure", async ({ page }) =
   await signIn(page);
   await page.goto("/koduleht/?fookus=sisu");
 
-  const labels = await chartTableLabels(page, "Lehevaatamised sisukeele järgi");
+  const labels = await chartCategoryLabels(page, "koduleht-keeled");
   expect(labels).toContain("Eesti");
   expect(labels).toContain("Inglise");
   await expect(page.locator("main")).toContainText("mitte külastaja rahvust");
@@ -255,7 +258,7 @@ test("channels are shown with the denominator their shares used", async ({ page 
   await expect(
     page.getByRole("heading", { name: "Külastused kanalite kaupa" }),
   ).toBeVisible();
-  const labels = await chartTableLabels(page, "Külastused kanalite kaupa");
+  const labels = await chartCategoryLabels(page, "koduleht-kanalid");
   expect(labels).toContain("Organic Search");
 });
 
@@ -286,7 +289,7 @@ test("searching reaches a page the ranking does not show", async ({ page }) => {
    * uncatalogued and show their paths instead.
    */
   const wanted = "Sünteetiline uudise pealkiri 12";
-  expect(await chartTableLabels(page, "Enim vaadatud sisu")).not.toContain(wanted);
+  expect(await chartCategoryLabels(page, "koduleht-enim-vaadatud")).not.toContain(wanted);
 
   // Through the control itself, not through a hand-built URL — the parameter
   // never reaching the view is exactly the defect this file was written for.
