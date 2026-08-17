@@ -40,8 +40,6 @@ from datetime import date, datetime
 
 from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
 
-from .sparkline import Sparkline
-
 
 @dataclass(frozen=True)
 class ExecutiveLink:
@@ -114,8 +112,8 @@ class ExecutiveMetric:
 class ExecutiveFact:
     """One supporting figure under a headline. Smaller, and still sourced.
 
-    A fact carries its own source and date because a pillar may mix them: the
-    Liikmeskond pillar's headline is the public directory and its paid share is
+    A fact carries its own source and date because a card may mix them: the
+    Liikmeskond card's headline is the public directory and its paid share is
     the internal board report, and a reader must be able to tell which is which
     without being told twice.
     """
@@ -137,31 +135,53 @@ class ExecutiveFact:
 
 
 @dataclass(frozen=True)
-class ExecutivePillar:
-    """One strategic area.
+class ExecutiveDomainCard:
+    """One of the six domains, compact enough that six fit in two rows.
 
-    Ordered as the reader asks: the area, the one figure that describes it,
-    what that figure means, and then the supporting detail. A pillar holds at
-    most one visual, never a table, and never a filter.
+    The successor to `ExecutivePillar`, which was a tall card built for a strip
+    of four or five strategic areas. Six of those did not fit a screen, and a
+    front page that has to be scrolled to see its sixth domain has stopped being
+    a cockpit. What came off is everything that was not a number or a label: the
+    meaning sentence, the sparkline, the per-fact source captions.
 
-    There is no `question` field. Each card used to open with the question its
-    figure answers; the board struck those lines on 2026-08-15, and a field the
-    template no longer renders would be a sentence waiting to drift from the
-    page.
+    The order inside the card is fixed and is what makes six of them scannable —
+    a reader's eye lands in the same place on every one:
+
+    ```text
+    DOMAIN
+    BIG NUMBER  unit
+    comparison
+
+    fact label            value
+    fact label            value
+
+    period/as-of          Vaata … →
+    ```
+
+    Deliberately absent:
+
+    - **a meaning sentence.** `ExecutivePillar.meaning` restated the comparison
+      immediately above it in words. The domains still compose one — the domain
+      pages use it — and this card does not print it;
+    - **a trend.** A sparkline two centimetres wide cannot be read and the
+      comparison says what it was for;
+    - **a status colour for the card as a whole.** There is no red/amber/green
+      verdict on a domain here. What needs attention is decided by the domains
+      and collected in `Tähelepanu`, one section up, where it arrives with the
+      evidence behind it.
     """
 
     key: str
     label: str
     headline: ExecutiveMetric | None = None
-    #: One sentence, composed by the domain from its own explicit metrics.
-    meaning: str = ""
     facts: tuple[ExecutiveFact, ...] = ()
-    trend: Sparkline | None = None
-    #: What the trend's line is, so it is never read as the headline's history
-    #: when it is not.
-    trend_label: str = ""
+    #: The one period or as-of line at the foot of the card, in the domain's own
+    #: vocabulary. Not assembled from the metrics by the template: a card whose
+    #: figures come from two sources — Liikmeskond is the worked example — has to
+    #: be able to name both currencies in one short line.
+    period_line: str = ""
     links: tuple[ExecutiveLink, ...] = ()
-    #: Why this pillar has nothing to show. Empty when it does.
+    #: Why this card has nothing to show. Empty when it does.
     unavailable_note: str = ""
 
     @property
@@ -178,7 +198,7 @@ class ExecutiveSignal:
     """One domain's signal, placed on the page.
 
     The domain supplied everything except `domain_label` and `position`: what it
-    says, how urgent it is and where it links. This adds only which pillar it
+    says, how urgent it is and where it links. This adds only which domain it
     belongs to and where it ended up in the order, because those are facts about
     the page rather than about legislation or Commerce.
     """
@@ -258,12 +278,19 @@ class ExecutiveUpcomingItem:
 
 @dataclass(frozen=True)
 class ExecutiveInterestItem:
-    """One panel of `Praegu huvi pakkuv`.
+    """One column of `Praegu enim huvi`.
 
-    Four of these appear side by side and their metrics are **not comparable**:
-    page views, article views, event-page views and acquired units. Each states
-    its own metric name and its own period for exactly that reason, and nothing
-    ranks them against one another or puts them on a shared axis.
+    Three of these appear side by side and their metrics are **not comparable**:
+    page views, article views and acquired units. Each states its own metric name
+    and its own period for exactly that reason, and nothing ranks them against
+    one another or puts them on a shared axis.
+
+    There were four. The fourth was the next scheduled event, and it left on
+    2026-08-17: this section answers "what are people paying attention to", and a
+    date in the future is not an answer to it. Events are on the page twice
+    already — the Sündmused card's headline and the timeline's own lane — and
+    a scheduled date beside three measured figures invited exactly the comparison
+    the rest of this docstring forbids.
     """
 
     domain_label: str
@@ -321,26 +348,20 @@ class ExecutiveOverviewPage:
     template tag reaching into a selector, and no JavaScript fetching a figure.
     """
 
-    pillars: tuple[ExecutivePillar, ...] = ()
+    #: The six domain cards of `Põhinäitajad`, in reading order.
+    cards: tuple[ExecutiveDomainCard, ...] = ()
     signals: tuple[ExecutiveSignal, ...] = ()
-    #: The Õigusloome section's two lists, straight off the domain executive.
-    #: `LegalTopicPresentation` rows, so the shared `legal_topic` component
-    #: reads them on the contract it reads every other legal list on.
-    legal_in_progress: tuple = ()
-    legal_recently_sent: tuple = ()
     upcoming: tuple[ExecutiveUpcomingItem, ...] = ()
     interest: tuple[ExecutiveInterestItem, ...] = ()
-    #: The channel audience strip, built by `apps.visibility` as it always was.
+    #: The audience strip, built by `apps.visibility` as it always was — minus
+    #: the website slot, whose sessions are the `Koduleht ja uudised` card's
+    #: headline and must not appear on one page twice.
     channels: tuple = ()
     data_status: tuple[ExecutiveDataStatus, ...] = ()
 
     @property
     def has_signals(self) -> bool:
         return bool(self.signals)
-
-    @property
-    def has_legal_lists(self) -> bool:
-        return bool(self.legal_in_progress or self.legal_recently_sent)
 
     @property
     def has_upcoming(self) -> bool:
@@ -367,7 +388,9 @@ class ExecutiveOverviewPage:
 
         Deliberately **not** a business KPI. The header never prints a
         connected-source ratio: how much plumbing is attached is not a measure
-        of how the Chamber is doing.
+        of how the Chamber is doing. The overview stopped printing this count on
+        2026-08-16 for exactly that reason; `/haldus/` reads it, and the property
+        stays because that is where the question belongs.
         """
         return sum(
             1
@@ -414,12 +437,12 @@ __all__ = [
     "STATE_VARIANTS",
     "ExecutiveComparison",
     "ExecutiveDataStatus",
+    "ExecutiveDomainCard",
     "ExecutiveFact",
     "ExecutiveInterestItem",
     "ExecutiveLink",
     "ExecutiveMetric",
     "ExecutiveOverviewPage",
-    "ExecutivePillar",
     "ExecutiveSignal",
     "ExecutiveUpcomingItem",
 ]

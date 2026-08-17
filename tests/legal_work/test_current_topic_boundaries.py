@@ -207,8 +207,8 @@ def test_the_overview_still_reaches_the_legal_records(published):
     The overview's Õigusloome preview list moved to the Õigusloome page when the
     front page became an executive overview. What the main page keeps is the
     figure and the deadlines, so this asserts the path that survived: the
-    workbook's open records still reach `Koja töölaud`, now through the pillar's
-    count and the shared thirty-day timeline rather than through a card of rows.
+    workbook's open records still reach `Koja töölaud`, through the Õigusloome
+    card's own count of open matters rather than through a list of rows.
     """
     from apps.dashboard.executive import build_executive_overview
     from apps.event_programme.selectors import get_event_programme_summary
@@ -223,10 +223,11 @@ def test_the_overview_still_reaches_the_legal_records(published):
         events=get_event_programme_summary(),
     )
 
-    # The `Huvikaitse` pillar left on 2026-08-16, so the surviving path is the
-    # shared timeline rather than the pillar's count. That is still the thing
-    # this test is about: the workbook's open records reach `Koja töölaud`.
-    assert page.legal_in_progress
+    # The card's headline is the count of open matters, so an imported open
+    # record reaching the front page is exactly what makes it non-zero.
+    card = next(one for one in page.cards if one.key == "legal_work")
+    assert card.is_available
+    assert card.headline.unit == "teemat töös"
     # The imported rows are read, never modified: nothing in the executive path
     # assigns a resolved address onto a `LegalWorkItem`.
     assert LegalWorkItem.objects.exists()

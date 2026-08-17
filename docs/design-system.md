@@ -182,6 +182,8 @@ context contract in a leading `{% comment %}` block.
 | `chart_figure` | one ECharts chart, plus the text summary and data table that always accompany it |
 | `trend_chart` | two or more dated series on one pair of axes, solid and dashed, with the same alternatives |
 | `channel_card` | one communication channel: a value, its provenance, or a truthful reason it has neither |
+| `channel_row` | the same `ChannelSlot`, compact, for the overview's `Auditooriumid` strip |
+| `executive_domain_card` | one domain on `Koja töölaud`: a figure, a comparison, two to four facts, a period and a way out |
 
 `kpi_card`'s detail rows link their label when the count has a section listing
 exactly its rows, and they wear `dk-link-quiet` rather than the ordinary
@@ -256,6 +258,42 @@ appear for a manually entered value, and a test asserts it.
 The six-slot channel band uses `.dk-kpi-strip-wide`: one column below `sm`, two
 to `lg`, three to `2xl` and six above it. Six across at 1280 px would wrap the
 labels mid-word.
+
+`Koja töölaud` does not use that band. Six `channel_card` articles were the
+largest section of the front page and said less than any other, so the overview
+renders the same `ChannelSlot` objects through `channel_row` — a label, a figure
+at `text-base` rather than `text-metric`, and the observation date — in a
+three-column grid below the operational sections. Both components read the same
+slots from `apps/visibility/page.py`, so neither can describe a figure
+differently from the other, and the three states they must keep apart —
+planned, no data, observed — are kept apart identically in both.
+
+### Six domain cards, two rows
+
+`executive_domain_card` replaced `executive_pillar` on 2026-08-17. The pillar was
+built for a strip of four or five strategic areas and was tall: a headline, a
+meaning sentence, a sparkline, a fact list and a footer. Six of those is a front
+page nobody can see the end of, so the compact card drops everything that is not
+a number or a label and keeps a fixed internal order, which is what makes six of
+them scannable — a reader's eye lands in the same place on every card:
+
+```text
+DOMAIN
+BIG NUMBER  unit
+comparison
+
+fact label            value
+fact label            value
+
+period/as-of          Vaata … →
+```
+
+The grid is one column below `sm`, two from `sm` and three from `xl`. Six
+divides evenly into both, so no card is ever left alone on a row reading as a
+more important seventh thing. Three columns begin at 1280 rather than at 1024
+because the persistent 17rem sidebar arrives at 1024 and comes out of this
+grid's width: three columns there are 235 px each, narrow enough that a unit
+wraps to three lines and a row's cards stop matching each other in height.
 
 ### Provenance travels with the figure
 

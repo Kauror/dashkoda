@@ -104,43 +104,44 @@ def test_a_page_may_hand_back_the_programme_summary_it_already_read(published_pr
     assert with_preloaded.stale_sources == without.stale_sources
 
 
-def _pillar_figures(pillar) -> str:
-    """Every label/value pair the pillar carries, headline and facts alike.
+def _card_figures(card) -> str:
+    """Every label/value pair the card carries, headline and facts alike.
 
-    `Algab 30 päeva jooksul` is a *fact*, not the headline — the headline counts
-    the year. While these assertions read the rendered page that distinction did
-    not matter, because both were in the same text; addressing the builder
-    directly, it does.
+    `Algab 30 päeva jooksul` is the *headline* since 2026-08-17 and the year's
+    count is a fact under it — the two swapped places when the card became a
+    management summary rather than a record of output. Reading both out of one
+    string keeps this helper indifferent to which is which; the choice of
+    headline is pinned in `tests/dashboard/test_executive_overview.py`.
     """
     parts = []
-    if pillar.headline is not None:
-        parts.append(f"{pillar.headline.label} {pillar.headline.value}")
-    parts.extend(f"{fact.label} {fact.value}" for fact in pillar.facts)
+    if card.headline is not None:
+        parts.append(f"{card.headline.label} {card.headline.value}")
+    parts.extend(f"{fact.label} {fact.value}" for fact in card.facts)
     return " · ".join(parts)
 
 
 # -- the overview -------------------------------------------------------
 
 
-def test_the_kaasamine_pillar_reads_the_workbook(viewer, published_programme):
+def test_the_events_card_reads_the_workbook(viewer, published_programme):
     """Each count is asserted with its value, not just its label.
 
     The synthetic programme has one event five days out, and two behind: the one
     still running and the one ten days ago. A label-only assertion would pass on
-    a pillar that had lost its figures.
+    a card that had lost its figures.
     """
-    # The `Kaasamine` card left the overview on 2026-08-16, so the figure is
-    # asserted where it is still produced. The rule this protects is unchanged:
-    # the pillar reads the programme workbook, and a label-only assertion would
-    # pass on one that had lost its figures.
-    pillar = executive._events_pillar(get_events_executive(get_event_programme_summary()))
+    card = executive._events_card(get_events_executive(get_event_programme_summary()))
 
-    figures = _pillar_figures(pillar)
+    figures = _card_figures(card)
 
-    assert pillar.label == "Kaasamine"
+    assert card.label == "Sündmused"
     assert "Algab 30 päeva jooksul 1" in figures
     assert "Sündmusi tänavu 2" in figures
-    assert "Kaasamine" not in text_of(viewer.get(reverse("home")))
+    # The card is on the page again since 2026-08-17, under the domain's own
+    # name — never the retired strategic label.
+    page = text_of(viewer.get(reverse("home")))
+    assert "Kaasamine" not in page
+    assert "sündmust järgmise 30 päeva jooksul" in page
 
 
 def test_the_overview_names_the_programme_as_its_event_source():
@@ -149,7 +150,7 @@ def test_the_overview_names_the_programme_as_its_event_source():
 
 
 def test_the_overview_takes_no_event_figure_from_the_public_calendar(viewer):
-    """The public calendar published, the workbook not. The pillar stays empty.
+    """The public calendar published, the workbook not. The card stays empty.
 
     Empty means the unavailable note, never a zero: nobody counted no events.
     """
@@ -158,7 +159,7 @@ def test_the_overview_takes_no_event_figure_from_the_public_calendar(viewer):
     response = viewer.get(reverse("home"))
     page = text_of(response)
 
-    assert "Algab 30 päeva jooksul" not in page
+    assert "sündmust järgmise 30 päeva jooksul" not in page
     assert "Sünteetiline sündmus 0" not in page, (
         "no public-calendar event may reach the executive overview"
     )
@@ -196,11 +197,12 @@ def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_p
 
     page = text_of(viewer.get(reverse("home")))
     freshness = text_of(viewer.get(reverse("dashboard-freshness")))
-    pillar = executive._events_pillar(get_events_executive(get_event_programme_summary()))
+    card = executive._events_card(get_events_executive(get_event_programme_summary()))
 
     assert "Vananenud: 1" in freshness
-    # Asserted on the builder since the card left the overview on 2026-08-16.
-    # The rule is the one that matters: a failed sync must not withdraw figures
-    # that were successfully imported earlier.
-    assert "Algab 30 päeva jooksul 1" in _pillar_figures(pillar), "the figures are not withdrawn"
+    # The rule that matters: a failed sync must not withdraw figures that were
+    # successfully imported earlier. Asserted on the builder and on the page,
+    # because the card is back on the front page since 2026-08-17.
+    assert "Algab 30 päeva jooksul 1" in _card_figures(card), "the figures are not withdrawn"
+    assert "sündmust järgmise 30 päeva jooksul" in page
     assert "Sünteetiline tõrge" not in page, "no failure detail may reach a viewer"

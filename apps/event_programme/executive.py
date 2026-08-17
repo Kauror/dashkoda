@@ -1,7 +1,14 @@
 """What the Sündmused domain tells the main dashboard.
 
-The Kaasamine pillar's figures, at the programme's own grain, plus the two
-things this domain thinks a manager should be told without opening its page.
+The Sündmused card's figures, at the programme's own grain, plus the thing this
+domain thinks a manager should be told without opening its page.
+
+## The card leads with the near term
+
+`starting_soon` — `X sündmust järgmise 30 päeva jooksul` — is what a manager can
+still act on. `events_ytd` is beside it as a supporting fact with its own
+like-for-like comparison, because a year-to-date count describes work done
+rather than work coming.
 
 ## The grain is the event, not the occurrence
 
@@ -9,27 +16,32 @@ things this domain thinks a manager should be told without opening its page.
 record is one event the Chamber ran, not one occurrence of a repeating series
 and not one calendar day. The workbook's occurrence sheet exists and is
 deliberately not an analytical source here, exactly as it is not one on the
-Sündmused page. The pillar's label therefore says `sündmusi` and never
+Sündmused page. The card's own wording therefore says `sündmusi` and never
 `toimumiskordi`, because those are different numbers and only one of them is
 this one.
 
 ## No registrations, on purpose
 
 The Sündmused page can join Commerce to the programme, and it does so on one
-focus where the join's own coverage report is displayed beside it. This pillar
+focus where the join's own coverage report is displayed beside it. This summary
 does not, for two reasons that both point the same way:
 
 - the join is gated on that page because it is neither cheap nor complete, and
   an executive figure carrying a silent coverage caveat is worse than no figure;
-- registration units are Commerce activity, and the overview's Digiteenused
-  pillar is built from Commerce. Showing them here as well would present the
-  same rows as two separate contributions to two separate pillars.
+- registration units are Commerce activity, and the overview's E-pood card is
+  built from Commerce. Showing them here as well would present the same rows as
+  two separate contributions to two separate cards.
 
-So Kaasamine is the **programme** and Digiteenused is the **shop minus event
-registrations**. The two pillars share no row. What this costs is stated as a
+So Sündmused is the **programme** and E-pood is the **shop minus event
+registrations**. The two cards share no row. What this costs is stated as a
 limitation rather than papered over: the overview does not claim to show how
 many people registered, and it never claims to show how many attended, which is
 not a fact this application holds at all.
+
+Nothing about that rule changed when the pillars became six domain cards on
+2026-08-17: the shop card reads Commerce minus `EVENT_REGISTRATION`, this card
+reads the programme workbook and no Commerce at all, and the two therefore share
+no row.
 """
 
 from __future__ import annotations
@@ -58,7 +70,7 @@ TIMELINE_LIMIT = 8
 
 @dataclass(frozen=True)
 class EventsExecutive:
-    """The Kaasamine pillar's figures, all at the programme's event grain."""
+    """The Sündmused card's figures, all at the programme's event grain."""
 
     #: Events started 1 January → today, and the same span a year earlier.
     events_ytd: int | None = None
@@ -66,10 +78,13 @@ class EventsExecutive:
     #: Events beginning inside the near-term horizon.
     starting_soon: int | None = None
     completed_ytd: int | None = None
-    #: The delivery mode the current year's programme used most, and its share.
     #: The next scheduled events, public links already attached, soonest first.
-    #: One bounded read serving four consumers: the pillar fact, the unlinked
-    #: signal, the "coming interest" panel and the shared timeline.
+    #: One bounded read serving two consumers: the unlinked-event signal and the
+    #: shared 30-day timeline. It served a third — the overview's "what is
+    #: coming" interest panel — until that section became `Praegu enim huvi`,
+    #: which is about what is being read and bought rather than what is
+    #: scheduled. Events are on the front page twice already, as the Sündmused
+    #: card's headline and as the timeline's own lane.
     upcoming: tuple = ()
     #: The workbook export's own refresh moment.
     observed_at: object = None
@@ -79,13 +94,6 @@ class EventsExecutive:
     @property
     def has_headline(self) -> bool:
         return self.events_ytd is not None
-
-    @property
-    def next_event(self):
-        """The soonest scheduled event. The overview's panel shows this rather
-        than a most-viewed event, because a completed event cannot be what is
-        coming next."""
-        return self.upcoming[0] if self.upcoming else None
 
     @property
     def change(self) -> int | None:
@@ -123,7 +131,7 @@ class EventsExecutive:
 
 
 def get_events_executive(summary: EventProgrammeSummary) -> EventsExecutive:
-    """Shape the pillar from a summary the caller already read."""
+    """Shape the card from a summary the caller already read."""
     snapshot = summary.snapshot
     if snapshot is None:
         return EventsExecutive()
@@ -180,7 +188,7 @@ def get_timeline_events(executive: EventsExecutive, *, within_days: int):
     """Dated upcoming events for the shared 30-day timeline.
 
     Reads the bounded, link-attached list the executive summary already holds
-    — the same rows the pillar and the unlinked-event signal were computed
+    — the same rows the card's near-term count and the unlinked-event signal
     over, so the timeline cannot describe a different set of events — and
     clips it to the horizon here. No query of its own.
     """

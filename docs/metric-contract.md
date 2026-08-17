@@ -20,9 +20,9 @@ Two standing rules apply to every row:
 
 | Metric | Definition | Source | Grain / time basis | Missing | Comparison | Executive use |
 | --- | --- | --- | --- | --- | --- | --- |
-| Liikmeid kokku (headline on `/`) | Public directory count, newest observation | Koda.ee liikmekataloog (`apps/membership/selectors.py`) | Observation; written only when the count changes | Pillar unavailable | Newest reading older than 365 days; relative % only with a non-zero baseline | Pillar headline. **Never** mixed with the internal report |
+| Liikmeid kokku (headline on `/`) | Public directory count, newest observation | Koda.ee liikmekataloog (`apps/membership/selectors.py`) | Observation; written only when the count changes | Card unavailable | Newest reading older than 365 days; relative % only with a non-zero baseline | Liikmeskond card headline. **Never** mixed with the internal report |
 | Internal member total (headline on `/liikmeskond/`) | Board-report total | Internal report (`internal_selectors.py`) | Monthly report, `observation_date` | Absent with reason | Report-internal only | Not shown on `/` as a total — ratios only |
-| Tasunute osakaal | Paid members ÷ report's own total | Internal report | Report date | Absent (0% is a value and renders) | Signal when moved ≥ 2 pp against predecessor ≤ 400 days back | Supporting fact, source-labelled |
+| Tasunute osakaal | Paid members ÷ report's own total | Internal report | Report date | Absent (0% is a value and renders) | Signal when moved ≥ 2 pp against predecessor ≤ 400 days back | Supporting fact; the card's period line names the report's own date beside the catalogue's |
 | Liikmemaksu laekumine | Reported collection %, else computed from the report's own amounts | Internal report | Report date | Absent | None | Supporting fact |
 | Liitunud / välja arvatud YTD | Report's own YTD movement counts | Internal report | Report date | Absent | None | Supporting fact |
 | Koosseis (composition) | Aggregate buckets from a hand-imported roster | `MembershipCompositionSnapshot` | Snapshot date (stated, never inferred from a filename) | Page degrades before first import; no fake zeros | Between snapshots only | Not on `/` |
@@ -45,10 +45,10 @@ above.
 
 | Metric | Definition | Source | Grain / time basis | Missing | Comparison | Executive use |
 | --- | --- | --- | --- | --- | --- | --- |
-| Arvamusi saadetud tänavu | Sent opinions, 1 Jan → reporting date | Workbook snapshot (`analytics.sent_year_on_year`) | Row; `sent_date`; cutoff = workbook reporting date | Pillar unavailable | Same calendar day a year earlier; 29 Feb → 28 Feb; zero baseline → count, no % | Pillar headline, same function |
-| Teemasid töös | Open matters now — a stock | Workbook snapshot | Reporting date | Absent | None (a stock has no YTD pair) | Supporting fact |
+| Arvamusi saadetud tänavu | Sent opinions, 1 Jan → reporting date | Workbook snapshot (`analytics.sent_year_on_year`) | Row; `sent_date`; cutoff = workbook reporting date | Absent | Same calendar day a year earlier; 29 Feb → 28 Feb; zero baseline → count, no % | Supporting fact, with the previous year's count beside it. **Not the headline** — output is a record of work done, not the current state of anything |
+| Teemasid töös | Open matters now — a stock | Workbook snapshot | Reporting date | Card unavailable | None (a stock has no YTD pair) | **Õigusloome card headline** — `X teemat töös`, the figure that changes when somebody acts |
 | Tänavusi teemasid | Register's annual membership = `source_year` sheet | Workbook snapshot (`topics_year_on_year`) | Sheet-year; months use `received_date` and the two deliberately disagree for a minority of rows | Absent | Year on year, same-day | Supporting fact |
-| Tähtaegu 7 päeva jooksul / möödas | `deadline_pressure`: open + due within 7, and open + deadline passed (an answered matter still open is *not* late) | Workbook snapshot | Reporting date | Absent | None | Facts + the critical/attention signals |
+| Tähtaegu 7 päeva jooksul / möödas | `deadline_pressure`: open + due within 7, and open + deadline passed (an answered matter still open is *not* late) | Workbook snapshot | Reporting date | Absent | None | `due_within_7` is a card fact; `overdue_pending` is **only** a critical signal in `Tähelepanu`, never a quiet fourth fact |
 | Response window | Days received → sent, median and mean shown separately | Workbook snapshot | Row pair of dates | Rows without both dates excluded, count disclosed | Per year | Not on `/` |
 | Member feedback | `feedback_member_count` and `feedback_requested_member_count` are **independent populations**; no response rate exists or may be created | Workbook snapshot | Row | NULL ≠ 0 throughout; measured zeros are real | None | Not on `/` |
 
@@ -56,8 +56,8 @@ above.
 
 | Metric | Definition | Source | Grain / time basis | Missing | Comparison | Executive use |
 | --- | --- | --- | --- | --- | --- | --- |
-| Sündmusi tänavu | Canonical programme events started 1 Jan → today. **One row = one event, never an occurrence or a session** | Programme workbook (`analytics.count_year_to_date`) | Event; application day (`timezone.localdate`) | Pillar unavailable | Same span a year earlier; zero baseline → count | Pillar headline, same function |
-| Algab 30 päeva jooksul | Events starting inside the near-term horizon | Programme workbook | Event start date | Absent | None | Fact + timeline lane (one bounded read serves both) |
+| Sündmusi tänavu | Canonical programme events started 1 Jan → today. **One row = one event, never an occurrence or a session** | Programme workbook (`analytics.count_year_to_date`) | Event; application day (`timezone.localdate`) | Absent | Same span a year earlier; zero baseline → count | Supporting fact, with the previous year's count beside it |
+| Algab 30 päeva jooksul | Events starting inside the near-term horizon | Programme workbook | Event start date | Card unavailable | None | **Sündmused card headline** + timeline lane. `NEAR_TERM_DAYS` and the timeline's `HORIZON_DAYS` are the same thirty days, so the headline and the list below it cannot describe different sets |
 | Planeerimisvaru | Stored source figure `planning_lead_days`, never recomputed | Programme workbook | Event | Old rows carry NULL until reimport; counted as unknown, not zero | Per year, negative leads excluded and disclosed | Not on `/` |
 | Hinnad / price_status | Stored source values; unknown status renders as unknown, `0 €` is a real price | Programme workbook | Event | NULL / `""` = unknown | None | Not on `/` |
 | Registreerimised | Commerce `event_registration` units — **gated off**: production Commerce has no such products and `member_semantics_verified` is false | Commerce bridge (`commerce.py`) | Order-line day | Whole surface withheld | n/a | **Absent by design** — Kaasamine reads no Commerce, so no row is counted in two pillars |
@@ -66,8 +66,8 @@ above.
 
 | Metric | Definition | Source | Grain / time basis | Missing | Comparison | Executive use |
 | --- | --- | --- | --- | --- | --- | --- |
-| Seansid | Sum of daily sessions over the measured window | GA4 daily rows | Day; window anchored to newest **measured** day, never today | Pillar unavailable | Preceding equal window, only when `build_comparison` accepts the coverage pair; refusal is named in `Andmete seis` | Pillar headline, same summary function |
-| Lehevaatamised | Sum of daily page views | GA4 daily | Day | Absent | As above | Denominator for the news share |
+| Seansid (`külastused`) | Sum of daily sessions over the measured window | GA4 daily rows | Day; window anchored to newest **measured** day, never today | Card unavailable | Preceding equal window, only when `build_comparison` accepts the coverage pair; refusal is named in `Andmete seis` | `Koduleht ja uudised` card headline, same summary function. Shown once on the page: the audience strip omits the website slot |
+| Lehevaatamised (`vaatamised`) | Sum of daily page views | GA4 daily | Day | Absent | As above | Denominator for the news share. **Never spelled `külastused`** — a session and a page view are different measures |
 | Kaasatuse määr | Engaged sessions ÷ sessions | GA4 daily | Window | Absent | Stated as a level, not a movement | Supporting fact |
 | Aktiivsed kasutajad | Distinct people per day — **never summed across days or pages** | GA4 daily | Day only | Absent | None across windows | Not on `/` |
 | Sisu/kanali detail | Page- and channel-level figures, gated on their own detail coverage — a site-wide figure can exist while a detail comparison is withheld | GA4 page/channel rows | Day × path / channel | Withheld independently of the site figure | Own coverage gates | Top ordinary page in the interest panel |
@@ -89,14 +89,14 @@ with the address** — same selectors, same windows, same weighting.
 
 | Metric | Definition | Source | Grain / time basis | Missing | Comparison | Executive use |
 | --- | --- | --- | --- | --- | --- | --- |
-| Uudiskirja avamis-/klikimäär | Weighted totals over the last 12 sends: opens ÷ delivered, clicks ÷ delivered; click-to-open separately | Smaily aggregates | Send; slice over sends, not dates (cadence is irregular) | Absent | Previous 12-send block | e-Teataja open rate as a fact; **no audience totals anywhere** (list overlap is unmeasured) |
-| Uudiskirjade nimekirjade suurus | Each list's current size, reported **on its own and never summed** — the overlap between the three is unmeasured | Smaily segments (`sync_smaily`) | Day; latest reading | `Sisestamata`, never zero | Previous reading | Channel band on `/`, one card per list |
+| Uudiskirja avamis-/klikimäär | Weighted totals over the last 12 sends: opens ÷ delivered, clicks ÷ delivered; click-to-open separately | Smaily aggregates (`mailings_executive.get_mailings_executive`) | Send; slice over sends, not dates (cadence is irregular) | Card unavailable | Previous 12-send block, stated in **percentage points** | **Otsepostitused card headline** is e-Teataja's open rate; its click rate and the other two letters' open rates are the facts. **No audience figure anywhere on the card** (list overlap is unmeasured) |
+| Uudiskirjade nimekirjade suurus | Each list's current size, reported **on its own and never summed** — the overlap between the three is unmeasured | Smaily segments (`sync_smaily`) | Day; latest reading | `Sisestamata`, never zero | Previous reading | `Auditooriumid` strip on `/`, one row per list |
 
 ## E-pood
 
 | Metric | Definition | Source | Grain / time basis | Missing | Comparison | Executive use |
 | --- | --- | --- | --- | --- | --- | --- |
-| Soetatud ühikud | Completed-order units (Commerce order `state`, never `field_order_completed`) | Commerce package (`ShopDailyFact`) | Day × product; period anchored to **coverage end**, never today | Pillar unavailable | `derive_period_pair`: preceding equal window, refused when it reaches before coverage start — the page and the executive share this one rule | Pillar headline over `NON_EVENT_TYPES` |
+| Soetatud ühikud | Completed-order units (Commerce order `state`, never `field_order_completed`) | Commerce package (`ShopDailyFact`) | Day × product; period anchored to **coverage end**, never today | Card unavailable | `derive_period_pair`: preceding equal window, refused when it reaches before coverage start — the page and the executive share this one rule | E-pood card headline over `NON_EVENT_TYPES` |
 | Tellitud väärtus (KM-ta) | Order-time value net of VAT — **not revenue, not cash** | Commerce package | Day × product | Absent | As above | Supporting fact |
 | Tellimused (distinct) | Distinct-order counts, shown **only** where the summary grain supports the active filters; otherwise `Tellimusridu` | `ShopDailySummary` (schema 2.0) | Day × product-type | Falls back to order lines, labelled | As above | Not on `/` |
 | Tasuta osakaal | Free units ÷ classified units (unclassified excluded from the denominator, disclosed) | Commerce package | Period | `None` when the package carries no classification (1.0) | Previous period note | Supporting fact |
@@ -104,19 +104,51 @@ with the address** — same selectors, same windows, same weighting.
 
 ## Executive overview (`/`)
 
-Four pillars, disjoint by construction: Kaasamine reads the programme workbook
-and no Commerce; news reading is stated as a share of site reading, never
-added. The Digiteenused pillar card was removed at the board's request on
-2026-08-15 — the shop keeps its interest panel, its signals and its
-`Andmete seis` row, and everything shop-related that remains reads Commerce
-minus `EVENT_REGISTRATION`, so the no-double-counting rule survives the card.
-Nothing sums across pillars and no composite score exists. Signals arrive
-decided (wording, priority, threshold) from the domains; the page collects,
-dedupes, sorts and limits — an evidence sentence is optional per signal since
-the board struck the ones that restated their headlines. The timeline holds the
-only two dated lanes (legal deadlines, scheduled events). `Andmete seis` speaks
-per business source in that source's own vocabulary; a stale-after-failure feed
-keeps its last-good figures and says so — and since the board struck the
-per-figure source captions off the pillar cards, it is also the **only** place
-the overview names a source at all. The metric definitions above did not move:
-`ExecutiveMetric` still carries `period`, `source` and `as_of` in data.
+**Six domain cards, one per dashboard** — Liikmeskond, Õigusloome, Sündmused,
+Koduleht ja uudised, Otsepostitused, E-pood — in the sidebar's own order. That
+is the whole set rather than a hand-picked subset: the strip has been four, then
+five, then two, and each of those quietly decided that some of the Chamber's
+activities did not need reporting. Nothing sums across the six, no composite
+score exists, and there is no red/amber/green verdict on a domain: membership,
+opinions, events, sessions, newsletter rates and Commerce units are not
+commensurable.
+
+The cards are disjoint by construction. The Sündmused card reads the programme
+workbook and no Commerce; the E-pood card reads Commerce minus
+`EVENT_REGISTRATION`; `Koduleht ja uudised` states news reading as a **share**
+of site reading rather than adding a subset to its superset; the Otsepostitused
+card carries rates and no audience. The Digiteenused pillar card was removed at
+the board's request on 2026-08-15 and `Huvikaitse` and `Kaasamine` on 2026-08-16;
+all three domains are back under their own dashboard names since 2026-08-17, and
+the no-double-counting rule survived every one of those changes because it
+governs what a card may count rather than how many cards there are.
+
+Each card is a label, one figure with its unit, a comparison where the domain
+supports one, two to four supporting facts, one period or as-of line, and a
+drill-through. It carries no meaning sentence, no sparkline and no per-figure
+source caption — `ExecutiveMetric` still holds `period`, `source` and `as_of` in
+data, which is what `Andmete seis` and the domain pages are built from.
+
+`Tähelepanu` is the page's one genuinely cross-domain section. Signals arrive
+decided — wording, priority, threshold — from the domains; the page collects,
+dedupes, sorts and limits. An evidence sentence is optional per signal since the
+board struck the ones that restated their headlines. **With nothing flagged the
+section is not rendered at all**, because a header and a line of reassurance
+teaches a reader to skim the one section that must never be skimmed.
+
+`Järgmised 30 päeva` holds the only two dated lanes (legal deadlines, scheduled
+events) and is named for the horizon it actually has. `Praegu enim huvi` is
+three columns — leading ordinary page, most-read article, most-acquired product —
+whose three metrics are not comparable and are never ranked against each other;
+the next scheduled event was a fourth column until 2026-08-17 and left because it
+answered a different question. `Auditooriumid` is the quietest section and the
+last: newsletter list sizes one per list and never totalled, and the four
+hand-entered social figures, which never borrow a collected feed's vocabulary. It
+omits the website slot, because sessions are a card headline above and one
+measure under two labels on one page invites a reconciliation nobody can perform.
+
+Data quality lives at `/haldus/`. The overview carries one quiet `Andmete kohta`
+link and no source grid, no schema version, no import diagnostic and no coverage
+table. `Andmete seis` speaks per business source in that source's own
+vocabulary; a stale-after-failure feed keeps its last-good figures and says so —
+and it is the only place the overview's data names a source at all.

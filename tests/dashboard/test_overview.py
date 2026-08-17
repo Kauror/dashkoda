@@ -8,15 +8,23 @@ from apps.dashboard.navigation import NAVIGATION, iter_items, parent_key
 
 pytestmark = pytest.mark.django_db
 
-#: `Andmete seis` was the seventh and moved to `/haldus/` on 2026-08-15. The
-#: overview keeps only the header chip that counts what is worth disclosing;
-#: `tests/dashboard/test_admin_area.py` proves the section arrived.
-#: `Mis vajab tähelepanu?` and `Praegu huvi pakkuv` left on 2026-08-16, and the
-#: remaining two were renamed. Three sections now, down from seven.
+#: The heading whose digits are a constant rather than a measurement. It names
+#: the section's horizon, which is the one fact a reader needs to know whether
+#: an empty list means a quiet fortnight or a quiet year.
+TIMELINE_HEADING = "Järgmised 30 päeva"
+
+#: The sections a reader always sees, in order. `Tähelepanu` is deliberately not
+#: here: it renders only when a domain raised a signal, and with an empty
+#: database none can — `test_the_attention_section_is_silent_rather_than_empty`
+#: is the other half of that rule.
+#:
+#: `Andmete seis` moved to `/haldus/` on 2026-08-15 and does not come back;
+#: `tests/dashboard/test_admin_area.py` proves it arrived.
 SECTION_TITLES = [
-    "Koja seis",
-    "Eesolevad tegevused",
-    "Kanalid",
+    "Põhinäitajad",
+    TIMELINE_HEADING,
+    "Praegu enim huvi",
+    "Auditooriumid",
 ]
 
 
@@ -191,18 +199,16 @@ def test_koduleht_itself_is_current_rather_than_an_ancestor(client, authenticate
 def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     """An empty database produces no business figure anywhere on the page.
 
-    The scan is "no digit anywhere" again, and stronger than it was. It used to
-    carve out `Järgmised 30 päeva`, whose thirty was a constant in a heading
-    rather than anything measured; that section is `Eesolevad tegevused` since
-    2026-08-16 and carries no number, so the exception is gone with it.
+    One carve-out, and it is a constant rather than a measurement: the heading
+    `Järgmised 30 päeva` names the section's horizon. The section was called
+    `Eesolevad tegevused` between 2026-08-16 and 2026-08-17 and said nothing at
+    all about how far ahead it looked, which is worse than a digit in a title.
 
-    The header chip carried the other one — a fresh deployment announcing
-    "7 andmemärkust" would have reported its own emptiness as seven problems.
-    The count came off the same day; only the link to `/haldus/` remains.
+    Everything else is scanned: not one digit, anywhere.
 
-    The invariant itself is stated where it belongs — every pillar unavailable
-    and saying so, rather than showing a nought that would claim somebody
-    counted no members.
+    The invariant itself is stated where it belongs — every card unavailable and
+    saying so, rather than showing a nought that would claim somebody counted no
+    members.
     """
     authenticate_viewer(client)
 
@@ -210,37 +216,111 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     content = response.content.decode()
     page = response.context["page"]
 
-    assert page.pillars, "the page still describes its areas with no data"
-    assert not any(pillar.is_available for pillar in page.pillars)
+    assert page.cards, "the page still describes its domains with no data"
+    assert not any(card.is_available for card in page.cards)
     assert not page.signals, "no source can support a signal"
     assert not page.upcoming
     assert not page.available_interest
     assert not page.has_any_source
 
-    # No carve-out any more: not one digit may appear anywhere on the page.
     visible_text = html_module.unescape(strip_tags(content))
+    visible_text = visible_text.replace(TIMELINE_HEADING, "")
     assert re.search(r"\d", visible_text) is None, visible_text
 
     assert "Andmeallikas ei ole ühendatud." in content
-    # The channel band words it differently: those figures are entered by hand,
-    # so nobody has failed to connect anything — nobody has typed one in yet.
+    # The audience strip words it differently: those figures are entered by
+    # hand, so nobody has failed to connect anything — nobody has typed one in
+    # yet.
     assert "Andmed puuduvad." in content
 
 
-def test_overview_names_every_channel_and_says_which_are_empty(client, authenticate_viewer):
-    """The band shows all six channels and, with nothing entered, no figures.
+def test_the_attention_section_is_silent_rather_than_empty(client, authenticate_viewer):
+    """With nothing flagged, `Tähelepanu` is absent rather than reassuring.
 
-    Five of the six now have somewhere to store a value — `apps.visibility` — but
-    a database with no observation in it is exactly the state a fresh deployment
-    is in, and the band must say so rather than imply a zero. Website visits stay
-    unconnected regardless: nothing collects them at all.
+    Silence is a real answer and is not worth a section header plus a line
+    saying nothing happened. A reader who learns to skim this section when it is
+    full of routine will skim it on the day it is not.
+    """
+    authenticate_viewer(client)
+
+    response = client.get("/")
+    content = response.content.decode()
+
+    assert not response.context["page"].signals
+    assert "Tähelepanu" not in content
+    assert 'aria-labelledby="tahelepanu"' not in content
+
+
+def test_the_six_domain_cards_are_named_even_with_no_data(client, authenticate_viewer):
+    """Every domain is described, and every one says its source is missing.
+
+    The card is the page's structure and does not appear only once a source is
+    connected: a domain silently absent from the front page reads as a domain
+    that does not exist.
     """
     authenticate_viewer(client)
 
     content = client.get("/").content.decode()
 
     for label in (
-        "Kodulehe külastused",
+        "Liikmeskond",
+        "Õigusloome",
+        "Sündmused",
+        "Koduleht ja uudised",
+        "Otsepostitused",
+        "E-pood",
+    ):
+        assert label in content
+    assert content.count("Andmeallikas ei ole ühendatud.") == 6
+
+
+def test_the_overview_no_longer_carries_the_tall_pillar_card(client, authenticate_viewer):
+    """`Koja seis` and its two pillars were replaced on 2026-08-17.
+
+    The component is gone rather than unused: a template nothing includes is a
+    second definition of a card waiting to be picked up by mistake.
+    """
+    from django.template import TemplateDoesNotExist
+    from django.template.loader import get_template
+
+    authenticate_viewer(client)
+
+    content = client.get("/").content.decode()
+
+    assert "Koja seis" not in content
+    with pytest.raises(TemplateDoesNotExist):
+        get_template("dashboard/components/executive_pillar.html")
+
+
+def test_the_overview_no_longer_reproduces_the_legal_topic_lists(client, authenticate_viewer):
+    """Half of `/oigusloome/` sat a scroll above the link to it until 2026-08-17."""
+    authenticate_viewer(client)
+
+    content = client.get("/").content.decode()
+
+    assert "Viimased välja saadetud" not in content
+    assert 'aria-labelledby="oigusloome"' not in content
+
+
+def test_the_audience_strip_names_every_channel_and_says_which_are_empty(
+    client, authenticate_viewer
+):
+    """Five audiences, and with nothing entered, no figures.
+
+    Each has somewhere to store a value — `apps.visibility` — but a database
+    with no observation in it is exactly the state a fresh deployment is in, and
+    the strip must say so rather than imply a zero.
+
+    **The website is not among them.** Its sessions are the `Koduleht ja
+    uudised` card's headline, and one measure under two labels on one page
+    invites a reconciliation nobody can perform; `build_channel_band` leaves the
+    slot out at the source, so the query does not run either.
+    """
+    authenticate_viewer(client)
+
+    content = client.get("/").content.decode()
+
+    for label in (
         "Uudiskirjad",
         "Facebooki jälgijad",
         "LinkedIni jälgijad",
@@ -248,12 +328,31 @@ def test_overview_names_every_channel_and_says_which_are_empty(client, authentic
         "YouTube’i tellijad",
     ):
         assert label in content
-    assert "Google Analytics ei ole ühendatud." in content
+    assert "Kodulehe külastused" not in content
+    assert "Google Analytics ei ole ühendatud." not in content
     assert "Andmed puuduvad." in content
     # Press coverage and the newsletter are named on the Uudised page, which is
     # where they are promised. The overview's news card no longer carries a
     # footer strip listing them as unconnected.
     assert "Meediakajastused" not in content
+
+
+def test_the_audience_strip_is_no_longer_a_grid_of_large_cards(client, authenticate_viewer):
+    """Six `channel_card` articles were the largest section of the front page.
+
+    They said less than any other section and sat below the operational
+    intelligence, so they are compact rows now. The component itself is
+    untouched — Otsepostitused still renders the newsletter card with it — and
+    both read the same `ChannelSlot`, so neither can describe a figure
+    differently from the other.
+    """
+    authenticate_viewer(client)
+
+    content = client.get("/").content.decode()
+    strip = content.split('aria-labelledby="section-channels"', 1)[1]
+
+    assert "text-metric" not in strip, "the large KPI figure size belongs to a card"
+    assert "Auditooriumid" in content
 
 
 def test_overview_keeps_logout_as_a_csrf_protected_post(client, authenticate_viewer):

@@ -1,23 +1,30 @@
 """What the Koduleht domain tells the main dashboard.
 
-The website half of the overview's `Nähtavus ja teavitamine` pillar, plus the
-newsletter engagement figure that sits beside it. The news half comes from
-`apps.news.executive`; the two are deliberately separate modules because they
-are separate sources measuring separate things, and the pillar shows them side
-by side without ever adding them.
+The website half of the overview's `Koduleht ja uudised` card. The news half
+comes from `apps.news.executive`; the two are deliberately separate modules
+because they are separate sources measuring separate things, and the card shows
+them side by side without ever adding them.
+
+The newsletter open rate used to be here as well, because the newsletters had no
+dashboard of their own. They have one now — `/otsepostitused/` — and the figure
+moved whole to `apps.visibility.mailings_executive`, which owns the
+Otsepostitused card. Nothing about the rate changed: same selector, same block
+of sends, same weighting. What changed is that a Koduleht summary no longer
+carries a figure about something other than the website, and this module no
+longer runs a Smaily query for a card it does not build.
 
 ## The window is anchored to measurement, not to the reader's calendar
 
 `website_period.parse_period(None, coverage)` resolves the default thirty days
 against GA4 coverage, ending on the newest measured day. Anchoring on today
 would quietly include days the collector has not reached — GA4 lags — and the
-pillar would report a fall every morning until the overnight sync landed.
+card would report a fall every morning until the overnight sync landed.
 
 ## A comparison is offered only when it means something
 
 `website_period.build_comparison` already knows when two windows are too
 differently covered to be subtracted, and this module does not second-guess it.
-When `can_compare_site` is false the pillar shows the current figure with no
+When `can_compare_site` is false the card shows the current figure with no
 delta and the data-status section carries the reason. That is the rule the brief
 calls suppressing the business signal in favour of the data warning, and it is
 enforced here rather than in the page, because the page has no way to know what
@@ -27,7 +34,7 @@ enforced here rather than in the page, because the page has no way to know what
 
 A session is a visit. Two visits by one person are two sessions, and no figure
 here is ever worded as a count of humans. The same applies to page views, which
-are smaller still: neither is a unique reader, and the pillar's wording says
+are smaller still: neither is a unique reader, and the card's wording says
 `külastused` and `vaatamised` and never `külastajad`.
 """
 
@@ -49,8 +56,6 @@ from .content_sections import (
     all_index_paths,
 )
 from .ga4_selectors import get_coverage, get_top_pages
-from .registry import VisibilityMetric
-from .smaily_selectors import DEFAULT_AGGREGATE_ISSUES, get_newsletter_aggregate
 from .website_analytics import WebsiteTrafficSummary, get_traffic_summary
 from .website_period import build_comparison, get_period_coverage, parse_period
 
@@ -58,11 +63,6 @@ from .website_period import build_comparison, get_period_coverage, parse_period
 #: calls it worth a manager's attention. Ordinary week-to-week variation on this
 #: property sits well inside it; a fortnight of campaign traffic does not.
 SESSION_CHANGE_PCT = 15.0
-
-#: How many issues the newsletter engagement figure is weighted over — the
-#: selector's own default, so this figure and the Otsepostitused page cannot
-#: state different rates for the same letter.
-NEWSLETTER_ISSUES = DEFAULT_AGGREGATE_ISSUES
 
 #: How many top pages to read before picking one that is neither news nor an
 #: event. Bounded, and generous enough that a week where the news dominates
@@ -87,9 +87,6 @@ class WebsiteExecutive:
     days: int = 0
     #: The most-viewed page that is neither a news article nor an event page.
     top_page: ContentPerformanceRow | None = None
-    #: e-Teataja's weighted open rate across recent issues.
-    newsletter_open_rate: float | None = None
-    newsletter_issues: int = 0
 
     signals: tuple[DomainSignal, ...] = ()
 
@@ -158,8 +155,6 @@ def get_website_executive() -> WebsiteExecutive:
         end=period.end,
         days=period.days,
         top_page=_top_ordinary_page(period.start, period.end),
-        newsletter_open_rate=_newsletter_open_rate(),
-        newsletter_issues=NEWSLETTER_ISSUES,
     )
     return _with_signals(executive)
 
@@ -173,7 +168,7 @@ def _comparison_note(comparison, *, can_compare: bool) -> str:
     refusal: two windows that both exist but are measured to different
     completeness, which `can_compare_site` rejects on the coverage ratios.
 
-    Without this, that case rendered as a pillar with no comparison and a data
+    Without this, that case rendered as a card with no comparison and a data
     status reading `Andmed olemas` — the page silently declining to compare and
     then reporting nothing wrong. The reason a figure is missing is exactly what
     the reader needs, so the unnamed refusal gets named here.
@@ -207,19 +202,6 @@ def _top_ordinary_page(start: date, end: date) -> ContentPerformanceRow | None:
         if not SECTION_NEWS.contains(row.path) and not SECTION_EVENTS.contains(row.path):
             return row
     return rows[0] if rows else None
-
-
-def _newsletter_open_rate() -> float | None:
-    """e-Teataja's open rate across recent issues, weighted by delivery.
-
-    One newsletter, not an average across the three: the three lists are
-    different audiences of very different sizes, and a mean of their rates would
-    be a number about nothing. e-Teataja is the one with a regular cadence.
-    """
-    aggregate = get_newsletter_aggregate(
-        VisibilityMetric.NEWSLETTER_ETEATAJA, limit=NEWSLETTER_ISSUES
-    )
-    return aggregate.open_rate if aggregate.has_data else None
 
 
 def _with_signals(executive: WebsiteExecutive) -> WebsiteExecutive:
@@ -256,7 +238,6 @@ def _with_signals(executive: WebsiteExecutive) -> WebsiteExecutive:
 
 
 __all__ = [
-    "NEWSLETTER_ISSUES",
     "SESSION_CHANGE_PCT",
     "WebsiteExecutive",
     "get_website_executive",

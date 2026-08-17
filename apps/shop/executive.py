@@ -1,30 +1,30 @@
 """What the E-pood domain tells the main dashboard.
 
-The Digiteenused pillar's figures and the shop panel of `Praegu huvi pakkuv`.
+The E-pood card's figures and the shop panel of `Praegu enim huvi`.
 
 ## Event registrations are excluded, and that is the whole design
 
 `ProductType.EVENT_REGISTRATION` rows are Commerce activity describing the same
-events the Kaasamine pillar counts from the programme workbook. If both pillars
+events the Sündmused card counts from the programme workbook. If both cards
 drew on them the overview would present one set of registrations as two separate
-contributions to two separate strategic areas, and a reader adding the pillars
+contributions to two separate strategic areas, and a reader adding the cards
 — which the page never invites, but readers add things — would double count.
 
-So this pillar is **the shop minus event registrations**: contract templates and
+So this card is **the shop minus event registrations**: contract templates and
 physical products, the things a member acquires that are not a seat at an event.
-`NON_EVENT_TYPES` is that rule, written once. The Kaasamine pillar takes the
-programme and no Commerce at all, so the two pillars share no row.
+`NON_EVENT_TYPES` is that rule, written once. The Sündmused card takes the
+programme and no Commerce at all, so the two cards share no row.
 
 The cost is stated rather than hidden: the overview does not show how many
 registrations were sold. The E-pood page does, with its own coverage report
-beside it, and the pillar links there.
+beside it, and the card links there.
 
 ## Ordered value is not revenue
 
 `ordered_value_net` is what the orders were worth at order time, excluding VAT.
 It is not recognised revenue, not cash received, and not reconciled to any
 ledger — an order can be cancelled, refunded or never paid, and none of that
-reaches this dataset. The pillar's wording says `tellitud väärtus` and never
+reaches this dataset. The card's wording says `tellitud väärtus` and never
 `tulu` or `käive`.
 
 ## The period is anchored to the export, not to today
@@ -32,7 +32,7 @@ reaches this dataset. The pillar's wording says `tellitud väärtus` and never
 `periods.resolve_period` counts back from Commerce coverage end. The source is a
 manual export that stops on a stated day, and a "last 30 days" measured from the
 reader's calendar would drift past the data and eventually select nothing —
-a pillar reading `0 ostetud` for a month nobody has imported. The pillar states
+a card reading `0 ostetud` for a month nobody has imported. The card states
 the export's own date beside its figures for the same reason.
 """
 
@@ -60,7 +60,7 @@ from .selectors import (
     get_totals,
 )
 
-#: Everything this pillar counts. Event registrations are deliberately absent —
+#: Everything this card counts. Event registrations are deliberately absent —
 #: see the module docstring. Physical products stay in: they are a digital
 #: service in the sense that matters here, namely something a member acquires
 #: through the shop rather than by attending something.
@@ -161,9 +161,9 @@ def _previous_units(start: date, end: date, coverage: ShopCoverage) -> Decimal |
 
     The window comes from `derive_period_pair` — the same rule every figure on
     the E-pood page takes its previous period from. It refuses a previous window
-    that would reach before Commerce coverage began, so the pillar can never
+    that would reach before Commerce coverage began, so the card can never
     compare a full period against the partial history that happens to precede
-    it; the page and this pillar therefore agree about when a comparison exists.
+    it; the page and this card therefore agree about when a comparison exists.
     """
     pair = derive_period_pair(
         current_start=start, current_end=end, coverage_start=coverage.coverage_start

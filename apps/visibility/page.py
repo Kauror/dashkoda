@@ -245,8 +245,9 @@ def build_channel_band(
     summary: VisibilitySummary | None = None,
     ga4_status: Ga4ConnectionStatus | None = None,
     include_newsletter: bool = True,
+    include_website: bool = True,
 ) -> tuple[ChannelSlot, ...]:
-    """The six channel slots, in the order the board reads them.
+    """The channel slots, in the order the board reads them.
 
     Website first because it is the widest audience; then the newsletter, which
     the Chamber owns outright; then the four social channels in the order the
@@ -272,12 +273,26 @@ def build_channel_band(
     `include_newsletter` is turned off by a page that shows the newsletter
     material itself one section further on, so its band does not repeat a card
     the reader is about to reach.
+
+    `include_website` is the same rule for the website figure, and the overview
+    turns it off. `Põhinäitajad` leads its `Koduleht ja uudised` card with
+    sessions over the measured window, and a band repeating them lower down would
+    put the same measure on one page twice — under two labels, over two windows,
+    inviting the reader to reconcile figures that were never meant to be
+    compared. When it is off the band is audiences only, which is what
+    `Auditooriumid` claims to be. Nothing about the slot changed: Koduleht still
+    builds it, and this is the one page that does not ask for it.
     """
     summary = summary if summary is not None else get_visibility_summary()
-    ga4_status = ga4_status if ga4_status is not None else get_connection_status()
-    traffic = get_website_traffic()
+    # The GA4 status and the traffic reading serve the website slot and nothing
+    # else, so a band without that slot must not read them: a query nobody
+    # renders is one nobody notices.
+    website: tuple[ChannelSlot, ...] = ()
+    if include_website:
+        status = ga4_status if ga4_status is not None else get_connection_status()
+        website = (_website_slot(status, get_website_traffic()),)
     return (
-        _website_slot(ga4_status, traffic),
+        *website,
         *(
             (build_newsletter_slot(summary.newsletter, detail_url=reverse("mailings")),)
             if include_newsletter

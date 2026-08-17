@@ -1,6 +1,6 @@
 """Collect what the domains flagged, order it, and cut it to what fits.
 
-`Mis vajab tähelepanu?` is the overview's one genuinely cross-domain capability,
+`Tähelepanu` is the overview's one genuinely cross-domain capability,
 and this module is deliberately the least clever part of it. It does four
 things — collect, deduplicate, sort, limit — and it decides none of the
 following:
@@ -25,13 +25,14 @@ to be equally important — only that the page had to print one of them first.
 
 A weighted cross-domain score would be worse than useless here. It would need
 membership, opinions, sessions and acquisitions to share a unit, and the whole
-reason this dashboard has five pillars instead of one number is that they do not.
+reason this dashboard has six domain cards instead of one number is that they
+do not.
 
 ## Silence is a real answer
 
-With nothing to say the section prints one quiet line. It does not fill itself
+With nothing to say the section is not rendered at all. It does not fill itself
 with rows confirming that ordinary things are ordinary, because a reader who
-learns to skim `Mis vajab tähelepanu?` when it is full of routine will skim it
+learns to skim `Tähelepanu` when it is full of routine will skim it
 on the day it is not.
 """
 
@@ -51,8 +52,8 @@ SIGNAL_LIMIT = 5
 #: the section and hide the other five domains entirely.
 PER_DOMAIN_LIMIT = 2
 
-#: Tie-break order when two signals share a priority. Follows the pillar order
-#: on the page, so the section reads in the same sequence as the cards above it.
+#: Tie-break order when two signals share a priority. Follows the card order in
+#: `Põhinäitajad`, so the section reads in the same sequence as the grid below it.
 DOMAIN_ORDER: tuple[str, ...] = (
     "membership",
     "legal_work",

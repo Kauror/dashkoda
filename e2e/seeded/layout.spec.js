@@ -205,7 +205,8 @@ async function freshnessOffset(page) {
  * Nothing was lost that these tests were protecting. The equal-height problem
  * belonged to two preview lists sharing a grid row; the Õigusloome page lists
  * the topics now, in a full section that is not paired with anything and has no
- * reserve. The pillar that replaced the card is asserted in
- * `e2e/seeded/executive-overview.spec.js`.
+ * reserve. The six domain cards that occupy the front page instead are asserted
+ * in `e2e/seeded/executive-overview.spec.js`, including that they use the
+ * width rather than stacking down the page.
  */
 
