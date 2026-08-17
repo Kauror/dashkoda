@@ -254,34 +254,13 @@ by a rule written for this one.
     </section>
   {% endif %}
 
-  {# ---------------- 3b. What the composition view describes ---------------- #}
   {% comment %}
-  A roster export is a reading taken on one day, and every chart below it
-  describes that day. Saying so once at the top is what stops the whole view
-  from being read as "the membership right now".
-
-  The count is deliberately called the number of members *in this export*, not
-  the membership total: the board report and the public directory both measure
-  that differently, and a third unlabelled number beside them would invite a
-  comparison none of the three supports.
+  `Koosseisu ulatus` — the as-of date and the export's row count, stated once
+  at the top of the composition view — left on 2026-08-17. Its heading was
+  already `sr-only`, so nothing above the charts named this section for a
+  sighted reader either; only its two sentences did, and both are gone with
+  it. `composition_snapshot` is still built and still feeds the charts below.
   {% endcomment %}
-  {% if composition_snapshot %}
-    <section aria-labelledby="section-composition-scope" class="dk-section">
-      <h2 id="section-composition-scope" class="sr-only">Koosseisu ulatus</h2>
-      <div class="dk-section-body flex flex-col gap-1 py-4">
-        <p class="text-sm text-text">
-          Koosseis seisuga
-          <strong class="font-medium">{{ composition_snapshot.snapshot_date|date:"j.m.Y" }}</strong>,
-          <span class="tabular-nums">{{ composition_snapshot.row_count }}</span> liiget selles nimekirjas.
-        </p>
-        <p class="dk-meta">
-          Tuletatud liikmete nimekirjast koondnäitajatena. Üksikuid ettevõtteid ei
-          salvestata. See arv ei ole sama mis juhatuse aruande liikmete arv ega
-          Koda.ee avaliku kataloogi kirjete arv — need kolm loendavad eri asju.
-        </p>
-      </div>
-    </section>
-  {% endif %}
 
   {# ---------------- 3c. The members list ---------------- #}
   {% comment %}

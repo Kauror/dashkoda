@@ -1936,9 +1936,9 @@ def composition_chart(
     *,
     payload_id: str,
     title: str,
-    question: str,
     snapshot_date: date,
     ranked: bool,
+    question: str = "",
     axis_name: str = "Liikmeid",
     limit: int = 10,
     footnotes: tuple[str, ...] = (),
@@ -2146,7 +2146,6 @@ def join_cohort_chart(result, *, snapshot_date: date) -> ChartPayload | None:
         title="Tänased liikmed liitumisaasta järgi",
         option=option,
         size="medium",
-        question="Millistest liitumisaastatest on tänane liikmeskond koos?",
         observation_label=(f"Seisuga {long_date(snapshot_date)} · {integer(result.total)} liiget"),
         table_headers=("Liitumisaasta", "Tänaseid liikmeid", "Osakaal"),
         table_rows=tuple(
@@ -2157,11 +2156,6 @@ def join_cohort_chart(result, *, snapshot_date: date) -> ChartPayload | None:
             f"Tulpgraafik {len(labels)} liitumisaasta kohta, seisuga {long_date(snapshot_date)}."
         ),
         empty_message="Liitumisaastate jaotust ei ole.",
-        footnotes=(
-            "Graafik näitab, millal tänased liikmed liitusid. See ei ole "
-            "püsimamäär: lahkunud liikmeid nimekirjas ei ole ja ükski allikas "
-            "siin rakenduses neid ei loenda.",
-        ),
     )
 
 
@@ -2194,6 +2188,10 @@ def growth_index_chart(
     rather than drawn at zero. A share built on two organisations swings by
     tens of points on a single membership, and ranking that beside a category
     of nine hundred would present noise as a finding.
+
+    `suppressed` is still computed and passed in by the caller — the exclusion
+    itself is unchanged — but the chart stopped stating how many categories it
+    left out on 2026-08-17, so the parameter goes unused here now.
     """
     if not rows:
         return None
@@ -2262,26 +2260,11 @@ def growth_index_chart(
         }
     )
 
-    footnotes = [
-        "«Hiljuti liitunud» on need tänased liikmed, kelle liitumiskuupäev jääb "
-        "hetkeseisule eelnenud 12 kuu sisse. See ei ole kõigi viimase aasta "
-        "uute liikmete arv — vahepeal lahkunuid nimekirjas ei ole.",
-        "Kategooriad on järjestatud esindatuse järgi: kõige rohkem üle "
-        "esindatud kategooria — suurim osakaal hiljuti liitunute seas võrreldes "
-        "osakaaluga kogu liikmeskonnast — on esimene.",
-    ]
-    if suppressed:
-        footnotes.append(
-            f"{len(suppressed)} kategooriat on välja jäetud, sest neis on "
-            "võrdluseks liiga vähe liikmeid. Neid ei kuvata nullina."
-        )
-
     return ChartPayload(
         payload_id="membership-composition-growth-index",
         title=f"{dimension_label}: esindatus hiljuti liitunute seas",
         option=option,
         size="categorical",
-        question="Millised organisatsioonid on hiljuti liitunute seas üle esindatud?",
         observation_label=(
             f"Seisuga {long_date(snapshot_date)} · {integer(recent_total)} hiljuti liitunut"
         ),
@@ -2304,5 +2287,9 @@ def growth_index_chart(
         ),
         summary=(f"Horisontaalne tulpgraafik {len(rows)} kategooria hiljuti liitunute arvuga."),
         empty_message="Esindatust ei saa arvutada: liiga vähe liikmeid.",
-        footnotes=tuple(footnotes),
+        footnotes=(
+            "«Hiljuti liitunud» on need tänased liikmed, kelle liitumiskuupäev jääb "
+            "hetkeseisule eelnenud 12 kuu sisse. See ei ole kõigi viimase aasta "
+            "uute liikmete arv — vahepeal lahkunuid nimekirjas ei ole.",
+        ),
     )

@@ -153,34 +153,37 @@ test("an unknown focus renders the overview rather than an error", async ({
   ).toHaveCount(1);
 });
 
-test("the composition view states the date it describes", async ({ page }) => {
-  oncePerRun();
-  /*
-   * A roster export is a reading taken on one day. Saying so before any chart
-   * is reached is what stops the whole view being read as "the membership right
-   * now", and stops its row count being mistaken for a membership total.
-   */
-  await open_(page, COMPOSITION);
-
-  await expect(page.getByText(/Koosseis seisuga/i)).toBeVisible();
-  await expect(
-    page.getByText(/ei ole sama mis juhatuse aruande liikmete arv/i),
-  ).toBeVisible();
-  await expect(canvases(page).first()).toBeVisible();
-});
-
-test("the joining-year chart refuses to be read as retention", async ({
+test("the composition view no longer states the date it describes inline", async ({
   page,
 }) => {
   oncePerRun();
   /*
-   * The roster holds only members who are still here, so every cohort is seen
-   * through its survivors. Nothing records who left, and the footnote has to
-   * say so on the page rather than only in the code.
+   * `Koosseisu ulatus` — the as-of date and row-count sentence that used to
+   * open this view — left on 2026-08-17. Every composition chart still
+   * carries the same date in its own observation label, so the view lost a
+   * repeated sentence, not the information.
    */
   await open_(page, COMPOSITION);
 
-  await expect(page.getByText(/ei ole püsimamäär/i)).toBeVisible();
+  await expect(page.getByText(/Koosseis seisuga/i)).toHaveCount(0);
+  await expect(
+    page.getByText(/ei ole sama mis juhatuse aruande liikmete arv/i),
+  ).toHaveCount(0);
+  await expect(canvases(page).first()).toBeVisible();
+});
+
+test("the joining-year chart no longer states its retention caveat inline", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * The chart itself, and the fact that it counts survivors rather than
+   * joiners, is unchanged — only the footnote spelling that out left the
+   * page on 2026-08-17.
+   */
+  await open_(page, COMPOSITION);
+
+  await expect(page.getByText(/ei ole püsimamäär/i)).toHaveCount(0);
 });
 
 test("a tooltip appears and states formatted Estonian figures", async ({
