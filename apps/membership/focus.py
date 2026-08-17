@@ -36,6 +36,7 @@ PARAM_FOCUS = "fookus"
 FOCUS_OVERVIEW = "ulevaade"
 FOCUS_GROWTH = "kasv"
 FOCUS_COMPOSITION = "koosseis"
+FOCUS_REGISTER = "nimekiri"
 FOCUS_FEES = "liikmemaks"
 FOCUS_MOVEMENT = "liikumine"
 
@@ -43,11 +44,21 @@ FOCUS_MOVEMENT = "liikumine"
 #:
 #: The order is the reading order of the dashboard rather than an alphabet:
 #: how many members there are, whether that number is growing, who they are,
-#: and who arrived or left.
+#: who they are by name, and who arrived or left.
+#:
+#: `nimekiri` follows `koosseis` because the two read the same roster export:
+#: the composition view is that roster counted, and the list is that roster
+#: itself. A reader who has just seen that a fifth of the membership is in
+#: Tartumaa is one click from the members it is made of.
+#:
+#: `liikmemaks` is deliberately absent: it retired on 2026-08-16 and its chart
+#: draws on the overview, so the reading order no longer passes through
+#: "whether they pay". `FOCUS_FEES` survives below as a retirement key.
 FOCUS_LABELS: tuple[tuple[str, str], ...] = (
     (FOCUS_OVERVIEW, "Ülevaade"),
     (FOCUS_GROWTH, "Kasv ja püsimine"),
     (FOCUS_COMPOSITION, "Koosseis"),
+    (FOCUS_REGISTER, "Liikmete nimekiri"),
     (FOCUS_MOVEMENT, "Liikumine ja põhjused"),
 )
 

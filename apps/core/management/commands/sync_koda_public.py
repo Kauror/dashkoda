@@ -1,4 +1,4 @@
-"""Scheduled collection of the three public Koda.ee sources.
+"""Scheduled collection of the public Koda.ee sources.
 
 Each source runs independently, under its own PostgreSQL advisory lock and its
 own transaction. **Failure isolation is the point**: a broken events page must
@@ -26,6 +26,8 @@ from apps.core.feed_commands import FeedCommandOutputMixin
 from apps.core.feeds import FeedLocked, FeedResult, SourceOutcome, advisory_lock
 from apps.events.sync import LOCK_NAME as EVENTS_LOCK
 from apps.events.sync import synchronize_events
+from apps.membership.directory_sync import LOCK_NAME as DIRECTORY_LOCK
+from apps.membership.directory_sync import synchronize_member_directory
 from apps.membership.sync import LOCK_NAME as MEMBERSHIP_LOCK
 from apps.membership.sync import synchronize_membership
 from apps.news.sync import LOCK_NAME as NEWS_LOCK
@@ -43,14 +45,21 @@ RESULT_LOCKED = "locked"
 
 # Ordered so the cheapest source runs first and a slow events crawl never
 # delays the member count.
+#
+# `membership` and `directory` read the same company list and deliberately
+# fetch it twice. Sharing one response would join their failure domains, which
+# is precisely what keeping them apart buys: the count is a settled aggregate
+# series and must not be able to fail because the row-level register did.
 SOURCES = {
     "membership": (MEMBERSHIP_LOCK, synchronize_membership),
+    "directory": (DIRECTORY_LOCK, synchronize_member_directory),
     "news": (NEWS_LOCK, synchronize_news),
     "events": (EVENTS_LOCK, synchronize_events),
 }
 
 LABELS = {
     "membership": "Liikmeskond",
+    "directory": "Avaliku kataloogi kirjed",
     "news": "Uudised",
     "events": "Sündmused",
 }

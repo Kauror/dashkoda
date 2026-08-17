@@ -15,6 +15,13 @@ margin.
 roster. It is not a third membership total and is never charted beside either of
 the other two — it describes what kinds of organisations the membership is made
 of, not how many there are.
+
+`register` is the deliberate 2026-08 exception to this app's old "no row-level
+member data anywhere" rule: the roster's rows themselves (a curated subset of
+columns, no personal contacts) and the registration codes the public directory
+publishes. Rows exist so the members-list page and the roster-versus-directory
+comparison can — the comparison is an identity comparison between two labelled,
+dated sets, and its counts are still never merged with either membership total.
 """
 
 from .composition import (
@@ -58,6 +65,12 @@ from .public import (
     MembershipFeedState,
     ObservationImmutable,
 )
+from .register import (
+    MemberDirectoryEntry,
+    MemberRegisterEntry,
+    MemberRegisterSnapshot,
+    RegisterImmutable,
+)
 
 __all__ = [
     # Aggregate composition of the member roster. No row-level identity.
@@ -68,6 +81,11 @@ __all__ = [
     "MembershipCountObservation",
     "MembershipFeedState",
     "ObservationImmutable",
+    # The member register: roster rows and published directory identities.
+    "MemberDirectoryEntry",
+    "MemberRegisterEntry",
+    "MemberRegisterSnapshot",
+    "RegisterImmutable",
     # Internal board-report membership history.
     "BATCH_REASON_ORDER",
     "EMPLOYEE_SIZE_BANDS",

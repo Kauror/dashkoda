@@ -219,6 +219,14 @@ NEVER_PRUNED: dict[str, str] = {
         "forbidden to keep. A superseded snapshot is provenance for the "
         "correction that replaced it."
     ),
+    "membership.MemberRegisterSnapshot": (
+        "A dated reading of the member roster, exported by hand from a CRM "
+        "that reports only its present state — a pruned reading is not "
+        "re-collectable from anywhere. Imports are occasional and manual, so "
+        "the pile grows by a few thousand small rows per import at most, and "
+        "a superseded snapshot is provenance for the correction that "
+        "replaced it."
+    ),
     "shop.ShopProductSnapshot": (
         "The E-pood catalogue's observation history, not a rolling feed. One "
         "row per product per observation date, and the *older* ones are what "

@@ -23,14 +23,13 @@ property of one export on one day. The page says so wherever the number appears,
 because three unlabelled member counts on one screen would invite exactly the
 comparison none of them supports.
 
-## Privacy: what is never stored
+## Privacy: what this importer never stores
 
-The roster is the only personal data this application opens. It carries a
-company name, a registry code, a street address, a director's name, two contact
-addresses and a free-text comment.
+The roster carries a company name, a registry code, a street address, a
+director's name, two contact addresses and a free-text comment.
 
-**None of it is persisted, logged, printed or audited.** Three independent
-things would each have to fail before an identity could be stored:
+**None of it is persisted, logged, printed or audited by this importer.** Three
+independent things would each have to fail before an identity could be stored:
 
 1. **the reader never builds a record.** `composition_import.read_roster`
    streams a row out of the workbook, hands six scalars to
@@ -54,6 +53,15 @@ The workbook itself is not stored either. The registered artifact is
 metadata-only, carrying the server-computed checksum under the fixed non-secret
 reference `roster:membership-composition:<sha256>`. Storing the file would put a
 member list on a served path and inside every backup.
+
+**Since August 2026 this is a statement about this importer, not about the
+whole application.** The member register reads the same export and deliberately
+*keeps* a curated subset of its rows, because the members-list page and the
+roster-versus-directory comparison cannot be built from counts. That decision,
+the columns it covers and the ones still modelled nowhere are documented in
+[member-register.md](member-register.md). Nothing here changed: the composition
+models still cannot hold an identity, and the two importers remain separate
+sources with separate snapshots.
 
 ## Models
 

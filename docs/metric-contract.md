@@ -26,9 +26,20 @@ Two standing rules apply to every row:
 | Liikmemaksu laekumine | Reported collection %, else computed from the report's own amounts | Internal report | Report date | Absent | None | Supporting fact |
 | Liitunud / välja arvatud YTD | Report's own YTD movement counts | Internal report | Report date | Absent | None | Supporting fact |
 | Koosseis (composition) | Aggregate buckets from a hand-imported roster | `MembershipCompositionSnapshot` | Snapshot date (stated, never inferred from a filename) | Page degrades before first import; no fake zeros | Between snapshots only | Not on `/` |
+| Liikmete nimekiri (kirjete arv) | Rows in one hand-imported roster export. **Not a membership total** | `MemberRegisterSnapshot` (`register_selectors.py`) | Snapshot date (stated, never inferred from a filename) | Focus not offered before the first import | None — two exports are two readings, not a series | Not on `/` |
+| Kataloogis avaldatud kirjed | Registration codes the public directory publishes now | `MemberDirectoryEntry` (`directory_sync.py`) | Working register; `first_seen_at` / `last_seen_at` per code | A code that stops appearing is marked unpublished, never deleted | None | Not on `/` |
+| Nimekirja ja kataloogi võrdlus | Set comparison of registration codes: matched, roster-only, directory-only | Both of the two rows above | Roster snapshot date × directory last check | Absent unless **both** sources exist; roster rows without a code are counted out and disclosed | n/a | Not on `/` |
 
 The public directory and the internal report count different things and are
 never merged, subtracted, averaged or continued into each other (AGENTS.md).
+
+The register comparison is an **identity** comparison, not an arithmetic one.
+It states three counts and two lists, each labelled with its own source and
+date, and produces no corrected or combined membership number — a difference
+means one source is fresher than the other or that a profile is unpublished,
+which is not an error in either and licenses no correction to any total. The
+roster row count is a fourth figure again and belongs beside none of the three
+above.
 
 ## Õigusloome
 

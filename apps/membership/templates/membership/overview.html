@@ -5,22 +5,29 @@
 {% comment %}
 Liikmeskond — the membership intelligence page.
 
-Two membership sources, side by side, never merged:
+Four membership sources, side by side, never merged:
 
-  1. Avalik liikmekataloog — how many member profiles Koda.ee publishes. It is
-     reported on the dashboard overview, not here.
+  1. Avalik liikmekataloog — how many member profiles Koda.ee publishes. The
+     count is reported on the dashboard overview, not here.
   2. Sisemine liikmeskonna aruanne — what the Chamber's own board reports say.
-     This page is that source.
+  3. Liikmeskonna koosseis — aggregate composition of the roster.
+  4. Liikmete nimekiri — the roster itself, imported by hand, plus the public
+     catalogue row by row so the two can be compared.
 
 They count different things. Nothing here adds them, subtracts them, or presents
-one as a continuation of the other.
+one as a continuation of the other. The comparison in `section-register-comparison`
+is the sharpest case: it prints three counts and two difference lists and never
+resolves them into a single membership number.
 
 There is still deliberately no "uusi liikmeid sel aastal" figure from the public
 source — it is not a DashKoda metric. The internal new-member figures below come
 from the board reports and are labelled as internal reported data.
 
-No individual member is listed anywhere, because no dataset behind this page
-stores one.
+Individual members *are* listed, in `section-register` and only there. That
+changed on 2026-08-15, when the Chamber asked for the list itself. What is shown
+is company-level — name, registration code, county, size, activity, start date.
+No director, email, phone, postal address or comment column is stored anywhere
+behind this page, and `test_membership_stores_no_member_rows` enforces that.
 
 ## Shape of the page
 
@@ -215,6 +222,278 @@ by a rule written for this one.
           salvestata. See arv ei ole sama mis juhatuse aruande liikmete arv ega
           Koda.ee avaliku kataloogi kirjete arv — need kolm loendavad eri asju.
         </p>
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- 3c. The members list ---------------- #}
+  {% comment %}
+  Two sources, side by side and never merged, exactly as the rest of this page
+  treats the two membership totals:
+
+    * the list itself is the Chamber's own roster export. It is accurate as of
+      its export date and drifts afterwards, which is why the date is stated
+      before the first row rather than in a footnote;
+    * the comparison strip is that roster against what Koda.ee publishes today.
+      Its output is three labelled counts and two lists of members, never one
+      reconciled total — no measurement in this application supports such a
+      number, and inventing one would undo the separation the whole page keeps.
+
+  Every control is an ordinary GET form or link, so a search, a filter and a
+  page are all bookmarkable and reachable with the back button.
+  {% endcomment %}
+  {% if member_list %}
+    <section aria-labelledby="section-register" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Liikmete nimekiri" heading_id="section-register" description="Koja enda liikmete nimekiri, imporditud käsitsi. Kehtib ekspordi kuupäeva seisuga." only %}
+      <div class="dk-section-body flex flex-col gap-4">
+
+        {% if register_snapshot %}
+          <p class="dk-meta">
+            Nimekiri seisuga
+            <strong class="font-medium">{{ register_snapshot.snapshot_date|date:"j.m.Y" }}</strong>,
+            <span class="tabular-nums">{{ register_snapshot.row_count }}</span> kirjet.
+            Nimekiri on käsitsi imporditud ja kehtib ekspordi kuupäeva seisuga —
+            hilisemad muutused sellel lehel ei kajastu. Kirjete arv ei ole
+            liikmete arvu näitaja.
+          </p>
+        {% endif %}
+
+        {% comment %}
+        Search and filter in one GET form, so a reader can set both and submit
+        once. The focus travels as a hidden field: without it the form would
+        return the reader to the overview, which reads as a control that
+        navigates away from the thing it governs.
+        {% endcomment %}
+        <form method="get" action="{% url 'membership' %}#section-register"
+              class="flex flex-wrap items-end gap-x-3 gap-y-2">
+          <input type="hidden" name="fookus" value="{{ focus }}">
+          {% comment %}
+          `min-w-0` on both labels and a width cap on both controls. A flex item
+          defaults to `min-width: auto`, so it refuses to shrink below its
+          content's minimum — and a native `select`'s minimum is its longest
+          option, which is built from data here ("Toetaja liige (8)"). Without
+          both, the widest status label decides whether this page scrolls
+          sideways at 320px, which is not a thing the data should get to decide.
+          {% endcomment %}
+          <label class="flex min-w-0 flex-col gap-1">
+            <span class="dk-meta">Otsi</span>
+            <input type="search"
+                   name="{{ register_search }}"
+                   value="{{ member_list.query }}"
+                   placeholder="Nimi, registrikood, maakond või tegevusala"
+                   class="dk-input w-72 max-w-full">
+          </label>
+          {% if register_statuses %}
+            <label class="flex min-w-0 flex-col gap-1">
+              <span class="dk-meta">Staatus</span>
+              <select name="{{ register_status_param }}" class="dk-input w-full max-w-full">
+                <option value="">Kõik</option>
+                {% for key, label, count in register_statuses %}
+                  <option value="{{ key }}" {% if member_list.status == key %}selected{% endif %}>
+                    {{ label }} ({{ count }})
+                  </option>
+                {% endfor %}
+              </select>
+            </label>
+          {% endif %}
+          <button type="submit" class="dk-button dk-button-secondary">Otsi</button>
+          {% if member_list.query or member_list.status %}
+            <a href="?fookus={{ focus }}#section-register" class="dk-link text-sm">Tühjenda</a>
+          {% endif %}
+        </form>
+
+        {% if member_list.total %}
+          <p class="dk-meta tabular-nums">
+            Kuvatud {{ member_list.first_index }}–{{ member_list.last_index }} kirjet
+            {{ member_list.total }}-st.
+          </p>
+
+          {% comment %}
+          The table scrolls inside its own wrapper rather than widening the
+          document. Every note here is real text in a cell — this page has been
+          bitten before by an `sr-only` note settling at its untruncated width
+          outside a `static` wrapper and scrolling the whole page sideways.
+          {% endcomment %}
+          <div class="w-full overflow-x-auto">
+            <table class="w-full min-w-max border-collapse text-sm">
+              <caption class="sr-only">
+                Koja liikmed nimekirjas seisuga {{ register_snapshot.snapshot_date|date:"j.m.Y" }}
+              </caption>
+              <thead>
+                <tr class="text-micro font-semibold tracking-wide text-text-muted uppercase">
+                  <th scope="col" class="border-b border-border px-3 py-2 text-left">Nimi</th>
+                  <th scope="col" class="border-b border-border px-3 py-2 text-left">Staatus</th>
+                  <th scope="col" class="border-b border-border px-3 py-2 text-left">Maakond</th>
+                  <th scope="col" class="border-b border-border px-3 py-2 text-left">Töötajaid</th>
+                  <th scope="col" class="border-b border-border px-3 py-2 text-left">Liige alates</th>
+                  <th scope="col" class="border-b border-border px-3 py-2 text-left">Tegevusala</th>
+                  <th scope="col" class="border-b border-border px-3 py-2 text-left">Kataloogis</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for member in member_list.members %}
+                  <tr>
+                    <th scope="row" class="border-b border-border px-3 py-2 text-left font-medium text-text">
+                      <span class="flex flex-col gap-0.5">
+                        <span class="break-words">
+                          {{ member.name }}{% if member.legal_form %} <span class="text-text-secondary">{{ member.legal_form }}</span>{% endif %}
+                        </span>
+                        {% if member.website_url %}
+                          <a href="{{ member.website_url }}" rel="noopener noreferrer" target="_blank"
+                             class="dk-link text-micro break-all">{{ member.website }}</a>
+                        {% endif %}
+                      </span>
+                    </th>
+                    <td class="border-b border-border px-3 py-2">{{ member.status_display }}</td>
+                    <td class="border-b border-border px-3 py-2">{{ member.county|default:"–" }}</td>
+                    <td class="border-b border-border px-3 py-2 tabular-nums">
+                      {% comment %}
+                      An unreported headcount is the design system's dash, never
+                      a zero — a member with no figure has not reported one.
+                      {% endcomment %}
+                      {% if member.employees is not None %}{{ member.employees }}{% else %}–{% endif %}
+                    </td>
+                    <td class="border-b border-border px-3 py-2 tabular-nums">
+                      {% if member.membership_start %}{{ member.membership_start|date:"j.m.Y" }}{% else %}–{% endif %}
+                    </td>
+                    <td class="border-b border-border px-3 py-2">{{ member.nace_label|default:"–" }}</td>
+                    <td class="border-b border-border px-3 py-2">
+                      {% if member.profile_url %}
+                        <a href="{{ member.profile_url }}" rel="noopener noreferrer" target="_blank"
+                           class="dk-link">Profiil</a>
+                      {% else %}
+                        <span class="text-text-muted">–</span>
+                      {% endif %}
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+
+          {% if member_list.page_count > 1 %}
+            <nav aria-label="Lehed" class="flex flex-wrap items-center gap-3">
+              {% if member_list.has_previous %}
+                <a href="?fookus={{ focus }}&amp;{{ register_search }}={{ member_list.query|urlencode }}&amp;{{ register_status_param }}={{ member_list.status }}&amp;{{ register_page_param }}={{ member_list.page|add:'-1' }}#section-register"
+                   class="dk-chip">← Eelmine</a>
+              {% endif %}
+              <span class="dk-meta tabular-nums">
+                Lehekülg {{ member_list.page }} / {{ member_list.page_count }}
+              </span>
+              {% if member_list.has_next %}
+                <a href="?fookus={{ focus }}&amp;{{ register_search }}={{ member_list.query|urlencode }}&amp;{{ register_status_param }}={{ member_list.status }}&amp;{{ register_page_param }}={{ member_list.page|add:'1' }}#section-register"
+                   class="dk-chip">Järgmine →</a>
+              {% endif %}
+            </nav>
+          {% endif %}
+        {% else %}
+          {% include "dashboard/components/empty_state.html" with message="Ükski kirje ei vasta otsingule." detail="Muuda otsingusõna või staatuse valikut." only %}
+        {% endif %}
+      </div>
+    </section>
+  {% endif %}
+
+  {# ---------------- 3d. Nimekiri ja avalik kataloog ---------------- #}
+  {% comment %}
+  The comparison, stated as what it is: two sources listing members on two
+  different days, compared by registration code. A member in one and not the
+  other is a difference between two sources, not an error in either — the
+  roster ages between exports, and a profile can be unpublished while the
+  membership continues. Nothing here produces a corrected total.
+  {% endcomment %}
+  {% if source_comparison %}
+    <section aria-labelledby="section-register-comparison" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Nimekiri ja avalik kataloog" heading_id="section-register-comparison" description="Kaks allikat, võrreldud registrikoodi järgi. Neid ei liideta ega ühendata üheks arvuks." only %}
+      <div class="dk-section-body flex flex-col gap-4">
+        <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <dt class="text-sm text-text-secondary">Mõlemas allikas</dt>
+            <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ source_comparison.matched }}</dd>
+          </div>
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <dt class="text-sm text-text-secondary">Ainult nimekirjas</dt>
+            <dd class="flex flex-col gap-0.5">
+              <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ source_comparison.only_in_roster_count }}</span>
+              <span class="dk-meta">Kojal on liige, kataloogis profiili ei ole</span>
+            </dd>
+          </div>
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <dt class="text-sm text-text-secondary">Ainult kataloogis</dt>
+            <dd class="flex flex-col gap-0.5">
+              <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ source_comparison.only_in_directory_count }}</span>
+              <span class="dk-meta">Kataloog avaldab, nimekirjas ei ole</span>
+            </dd>
+          </div>
+          <div class="flex min-w-0 flex-col gap-0.5">
+            <dt class="text-sm text-text-secondary">Kataloogis kokku</dt>
+            <dd class="flex flex-col gap-0.5">
+              <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ source_comparison.directory_total }}</span>
+              {% if source_comparison.directory_checked_at %}
+                <span class="dk-meta">Kontrollitud {{ source_comparison.directory_checked_at|date:"j.m.Y" }}</span>
+              {% endif %}
+            </dd>
+          </div>
+        </dl>
+
+        <p class="dk-meta">
+          Nimekiri on seisuga {{ source_comparison.roster_date|date:"j.m.Y" }}, kataloog
+          on värskeim. Erinevus tähendab, et üks allikas on teisest värskem või
+          et profiil ei ole avaldatud — see ei ole kummagi allika viga ega anna
+          parandatud liikmete arvu.
+          {% if source_comparison.roster_without_code %}
+            Nimekirjas on {{ source_comparison.roster_without_code }} kirjet ilma
+            registrikoodita; neid ei saa võrrelda.
+          {% endif %}
+        </p>
+
+        {% if source_comparison.only_in_roster or source_comparison.only_in_directory %}
+          <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+            {% if source_comparison.only_in_roster %}
+              <div class="flex min-w-0 flex-col gap-2">
+                <h3 class="text-sm font-semibold text-text">Ainult nimekirjas</h3>
+                <ul class="flex flex-col gap-1 text-sm">
+                  {% for entry in source_comparison.only_in_roster %}
+                    <li class="flex flex-wrap items-baseline gap-x-2">
+                      <span class="break-words text-text">{{ entry.name }}</span>
+                      <span class="dk-meta tabular-nums">{{ entry.registry_code }}</span>
+                      {% if entry.status_label %}<span class="dk-meta">{{ entry.status_label }}</span>{% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+            {% if source_comparison.only_in_directory %}
+              <div class="flex min-w-0 flex-col gap-2">
+                <h3 class="text-sm font-semibold text-text">Ainult avalikus kataloogis</h3>
+                {% comment %}
+                Shown by code and link, because that is all this application
+                collects about a directory profile. The name would have to come
+                from scraping the profile page, which is deliberately not done.
+                {% endcomment %}
+                <ul class="flex flex-col gap-1 text-sm">
+                  {% for entry in source_comparison.only_in_directory %}
+                    <li class="flex flex-wrap items-baseline gap-x-2">
+                      <span class="tabular-nums text-text">{{ entry.registry_code }}</span>
+                      {% if entry.profile_url %}
+                        <a href="{{ entry.profile_url }}" rel="noopener noreferrer" target="_blank" class="dk-link">Profiil</a>
+                      {% endif %}
+                    </li>
+                  {% endfor %}
+                </ul>
+              </div>
+            {% endif %}
+          </div>
+          {% if source_comparison.truncated %}
+            <p class="dk-meta">
+              Erinevusi on rohkem kui siia mahub. Kuvatakse kuni
+              {{ source_comparison.limit }} esimest kirjet kummaltki poolelt.
+            </p>
+          {% endif %}
+        {% elif source_comparison.agrees %}
+          <p class="text-sm text-text">
+            Mõlemad allikad tunnevad täpselt samu registrikoode.
+          </p>
+        {% endif %}
       </div>
     </section>
   {% endif %}

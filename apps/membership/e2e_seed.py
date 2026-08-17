@@ -1,7 +1,12 @@
-"""Synthetic membership figures for both sources, which are never merged.
+"""Synthetic membership figures for every source, which are never merged.
 
 The public directory count and the internal board-report history count different
-things, so they are seeded separately and stay separately labelled.
+things, so they are seeded separately and stay separately labelled. The roster
+composition and the member register are two more sources again.
+
+The register seed is the one that writes invented *members* rather than invented
+numbers, and the names are visibly synthetic for that reason — a browser suite
+runs on every branch and must never carry anything resembling a real company.
 """
 
 from __future__ import annotations
@@ -40,6 +45,141 @@ def seed_public() -> str:
         outcome = synchronize_membership(collector=lambda total=total, **_kwargs: collection(total))
         results.append(outcome.result)
     return f"liikmed (avalik): {results[-1]} (4203)"
+
+
+def seed_register(today: dt.date) -> str:
+    """A synthetic roster and a directory that half agrees with it.
+
+    Written straight into the models rather than through the CSV importer: the
+    importer's input is a member list, and generating one on disk during a seed
+    would put a file of member-shaped rows on every branch's runner. The names
+    here are obviously invented, which is the point — this is the one seed that
+    publishes rows a page will print by name.
+
+    The two sources deliberately **disagree**: some members are absent from the
+    directory, and the directory publishes a code the roster does not have. A
+    seed where the two matched perfectly would leave the comparison's whole
+    reason for existing untested, and the empty-difference branch is the one
+    that renders without it.
+    """
+    from django.utils import timezone
+
+    from apps.membership.bootstrap import (
+        ensure_member_directory_source,
+        ensure_member_register_source,
+    )
+    from apps.membership.models import (
+        MemberDirectoryEntry,
+        MemberRegisterEntry,
+        MemberRegisterSnapshot,
+    )
+    from apps.membership.register_import import IMPORTER_NAME, SCHEMA_VERSION
+    from apps.sources.services import (
+        build_import_run,
+        complete_import_run,
+        register_external_reference,
+        start_import_run,
+    )
+
+    source = ensure_member_register_source()
+    directory_source = ensure_member_directory_source()
+
+    if MemberRegisterSnapshot.objects.filter(source=source, is_current=True).exists():
+        return "liikmete nimekiri: juba olemas"
+
+    snapshot_date = today - dt.timedelta(days=2)
+    # A fixed synthetic digest, and it must be 64 lowercase *hexadecimal* chars:
+    # `register_external_reference` rejects anything else, and a mnemonic prefix
+    # is an easy way to smuggle in a non-hex letter. Hence `e2e` plus a fill,
+    # the same shape `seed_composition` uses under its own source.
+    digest = "e2e" + "b" * 61
+
+    artifact = register_external_reference(
+        source=source,
+        external_reference=f"roster:member-register:{digest}",
+        sha256=digest,
+        size_bytes=2048,
+        mime_type="text/csv",
+    )
+    run = build_import_run(
+        artifact=artifact,
+        importer_name=IMPORTER_NAME,
+        schema_version=SCHEMA_VERSION,
+        dry_run=False,
+    )
+    start_import_run(run)
+
+    # Enough rows to paginate — the pager is invisible on a single page — and a
+    # long name, because a squeezed table cell with one long token is this
+    # project's recurring horizontal-overflow bug.
+    counties = ("HARJUMAA", "TARTUMAA", "PÄRNUMAA", "IDA-VIRUMAA", "SAAREMAA")
+    plan = []
+    for index in range(1, 61):
+        plan.append(
+            {
+                "name": f"Sünteetiline Näidisettevõte {index:02d}",
+                "code": f"1000{index:04d}",
+                "county": counties[index % len(counties)],
+                "status": "regular" if index % 12 else "suspended",
+            }
+        )
+    plan[0]["name"] = "Sünteetiline Näidisettevõte Pikkanimegakontrollimiseks Väga Pikk Ärinimi 01"
+
+    snapshot = MemberRegisterSnapshot.objects.create(
+        source=source,
+        import_run=run,
+        snapshot_date=snapshot_date,
+        source_sha256=digest,
+        source_row_count=len(plan),
+        is_current=True,
+    )
+    MemberRegisterEntry.objects.bulk_create(
+        [
+            MemberRegisterEntry(
+                snapshot=snapshot,
+                name=row["name"],
+                legal_form="OÜ" if index % 5 else "AS",
+                member_number=str(2000 + index),
+                status_key=row["status"],
+                status_label="Koja liige" if row["status"] == "regular" else "Peatatud liige",
+                registry_code=row["code"],
+                county=row["county"],
+                city="TALLINN",
+                country="EESTI",
+                # One member with no headcount, so the table has to draw the
+                # "not reported" dash rather than a zero.
+                employees=None if index == 3 else 4 + index,
+                membership_start=snapshot_date - dt.timedelta(days=400 + index * 5),
+                nace_code="70201",
+                nace_label="Äri- ja muu juhtimisalane nõustamine",
+                website=f"www.naidis{index:02d}.ee",
+            )
+            for index, row in enumerate(plan, start=1)
+        ],
+        batch_size=200,
+    )
+    complete_import_run(run, rows_added=len(plan) + 1)
+
+    # The directory publishes all but the last three, plus one code the roster
+    # has never heard of — so both sides of the comparison have something to
+    # list and neither list is empty.
+    now = timezone.now()
+    published = [row["code"] for row in plan[:-3]] + ["19999999"]
+    MemberDirectoryEntry.objects.bulk_create(
+        [
+            MemberDirectoryEntry(
+                source=directory_source,
+                registry_code=code,
+                profile_path=f"/et/liige/sunteetiline-naidisettevote-{code}",
+                first_seen_at=now - dt.timedelta(days=30),
+                last_seen_at=now,
+                is_published=True,
+            )
+            for code in published
+        ],
+        batch_size=200,
+    )
+    return f"liikmete nimekiri: {len(plan)} kirjet, kataloogis {len(published)}"
 
 
 def seed_internal(today: dt.date) -> str:

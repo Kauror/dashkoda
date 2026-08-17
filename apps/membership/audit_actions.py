@@ -37,3 +37,17 @@ class MembershipAudit(models.TextChoices):
     OBSERVATION_IMPORTED = "membership.observation_imported", "Liikmete arv imporditud"
     SYNC_FAILED = "membership.sync_failed", "Liikmete arvu sünkroonimine ebaõnnestus"
     SYNC_UNCHANGED = "membership.sync_unchanged", "Liikmete arv: muutusteta"
+    REGISTER_IMPORTED = "membership.register_imported", "Liikmete nimekiri imporditud"
+    REGISTER_UNCHANGED = "membership.register_unchanged", "Liikmete nimekiri: muutusteta"
+    DIRECTORY_IMPORTED = (
+        "membership.directory_imported",
+        "Avaliku kataloogi kirjed uuendatud",
+    )
+    DIRECTORY_UNCHANGED = (
+        "membership.directory_unchanged",
+        "Avaliku kataloogi kirjed: muutusteta",
+    )
+    DIRECTORY_FAILED = (
+        "membership.directory_failed",
+        "Avaliku kataloogi kirjete sünkroonimine ebaõnnestus",
+    )

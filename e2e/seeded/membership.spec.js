@@ -29,6 +29,7 @@ const GROWTH = "?fookus=kasv";
 const RETIRED_FEES = "?fookus=liikmemaks";
 const MOVEMENT = "?fookus=liikumine";
 const COMPOSITION = "?fookus=koosseis";
+const REGISTER = "?fookus=nimekiri";
 
 /*
  * Chart behaviour does not depend on the viewport, so the interaction tests run
@@ -427,5 +428,125 @@ test("the decision section does not make the page scroll sideways", async ({
   await open_(page, MOVEMENT);
 
   await expect(page.locator("#section-decisions")).toBeAttached();
+  await expectNoHorizontalOverflow(page);
+});
+
+/*
+ * The members list.
+ *
+ * The one focus that prints rows rather than drawing them, so what has to be
+ * checked here is different: that the list says which day it describes, that
+ * its controls are ordinary GETs, and that a wide table does not take the
+ * document sideways with it.
+ */
+test("the members list states the date it describes and lists members", async ({
+  page,
+}) => {
+  oncePerRun();
+
+  await open_(page, REGISTER);
+
+  await expect(
+    page.getByRole("heading", { name: "Liikmete nimekiri" }),
+  ).toBeVisible();
+  // A members list rendered without its date reads as current, and this one is
+  // a manual export that ages between imports.
+  //
+  // `\s+` rather than a literal space, everywhere a phrase can span a template
+  // line break. `getByText` normalizes whitespace for a *string*, but a regex
+  // is tested against the text as rendered, so a sentence the template happens
+  // to wrap stops matching — and rewrapping a paragraph must not fail a test
+  // about what the page says.
+  await expect(page.getByText(/Nimekiri\s+seisuga/i)).toBeVisible();
+  await expect(
+    page.getByText(/ei\s+ole\s+liikmete\s+arvu\s+näitaja/i),
+  ).toBeVisible();
+  await expect(page.getByRole("row").nth(1)).toBeVisible();
+});
+
+test("searching narrows the list through an ordinary GET", async ({ page }) => {
+  oncePerRun();
+  /*
+   * No client state and no SPA: a search is a request the browser can bookmark,
+   * share and go back through, and it must keep the reader on the focus that
+   * carries the control.
+   */
+  await open_(page, REGISTER);
+
+  const before = await page.getByRole("row").count();
+  await page.getByRole("searchbox").fill("Näidisettevõte 02");
+  await page.getByRole("button", { name: "Otsi" }).click();
+
+  await expect(page).toHaveURL(/fookus=nimekiri/);
+  await expect(page).toHaveURL(/otsing=/);
+  expect(await page.getByRole("row").count()).toBeLessThan(before);
+});
+
+test("the pager moves through the list and keeps the focus", async ({
+  page,
+}) => {
+  oncePerRun();
+  await open_(page, REGISTER);
+
+  const nav = page.getByRole("navigation", { name: "Lehed" });
+  await expect(nav).toBeVisible();
+  await nav.getByRole("link", { name: /Järgmine/ }).click();
+
+  await expect(page).toHaveURL(/leht=2/);
+  await expect(page).toHaveURL(/fookus=nimekiri/);
+  await expect(page.getByText(/Lehekülg 2/)).toBeVisible();
+});
+
+test("the two sources are compared without producing one merged total", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * The rule the whole page is built on. The comparison may state what each
+   * source knows and where they differ; it may not state a corrected
+   * membership number, because no measurement here produces one.
+   */
+  await open_(page, REGISTER);
+
+  const section = page
+    .locator("#section-register-comparison")
+    .locator("xpath=ancestor::section[1]");
+  await expect(section).toBeVisible();
+
+  // Each difference appears twice on purpose — as a count in the summary list
+  // and as a heading over the members themselves — so each is asserted at the
+  // place it belongs rather than with a bare text match, which resolves to two
+  // elements and fails strict mode.
+  const counts = section.locator("dl");
+  await expect(counts.getByText("Mõlemas allikas")).toBeVisible();
+  await expect(counts.getByText("Ainult nimekirjas")).toBeVisible();
+  await expect(counts.getByText("Ainult kataloogis")).toBeVisible();
+  await expect(counts.getByText("Kataloogis kokku")).toBeVisible();
+  await expect(
+    section.getByRole("heading", { name: "Ainult nimekirjas" }),
+  ).toBeVisible();
+  // The heading is wordier than the count label above it on purpose, and the
+  // two must not be assumed identical: "Ainult kataloogis" is the count, while
+  // the list over the members themselves says which catalogue.
+  await expect(
+    section.getByRole("heading", { name: "Ainult avalikus kataloogis" }),
+  ).toBeVisible();
+
+  await expect(
+    section.getByText(
+      /ei\s+ole\s+kummagi\s+allika\s+viga\s+ega\s+anna\s+parandatud/i,
+    ),
+  ).toBeVisible();
+});
+
+test("the members list never scrolls the page sideways", async ({ page }) => {
+  /*
+   * A seven-column table at 320px is exactly the shape that has taken this
+   * document sideways before. The table scrolls inside its own wrapper; the
+   * page does not.
+   */
+  await open_(page, REGISTER);
+
+  await expect(page.getByRole("table")).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
