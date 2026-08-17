@@ -320,13 +320,14 @@ def test_the_feedback_focus_keeps_its_caveats_without_a_chart(
     assert "sama liige võib anda tagasisidet" in content
 
 
-def test_the_page_dates_the_data_by_the_workbook(client, authenticate_viewer, register):
-    """Today's date beside a figure would claim the figure is today's."""
+def test_the_page_no_longer_dates_the_data_by_the_workbook(client, authenticate_viewer, register):
+    """The as-of line moved to `/haldus/` whole on 2026-08-17 — the fact is
+    not lost, only relocated; see `apps/legal_work/admin/_data_about.html`."""
     authenticate_viewer(client)
 
     content = get(client)
 
-    assert "Andmed seisuga 10.08.2026" in content
+    assert "Andmed seisuga 10.08.2026" not in content
 
 
 def test_the_search_reaches_the_whole_register_from_the_overview(

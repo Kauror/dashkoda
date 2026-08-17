@@ -117,7 +117,7 @@ Context:
             {% if record.has_warnings %}
               <p class="dk-meta">
                 Lähteandmetes on selle kirje kohta märkusi. Neid ei parandata siin;
-                vaata <a class="dk-link-quiet" href="#section-data-state">Andmete seis</a>.
+                vaata <a class="dk-link-quiet" href="{% url 'dashboard-admin' %}#oigusloome-andmeallikad">Andmete seis</a>.
               </p>
             {% endif %}
           </div>

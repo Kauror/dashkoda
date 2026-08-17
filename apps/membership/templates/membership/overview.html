@@ -72,16 +72,14 @@ by a rule written for this one.
   three different days. Each source states its own as-of date, and a source that
   has not been imported is simply absent from the line.
   {% endcomment %}
+  {% comment %}
+  The per-source as-of dates left the header on 2026-08-17. They are not lost:
+  `/haldus/` states them under `Liikmeskond`, the way every other dashboard's
+  provenance line already does — see
+  `apps/membership/templates/membership/admin/_data_about.html`.
+  {% endcomment %}
   <header class="flex flex-col gap-2">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Liikmeskond</h1>
-    {% if source_stamps %}
-      <p class="dk-meta flex flex-wrap items-center gap-x-2 gap-y-1 tabular-nums">
-        {% for stamp in source_stamps %}
-          <span>{{ stamp.label }} {{ stamp.value }}</span>
-          {% if not forloop.last %}<span aria-hidden="true">·</span>{% endif %}
-        {% endfor %}
-      </p>
-    {% endif %}
   </header>
 
   {# ---------------- 2. Focus navigation ---------------- #}
@@ -754,127 +752,12 @@ by a rule written for this one.
   identifiers, parser internals, raw conflicting values and stack traces are
   never shown.
   {% endcomment %}
-  {% if internal_latest %}
-    <section aria-labelledby="section-quality" class="dk-section">
-      {# `Andmete seis`, the name every other dashboard's status section wears. #}
-      <h2 id="section-quality" class="sr-only">Andmete seis</h2>
-      <div class="dk-section-body flex flex-col gap-3 py-4 text-sm text-text-secondary">
-        <p class="flex flex-wrap items-center gap-x-2 gap-y-1">
-          <span class="dk-badge {% if quality_badge.needs_attention %}dk-badge-warning{% else %}dk-badge-success{% endif %}">
-            {{ quality_badge.label }}
-          </span>
-        </p>
-
-        <details>
-          <summary class="cursor-pointer text-text-secondary">Andmete kohta</summary>
-          <div class="mt-3 flex flex-col gap-3">
-            <p>
-              Ajalugu hõlmab
-              {% if internal_quality.earliest_observation_date %}
-                {{ internal_quality.earliest_observation_date|date:"Y" }}.–{{ internal_quality.latest_observation_date|date:"Y" }}. aastat,
-              {% endif %}
-              kokku {{ internal_quality.preferred_count }} eelistatud vaatlust.
-            </p>
-            {% if internal_quality.has_omissions %}
-              <p>
-                Osad ajaloolised punktid on vastuolude tõttu graafikult välja jäetud:
-                {{ internal_quality.conflicted_metric_count }} lahendamata näitaja vastuolu ja
-                {{ internal_quality.review_required_count }} ülevaatamist vajavat vaatlust.
-                Vastuolulisi väärtusi ei asendata nulliga.
-              </p>
-            {% else %}
-              <p>Ühtegi näitajat ei ole vastuolu tõttu välja jäetud.</p>
-            {% endif %}
-            {% if internal_quality.provisional_month_count %}
-              <p>{{ internal_quality.provisional_month_count }} kuu väärtus on esialgne ja on graafikul märgistatud.</p>
-            {% endif %}
-            {% if internal_quality.conflict_month_count %}
-              <p>{{ internal_quality.conflict_month_count }} kuud on vastuolulised ja neid ei kuvata.</p>
-            {% endif %}
-            <p>
-              Puuduvat väärtust ei asendata nulliga ega interpoleerita. Aruandes
-              selgelt esitatud null on tegelik väärtus ja jääb tühjast eristatavaks.
-            </p>
-            <p>
-              Võrdlus «aasta tagasi» kasutab aastapäevale lähimat vaatlust
-              lubatud hälbe piires. Kui sellist vaatlust ei ole, jääb võrdlus
-              esitamata.
-            </p>
-
-            {% comment %}
-            The stock-and-flow check. It belongs here rather than beside a
-            headline: a reader looking up the membership total does not need to
-            be told that a flow identity left a remainder of four, and a reader
-            checking whether the figures hang together does.
-
-            A residual is a question about four reported numbers, never a
-            correction to any of them. Nothing on this page decides which of the
-            four is the one that is off — the board reported all of them, and
-            arithmetic cannot settle provenance.
-            {% endcomment %}
-            {% if reconciliations %}
-              <div class="flex flex-col gap-2">
-                <p class="font-medium text-text">Liikmete arvu kokkulangevus</p>
-                <p>
-                  Kontroll: aasta alguse liikmete arv + liitunud − välja arvatud
-                  peaks andma perioodi lõpu liikmete arvu. Erinevus ei tähenda,
-                  et mõni arv oleks vale — see näitab, et üks neist mõõdab veidi
-                  muud kui see valem eeldab. Ühtegi allika väärtust ei muudeta.
-                </p>
-                <div class="w-full overflow-x-auto">
-                  <table class="w-full min-w-max border-collapse text-sm">
-                    <caption class="sr-only">Liikmete arvu kokkulangevus perioodide kaupa</caption>
-                    <thead>
-                      <tr class="text-micro font-semibold tracking-wide text-text-muted uppercase">
-                        <th scope="col" class="border-b border-border px-3 py-2 text-left">Periood</th>
-                        <th scope="col" class="border-b border-border px-3 py-2 text-left">Alguses</th>
-                        {# Matched to the `Sel aastal` readouts above, which were relabelled #}
-                        {# on 2026-08-16. One page said `Liitunud` in one place and `Liitus` #}
-                        {# in another, for the same quantity. #}
-                        <th scope="col" class="border-b border-border px-3 py-2 text-left">Liitunud</th>
-                        <th scope="col" class="border-b border-border px-3 py-2 text-left">Väljaarvatud</th>
-                        <th scope="col" class="border-b border-border px-3 py-2 text-left">Ootuspärane</th>
-                        <th scope="col" class="border-b border-border px-3 py-2 text-left">Aruandes</th>
-                        <th scope="col" class="border-b border-border px-3 py-2 text-left">Erinevus</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {% for row in reconciliations %}
-                        <tr>
-                          <th scope="row" class="border-b border-border px-3 py-2 text-left font-medium text-text tabular-nums">
-                            {{ row.year }}{% if row.is_partial_year %} <span class="dk-meta">kuni {{ row.closing_date|date:"j.m." }}</span>{% endif %}
-                          </th>
-                          <td class="border-b border-border px-3 py-2 tabular-nums">{{ row.opening_total }}</td>
-                          <td class="border-b border-border px-3 py-2 tabular-nums">{{ row.joined }}</td>
-                          <td class="border-b border-border px-3 py-2 tabular-nums">{{ row.removed }}</td>
-                          <td class="border-b border-border px-3 py-2 tabular-nums">{{ row.expected_total }}</td>
-                          <td class="border-b border-border px-3 py-2 tabular-nums">{{ row.closing_total }}</td>
-                          <td class="border-b border-border px-3 py-2 tabular-nums {% if not row.reconciles %}text-warning{% endif %}">
-                            {% if row.reconciles %}0{% else %}{{ row.residual }}{% endif %}
-                          </td>
-                        </tr>
-                      {% endfor %}
-                    </tbody>
-                  </table>
-                </div>
-                <p class="dk-meta">
-                  Perioodid, mille kohta puudub aastavahetuse lähedane vaatlus või
-                  liitumiste/väljaarvamiste arv, jäetakse siit välja. Neid ei kuvata
-                  nullina.
-                </p>
-              </div>
-            {% endif %}
-            {% if summary %}
-              <p>
-                Avalik liikmekataloog ja sisemine aruanne loendavad eri asju.
-                Neid ei liideta, ei võrdle omavahel ega jätkata teineteise reana.
-              </p>
-            {% endif %}
-          </div>
-        </details>
-      </div>
-    </section>
-  {% endif %}
+  {% comment %}
+  `Andmete seis` moved off this page to `/haldus/` on 2026-08-17, whole — the
+  quality badge, the omission/conflict notes, the reconciliation table and the
+  two-sources-are-different rule all arrive intact. See
+  `apps/membership/templates/membership/admin/_data_about.html`.
+  {% endcomment %}
 
 </div>
 {% endblock %}
