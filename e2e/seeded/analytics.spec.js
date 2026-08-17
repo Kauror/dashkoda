@@ -43,9 +43,12 @@ const oncePerRun = () =>
 /**
  * The category label of every row a chart draws, read from its own
  * non-executable JSON payload rather than the accessible data table that
- * left every chart on 2026-08-17 — see `chart_figure.html`. Every chart this
- * file reads from is a horizontal category ranking, so `option.yAxis.data`
- * is exactly the labels the removed table's row headers used to carry.
+ * left every chart on 2026-08-17 — see `chart_figure.html`. `dashkoda.tooltip`
+ * is keyed by row and every value carries `title`, the row's own label —
+ * built the same way whether the chart draws one category-axis bar per row
+ * or, like the composition charts, one stacked series per row on a single
+ * shared category. Reading tooltip titles works either shape; `yAxis.data`
+ * does not.
  */
 const chartCategoryLabels = (page, payloadId) =>
   page.evaluate((id) => {
@@ -54,7 +57,8 @@ const chartCategoryLabels = (page, payloadId) =>
       return [];
     }
     const option = JSON.parse(script.textContent);
-    return (option.yAxis && option.yAxis.data) || [];
+    const tooltip = (option.dashkoda && option.dashkoda.tooltip) || {};
+    return Object.values(tooltip).map((row) => row.title);
   }, payloadId);
 
 // ---------------------------------------------------------------------------
@@ -228,8 +232,22 @@ test("the opportunity matrix names measurements rather than verdicts", async ({ 
   await page.goto("/koduleht/?fookus=sisu&periood=30");
 
   await expect(page.getByRole("heading", { name: "Tähelepanu ja kaasatus" })).toBeVisible();
+
+  // The quadrant name used to reach `main` through the accessible table's
+  // `Rühm` column, which left every chart on 2026-08-17. Read from the same
+  // payload the removed table's rows were built from instead.
+  const rowValues = await page.evaluate(() => {
+    const script = document.getElementById("koduleht-kaasatuse-maatriks");
+    if (!script) {
+      return [];
+    }
+    const option = JSON.parse(script.textContent);
+    const tooltip = (option.dashkoda && option.dashkoda.tooltip) || {};
+    return Object.values(tooltip).flatMap((entry) => entry.rows.map((row) => row.value));
+  });
+  expect(rowValues).toContain("Palju vaatamisi, lühem kaasatus");
+
   const main = page.locator("main");
-  await expect(main).toContainText("Palju vaatamisi, lühem kaasatus");
   for (const verdict of ["hea sisu", "halb sisu", "ebaõnnestunud"]) {
     await expect(main).not.toContainText(verdict);
   }
