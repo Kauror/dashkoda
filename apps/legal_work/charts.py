@@ -305,24 +305,17 @@ def annual_sent_chart(
         )
         previous_count = point.count
 
-    footnotes: list[str] = []
-    if comparison is not None and any(point.is_partial for point in points):
-        footnotes.append(
-            f"{comparison.current_cutoff.year} on osaline aasta: "
-            f"{integer(comparison.current)} arvamust seisuga "
-            f"{comparison.current_cutoff:%d.%m.%Y}, eelmisel aastal sama kuupäevani "
-            f"{integer(comparison.previous)}."
-        )
-
+    # The question line and the partial-year footnote were struck on
+    # 2026-08-17. `comparison` is still accepted and still unused for
+    # anything else here — the partial-year fact is unchanged, drawn hollow
+    # and labelled `YTD` above, just no longer restated underneath.
     return ChartPayload(
         payload_id="legal-annual-sent",
         title="Välja saadetud arvamused aastate lõikes",
-        question="Kuidas on Koja arvamuste maht aastate jooksul muutunud?",
         option=option,
         table_headers=("Aasta", "Arvamusi", "Muutus"),
         table_rows=tuple(rows),
         summary=(f"Välja saadetud arvamused {len(points)} aasta lõikes; jooksev aasta on osaline."),
-        footnotes=tuple(footnotes),
         empty_message="Välja saadetud arvamusi ei ole.",
         size="large",
     )
@@ -386,10 +379,6 @@ def response_window_chart(years: tuple[ResponseWindowYear, ...]) -> ChartPayload
             for year in years
         ),
         summary=("Arvamuse esitamiseks antud aeg aastate lõikes, mediaan ja keskmine päevades."),
-        footnotes=(
-            "Arvestatud on ainult teemad, millel on nii saabumise kuupäev kui ka tähtaeg "
-            "ning tähtaeg ei ole saabumisest varasem.",
-        ),
         empty_message="Vastamisaja andmeid ei ole.",
         size="large",
     )
@@ -424,11 +413,14 @@ def response_window_distribution_chart(
     share = distribution.short_window_share
     return ChartPayload(
         payload_id="legal-window-distribution",
-        title="Arvamuse esitamiseks antud aja jaotus",
+        title="Arvamuse esitamiseks antud aeg",
         option=option,
         readouts=(
             Readout(
-                label="Kuni 14 päeva arvamuse esitamiseks",
+                # Labelled `Kuni 14 päeva arvamuse esitamiseks` until
+                # 2026-08-17; `distribution.short_window_count` is unchanged,
+                # still the count within 14 days, just unlabelled now.
+                label="",
                 value=integer(distribution.short_window_count),
                 note=f"{percent(share)} arvestatud teemadest" if share is not None else "",
             ),
@@ -501,14 +493,18 @@ def feedback_category_chart(
     *,
     payload_id: str,
     title: str,
-    question: str,
     category_header: str,
+    question: str = "",
 ) -> ChartPayload:
     """Where member participation is concentrated.
 
     The number of *measured* topics travels beside every bar, because a category
     with two feedback topics out of three and one with two out of ninety would
     otherwise draw identical bars.
+
+    Both of its footnotes — the descriptive-not-causal caveat, the
+    withheld-below-the-floor rule — were struck on 2026-08-17. Neither fact
+    changed: a thin category is still excluded, not zeroed.
     """
     labels = [row.label for row in rows]
     counts = [row.with_feedback for row in rows]
@@ -546,12 +542,6 @@ def feedback_category_chart(
             for row in rows
         ),
         summary=f"Liikmete tagasiside jaotus {len(rows)} kategooria lõikes.",
-        footnotes=(
-            "Kirjeldav jaotus. See, et mõne kategooria teemadel antakse rohkem "
-            "tagasisidet, ei tähenda, et kategooria selle põhjustas.",
-            "Kategooriad, kus tagasisidet ei ole üldse mõõdetud, jäetakse välja, "
-            "et neid ei loetaks nullideks.",
-        ),
         empty_message="Tagasiside andmeid ei ole veel piisavalt.",
         size="categorical",
     )

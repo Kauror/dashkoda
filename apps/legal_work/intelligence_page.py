@@ -37,7 +37,6 @@ from .analytics import (
     recipient_breakdown,
     response_window_by_year,
     response_window_distribution,
-    sent_by_deadline,
     sent_year_on_year,
     stage_breakdown,
     top_feedback_topics,
@@ -384,24 +383,8 @@ def _workflow(snapshot, year, focus, label, links) -> IntelligencePage:
 
 
 def _opinions(snapshot, year, focus, label, links) -> IntelligencePage:
-    from apps.core.formatting import integer, percent
-
     comparison = sent_year_on_year(snapshot)
     windows = response_window_by_year(snapshot)
-    timing = sent_by_deadline(snapshot)
-
-    footnotes = [
-        "„Arvamus saadetud hiljemalt märgitud tähtajaks“ kirjeldab kuupäevi, mitte "
-        "kellegi tööd: tähtaegu lepitakse kokku, lähteandmete kuupäevi täpsustatakse "
-        "hiljem ja osa arvamusi esitatakse teadlikult pärast tähtaega.",
-    ]
-    if timing.eligible:
-        footnotes.insert(
-            0,
-            f"Arvamus saadetud hiljemalt märgitud tähtajaks: "
-            f"{integer(timing.on_or_before)} / {integer(timing.eligible)} "
-            f"({percent(timing.share_on_or_before)}).",
-        )
 
     return IntelligencePage(
         focus=focus,
@@ -415,28 +398,15 @@ def _opinions(snapshot, year, focus, label, links) -> IntelligencePage:
         ),
         # `Viimati välja läinud` renders on the overview alone since
         # 2026-08-16 — this focus repeated it — so the query goes too.
-        footnotes=tuple(footnotes),
+        # `Kuidas neid arve lugeda` and its on-time-submission footnotes left
+        # on 2026-08-17; `sent_by_deadline` is untouched and still tested,
+        # just no longer called here.
     )
 
 
 def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
     summary = feedback_summary(snapshot, year=year)
     start_year = first_tracked_feedback_year(snapshot)
-
-    footnotes = [
-        "Allikas salvestab arvud, mitte isikuid: kui palju liikmeid vastas ja kui "
-        "paljudelt otse küsiti. Liikmete nimesid ega ettevõtteid siin ei ole.",
-        "Tegemist ei ole unikaalsete liikmetega — sama liige võib anda tagasisidet "
-        "mitmel teemal ja läheb igal teemal eraldi arvesse.",
-        "Vastamismäära ei arvutata: tagasisidet andnud liikmed ei ole otse küsitute "
-        "alamhulk, sest liikmed vastavad ka uudiskirja ja üldiste pöördumiste kaudu.",
-    ]
-    if start_year is not None:
-        footnotes.insert(
-            0,
-            f"Liikmete tagasiside mõõtmine algab registris {start_year}. aastast. "
-            "Varasemaid aastaid ei kuvata nullina.",
-        )
 
     # Only drawn once there is something to describe. A breakdown built from two
     # measured topics would rank noise, and an empty bar chart beside a
@@ -451,7 +421,6 @@ def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
                     by_act_type,
                     payload_id="legal-feedback-act-types",
                     title="Milliste õigusaktide teemadel liikmed tagasisidet annavad",
-                    question="Kus liikmete osalus koondub?",
                     category_header="Õigusakti liik",
                 )
             )
@@ -461,7 +430,6 @@ def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
                     by_recipient,
                     payload_id="legal-feedback-recipients",
                     title="Tagasisidega teemad saaja järgi",
-                    question="Milliste asutuste teemadel liikmed osalevad?",
                     category_header="Saaja",
                 )
             )
@@ -476,7 +444,9 @@ def _feedback(snapshot, year, focus, label, links) -> IntelligencePage:
         feedback_start_year=start_year,
         feedback_topics=top_feedback_topics(snapshot),
         charts=tuple(breakdown_charts),
-        footnotes=tuple(footnotes),
+        # `Kuidas neid arve lugeda` and its four caveats left on 2026-08-17.
+        # `start_year` still reaches the page — see `feedback_start_year`
+        # above — so a reader can still see where the series begins.
     )
 
 

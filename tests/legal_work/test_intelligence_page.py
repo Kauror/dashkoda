@@ -205,9 +205,11 @@ def test_the_current_year_is_marked_as_partial(client, authenticate_viewer, regi
 def test_no_member_response_rate_is_offered_anywhere(client, authenticate_viewer, register):
     """The two feedback counts are not a valid numerator and denominator.
 
-    The word itself does appear once, in the sentence saying the rate is *not*
-    calculated. What must never appear is the claim: a percentage presented as
-    a share of members who answered, or a count of distinct people.
+    The sentence that used to say so — the rate is *not* calculated — left
+    the page on 2026-08-17 along with `Kuidas neid arve lugeda`. What must
+    still never appear, with or without that sentence, is the claim itself: a
+    percentage presented as a share of members who answered, or a count of
+    distinct people.
     """
     authenticate_viewer(client)
 
@@ -319,16 +321,21 @@ def test_a_chart_payload_rides_in_a_non_executable_block(client, authenticate_vi
     assert 'type="application/json"' in get(client, "arvamused")
 
 
-def test_the_feedback_focus_keeps_its_caveats_without_a_chart(
+def test_the_feedback_focus_no_longer_states_its_caveats_inline(
     client, authenticate_viewer, register
 ):
-    """A surface that draws no chart must not lose the notes that qualify it."""
+    """`Kuidas neid arve lugeda` and its four caveats left this focus on
+    2026-08-17. What each one described is unchanged — feedback is still
+    counted, not people; a member is still not unique across topics; no
+    response rate is still ever computed — only the on-page statement of it
+    is gone."""
     authenticate_viewer(client)
 
     content = get(client, "tagasiside")
 
-    assert "Vastamismäära ei arvutata" in content
-    assert "sama liige võib anda tagasisidet" in content
+    assert "Kuidas neid arve lugeda" not in content
+    assert "Vastamismäära ei arvutata" not in content
+    assert "sama liige võib anda tagasisidet" not in content
 
 
 def test_the_page_no_longer_dates_the_data_by_the_workbook(client, authenticate_viewer, register):
