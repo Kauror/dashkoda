@@ -473,12 +473,46 @@ def seed_newsletter_sends(today: dt.date) -> str:
     **No recipient reaches this, because no field can hold one.** These are
     aggregate counts over a whole send, which is the only grain the Smaily
     integration has.
+
+    **Re-running publishes nothing.** CI may seed a database a previous step
+    already seeded, and every other builder here is re-runnable, so this one
+    returns early rather than colliding on `campaign_id` — or, worse, doubling
+    the block a rate is weighted over and quietly changing the figure the front
+    page states. The whole batch is one artifact and one import run, which is
+    also what keeps the run count from growing with the send count.
     """
-    from apps.sources.services import build_import_run, register_external_reference
+    from apps.sources.services import (
+        build_import_run,
+        complete_import_run,
+        register_external_reference,
+        start_import_run,
+    )
     from apps.visibility.bootstrap import ensure_smaily_source
     from apps.visibility.models import SmailyCampaign, SmailyCampaignStats
 
+    sends = len(NEWSLETTER_PLAN) * NEWSLETTER_SENDS_PER_BLOCK * 2
+    if SmailyCampaign.objects.exists():
+        return f"otsepostitused: {sends} saadetist (juba olemas)"
+
     source = ensure_smaily_source()
+    artifact = register_external_reference(
+        source=source,
+        external_reference="synthetic:smaily:campaigns",
+        original_name="synthetic-campaigns.json",
+        mime_type="application/json",
+        # Fixed rather than derived: the digest is the import key, and one that
+        # moved with the clock would make a second run look like new content.
+        sha256=f"{0:064d}",
+        size_bytes=64,
+    )
+    run = build_import_run(
+        artifact=artifact,
+        importer_name="synthetic-smaily-campaigns",
+        schema_version="1.0",
+        dry_run=False,
+    )
+    start_import_run(run)
+
     campaign_id = 0
     for metric, delivered, older_rate, recent_rate in NEWSLETTER_PLAN:
         for index in range(NEWSLETTER_SENDS_PER_BLOCK * 2):
@@ -495,20 +529,6 @@ def seed_newsletter_sends(today: dt.date) -> str:
                 status="COMPLETED",
                 completed_at=timezone.make_aware(dt.datetime.combine(sent_on, dt.time(9, 0))),
             )
-            artifact = register_external_reference(
-                source=source,
-                external_reference=f"synthetic:smaily:{campaign_id}",
-                original_name="synthetic.json",
-                mime_type="application/json",
-                sha256=f"{campaign_id:064d}",
-                size_bytes=64,
-            )
-            run = build_import_run(
-                artifact=artifact,
-                importer_name="synthetic",
-                schema_version="1.0",
-                dry_run=False,
-            )
             SmailyCampaignStats.objects.create(
                 campaign=campaign,
                 artifact=artifact,
@@ -523,4 +543,5 @@ def seed_newsletter_sends(today: dt.date) -> str:
                 unique_click_count=round(delivered * rate * 0.2),
                 unsubscribe_count=2,
             )
+    complete_import_run(run, rows_added=campaign_id)
     return f"otsepostitused: {campaign_id} saadetist"

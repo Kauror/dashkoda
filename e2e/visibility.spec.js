@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
 
 /*
- * The Koduleht page and the overview's six-slot channel band.
+ * The Koduleht page and the overview's audience strip.
  *
  * CI runs against a container with an empty database, so every assertion here is
  * about the *truthful empty state* and the layout. That is the state a fresh
@@ -14,13 +14,18 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
  * The website page was `Nähtavus` and carried a five-slot social channel band
  * above its traffic section. It is `Koduleht` now and answers questions about
  * the website; the four hand-entered social figures are untouched and are still
- * on the overview's band, which is what the first block below covers. The
+ * on the overview's strip, which is what the first block below covers. The
  * newsletters left earlier and are `Otsepostitused` now — see
  * `otsepostitused.spec.js`.
+ *
+ * The strip had a sixth slot, `Kodulehe külastused`, until 2026-08-17. It was
+ * the front page's only consumer and the rebuilt `Koduleht ja uudised` card
+ * states the same measure over a properly measured window, so the slot went
+ * rather than saying one thing twice under two labels. Sessions are visits, not
+ * an audience, which is the other half of why the strip is better without it.
  */
 
 const CHANNELS = [
-  "Kodulehe külastused",
   "Uudiskirjad",
   "Facebooki jälgijad",
   "LinkedIni jälgijad",
@@ -35,7 +40,7 @@ async function openKoduleht(page) {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
 }
 
-test("the overview band names all six channels", async ({ page }) => {
+test("the overview strip names every audience and no website figure", async ({ page }) => {
   const errors = watchConsole(page);
 
   await signIn(page);
@@ -43,10 +48,11 @@ test("the overview band names all six channels", async ({ page }) => {
   for (const channel of CHANNELS) {
     await expect(page.getByRole("heading", { name: channel, exact: true })).toBeVisible();
   }
+  await expect(page.getByRole("heading", { name: "Kodulehe külastused" })).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 
-test("the six-slot band never scrolls the overview sideways", async ({ page }) => {
+test("the audience strip never scrolls the overview sideways", async ({ page }) => {
   await signIn(page);
 
   await expectNoHorizontalOverflow(page);

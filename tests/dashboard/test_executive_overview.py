@@ -652,15 +652,15 @@ def test_the_interest_strip_is_website_news_and_shop_only():
 def test_the_audience_strip_never_repeats_the_website():
     """Sessions are the `Koduleht ja uudised` headline and appear once.
 
-    Left out at the source rather than hidden by the template, so the slot is
-    absent from the data and the query behind it does not run either.
+    The website slot was removed from `build_channel_band` outright rather than
+    filtered out here: the overview was its only consumer, so a slot the band
+    still built would be a query nobody renders. Asserted on the label the slot
+    used to carry, because that is what a reintroduction would bring back.
     """
-    from apps.visibility.page import WEBSITE_LABEL
-
     page = _overview()
 
     assert page.channels, "the strip still names the audiences"
-    assert all(slot.label != WEBSITE_LABEL for slot in page.channels)
+    assert all("külastused" not in slot.label.casefold() for slot in page.channels)
 
 
 @pytest.mark.django_db

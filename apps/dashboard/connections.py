@@ -108,6 +108,8 @@ def planned(label: str, *, promise: str = "", cadence: str = "") -> Connection:
 # member an integration exists where a person typed a number off a screen.
 # `apps.visibility.selectors.ReadingState` carries the honest wording instead.
 #
-# Website visits have their own optional collector, the scheduled `sync_ga4`
-# command. The slot claims a connection only once an observation has actually
-# been published; until then it still says `Lisamisel`.
+# Website visits had a slot on that band until 2026-08-17. It went with the
+# rebuilt front page, whose `Koduleht ja uudised` card states sessions over a
+# properly measured GA4 window — the band is audiences now, and a session is a
+# visit rather than an audience. `sync_ga4` is untouched and Koduleht is where
+# its figures are read.
