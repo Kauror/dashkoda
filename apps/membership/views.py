@@ -51,8 +51,6 @@ from .charts import (
     ToggleOption,
     available_benchmarks,
     composition_chart,
-    decision_batch_reasons_chart,
-    decision_batch_sizes_chart,
     fee_collection_chart,
     growth_index_chart,
     join_cohort_chart,
@@ -532,11 +530,13 @@ def _growth_sections(
 
 
 def _movement_sections(*, latest, batches, decisions, chosen, control_state, **_ignored):
-    """Who arrived, who left, and what a single board decision contained.
+    """Who arrived and who left, as a year-to-date breakdown.
 
-    The two are deliberately separate sections. A year-to-date breakdown and one
-    decision's own list answer different questions, and drawing them together
-    would invite exactly the addition this dataset exists to prevent.
+    `Juhatuse otsused` — one board decision's own list, toggled by `batches`,
+    `decisions`, `chosen` and `control_state` — left this focus on 2026-08-17.
+    Those four are still computed by the caller and still accepted here so its
+    signature does not have to change; nothing below composes them into a
+    section any more.
     """
     movement_charts = []
     if latest is not None:
@@ -551,50 +551,12 @@ def _movement_sections(*, latest, batches, decisions, chosen, control_state, **_
                 removal_reasons_chart(reasons, observation_date=latest.observation_date)
             )
 
-    decision_charts = []
-    for batch in [b for b in batches if _decision_key(b) == chosen]:
-        if batch.reasons:
-            decision_charts.append(decision_batch_reasons_chart(batch))
-        if batch.sizes:
-            decision_charts.append(decision_batch_sizes_chart(batch))
-
     return [
         AnalyticsSection(
             section_id="section-movement",
             title="Liikmete liikumine",
             description="",
             charts=tuple(movement_charts),
-        ),
-        AnalyticsSection(
-            section_id="section-decisions",
-            title="Juhatuse otsused",
-            description=(
-                "Ühe juhatuse otsuse enda nimekiri. Ei ole aasta algusest "
-                "kogunenud arv ega ole sellega liidetav."
-            ),
-            charts=tuple(decision_charts),
-            toggles=(
-                (
-                    Toggle(
-                        label="Otsus",
-                        options=tuple(
-                            _toggle(
-                                control_state,
-                                PARAM_DECISION,
-                                key,
-                                label,
-                                chosen,
-                                anchor="section-decisions",
-                            )
-                            for key, label in decisions
-                        ),
-                    ),
-                )
-                # One decision is not a choice, and a control that cannot change
-                # anything reads as a control that is broken.
-                if len(decisions) > 1
-                else ()
-            ),
         ),
     ]
 
