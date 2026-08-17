@@ -15,8 +15,6 @@ import pytest
 from apps.news import analytics, page
 from apps.news.categories import NewsCategory
 from apps.news.focus import (
-    FOCUS_ARCHIVE,
-    FOCUS_IMPACT,
     FOCUS_OVERVIEW,
     FOCUSES,
     parse_focus,
@@ -83,10 +81,12 @@ def test_every_focus_renders_with_articles_but_no_analytics(viewer_client, focus
         (None, FOCUS_OVERVIEW),
         ("", FOCUS_OVERVIEW),
         ("ulevaade", FOCUS_OVERVIEW),
-        ("moju", FOCUS_IMPACT),
         # Retired 2026-08-16: the publishing material lives on the overview.
         ("avaldamine", FOCUS_OVERVIEW),
-        ("arhiiv", FOCUS_ARCHIVE),
+        # Retired 2026-08-17: `moju`'s one remaining chart and `arhiiv`'s
+        # whole table both merged onto the same one view.
+        ("moju", FOCUS_OVERVIEW),
+        ("arhiiv", FOCUS_OVERVIEW),
         ("zzz", FOCUS_OVERVIEW),
         ("../../etc", FOCUS_OVERVIEW),
     ],
@@ -99,11 +99,9 @@ def test_the_default_focus_is_not_written_into_the_url():
     """`/uudised/` and `/uudised/?fookus=ulevaade` are one address, not two."""
     options = page.focus_options(parse_focus(None), state="periood=90")
 
-    overview = next(option for option in options if option.focus.key == FOCUS_OVERVIEW)
-    impact = next(option for option in options if option.focus.key == FOCUS_IMPACT)
-
-    assert overview.query == "periood=90"
-    assert impact.query == "fookus=moju&periood=90"
+    assert len(options) == 1
+    assert options[0].focus.key == FOCUS_OVERVIEW
+    assert options[0].query == "periood=90"
 
 
 def test_every_focus_link_carries_the_pages_state():

@@ -11,8 +11,10 @@ it, which is why this suite asserts absence on both:
 
 - **Koduleht** keeps the website and has no newsletter card, section or sends
   table;
-- **Uudised** keeps its four article focuses and its archive exactly as they
-  were, and has no newsletter focus, card, section or subject search;
+- **Uudised** keeps every article section it had — the dashboard, the one
+  chart `Uudiste mõju` still drew and the archive all merged onto its one
+  remaining view on 2026-08-17 — and has no newsletter focus, card, section
+  or subject search;
 - **Otsepostitused** has all of it: the card, the analytics, the filter, the
   subject search, the send archive and the link between the two;
 - every retired address still resolves, and none of them lands anywhere but
@@ -48,9 +50,11 @@ MAILINGS_URL = "/otsepostitused/"
 # a test that cannot tell the two apart.
 VISIBILITY_URL = "/koduleht/"
 
-#: The archive focus of Uudised, which stayed. The focus travels as an ordinary
-#: parameter because Django's test client discards a path's own query string as
-#: soon as `data` is passed.
+#: The archive section of Uudised, which stayed — `fookus=arhiiv` retired to
+#: the page's one view on 2026-08-17 and is a no-op now, kept here as a
+#: stale-bookmark check. The parameter travels as an ordinary dict because
+#: Django's test client discards a path's own query string as soon as `data`
+#: is passed.
 ARCHIVE = {"fookus": "arhiiv"}
 
 #: The section headings each page is asserted to hold or not hold.
@@ -187,18 +191,24 @@ def test_the_news_archive_is_unchanged(viewer_client):
         assert control in content, f"the news archive lost {control}"
 
 
-def test_the_news_page_offers_only_the_three_article_focuses(viewer_client):
-    """The focus navigation names three views and no more.
+def test_the_news_page_offers_no_focus_navigation(viewer_client):
+    """One view, no tabs.
 
     `Avaldamine` folded into the overview on 2026-08-16; `Uudiskirjad` left for
-    Otsepostitused long before. Neither is offered as a tab.
+    Otsepostitused before that; `Uudiste mõju` and `Arhiiv` merged into the
+    same one view as `Ülevaade` on 2026-08-17, so there is nothing left to
+    choose between and the tab bar itself is gone — a nav with one,
+    unclickable, already-active chip in it would read as a fault.
     """
     content = page(viewer_client.get(NEWS_URL))
 
-    for label in ("Ülevaade", "Uudiste mõju", "Arhiiv"):
-        assert label in content
+    assert 'aria-label="Vaade"' not in content
+    for label in ("Uudiste mõju", "Arhiiv"):
+        assert label not in content
     assert "fookus=uudiskirjad" not in content
     assert "fookus=avaldamine" not in content
+    assert "fookus=moju" not in content
+    assert "fookus=arhiiv" not in content
 
 
 def test_the_news_page_has_no_newsletter_card_section_or_sends(viewer_client):

@@ -35,27 +35,32 @@ test("capture the page explorer mid-search", async ({ page }, testInfo) => {
   await page.screenshot({ path: shot(testInfo, "visibility-search"), fullPage: true });
 });
 
-test("capture the news archive", async ({ page }, testInfo) => {
+test("capture the news archive section", async ({ page }, testInfo) => {
   /*
    * Captured at every width, because the archive's density is the point of it
-   * and density is exactly what a desktop-only screenshot cannot review.
+   * and density is exactly what a desktop-only screenshot cannot review. This
+   * is the whole page now — the archive merged into the one view on
+   * 2026-08-17 — with `periood=koik` so the archive section that used to be
+   * this screenshot's whole subject still shows a full listing rather than a
+   * thin default window.
    */
   await signIn(page);
-  await page.goto("/uudised/?fookus=arhiiv&periood=koik");
+  await page.goto("/uudised/?periood=koik");
   await page.screenshot({ path: shot(testInfo, "news"), fullPage: true });
 });
 
-test("capture each news focus view", async ({ page }, testInfo) => {
+test("capture each remaining top-level view", async ({ page }, testInfo) => {
   /*
-   * All four, at every width. The dashboard's whole claim is that a reader gets
-   * an answer in seconds and can then investigate, and whether that holds is a
+   * At every width. The dashboard's whole claim is that a reader gets an
+   * answer in seconds and can then investigate, and whether that holds is a
    * question about hierarchy and density on a real screen — which is what a
-   * screenshot review is for and what no assertion covers.
+   * screenshot review is for and what no assertion covers. `Uudiste mõju` is
+   * not its own capture any more: it merged into `news-overview` on
+   * 2026-08-17 and a screenshot of it now would be a duplicate of that one.
    */
   await signIn(page);
   for (const [name, url] of [
     ["news-overview", "/uudised/"],
-    ["news-impact", "/uudised/?fookus=moju"],
     ["mailings", "/otsepostitused/"],
   ]) {
     await page.goto(url);

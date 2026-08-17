@@ -4,19 +4,21 @@
 {% comment %}
 The news intelligence dashboard.
 
-Three focus views over one address. The shell here is the part every focus
-shares — the heading, the source freshness, the focus navigation and the
-methodology disclosure — and each focus contributes its own partial.
-`Avaldamine` was a fourth and folded into the overview on 2026-08-16; its
-retired key resolves there.
+One view over one address. It carried three focuses between 2026-08-16 and
+2026-08-17 — Ülevaade, Uudiste mõju, Arhiiv — and they merged back: the
+dashboard, the one chart `Uudiste mõju` still drew, and the archive table, top
+to bottom on one screen, in the order the three-focus page had already settled
+on. `Avaldamine` folded into the overview earlier, on 2026-08-16; its retired
+key, and `moju`'s and `arhiiv`'s, all resolve to this one view now — see
+`RETIRED_FOCUSES` in `apps/news/focus.py`.
 
 The page used to open on the archive table, which answered "find me the article
 about excise duty" and answered "how are we doing" somewhere in the middle of
-it. The archive has not gone anywhere; it is now the last focus, where an exact
-lookup belongs, and the first screen answers the questions somebody opens a
-communications dashboard with.
+it. The archive has not gone anywhere; it is still the last section, where an
+exact lookup belongs, and the first screen still answers the questions
+somebody opens a communications dashboard with.
 
-The newsletters were a fifth focus and are `Otsepostitused` now, at their own
+The newsletters were a separate focus and are `Otsepostitused` now, at their own
 address under Koduleht. Nothing on this page renders one.
 
 Three presentational rules carry the density:
@@ -37,9 +39,10 @@ should stay that way.
 
 {% block extra_head %}
   {% comment %}
-  The chart bundle loads only for the two focus views that draw something. The
-  overview and the archive ship no chart JavaScript at all — it is over a
-  megabyte and neither has a canvas.
+  The chart bundle loads only when a chart will actually draw. The archive
+  section ships no chart JavaScript of its own — it is over a megabyte and
+  has no canvas — but it always renders alongside the dashboard now, so this
+  still names the two charts rather than the two focuses that used to gate them.
   {% endcomment %}
   {% if page.cadence or page.distribution %}
     <script type="module" src="{% static 'build/charts.js' %}"></script>
@@ -60,36 +63,45 @@ should stay that way.
   </header>
 
   {% comment %}
-  The focus navigation. Ordinary links, each a real URL carrying the whole page
-  state, so back and forward work and a colleague can be sent the exact view.
-  It scrolls rather than wraps on a narrow screen, so the tabs stay on one line
-  and the reader can see how many there are.
+  The focus navigation stayed a loop over `page.focuses` rather than a single
+  hardcoded heading — `focus_options` and `FocusOption` are still real, so a
+  section reappearing behind its own address is a matter of adding one
+  `Focus` back to `FOCUSES`, not rebuilding this block. With one focus it
+  renders nothing: a nav with one, unclickable, already-active chip in it
+  reads as a fault, the same rule Liikmeskond's `focus_links` follows.
   {% endcomment %}
-  <nav aria-label="Vaade" class="-mx-4 min-w-0 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-    <ul class="flex w-max gap-2 sm:w-auto sm:flex-wrap">
-      {% for option in page.focuses %}
-        <li>
-          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-             href="{% if option.query %}?{{ option.query }}{% else %}?{% endif %}"
-             {% if option.is_active %}aria-current="page"{% endif %}>{{ option.label }}</a>
-        </li>
-      {% endfor %}
-    </ul>
-  </nav>
+  {% if page.focuses|length > 1 %}
+    <nav aria-label="Vaade" class="-mx-4 min-w-0 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+      <ul class="flex w-max gap-2 sm:w-auto sm:flex-wrap">
+        {% for option in page.focuses %}
+          <li>
+            <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+               href="{% if option.query %}?{{ option.query }}{% else %}?{% endif %}"
+               {% if option.is_active %}aria-current="page"{% endif %}>{{ option.label }}</a>
+          </li>
+        {% endfor %}
+      </ul>
+    </nav>
+  {% endif %}
 
   {% comment %}
   Each focus used to restate its own question here, under the navigation. The
-  four tab labels already say which question is being asked, so the field went
+  tab labels already said which question was being asked, so the field went
   with the line — see `Focus` in `apps/news/focus.py`.
   {% endcomment %}
 
-  {% if page.is_overview %}
-    {% include "news/partials/_focus_overview.html" with page=page reading_state=reading_state only %}
-  {% elif page.is_impact %}
-    {% include "news/partials/_focus_impact.html" with page=page reading_state=reading_state only %}
-  {% elif page.is_archive %}
-    {% include "news/partials/_focus_archive.html" with archive=archive only %}
-  {% endif %}
+  {% comment %}
+  All three sections, unconditionally, in the reading order the three-focus
+  page had already settled on: the dashboard first, since that answers what
+  somebody opens a communications dashboard to ask; the one chart `Uudiste
+  mõju` still drew, right after the dashboard's own reading list, since both
+  are about what is being read; the archive last, because "find me the
+  article about excise duty" is a different errand from "how are we doing"
+  and an exact lookup belongs at the end of the screen, not the top of it.
+  {% endcomment %}
+  {% include "news/partials/_focus_overview.html" with page=page reading_state=reading_state only %}
+  {% include "news/partials/_focus_impact.html" with page=page reading_state=reading_state only %}
+  {% include "news/partials/_focus_archive.html" with archive=archive only %}
 
   {% comment %}
   `Andmete kohta` moved off this page to `/haldus/` on 2026-08-17, whole —

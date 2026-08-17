@@ -1,20 +1,17 @@
 {% comment %}
-`Uudiste mõju` — the deep content-performance view.
+`Uudiste mõju` — what used to be the deep content-performance view, now the
+one section it retired with when it merged into the overview on 2026-08-17.
 
-Three separate rankings rather than one `Enim vaadatud` table, because "what is
-being read now" and "what performed best on a comparable first month" are
-different questions and one list cannot answer both. Which lens is on screen is
-a real URL, so a colleague can be sent the exact one.
+Three separate rankings used to live here rather than one `Enim vaadatud`
+table, because "what is being read now" and "what performed best on a
+comparable first month" are different questions and one list cannot answer
+both. `Pingerida` — that ranking, with its own lens tabs and read-period
+chips — left first, on 2026-08-16, along with `Jätkuvalt loetav` and `Alla
+tavapärase`. `page.lenses`, `page.read_periods`, `page.ranked`,
+`page.evergreen` and `page.below_normal` are still built by `build_impact`;
+nothing here composes them now.
 
 Context: page, reading_state
-{% endcomment %}
-
-{% comment %}
-`Pingerida` — the three-lens ranking with its own tabs and read-period chips —
-left this focus on 2026-08-17, along with `Jätkuvalt loetav` and `Alla
-tavapärase` further down. `page.lenses`, `page.read_periods`, `page.ranked`,
-`page.evergreen` and `page.below_normal` are still built; nothing here
-composes them now.
 {% endcomment %}
 
 {% comment %}

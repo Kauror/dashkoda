@@ -1,12 +1,13 @@
-"""What the Uudised page says, assembled per focus.
+"""What the Uudised page says.
 
 `views.py` reads query parameters and renders; this module decides what the page
-holds. The split matters because the page has four faces and each reads a
-different amount: the overview must not pay for the publishing view's monthly
-series, and the archive must not pay for the impact view's cohort medians.
-
-**Every focus builds only what it renders.** Building all four would run three
-views' worth of queries behind whichever one is on screen.
+holds. It carried a `focus` split until 2026-08-17 — the overview must not pay
+for the publishing view's monthly series, and the archive must not pay for the
+impact view's cohort medians, so each built only what it rendered. The page is
+one view now and `build_news_page` always runs every builder below; the split
+stays because each function is still independently readable and testable, and
+because the day this page grows a second view again, the "only what it
+renders" rule is exactly what should govern it.
 
 ## Newsletters are not here
 
@@ -426,7 +427,13 @@ def _below_normal(
 
 @dataclass(frozen=True)
 class NewsPage:
-    """One rendering of `/uudised/`, in whichever focus was asked for."""
+    """One rendering of `/uudised/` — every field, on every render.
+
+    The `#: fookus=...` comments below name which now-retired focus's
+    builder populates each group of fields, not which one renders it —
+    `moju` and `avaldamine` both merged into the one view on 2026-08-17 (or
+    2026-08-16, for `avaldamine`), and everything below composes now.
+    """
 
     focus: Focus
     focuses: tuple[FocusOption, ...]
@@ -795,11 +802,13 @@ def build_news_page(
     state: str = "",
     today: date | None = None,
 ) -> NewsPage:
-    """Assemble whichever focus was asked for, **and only that one**.
+    """Assemble the one view — every section this page draws.
 
-    Each branch runs the queries its own view renders and no others. Building all
-    four would put the publishing series and three cohort medians on every render
-    of a page showing one of them.
+    `Uudiste mõju` and `Arhiiv` retired into the overview on 2026-08-17;
+    `focus_key` is still accepted and still resolved, so a stale `?fookus=`
+    bookmark keeps landing on a real page rather than raising, but the
+    resolve no longer decides what gets built. `Andmed tabelina`-style
+    per-view savings do not apply to a page with one view.
     """
     coverage = get_coverage()
     focus = parse_focus(focus_key)
@@ -816,21 +825,22 @@ def build_news_page(
         "facts": analytics.catalogue_facts(coverage),
     }
 
-    if focus.key == FOCUS_OVERVIEW:
-        page.update(build_overview(reading=reading, period=period, coverage=coverage))
-        # The publishing material joined the overview when `avaldamine`
-        # retired: how much the Chamber publishes belongs on the same first
-        # screen as what is being read.
-        page.update(build_publishing(period=period, coverage=coverage, state=state))
-    elif focus.key == FOCUS_IMPACT:
-        page.update(
-            build_impact(
-                reading=reading,
-                coverage=coverage,
-                lens=parse_lens(lens_key),
-                state=state,
-            )
+    page.update(build_overview(reading=reading, period=period, coverage=coverage))
+    # The publishing material joined the overview when `avaldamine` retired:
+    # how much the Chamber publishes belongs on the same screen as what is
+    # being read.
+    page.update(build_publishing(period=period, coverage=coverage, state=state))
+    # The distribution chart, `Uudiste mõju`'s one remaining section since its
+    # ranking left on 2026-08-17. `ranked`, `evergreen`, `below_normal` and
+    # `cohorts` are still built and still on `NewsPage`; nothing renders them.
+    page.update(
+        build_impact(
+            reading=reading,
+            coverage=coverage,
+            lens=parse_lens(lens_key),
+            state=state,
         )
+    )
 
     return NewsPage(**page)
 
