@@ -125,29 +125,33 @@ def test_the_visibility_page_has_no_newsletter_section_or_sends(viewer_client):
     assert "Otsi uudiskirja" not in content
 
 
-def test_the_overview_band_keeps_the_website_and_the_social_channels(viewer_client):
+def test_the_overview_strip_keeps_the_social_channels(viewer_client):
     """The half that did not move, asserted where it now lives.
 
     "Remove the newsletter slot" and "remove a slot from the band" are one line
-    apart, and the second would take the website and four social cards with it.
+    apart, and the second would take the four social cards with it.
 
     The band left the website page when it became Koduleht — a page named after
     the website does not open with four figures about something else — so this
-    asserts on the overall dashboard, which is where a board member reads all
-    six channels together.
+    asserts on the overall dashboard, where a board member reads the audiences
+    together.
+
+    The website slot was the fifth thing checked here until 2026-08-17. It went
+    with the front-page rebuild: sessions are the `Koduleht ja uudised` card's
+    headline now, and a visit is not an audience.
     """
     read()
 
     content = page(viewer_client.get(reverse("home")))
 
-    assert "Kodulehe külastused" in content
+    assert "Kodulehe külastused" not in content
     for label in (
         "Facebooki jälgijad",
         "LinkedIni jälgijad",
         "Instagrami jälgijad",
         "YouTube’i tellijad",
     ):
-        assert label in content, f"{label} left the band with the newsletters"
+        assert label in content, f"{label} left the strip with the newsletters"
 
 
 def test_the_website_page_renders_without_ga4(viewer_client):
