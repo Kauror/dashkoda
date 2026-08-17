@@ -27,10 +27,8 @@ from apps.core.chart_payload import ChartPayload, Readout
 from apps.core.formatting import integer, month_name, percent, signed_integer, signed_percent
 
 from .analytics import (
-    ActiveAge,
     AnnualPoint,
     CategoryRow,
-    DeadlinePressure,
     FeedbackCategoryRow,
     MonthlyFlow,
     ResponseWindowDistribution,
@@ -222,18 +220,11 @@ def monthly_flow_chart(
         (month_name(month), cell(current, month), cell(previous, month)) for month in months
     )
 
-    footnotes: list[str] = []
-    if current.partial_month is not None:
-        footnotes.append(
-            f"{month_name(current.partial_month)} {current.year} on osaline: "
-            "andmed ulatuvad aruandekuupäevani."
-        )
-    if current.missing_date_count:
-        footnotes.append(
-            f"{integer(current.missing_date_count)} teemal puudub saabumise kuupäev "
-            "ja neid ei ole kuugraafikus."
-        )
-
+    # The partial-month and missing-date footnotes were struck on the board's
+    # print-out on 2026-08-17. Both facts are still drawn: the current
+    # partial month is still hollow in the bars and marked in the table, and
+    # a topic with no received date is still simply absent from the series —
+    # the chart just no longer states either underneath itself.
     return ChartPayload(
         payload_id=payload_id,
         title=title,
@@ -245,7 +236,6 @@ def monthly_flow_chart(
             f"{series_label} kuude lõikes: {current.year} kokku "
             f"{integer(current.total)}, {previous.year} kokku {integer(previous.total)}."
         ),
-        footnotes=tuple(footnotes),
         empty_message="Kuuandmeid ei ole.",
     )
 
@@ -458,122 +448,6 @@ def response_window_distribution_chart(
 # --------------------------------------------------------------------------
 
 
-def active_age_chart(age: ActiveAge) -> ChartPayload:
-    """How long the open matters have been open.
-
-    Titled as age, not as delay. A European file legitimately stays open for
-    years, and calling that a backlog would misread the process rather than
-    describe it.
-    """
-    labels = [label for label, _count in age.bands]
-    counts = [count for _label, count in age.bands]
-
-    option = {
-        **_base_option(legend=False),
-        "grid": {**GRID, "left": 8, "right": 48},
-        "tooltip": {"trigger": "item"},
-        "xAxis": {"type": "value", "axisLabel": {"show": False}, "splitLine": {"show": False}},
-        "yAxis": {"type": "category", "data": list(reversed(labels))},
-        "series": [
-            {
-                "type": "bar",
-                "name": "Teemasid",
-                "data": list(reversed(counts)),
-                "label": {"show": True, "position": "right", **BAR_LABEL},
-                "labelLayout": LABEL_LAYOUT,
-            }
-        ],
-    }
-
-    footnotes: list[str] = []
-    if age.missing_received_date:
-        footnotes.append(
-            f"{integer(age.missing_received_date)} aktiivsel teemal puudub saabumise "
-            "kuupäev ja neid ei ole vanuse arvestuses."
-        )
-    if age.future_received_date:
-        footnotes.append(
-            f"{integer(age.future_received_date)} aktiivse teema saabumise kuupäev on "
-            "aruandekuupäevast hilisem; need on andmekvaliteedi küsimus ja jäävad "
-            "vanuse arvestusest välja."
-        )
-
-    return ChartPayload(
-        payload_id="legal-active-age",
-        title="Aktiivsete teemade vanus",
-        question="Kui kaua on praegused teemad juba töös olnud?",
-        option=option,
-        readouts=(
-            Readout(
-                label="Mediaanvanus",
-                value=f"{age.median:.0f} päeva" if age.median is not None else "–",
-                note=f"{integer(age.measured)} teemal mõõdetud",
-            ),
-        ),
-        table_headers=("Vanus", "Teemasid"),
-        table_rows=tuple((label, integer(count)) for label, count in age.bands),
-        summary=f"{integer(age.measured)} aktiivse teema vanus vahemike kaupa.",
-        footnotes=tuple(footnotes),
-        empty_message="Aktiivseid teemasid ei ole.",
-        size="categorical",
-    )
-
-
-def deadline_pressure_chart(pressure: DeadlinePressure) -> ChartPayload:
-    """Where deadline load is building among the open matters.
-
-    The passed deadlines are split in two and reported beside the chart rather
-    than inside it, because only one of them is outstanding work: a matter whose
-    opinion has already gone out is not late.
-    """
-    labels = [label for label, _count in pressure.bands]
-    counts = [count for _label, count in pressure.bands]
-
-    option = {
-        **_base_option(legend=False),
-        "xAxis": {"type": "category", "data": labels},
-        "yAxis": {"type": "value", "minInterval": 1},
-        "series": [
-            {
-                "type": "bar",
-                "name": "Teemasid",
-                "data": counts,
-                "label": {"show": True, "position": "top", **BAR_LABEL},
-                "labelLayout": LABEL_LAYOUT,
-            }
-        ],
-    }
-
-    return ChartPayload(
-        payload_id="legal-deadline-pressure",
-        title="Tähtaegade koondumine",
-        question="Kuhu koonduvad lähenevad tähtajad?",
-        option=option,
-        readouts=(
-            Readout(label="Tähtaeg 7 päeva jooksul", value=integer(pressure.due_within_7)),
-            Readout(
-                label="Tähtaeg möödas, arvamus ootel",
-                value=integer(pressure.overdue_pending),
-            ),
-            Readout(
-                label="Tähtaeg möödas, arvamus juba saadetud",
-                value=integer(pressure.overdue_already_sent),
-                note="teema on endiselt avatud",
-            ),
-        ),
-        table_headers=("Tähtajani", "Teemasid"),
-        table_rows=tuple((label, integer(count)) for label, count in pressure.bands),
-        summary=(
-            f"{integer(pressure.upcoming_total)} aktiivsel teemal on tulevane tähtaeg; "
-            f"{integer(pressure.without_deadline)} teemal tähtaeg puudub."
-        ),
-        footnotes=(
-            f"{integer(pressure.without_deadline)} aktiivsel teemal ei ole tähtaega märgitud.",
-        ),
-        empty_message="Tähtaegadega teemasid ei ole.",
-    )
-
-
 def annual_topics_chart(points: tuple[AnnualPoint, ...]) -> ChartPayload:
     """`Teemad aastate lõikes`, by the register's own annual grouping.
 
@@ -617,10 +491,6 @@ def annual_topics_chart(points: tuple[AnnualPoint, ...]) -> ChartPayload:
             for point in points
         ),
         summary=f"Teemade arv {len(points)} aasta lõikes; jooksev aasta on osaline.",
-        footnotes=(
-            "Aasta on registri enda jaotus (lähteaasta), mitte saabumise kuupäev, "
-            "nii et detsembris saabunud teema võib kuuluda järgmise aasta hulka.",
-        ),
         empty_message="Teemasid ei ole.",
         size="large",
     )
@@ -692,8 +562,8 @@ def category_chart(
     *,
     payload_id: str,
     title: str,
-    question: str,
     category_header: str,
+    question: str = "",
 ) -> ChartPayload:
     """A ranking by volume, with the median withheld below the sample floor.
 
@@ -722,6 +592,10 @@ def category_chart(
         ],
     }
 
+    # Both footnotes (the median's sample floor, the exact-string caveat on
+    # categories) were struck on 2026-08-17. Both facts are unchanged — the
+    # median is still withheld below the floor and categories are still never
+    # merged — the chart just no longer states either underneath itself.
     return ChartPayload(
         payload_id=payload_id,
         title=title,
@@ -738,12 +612,6 @@ def category_chart(
             for row in rows
         ),
         summary=f"{len(rows)} suurimat kategooriat teemade arvu järgi.",
-        footnotes=(
-            "Vastamisaja mediaan on näidatud ainult kategooriatel, kus on piisavalt "
-            "arvestatavaid teemasid; mujal on tulemus liiga kõikuv, et võrrelda.",
-            "Kategooriad on lähteandmete täpsed väärtused. Sarnaselt kirjutatud või "
-            "ümber nimetatud asutusi ei ole automaatselt kokku liidetud.",
-        ),
         empty_message="Kategooriaid ei ole.",
         size="categorical",
     )

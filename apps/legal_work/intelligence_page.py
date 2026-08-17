@@ -20,19 +20,14 @@ from dataclasses import dataclass, field
 
 from . import charts
 from .analytics import (
-    ActiveAge,
     DataQuality,
-    DeadlinePressure,
     FeedbackSummary,
     StageBreakdown,
-    act_type_breakdown,
-    active_topic_age,
     annual_sent_opinions,
     annual_topics,
     count_sent_in_year,
     count_topics_for_year,
     data_quality,
-    deadline_pressure,
     feedback_breakdown,
     feedback_coverage_by_year,
     feedback_summary,
@@ -57,18 +52,18 @@ PARAM_FOCUS = "fookus"
 
 FOCUS_OVERVIEW = "ulevaade"
 FOCUS_WORKFLOW = "toovoog"
-FOCUS_ACTIVE = "aktiivsed"
 FOCUS_OPINIONS = "arvamused"
 FOCUS_FEEDBACK = "tagasiside"
 FOCUS_REGISTER = "register"
 
 #: The closed set, in the order the navigation draws it. A value outside it is
 #: not an error the reader caused on purpose — a truncated link, an old
-#: bookmark — so it resolves to the overview instead of a 404.
+#: bookmark — so it resolves to the overview instead of a 404. `aktiivsed`
+#: left the set on 2026-08-17; a link still carrying it resolves here too,
+#: same as any other stale value.
 FOCUS_CHOICES: tuple[tuple[str, str], ...] = (
     (FOCUS_OVERVIEW, "Ülevaade"),
     (FOCUS_WORKFLOW, "Töövoog"),
-    (FOCUS_ACTIVE, "Aktiivsed teemad"),
     (FOCUS_OPINIONS, "Arvamused"),
     (FOCUS_FEEDBACK, "Liikmete tagasiside"),
     (FOCUS_REGISTER, "Register"),
@@ -165,8 +160,6 @@ class IntelligencePage:
     charts: tuple = ()
     deadlines: tuple = ()
     stage: StageBreakdown | None = None
-    age: ActiveAge | None = None
-    pressure: DeadlinePressure | None = None
     feedback: FeedbackSummary | None = None
     feedback_coverage: tuple = ()
     feedback_topics: tuple = ()
@@ -242,9 +235,10 @@ def _secondary(snapshot, year: int) -> tuple[Headline, ...]:
     `Sisse tulnud sel aastal` and `Tähtaeg 7 päeva jooksul` left on 2026-08-16,
     and their selectors went with them: this function no longer calls
     `topics_year_on_year` or `deadline_pressure`, because a figure nothing
-    renders is a query nobody needed. Both selectors are untouched and still
-    tested, and `deadline_pressure` still drives the `Lähenevad tähtajad`
-    insight from `_insights`.
+    renders is a query nobody needed. `topics_year_on_year` is still called
+    from `_insights`; `deadline_pressure` is untouched and still tested, and
+    still drives the executive overview's own reading — see
+    `apps.legal_work.executive`.
     """
     windows = {entry.year: entry for entry in response_window_by_year(snapshot)}
     this_year = windows.get(year)
@@ -265,11 +259,12 @@ def _insights(snapshot, year: int) -> tuple[Insight, ...]:
 
     `Arvamusi välja saadetud`, `Arvamuse esitamiseks antud aeg` and
     `Lähenevad tähtajad` left this section on 2026-08-17; each stated a
-    figure the headline strip, the response-time chart or the deadlines list
-    already carried. `sent_year_on_year`, `response_window_by_year` and
-    `deadline_pressure` are still called elsewhere on this page — see
-    `_headlines`, `_secondary` and `_active` — so nothing computed for them
-    is lost, only their repetition here.
+    figure the headline strip or the response-time chart already carried.
+    `sent_year_on_year` is still called from `_headlines` and
+    `response_window_by_year` from `_secondary`, so nothing computed for
+    them is lost, only their repetition here. The `Aktiivsed teemad` focus
+    that `Lähenevad tähtajad` also echoed left the page the same day — see
+    `FOCUS_CHOICES`.
     """
     from apps.core.formatting import integer, signed_integer
 
@@ -313,8 +308,6 @@ def build_page(snapshot, *, focus: str, page_url: str) -> IntelligencePage:
         return _overview(snapshot, year, focus, label, links)
     if focus == FOCUS_WORKFLOW:
         return _workflow(snapshot, year, focus, label, links)
-    if focus == FOCUS_ACTIVE:
-        return _active(snapshot, year, focus, label, links)
     if focus == FOCUS_OPINIONS:
         return _opinions(snapshot, year, focus, label, links)
     if focus == FOCUS_FEEDBACK:
@@ -374,51 +367,19 @@ def _workflow(snapshot, year, focus, label, links) -> IntelligencePage:
                 series_label="Välja saadetud arvamused",
             ),
             charts.annual_topics_chart(annual_topics(snapshot)),
-            charts.category_chart(
-                act_type_breakdown(snapshot),
-                payload_id="legal-act-types",
-                title="Enim esinevad õigusakti liigid",
-                question="Milliste õigusaktidega Koda kõige rohkem tegeleb?",
-                category_header="Õigusakti liik",
-            ),
+            # `Enim esinevad õigusakti liigid` — the act-type breakdown chart
+            # — left this focus entirely on 2026-08-17, and `act_type_breakdown`
+            # went with it: a one-line wrapper over `_category_breakdown`
+            # with no other caller and no test of its own.
             charts.category_chart(
                 recipient_breakdown(snapshot),
                 payload_id="legal-recipients",
-                title="Kellele arvamusi saadetakse?",
-                question="Millistele asutustele Koja töö suundub?",
+                title="Kellele arvamusi oleme saatnud",
                 category_header="Saaja",
             ),
         ),
-        footnotes=(
-            "Sisse tulnud teemad ja välja saadetud arvamused on kaks eraldi mõõdikut. "
-            "Üks saabunud teema ei tähenda tingimata ühte arvamust ja arvamuse "
-            "saatmine ei sulge teemat.",
-        ),
-    )
-
-
-def _active(snapshot, year, focus, label, links) -> IntelligencePage:
-    stages = stage_breakdown(snapshot)
-    age = active_topic_age(snapshot)
-    pressure = deadline_pressure(snapshot)
-    return IntelligencePage(
-        focus=focus,
-        focus_label=label,
-        links=links,
-        reporting_year=year,
-        stage=stages,
-        age=age,
-        pressure=pressure,
-        charts=(
-            charts.active_stage_chart(stages),
-            charts.active_age_chart(age),
-            charts.deadline_pressure_chart(pressure),
-        ),
-        # `Hetkel töös` renders on the overview alone since 2026-08-16 — this
-        # focus repeated the table wholesale under its charts, so the query
-        # goes with the section. The deadline list stays: it is this view's
-        # own analysis, uncapped where the overview previews seven.
-        deadlines=get_upcoming_deadlines(snapshot),
+        # `Kuidas neid arve lugeda` and its one caveat left with it, on the
+        # same day.
     )
 
 

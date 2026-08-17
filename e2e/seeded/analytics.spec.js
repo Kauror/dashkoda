@@ -113,18 +113,25 @@ test("the chart bundle loads only where there is something to draw", async ({ pa
   expect(scripts.some((src) => src.includes("charts.js"))).toBe(true);
 });
 
-test("every chart keeps its numbers as a table", async ({ page }) => {
+test("every chart names itself for a reader who cannot see the canvas", async ({
+  page,
+}) => {
   oncePerRun();
   await signIn(page);
   await page.goto("/koduleht/?fookus=sisu");
 
-  // The table is not a fallback: it stays in the document for every reader, and
-  // only the canvas is hidden when there is nothing to draw.
+  // The accessible data table left every chart on 2026-08-17. What is left is
+  // `chart.summary`, rendered as the canvas's own `aria-label` — a `role="img"`
+  // with no label is an image nobody using a screen reader can read at all.
   const figures = page.locator("figure[data-chart]");
   const count = await figures.count();
   expect(count).toBeGreaterThan(0);
   for (let index = 0; index < count; index += 1) {
-    await expect(figures.nth(index).locator("table[data-chart-table]")).toHaveCount(1);
+    const label = await figures
+      .nth(index)
+      .locator("[data-chart-canvas]")
+      .getAttribute("aria-label");
+    expect(label?.trim()).toBeTruthy();
   }
 });
 

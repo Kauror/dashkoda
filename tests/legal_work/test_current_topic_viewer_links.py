@@ -79,15 +79,14 @@ def candidate():
 
 @pytest.fixture
 def three_list_item(imported_snapshot, publish_current_topics, make_workbook, register_workbook):
-    """A record the Õigusloome page draws in more than one list.
+    """A record the Õigusloome page draws in its one remaining list.
 
-    Open and carrying a deadline inside the horizon, so it is listed both under
-    `Lähenevad tähtajad` and in the `Hetkel töös` table. Cross-list consistency
-    is only testable against a record that genuinely appears more than once.
-
-    It used to appear three times; `Uusimad sisse tulnud` was removed because a
-    record that has just arrived is active work and Hetkel töös already lists
-    it. Two lists is still two chances for one mapping to disagree with itself.
+    Open and carrying a deadline inside the horizon, so it is listed in the
+    `Hetkel töös` table. The fixture's name and the deadline it carries are
+    both left over from when it was also listed under `Lähenevad tähtajad`
+    (removed 2026-08-17) and, before that, under `Uusimad sisse tulnud`
+    (removed 2026-08-16) — a record that has just arrived is active work and
+    `Hetkel töös` already lists it.
     """
     import datetime as dt
 
@@ -332,19 +331,20 @@ def test_a_match_for_a_different_record_never_links_this_one(
 def test_one_record_is_linked_identically_in_every_list_it_appears_in(
     viewer, three_list_item, candidate
 ):
-    """A record can appear in two of this page's lists at once.
+    """A record that appears in one of this page's lists is a link there.
 
-    `Lähenevad tähtajad` and the `Hetkel töös` table draw the same row. Both
-    agree because one mapping feeds them, and this asserts the agreement rather
-    than merely counting anchors: every rendering of the topic is a link to the
-    same address, and neither is a bare span.
+    `Lähenevad tähtajad`, the second list this once cross-checked against
+    `Hetkel töös`, left the page — and the `Aktiivsed teemad` focus it also
+    drew under — on 2026-08-17. One list remains, so what is left to assert
+    is that its one rendering is a link to the matched address, not a bare
+    span.
     """
     force_decision(three_list_item, decision=MatchDecision.MATCHED, candidate=candidate)
 
     markup = page(viewer)
 
     linked = linked_renderings(markup, three_list_item.topic, candidate.canonical_url)
-    assert linked == 2, "expected the deadline strip and the open table"
+    assert linked == 1, "expected the open table"
     assert plain_renderings(markup, three_list_item.topic) == 0
 
 
@@ -354,7 +354,7 @@ def test_a_record_with_no_link_is_plain_text_in_every_list(viewer, three_list_it
     markup = page(viewer)
 
     assert linked_renderings(markup, three_list_item.topic, candidate.canonical_url) == 0
-    assert plain_renderings(markup, three_list_item.topic) == 2
+    assert plain_renderings(markup, three_list_item.topic) == 1
 
 
 def test_a_matched_topic_is_linked_on_the_legal_page(viewer, three_list_item, candidate):

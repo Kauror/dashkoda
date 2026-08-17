@@ -9,6 +9,7 @@ the markup rather than merely absent from the analytics.
 from __future__ import annotations
 
 import datetime as dt
+import re
 
 import pytest
 from django.urls import reverse
@@ -154,12 +155,14 @@ def test_the_overview_carries_the_mandatory_headline_figures(client, authenticat
 
 
 def test_the_overview_carries_the_mandatory_stage_chart(client, authenticate_viewer, register):
-    """Title states the total, so the bars and the headline can be checked."""
+    """The printed title states the total and left the page on 2026-08-17 —
+    see `title_hidden` on `active_stage_chart` — so the total is checked via
+    the canvas's `aria-label` instead, which carries the same figure."""
     authenticate_viewer(client)
 
     content = get(client)
 
-    assert "Aktiivsed teemad hetkeseisu kaupa – kokku 1" in content
+    assert re.search(r"\d aktiivset teemat jaguneb \d hetkeseisu vahel", content)
 
 
 def test_the_workflow_focus_carries_both_monthly_charts(client, authenticate_viewer, register):
@@ -284,14 +287,20 @@ def test_the_chart_bundle_loads_only_where_something_is_drawn(
     assert "build/charts.js" not in get(client, "register")
 
 
-def test_every_chart_keeps_a_data_table(client, authenticate_viewer, register):
-    """The table is not a fallback: it stays for readers who never run the module."""
+def test_every_chart_names_itself_for_a_reader_who_cannot_see_the_canvas(
+    client, authenticate_viewer, register
+):
+    """The accessible data table left every chart on 2026-08-17. What is left
+    is `chart.summary`, rendered as the canvas's own `aria-label`."""
     authenticate_viewer(client)
 
     content = get(client, "arvamused")
 
-    assert "Andmed tabelina" in content
-    assert "data-chart-table" in content
+    assert "Andmed tabelina" not in content
+    payload_count = content.count("data-chart-payload=")
+    label_count = len(re.findall(r'data-chart-canvas[^>]*aria-label="[^"]+"', content))
+    assert payload_count > 0
+    assert label_count == payload_count
 
 
 def test_the_page_adds_no_inline_script(client, authenticate_viewer, register):

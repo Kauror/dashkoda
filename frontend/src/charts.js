@@ -11,16 +11,15 @@
  *     <div data-chart-canvas role="img" aria-label="...text alternative..."></div>
  *     <p data-chart-empty>Andmeallikas ei ole veel ühendatud.</p>
  *     <figcaption>...title...</figcaption>
- *     <table data-chart-table>...same values as rows...</table>
  *   </figure>
  *   <script type="application/json" id="membership-trend">{ ... }</script>
  *
  * The payload is read from a non-executable `application/json` block, so no
- * inline script and no `unsafe-eval` is ever required. The table is the
- * accessible alternative and stays in the document; only the canvas is hidden
- * when there is nothing to draw. The text description is the canvas's own
- * `aria-label` — it used to be a visible caption and the board asked for it
- * off the page.
+ * inline script and no `unsafe-eval` is ever required. Only the canvas is
+ * hidden when there is nothing to draw. The text description is the canvas's
+ * own `aria-label` — it used to be a visible caption and the board asked for
+ * it off the page. The accessible data table that used to sit beside every
+ * chart left the page on 2026-08-17.
  */
 import * as echarts from "echarts";
 
@@ -673,9 +672,9 @@ window.DashKodaCharts = { chartTheme, readPayload, mountChart, mountCharts };
  * would be an inline script calling `mountCharts()`, which the Content Security
  * Policy forbids and should keep forbidding.
  *
- * The text summary and the data table are rendered server-side and are already
- * in the document, so a page where this never runs is still complete — it just
- * shows the numbers as a table instead of as a picture.
+ * The text summary is rendered server-side and is already in the document as
+ * the canvas's `aria-label`, so a page where this never runs still names what
+ * each chart shows — it just never draws the picture.
  */
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", () => mountCharts());

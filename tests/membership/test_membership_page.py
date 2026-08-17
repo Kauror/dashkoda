@@ -132,11 +132,20 @@ def test_charts_ship_their_data_as_non_executable_json(viewer_client, imported_p
         assert "series" in option
 
 
-def test_every_chart_has_a_table_alternative(viewer_client, imported_package):
+def test_every_chart_names_itself_for_a_reader_who_cannot_see_the_canvas(
+    viewer_client, imported_package
+):
+    """The accessible data table left every chart on 2026-08-17. What is left
+    is `chart.summary`, rendered as the canvas's own `aria-label` — a
+    `role="img"` with no label is an image nobody using a screen reader can
+    read at all."""
     body = _page(viewer_client)
 
-    assert body.count("data-chart-payload=") == body.count("data-chart-table")
-    assert "Andmed tabelina" in body
+    payload_count = body.count("data-chart-payload=")
+    label_count = len(re.findall(r'data-chart-canvas[^>]*aria-label="[^"]+"', body))
+    assert payload_count > 0
+    assert label_count == payload_count
+    assert "Andmed tabelina" not in body
 
 
 def test_monthly_chart_omits_a_conflict_instead_of_charting_zero(viewer_client, imported_package):

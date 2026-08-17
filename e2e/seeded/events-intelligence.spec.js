@@ -108,18 +108,19 @@ for (const focus of CHART_FOCUS) {
   });
 }
 
-test("every chart keeps its data table in the document", async ({ page }) => {
+test("every chart names itself for a reader who cannot see the canvas", async ({
+  page,
+}) => {
   oncePerRun();
   await open_(page, "maht");
 
-  /* The table is not a fallback that appears when something breaks. It stays for
-     every reader, and it is what makes these charts reachable by keyboard and by
-     screen reader at all — neither tooltip is. */
+  /* The accessible data table left every chart on 2026-08-17. `chart.summary`,
+     the canvas's own `aria-label`, is what is left to reach these charts by
+     keyboard or by screen reader — neither tooltip does either. */
   const figures = page.locator("figure[data-chart]");
   const count = await figures.count();
   expect(count).toBeGreaterThan(0);
   for (let index = 0; index < count; index += 1) {
-    await expect(figures.nth(index).locator("table[data-chart-table]")).toHaveCount(1);
     await expect(figures.nth(index).locator("[data-chart-canvas]")).toHaveAttribute(
       "aria-label",
       /.+/,
