@@ -1,0 +1,41 @@
+{% comment %}
+E-pood's `Andmete kohta`, moved off the dashboard to `/haldus/` on
+2026-08-17, whole and unedited — every caveat sentence arrives intact.
+
+`id="epood-andmeallikad"` gives this block its own address, the same reason
+the other domains' blocks have one.
+
+Context:
+  overview – a ShopOverview built with no query parameters, the same shape
+             a bare `/epood/` visit produces. The distinct-orders and
+             free/paid coverage facts describe that default view, not any
+             one reader's filtered one — the same way Koduleht's block
+             describes the whole collected history rather than a window.
+{% endcomment %}
+<div id="epood-andmeallikad" class="flex flex-col gap-3 scroll-mt-4">
+
+  <h3 class="text-sm font-semibold text-text">E-pood</h3>
+
+  <details class="text-sm text-text-secondary">
+    <summary class="cursor-pointer text-text">Mida need arvud tähendavad</summary>
+    <div class="mt-3 flex flex-col gap-3">
+      <p><strong class="text-text">E-poe andmed.</strong> Käsitsi koostatud väljavõte seisuga {{ overview.as_of_label }}. Andmeid ei uuendata automaatselt ja need ei ole selle kuupäeva järel ajakohased.</p>
+      <p><strong class="text-text">Tellimused ja veebistatistika.</strong> Tellimuste ajalugu algab {{ overview.coverage_label }}, veebistatistika hiljem. Ühiseid näitajaid arvutatakse ainult kattuval perioodil, mitte kogu valitud vahemikus.</p>
+      <p><strong class="text-text">Vaatamised.</strong> Lehevaatamine ei ole inimene: sama külastaja mitu külastust on mitu vaatamist.</p>
+      <p><strong class="text-text">Lepingu kaks lehte.</strong> Lepingupõhjal on tutvustusleht ja tooteleht. Neid vaatamisi ei liideta, sest sama külastaja näeb sageli mõlemat. Määr arvutatakse tootelehe alusel, kus on ostunupp.</p>
+      <p><strong class="text-text">Oste / 100 vaatamist.</strong> 100 × ostetud ühikud ÷ ostulehe vaatamised, mõlemad sama kattuva akna sees. „Ostetud“ hõlmab ka tasuta võetud lepingunäidiseid, mida on suurem osa: see arv ei ole müük ega tasutud tellimuste arv.</p>
+      <p><strong class="text-text">Ostuleht tooteliigi järgi.</strong> Lepingunäidisel ja füüsilisel tootel on selleks tooteleht, sündmusel sündmuse leht. Kui õiget lehte ei ole määratud, jääb määr näitamata — teist liiki lehte asemele ei panda.</p>
+      <p><strong class="text-text">Jagatud lehed.</strong> Koondnäitajates loetakse iga ostuleht üks kord, ka siis kui mitu toodet viitab samale lehele.</p>
+      <p><strong class="text-text">Tellitud väärtus.</strong> Lõpetatud tellimuste summa käibemaksuta. See ei ole raamatupidamislik tulu: Koda.ee ei salvesta makse laekumist ega tagasimakseid. Makseviis ei muuda seda — arvega tellitud väärtus ei ole võlgnevus ja pangalingiga tellitud väärtus ei ole tõend maksest.</p>
+      {% if not overview.orders_are_distinct %}
+        <p><strong class="text-text">Tellimusridu.</strong> Eri tellimuste arv on päevakokkuvõttes ainult kuupäeva ja tooteliigi kaupa. Kui valik on sellest kitsam — kategooria, liikmestaatus või otsing — loetakse tooteridu: kolme tootega tellimus on kolm rida. Kitsendatud valiku kõrvale ei panda kunagi kitsendamata tellimuste arvu.</p>
+      {% endif %}
+      <p><strong class="text-text">Registreerimised.</strong> Sündmuse toote ühik on registreerimine, mitte osaleja. Kohalkäimist e-poe andmestik ei sisalda.</p>
+      <p><strong class="text-text">Osaline aasta.</strong> Kalendriaasta, mida imporditud ajalugu tervikuna ei kata, on eraldi märgitud ega ole täisaastaga võrreldav.</p>
+      <p><strong class="text-text">„Uus perioodil“.</strong> Tähendab, et eelmisel perioodil oste ei olnud. See ei ütle, millal toode e-poodi lisati.</p>
+      <p><strong class="text-text">Andmestiku maht.</strong> Skeem {{ overview.schema_version|default:"—" }}; eri tellimuste arv {% if overview.distinct_orders_available %}on{% else %}ei ole{% endif %} selle valiku kohta saadaval; tasuta/tasulise jaotus {% if overview.free_paid_available %}on{% else %}ei ole{% endif %} imporditud; veebi päevadetail {% if overview.page_detail_complete %}katab kogu võrdlusakna{% else %}ei kata kogu võrdlusakent{% endif %}.</p>
+      <p><strong class="text-text">Liikmestaatus.</strong> {% if overview.member_gate_open %}Liikmete ja mitteliikmete jaotus on kinnitatud ja kuvatud.{% else %}Jaotust ei näidata: allikas ei ole kinnitanud, et liikmestaatus kirjeldab tehingu hetke.{% endif %}</p>
+      <p><strong class="text-text">Puuduv ja null.</strong> „—“ tähendab, et mõõtmist ei ole. „0“ tähendab mõõdetud nulli. Neid ei asendata teineteisega.</p>
+    </div>
+  </details>
+</div>

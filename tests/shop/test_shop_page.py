@@ -51,18 +51,17 @@ def test_the_page_is_behind_the_viewer_gate(client):
 # ---------------------------------------------------------------------------
 
 
-def test_the_as_of_date_is_shown(client, authenticate_viewer, seeded):
-    """The extract's date is disclosed in `Andmete kohta`, not above the heading.
+def test_the_as_of_date_is_no_longer_shown_here(client, authenticate_viewer, seeded):
+    """`Andmete kohta`, and the as-of date inside it, left this page whole.
 
-    The header line was removed from the top of the page; the disclosure itself
-    was not. A page that shows an eleven-month-old extract without saying so
-    would be claiming to be live.
+    Both moved off the dashboard to `/haldus/` on 2026-08-17 — see
+    `apps/shop/templates/shop/admin/_data_about.html` and
+    `tests/dashboard/test_admin_area.py::test_the_shop_data_block_arrived`.
     """
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "Andmete kohta" in content
-    assert "11.08.2026" in content
-    assert "22.10.2020" in content
+    assert "Andmete kohta" not in content
+    assert "11.08.2026" not in content
 
 
 def test_the_header_carries_no_coverage_line(client, authenticate_viewer, seeded):
@@ -146,9 +145,11 @@ def test_a_single_product_may_call_them_orders(client, authenticate_viewer, seed
 
 
 def test_the_member_split_is_withheld_until_verified(client, authenticate_viewer, seeded):
+    """The KPI itself never reaches this page. The caveat explaining why moved
+    to `/haldus/` with the rest of `Andmete kohta` on 2026-08-17 — see
+    `tests/dashboard/test_admin_area.py::test_the_shop_data_block_arrived`."""
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "ei ole kinnitanud" in content
     assert "Liikmete ostud" not in content
 
 
@@ -170,11 +171,13 @@ def test_the_explorer_drops_the_information_column(client, authenticate_viewer, 
     assert "Vaatamised" in explorer
 
 
-def test_the_two_page_rule_is_stated_in_the_methodology(client, authenticate_viewer, seeded):
+def test_the_two_page_rule_no_longer_reaches_this_page(client, authenticate_viewer, seeded):
+    """The rule moved to `/haldus/` with the rest of `Andmete kohta` on
+    2026-08-17 — see
+    `tests/dashboard/test_admin_area.py::test_the_shop_data_block_arrived`."""
     content = _get(client, authenticate_viewer).content.decode()
 
-    assert "ei liideta" in content
-    assert "<details" in content
+    assert "ei liideta" not in content
 
 
 def test_an_unmeasured_figure_renders_as_a_dash(client, authenticate_viewer, seeded):

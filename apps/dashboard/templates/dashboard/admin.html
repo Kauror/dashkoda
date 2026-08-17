@@ -84,6 +84,16 @@ never be given.
       stamps and the whole on-page `Andmete seis` section, whole.
       {% endcomment %}
       {% include "membership/admin/_data_about.html" with source_stamps=membership_source_stamps latest=membership_latest quality=membership_quality quality_badge=membership_quality_badge reconciliations=membership_reconciliations only %}
+      {% comment %}
+      Uudised' block, moved here the same day — the header's two-source link
+      and the whole on-page `Andmete kohta` disclosure, whole.
+      {% endcomment %}
+      {% include "news/admin/_data_about.html" with facts=news_facts coverage=website_coverage only %}
+      {% comment %}
+      E-pood's block, moved here the same day — the whole on-page `Andmete
+      kohta` disclosure, whole.
+      {% endcomment %}
+      {% include "shop/admin/_data_about.html" with overview=shop_overview only %}
     </div>
   </section>
 

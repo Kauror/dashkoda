@@ -49,18 +49,14 @@ should stay that way.
 {% block content %}
 <div class="flex min-w-0 flex-col gap-5">
 
+  {% comment %}
+  The two source dates left the header row on 2026-08-16, into `Andmete
+  kohta` at the foot. That whole disclosure moved again on 2026-08-17, to
+  `/haldus/`, along with every other domain's — see
+  `apps/news/templates/news/admin/_data_about.html`.
+  {% endcomment %}
   <header class="flex min-w-0 flex-col gap-2">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Uudised</h1>
-
-    {% comment %}
-    The two source dates left this row on 2026-08-16. They are not gone: both
-    are in `Andmete kohta`, which this link opens, and which is also where the
-    reason they differ belongs — the catalogue is read hourly and GA4 lags by a
-    day, and that is a sentence, not a header.
-    {% endcomment %}
-    <p class="dk-meta">
-      <a class="dk-link-quiet" href="#andmete-kohta">Andmete kohta</a>
-    </p>
   </header>
 
   {% comment %}
@@ -95,7 +91,10 @@ should stay that way.
     {% include "news/partials/_focus_archive.html" with archive=archive only %}
   {% endif %}
 
-  {% include "news/partials/_methodology.html" with page=page only %}
+  {% comment %}
+  `Andmete kohta` moved off this page to `/haldus/` on 2026-08-17, whole —
+  see `apps/news/templates/news/admin/_data_about.html`.
+  {% endcomment %}
 
 </div>
 {% endblock %}

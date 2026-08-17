@@ -35,24 +35,33 @@ test("the product detail never scrolls sideways", async ({ page }) => {
   await expectNoHorizontalOverflow(page);
 });
 
-test("the export states its own date, in Andmete kohta", async ({ page }) => {
+test("the export states its own date, in Admin", async ({ page }) => {
   /*
-   * The coverage line that used to sit above the heading is gone — it put three
-   * date ranges between the reader and the first figure. The disclosure it
-   * carried is not gone: an extract months out of date, shown with nothing
-   * saying so, would be claiming to be live. The as-of date and the start of
-   * the order history moved to `Andmete kohta` at the foot, which is where a
-   * reader goes to ask what the numbers are made of.
+   * The coverage line that used to sit above the heading left first — it put
+   * three date ranges between the reader and the first figure. `Andmete kohta`
+   * carried the disclosure after that, at the foot; that whole block moved
+   * again on 2026-08-17, to `/haldus/`, along with every other domain's. An
+   * extract months out of date, shown with nothing saying so, would be
+   * claiming to be live, so both halves are checked here: gone from the
+   * overview, and actually rendered where it went.
    */
   await signIn(page);
   await page.goto("/epood/");
 
   await expect(page.getByText(/Andmed \d{2}\.\d{2}\.\d{4}/)).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("Andmete kohta");
 
-  await page.locator("#andmete-kohta summary").click();
+  await page.goto("/haldus/");
+  // Scoped to E-pood's own block by id: `Andmeallikad ja import` holds more
+  // than one domain's `<details>`, so counting every `<details>` in the
+  // shared section counts the wrong thing.
+  const method = page.locator("#epood-andmeallikad");
+  await expect(method).toHaveCount(1);
 
-  await expect(page.getByText(/väljavõte seisuga \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
-  await expect(page.getByText(/Tellimuste ajalugu algab \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
+  await method.locator("summary").click();
+
+  await expect(method.getByText(/väljavõte seisuga \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
+  await expect(method.getByText(/Tellimuste ajalugu algab \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
   await expect(page.getByText("sünkroonitud")).toHaveCount(0);
   await expect(page.getByText("automaatselt uuendatud")).toHaveCount(0);
 });
@@ -90,24 +99,32 @@ test("search finds a product that is not on the first page", async ({ page }) =>
   await expect(page.locator("#tooted").getByRole("link", { name: /näidis 28/ })).toBeVisible();
 });
 
-test("the methodology is present but collapsed", async ({ page }) => {
+test("the methodology is on /haldus/, collapsed, not on the overview", async ({ page }) => {
   await signIn(page);
   await page.goto("/epood/?periood=koik");
+  await expect(page.locator("main")).not.toContainText("ei liideta");
 
-  const details = page.locator("#andmete-kohta details");
+  await page.goto("/haldus/");
+  const details = page.locator("#epood-andmeallikad");
   await expect(details).toBeVisible();
-  // Closed by default: the caveats no longer sit between the reader and the
-  // first number.
+  // Closed by default: Admin is where the diagnostics live, not where they
+  // shout.
   await expect(details).not.toHaveAttribute("open", /.*/);
 
   await details.locator("summary").click();
-  await expect(page.getByText(/ei liideta/)).toBeVisible();
+  await expect(details.getByText(/ei liideta/)).toBeVisible();
 });
 
-test("the member split is withheld while its semantics are unverified", async ({ page }) => {
+test("the member split withholding reason lives on /haldus/, not the overview", async ({
+  page,
+}) => {
   await signIn(page);
   await page.goto("/epood/?periood=koik");
-  await page.locator("#andmete-kohta details summary").click();
+  await expect(page.getByText("Liikmete ostud")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText("ei ole kinnitanud");
+
+  await page.goto("/haldus/");
+  await page.locator("#epood-andmeallikad summary").click();
 
   await expect(page.getByText(/ei ole kinnitanud/)).toBeVisible();
 });
