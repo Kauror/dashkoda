@@ -100,10 +100,12 @@ test("a period selects articles by publication date", async ({ page }) => {
   const recent = await page.locator("main table tbody tr").count();
 
   expect(all).toBeGreaterThan(recent);
-  await expect(page.getByRole("link", { name: "30 päeva" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
+  // Scoped to the archive: the overview carries its own, separate "Avaldatud"
+  // period control now that both sections share one page, and an unscoped
+  // locator matches both.
+  await expect(
+    page.locator(ARCHIVE).getByRole("link", { name: "30 päeva" }),
+  ).toHaveAttribute("aria-current", "true");
 });
 
 test("a custom range exposes its two date fields and applies them", async ({ page }) => {
@@ -111,7 +113,7 @@ test("a custom range exposes its two date fields and applies them", async ({ pag
   await signIn(page);
   await page.goto("/uudised/");
 
-  await page.getByRole("link", { name: "Kohandatud" }).click();
+  await page.locator(ARCHIVE).getByRole("link", { name: "Kohandatud" }).click();
   const from = page.getByLabel("Alates");
   const to = page.getByLabel("Kuni");
   await expect(from).toBeVisible();
