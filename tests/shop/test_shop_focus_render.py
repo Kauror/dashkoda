@@ -138,24 +138,17 @@ def test_every_focus_is_reachable_from_every_other_one():
 
 
 @pytest.mark.parametrize("focus", FOCUSES, ids=[focus.key for focus in FOCUSES])
-def test_the_as_of_date_is_stated_on_every_focus(focus):
-    """A frozen export must say so on whichever view the reader lands on.
+def test_the_as_of_date_no_longer_appears_on_any_focus(focus):
+    """`Andmete kohta`, and the as-of date inside it, left this page whole.
 
-    This asserted the date sat *above* the heading until 2026-08-16, when Kaur
-    removed that line: it repeated the opening sentence of `Andmete kohta`,
-    which says the same date and adds that the export is compiled by hand.
-
-    What the header line bought was placement, and that is now gone — the
-    original argument for it was that a date at the foot lets every figure
-    above it read as live. The date's *presence* is the half that survives,
-    and it is worth more here than it was: `Andmete kohta` renders outside the
-    focus conditional, so this now covers all five views rather than the one
-    the old assertion reached.
+    Both moved off the dashboard to `/haldus/` on 2026-08-17 — see
+    `apps/shop/templates/shop/admin/_data_about.html`, which is where
+    `test_admin_area.py` now asserts the date arrived.
     """
     html = _render("shop/overview.html", {"overview": _overview(focus)})
 
-    assert "11.08.2026" in html
-    assert "Andmete kohta" in html
+    assert "11.08.2026" not in html
+    assert "Andmete kohta" not in html
 
 
 def test_a_page_without_a_source_still_renders():

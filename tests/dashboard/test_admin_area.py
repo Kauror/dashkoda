@@ -327,6 +327,63 @@ def test_the_membership_page_no_longer_carries_its_data_block(
     assert "Avalik liikmekataloog ja sisemine aruanne loendavad eri asju" not in content
 
 
+def test_the_news_data_block_arrived(viewer_client):
+    """Uudised' `Andmete kohta`, moved here on 2026-08-17 — the header's
+    two-source link and the whole on-page disclosure, together.
+
+    No catalogue entries or GA4 coverage are seeded here on purpose, matching
+    the Koduleht test above: the prose has to render for a source that has
+    collected nothing.
+    """
+    content = viewer_client.get(reverse("dashboard-admin")).content.decode()
+
+    assert 'id="uudised-andmeallikad"' in content
+    # The rule the block exists to state, regardless of whether data exists.
+    assert "Kumbki juhtnupp ei mõjuta teise küsimuse arve." in content
+    assert "see on leid" in content
+
+
+def test_the_news_page_no_longer_carries_its_data_block(viewer_client):
+    """Moved, not copied — the other half of the pair above."""
+    content = viewer_client.get("/uudised/").content.decode()
+
+    assert "Andmete kohta" not in content
+
+
+def test_the_shop_data_block_arrived(client, authenticate_viewer, tmp_path):
+    """E-pood's `Andmete kohta`, moved here on 2026-08-17 — the header's
+    as-of/coverage line and the whole on-page disclosure, together.
+
+    Seeded, unlike the other pairs above: the block describes a default,
+    unfiltered `ShopOverview`, and an unseeded source renders `has_source=False`
+    on the block itself rather than the prose these assertions name.
+    """
+    from apps.shop.importing import import_shop_package
+    from tests.shop.package_factory import build_package
+
+    authenticate_viewer(client)
+    import_shop_package(build_package(tmp_path), dry_run=False)
+
+    content = client.get(reverse("dashboard-admin")).content.decode()
+
+    assert 'id="epood-andmeallikad"' in content
+    assert "Käsitsi koostatud väljavõte seisuga" in content
+    assert "Lepingupõhjal on tutvustusleht ja tooteleht" in content
+
+
+def test_the_shop_page_no_longer_carries_its_data_block(client, authenticate_viewer, tmp_path):
+    """Moved, not copied — the other half of the pair above."""
+    from apps.shop.importing import import_shop_package
+    from tests.shop.package_factory import build_package
+
+    authenticate_viewer(client)
+    import_shop_package(build_package(tmp_path), dry_run=False)
+
+    content = client.get("/epood/").content.decode()
+
+    assert "Andmete kohta" not in content
+
+
 def test_andmete_seis_arrived_and_keeps_its_anchor(viewer_client):
     """The other half of the move off Koja töölaud.
 

@@ -37,25 +37,14 @@ Nothing here turns one into the other.
 
   {% comment %}
   Heading only. The coverage line that used to sit here — as-of date, order
-  history, web interval — is gone from the top, not from the page: the as-of
-  date and the start of the order history are still stated in `Andmete kohta`
-  at the foot, which is where a reader goes to ask what the numbers are made
-  of. Nothing here lets the page imply the extract is live.
+  history, web interval — left the top on 2026-08-16, into `Andmete kohta` at
+  the foot. That whole disclosure moved again on 2026-08-17, to `/haldus/`,
+  along with every other domain's — see
+  `apps/shop/templates/shop/admin/_data_about.html`. Nothing here lets the
+  page imply the extract is live.
   {% endcomment %}
   <header class="flex min-w-0 flex-col gap-1">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">E-pood</h1>
-    {% comment %}
-    The as-of line left the header on 2026-08-16. It was not the only statement
-    of the export's cut-off — `Andmete kohta` opens with the same date, in a
-    sentence that also says the export is compiled by hand — so removing it
-    costs no fact.
-
-    It does cost placement, which is what this line was for: the argument it
-    was added under was that a date at the foot lets every figure above it read
-    as live. That argument still holds; the date is now at the foot alone.
-    Restoring it means putting this paragraph back, not recomputing anything —
-    `overview.as_of_label` is unchanged and still rendered below.
-    {% endcomment %}
   </header>
 
   {% if not overview.has_source %}
@@ -278,50 +267,10 @@ Nothing here turns one into the other.
       {% include "shop/_focus_nahtavus.html" %}
     {% endif %}
 
-
-    {# ---------------- 8. methodology, on demand ---------------- #}
-    <section id="andmete-kohta" aria-labelledby="section-about" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Andmete kohta" heading_id="section-about" only %}
-      <div class="dk-section-body">
-        <details class="text-sm text-text-secondary">
-          <summary class="cursor-pointer text-text">Mida need arvud tähendavad</summary>
-          <div class="mt-3 flex flex-col gap-3">
-            <p><strong class="text-text">E-poe andmed.</strong> Käsitsi koostatud väljavõte seisuga {{ overview.as_of_label }}. Andmeid ei uuendata automaatselt ja need ei ole selle kuupäeva järel ajakohased.</p>
-            <p><strong class="text-text">Tellimused ja veebistatistika.</strong> Tellimuste ajalugu algab {{ overview.coverage_label }}, veebistatistika hiljem. Ühiseid näitajaid arvutatakse ainult kattuval perioodil, mitte kogu valitud vahemikus.</p>
-            <p><strong class="text-text">Vaatamised.</strong> Lehevaatamine ei ole inimene: sama külastaja mitu külastust on mitu vaatamist.</p>
-            <p><strong class="text-text">Lepingu kaks lehte.</strong> Lepingupõhjal on tutvustusleht ja tooteleht. Neid vaatamisi ei liideta, sest sama külastaja näeb sageli mõlemat. Määr arvutatakse tootelehe alusel, kus on ostunupp.</p>
-            {% comment %}
-            This sentence used to explain why the general word was `Ostetud`.
-            The word changed on 2026-08-16 and the explanation could not simply
-            be renamed with it — it would have read "`Ostetud` is the general
-            word because `ostetud` would be wrong". What the reader actually
-            needs is the fact underneath it, which is that most of the count was
-            never paid for.
-            {% endcomment %}
-            <p><strong class="text-text">Oste / 100 vaatamist.</strong> 100 × ostetud ühikud ÷ ostulehe vaatamised, mõlemad sama kattuva akna sees. „Ostetud“ hõlmab ka tasuta võetud lepingunäidiseid, mida on suurem osa: see arv ei ole müük ega tasutud tellimuste arv.</p>
-            <p><strong class="text-text">Ostuleht tooteliigi järgi.</strong> Lepingunäidisel ja füüsilisel tootel on selleks tooteleht, sündmusel sündmuse leht. Kui õiget lehte ei ole määratud, jääb määr näitamata — teist liiki lehte asemele ei panda.</p>
-            <p><strong class="text-text">Jagatud lehed.</strong> Koondnäitajates loetakse iga ostuleht üks kord, ka siis kui mitu toodet viitab samale lehele.</p>
-            {% comment %}
-            Worded to avoid the phrase itself, not only the claim. A negated
-            "ei ole laekunud tulu" still puts those two words on the page, where
-            a skimming reader may take them for a label — and the browser suite
-            asserts the phrase never appears at all, which is a stronger
-            guarantee than trusting every author to negate correctly.
-            {% endcomment %}
-            <p><strong class="text-text">Tellitud väärtus.</strong> Lõpetatud tellimuste summa käibemaksuta. See ei ole raamatupidamislik tulu: Koda.ee ei salvesta makse laekumist ega tagasimakseid. Makseviis ei muuda seda — arvega tellitud väärtus ei ole võlgnevus ja pangalingiga tellitud väärtus ei ole tõend maksest.</p>
-            {% if not overview.orders_are_distinct %}
-              <p><strong class="text-text">Tellimusridu.</strong> Eri tellimuste arv on päevakokkuvõttes ainult kuupäeva ja tooteliigi kaupa. Kui valik on sellest kitsam — kategooria, liikmestaatus või otsing — loetakse tooteridu: kolme tootega tellimus on kolm rida. Kitsendatud valiku kõrvale ei panda kunagi kitsendamata tellimuste arvu.</p>
-            {% endif %}
-            <p><strong class="text-text">Registreerimised.</strong> Sündmuse toote ühik on registreerimine, mitte osaleja. Kohalkäimist e-poe andmestik ei sisalda.</p>
-            <p><strong class="text-text">Osaline aasta.</strong> Kalendriaasta, mida imporditud ajalugu tervikuna ei kata, on eraldi märgitud ega ole täisaastaga võrreldav.</p>
-            <p><strong class="text-text">„Uus perioodil“.</strong> Tähendab, et eelmisel perioodil oste ei olnud. See ei ütle, millal toode e-poodi lisati.</p>
-            <p><strong class="text-text">Andmestiku maht.</strong> Skeem {{ overview.schema_version|default:"—" }}; eri tellimuste arv {% if overview.distinct_orders_available %}on{% else %}ei ole{% endif %} selle valiku kohta saadaval; tasuta/tasulise jaotus {% if overview.free_paid_available %}on{% else %}ei ole{% endif %} imporditud; veebi päevadetail {% if overview.page_detail_complete %}katab kogu võrdlusakna{% else %}ei kata kogu võrdlusakent{% endif %}.</p>
-            <p><strong class="text-text">Liikmestaatus.</strong> {% if overview.member_gate_open %}Liikmete ja mitteliikmete jaotus on kinnitatud ja kuvatud.{% else %}Jaotust ei näidata: allikas ei ole kinnitanud, et liikmestaatus kirjeldab tehingu hetke.{% endif %}</p>
-            <p><strong class="text-text">Puuduv ja null.</strong> „—“ tähendab, et mõõtmist ei ole. „0“ tähendab mõõdetud nulli. Neid ei asendata teineteisega.</p>
-          </div>
-        </details>
-      </div>
-    </section>
+    {% comment %}
+    `Andmete kohta` moved off this page to `/haldus/` on 2026-08-17, whole —
+    see `apps/shop/templates/shop/admin/_data_about.html`.
+    {% endcomment %}
   {% endif %}
 </div>
 {% endblock %}

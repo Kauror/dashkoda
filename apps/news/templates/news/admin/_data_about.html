@@ -1,0 +1,152 @@
+{% load membership_format %}
+{% comment %}
+Uudised' `Andmete kohta`, moved off the dashboard to `/haldus/` on
+2026-08-17, whole and unedited — the two-source freshness note, both time
+windows, the empty-vs-zero rule, the ranking/share denominators, the
+benchmark method and the catalogue-scope facts all arrive intact.
+
+`id="uudised-andmeallikad"` gives this block its own address, the same
+reason the other domains' blocks have one.
+
+Context:
+  facts     – analytics.catalogue_facts(coverage), a dict
+  coverage  – the site-wide GA4 Coverage, the same object Koduleht's own
+              block reads — one read serves both
+{% endcomment %}
+<div id="uudised-andmeallikad" class="flex flex-col gap-3 scroll-mt-4">
+
+  <h3 class="text-sm font-semibold text-text">Uudised</h3>
+
+  <details class="text-sm">
+    <summary class="cursor-pointer text-text-secondary">Andmete kohta</summary>
+
+    <div class="mt-4 flex flex-col gap-4 text-sm text-text-secondary">
+
+      <div class="flex flex-col gap-1">
+        <h4 class="font-medium text-text">Kui värsked need andmed on</h4>
+        <p>
+          {% if facts.latest %}
+            Uudiste kataloog ulatub {{ facts.latest|date:"d.m.Y" }}-ni.
+          {% endif %}
+          {% if coverage.latest %}
+            Google Analyticsi mõõtmine ulatub {{ coverage.latest|date:"d.m.Y" }}-ni.
+          {% endif %}
+          Kaks kuupäeva erinevad tavaliselt: kataloogi loetakse iga tund, Google Analyticsi
+          aruandepäev valmib alles järgmisel päeval. Üks ühine „viimati uuendatud“ oleks
+          vähemalt ühe allika kohta vale.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <h4 class="font-medium text-text">Kaks eri ajaküsimust</h4>
+        <p>
+          <strong>Avaldatud</strong> tähendab, millal uudis ilmus.
+          <strong>Loetud</strong> tähendab, millal seda loeti. 2024. aastal avaldatud uudis
+          võib olla üks käesoleva kuu loetuimaid — ta ei kuulu 30 päeva avaldamisaknasse,
+          kuid kuulub 30 päeva lugemisaknasse. Kumbki juhtnupp ei mõjuta teise küsimuse arve.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <h4 class="font-medium text-text">Puuduv ei ole null</h4>
+        <p>
+          Kui uudise esimesed 7 või 30 päeva jäävad osaliselt väljapoole mõõdetud perioodi,
+          kui aken pole veel täis või kui mõõtmises on lünk, näidatakse „—“, mitte nulli.
+          Kui aga kogu aken on mõõdetud ja Google Analytics ei ole ühtegi vaatamist
+          kirja pannud, on tulemus <strong>0 mõõdetud vaatamist</strong> — see on leid,
+          mitte lünk.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <h4 class="font-medium text-text">Mõõdetud vaatamised ei ole eluea vaatamised</h4>
+        <p>
+          {% if coverage.earliest %}
+            Google Analyticsi mõõdetud periood algab {{ coverage.earliest|date:"d.m.Y" }}
+            ja ulatub {{ coverage.latest|date:"d.m.Y" }}-ni.
+          {% endif %}
+          Enne seda avaldatud uudise puhul tähendab „mõõdetud kokku“ vaatamisi alates
+          mõõtmise algusest, mitte kõiki vaatamisi alates avaldamisest.
+        </p>
+        <p>
+          Loendatakse <strong>lehevaatamisi</strong>, mitte lugejaid: üks inimene, kes avab
+          uudise kaks korda, on kaks lehevaatamist ja üks lugeja. Päevaseid kasutajaid
+          ei liideta perioodi peale kokku, sest eri päevade kasutajad on suures osas
+          samad inimesed.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <h4 class="font-medium text-text">Mida näitajad tähendavad</h4>
+        <p>
+          <strong>Uudiste osakaal</strong> on uudiste lehevaatamised jagatud kogu kodulehe
+          vaatamistega samal perioodil. Mõlemad pooled on liidetavad lehevaatamised samadelt
+          päevadelt.
+        </p>
+        <p>
+          <strong>Populaarsed uudised</strong> on järjestatud vaatamiste järgi valitud
+          lugemisaknas, <strong>olenemata avaldamisajast</strong>. Aastatetagune uudis kuulub
+          selle nimekirja etteotsa, kui just seda praegu loetakse.
+        </p>
+        <p>
+          <strong>Avaldatud uudiseid</strong> loendab avaldamisakent, mitte lugemisakent, ja
+          jaguneb Koja ning Sõprade uudisteks. Kataloogis on
+          {{ facts.unclassified|integer }} uudist, mille liik ei ole teada; neid ei
+          liigitata kummagi alla.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <h4 class="font-medium text-text">Mis loeb uudiseks</h4>
+        <p>
+          Uudis on leht, mille kohta uudiste kataloogis on kirje. Rubriigilehed —
+          <span class="tabular-nums">/et/uudised</span>,
+          <span class="tabular-nums">/en/news</span>, arhiivi- ja liigilehed — ei ole uudised
+          ja neid ei arvestata uudiste vaatamiste hulka, kuigi nad on kataloogis olemas.
+          Kataloog sisaldab {{ facts.listings|integer }} sellist lehte.
+        </p>
+        <p>
+          Venekeelseid uudiseid <span class="tabular-nums">/ru/novosti</span> all kataloog
+          praegu ei kata, seega ei sisaldu need uudiste vaatamistes.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <h4 class="font-medium text-text">Võrdlusalus</h4>
+        <p>
+          Uudiseid võrreldakse esimese 30 päeva vaatamiste mediaaniga viimase 12 kuu
+          võrreldavate uudiste seas. Koja ja Sõprade uudiseid võrreldakse
+          <strong>eraldi</strong>, sest nende tavapärane tulemus erineb mitmekordselt;
+          ühine mediaan liigitaks enamiku Sõprade uudistest alla tavapärase.
+          Kui liigil on vähem kui {{ min_cohort|default:8 }} võrreldavat uudist, kasutatakse
+          kõigi uudiste võrdlusalust, ja kui seegi on liiga väike, võrdlust ei näidata.
+        </p>
+        <p>
+          „Alla tavapärase“ tähendab, et uudis jääb võrreldavate uudiste madalaimasse
+          veerandisse. See kirjeldab asukohta jaotuses. Miks nii läks — kellele uudis oli
+          suunatud, kas seda jagati, kui kitsas oli teema — neid andmeid siin ei ole.
+        </p>
+      </div>
+
+      <div class="flex flex-col gap-1">
+        <h4 class="font-medium text-text">Kataloogi ulatus</h4>
+        <p>
+          „Kõik“ tähendab kõiki DashKodale teadaolevaid uudiseid, mitte kogu Koja arhiivi.
+          Kataloogis on {{ facts.total|integer }} uudist,
+          neist {{ facts.dated|integer }} teadaoleva avaldamiskuupäevaga
+          ja {{ facts.undated|integer }} ilma.
+          Koja uudiseid on {{ facts.chamber|integer }} ja Sõprade uudiseid
+          {{ facts.partner|integer }}.
+          {{ facts.unclassified|integer }} uudise liik ei ole teada; neid ei liigitata
+          ei Koja ega Sõprade uudiseks.
+        </p>
+        {% if coverage.missing_days %}
+          <p>
+            Mõõdetud perioodis on {{ coverage.missing_days }} kogumata päeva.
+          </p>
+        {% endif %}
+      </div>
+
+    </div>
+  </details>
+</div>

@@ -16,7 +16,10 @@ from apps.membership.internal_selectors import (
 from apps.membership.reconciliation import RECONCILIATION_LOOKBACK_YEARS, reconcile_history
 from apps.membership.register_selectors import get_current_register_snapshot
 from apps.membership.selectors import get_membership_summary
+from apps.news.analytics import catalogue_facts
 from apps.news.selectors import get_news_summary
+from apps.shop.page import build_overview as build_shop_overview
+from apps.shop.periods import parse_int_list, parse_metric, parse_page, parse_search, parse_sort
 from apps.visibility.ga4_selectors import get_coverage
 from apps.visibility.website_period import get_period_coverage
 
@@ -149,6 +152,29 @@ def admin_area(request):
         else None
     )
 
+    # Uudised' `Andmete kohta` moved here whole on 2026-08-17. It reads the
+    # same site-wide GA4 coverage Koduleht's own block above already read —
+    # one query serves both, the same way the page itself always shared it.
+    news_facts = catalogue_facts(website_coverage)
+
+    # E-pood's `Andmete kohta` moved here whole the same day. It describes the
+    # default, unfiltered view — the same shape a bare `/epood/` visit builds
+    # — because the caveats it states (distinct-order coverage, free/paid
+    # import, page-detail completeness) are properties of that default view,
+    # not of any one reader's filters.
+    shop_overview = build_shop_overview(
+        period_key=None,
+        date_from=None,
+        date_to=None,
+        product_type="",
+        categories=parse_int_list([]),
+        member_status="",
+        search=parse_search(None),
+        sort=parse_sort(None),
+        page=parse_page(None),
+        metric=parse_metric(None),
+    )
+
     return render(
         request,
         "dashboard/admin.html",
@@ -165,6 +191,8 @@ def admin_area(request):
             ),
             "website_coverage": website_coverage,
             "website_period_coverage": website_period_coverage,
+            "news_facts": news_facts,
+            "shop_overview": shop_overview,
             "legal_work_summary": legal_work_summary,
             "legal_work_quality": (
                 data_quality(legal_work_summary.snapshot) if legal_work_summary.has_data else None
