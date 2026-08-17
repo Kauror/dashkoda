@@ -452,7 +452,6 @@ def _growth_sections(
         AnalyticsSection(
             section_id="section-recruitment",
             title="Uute liikmete dünaamika",
-            description="Jooksva aasta uued liikmed ja ajalooline võrdlus.",
             charts=tuple(recruitment),
             toggles=(
                 Toggle(
@@ -502,12 +501,11 @@ def _growth_sections(
     if season is not None:
         sections.append(
             AnalyticsSection(
+                # Renamed from `Kuude hooajalisus` and lost its description
+                # on 2026-08-17; the chart's own question and footnote left
+                # with it — see `seasonality_chart`.
                 section_id="section-seasonality",
-                title="Kuude hooajalisus",
-                description=(
-                    "Kas see kuu on tavapärasest tugevam või nõrgem? Võrdlusaluseks "
-                    "on sama kalendrikuu varasematel täielikult raporteeritud aastatel."
-                ),
+                title="Kuuline liitumine",
                 charts=(season,),
             )
         )
