@@ -1,23 +1,27 @@
-"""The Sündmused intelligence dashboard: one page, six focus views.
+"""The Sündmused intelligence dashboard: one page, three focus views.
 
 `/sundmused/` answers different questions for different readers, and it answers
-them in one place rather than in six routes. `?fookus=` chooses which analytical
-surface is on screen; the programme itself, the year control and the provenance
-block are constant.
+them in one place rather than in three routes. `?fookus=` chooses which
+analytical surface is on screen; the programme itself, the year control and the
+provenance block are constant.
 
-    ulevaade       what does the programme look like right now
+    ulevaade       what does the programme look like right now, row by row
     maht           how much, and when
     formaadid      what kinds of events, and how that has shifted
-    huvi           which events the public looked at
-    planeerimine   how far ahead events are arranged, and what they cost
-    programm       the exact register, searchable and filterable
+
+`Huvi` and `Planeerimine` came off on 2026-08-15. `Ürituste nimekiri` — the
+exact register, searchable and filterable — followed on 2026-08-17: its whole
+content moved onto `Ülevaade`, so a reader no longer leaves the answer to reach
+the rows behind it. `intelligence.py` still knows nothing about the register
+itself; `page.py` still builds it, and `views.py` now attaches it to the
+overview response rather than gating it behind its own focus.
 
 Two properties are load-bearing.
 
-**Only the active focus is computed.** A reader on `Ülevaade` does not pay for
-the seasonality medians, and a reader on `Programm` does not pay for GA4. This
-is why the builders below are separate functions rather than one dataclass that
-fills every field.
+**Only the active focus is computed.** A reader on `Maht` does not pay for the
+register's paginated query, and a reader on `Ülevaade` does not pay for the
+formats ranking. This is why the builders below are separate functions rather
+than one dataclass that fills every field.
 
 **The year is an event cohort, never a measurement window.** `2026` means
 "events whose own start date falls in 2026". Their public pages may have been
@@ -50,7 +54,6 @@ from apps.core.formatting import (
 from apps.visibility.ga4_selectors import get_coverage
 
 from . import analytics, attention, charts, commerce
-from .page import REGISTER_FOCUS
 from .public_links import attach_public_links
 from .selectors import (
     YEAR_ALL,
@@ -66,25 +69,21 @@ from .selectors import (
 FOCUS_OVERVIEW = "ulevaade"
 FOCUS_VOLUME = "maht"
 FOCUS_FORMATS = "formaadid"
-#: Owned by `page.py`, which builds every link the register emits. One spelling,
-#: so a pagination link and a focus tab can never disagree about the register's
-#: own name.
-FOCUS_REGISTER = REGISTER_FOCUS
 
 #: The navigation, in reading order: the answer, then the two structural
-#: analyses, then the list.
+#: analyses.
 #:
 #: `Huvi` and `Planeerimine` were the fourth and fifth and came off on
-#: 2026-08-15 at the board's request. Almost everything they held went with
-#: them; `Hinnastruktuur` was the one section worth keeping and is on `Ülevaade`
-#: now. Neither key is parsed any more, so an old `?fookus=huvi` bookmark falls
-#: through `parse_focus` to `Ülevaade` exactly as any other unreadable value
-#: does — the documented behaviour of this page, and why no redirect is needed.
+#: 2026-08-15 at the board's request; `Ürituste nimekiri` was the third and came
+#: off on 2026-08-17, its whole content folded into `Ülevaade` rather than
+#: retired. None of the three keys is parsed any more, so an old `?fookus=huvi`
+#: or `?fookus=programm` bookmark falls through `parse_focus` to `Ülevaade`
+#: exactly as any other unreadable value does — the documented behaviour of
+#: this page, and why no redirect is needed.
 FOCUS_LABELS: tuple[tuple[str, str], ...] = (
     (FOCUS_OVERVIEW, "Ülevaade"),
     (FOCUS_VOLUME, "Maht ja kalender"),
     (FOCUS_FORMATS, "Formaadid ja teemad"),
-    (FOCUS_REGISTER, "Ürituste nimekiri"),
 )
 
 FOCUS_VALUES = tuple(key for key, _label in FOCUS_LABELS)
@@ -260,13 +259,15 @@ class IntelligencePage:
         """Whether this focus loads the chart bundle at all.
 
         ECharts is over a megabyte, so it ships only to a view that draws
-        something. `Ürituste nimekiri` never does.
+        something.
 
         `Ülevaade` is the conditional one: it drew nothing until
-        `Hinnastruktuur` moved onto it, and that chart is absent whenever the
-        programme records no price. Asking the built view rather than the focus
-        key keeps the bundle off a page with no canvas — the rule this property
-        has always enforced, now that one focus can go either way.
+        `Hinnastruktuur` moved onto it, and the register's own table draws
+        nothing either — so the bundle still depends on whether the programme
+        records a price, not on which focus is active. Asking the built view
+        rather than the focus key keeps the bundle off a page with no canvas —
+        the rule this property has always enforced, now that one focus can go
+        either way.
         """
         if self.focus in (FOCUS_VOLUME, FOCUS_FORMATS):
             return True
@@ -687,7 +688,6 @@ __all__ = [
     "FOCUS_FORMATS",
     "FOCUS_LABELS",
     "FOCUS_OVERVIEW",
-    "FOCUS_REGISTER",
     "FOCUS_VALUES",
     "FOCUS_VOLUME",
     "Change",

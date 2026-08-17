@@ -22,19 +22,21 @@ from apps.dashboard.navigation import NAVIGATION
 
 # The one deliberate cross-domain read on this page. `apps.events` is a separate
 # feed with separate snapshots; nothing below merges it into the programme.
-from .intelligence import FOCUS_REGISTER, build_intelligence_page
+from .intelligence import FOCUS_OVERVIEW, build_intelligence_page
 from .page import build_programme_page
 from .selectors import get_event_programme_summary
 
 
 @require_GET
 def event_programme_overview(request):
-    """One route, four focus views.
+    """One route, three focus views.
 
-    The register is the only focus that costs a paginated query over the whole
-    programme, so it is the only one that builds a `ProgrammePage`. A reader on
-    `Ülevaade` pays for the overview and nothing else, which is the property
-    that lets this page carry four analyses without becoming four pages.
+    Ürituste nimekiri stopped being one of them on 2026-08-17: its register is
+    now part of `Ülevaade`, so `Ülevaade` is the only focus that costs the
+    paginated query over the whole programme and the only one that builds a
+    `ProgrammePage`. A reader on `Maht` or `Formaadid` pays for neither, which
+    is the property that lets this page carry three analyses without becoming
+    three pages.
 
     The public Koda.ee calendar is **not** read here any more. It was only ever
     on this page inside `Andmete kohta`, and that block moved to `/haldus/` on
@@ -56,7 +58,7 @@ def event_programme_overview(request):
             "intelligence": intelligence,
             "page": (
                 build_programme_page(summary, request.GET)
-                if intelligence.focus == FOCUS_REGISTER
+                if intelligence.focus == FOCUS_OVERVIEW
                 else None
             ),
         },
@@ -80,13 +82,14 @@ PROGRAMME_FIELDS = (
     "sort",
 )
 
-#: Everything this page understands, `page` and the focus included. Only these
-#: reach a pushed URL, because that value ends up in somebody's address bar.
+#: Everything this page understands, `page` included. Only these reach a
+#: pushed URL, because that value ends up in somebody's address bar.
 #:
-#: `fookus` is here so a live filter cannot navigate the reader off the
-#: register: without it the pushed URL would drop the focus and the next full
-#: page load would open the overview with a filter set and nowhere showing it.
-PROGRAMME_PARAMS = (*PROGRAMME_FIELDS, "fookus", "page")
+#: `fookus` is not among them: `Ülevaade` is where the register lives and is
+#: also `parse_focus`'s default, so a pushed URL with no focus at all already
+#: opens on the register — carrying the key forward would only risk pinning a
+#: reader to a focus value that stops existing the next time this page changes.
+PROGRAMME_PARAMS = (*PROGRAMME_FIELDS, "page")
 
 
 @require_GET
@@ -117,8 +120,7 @@ def programme_search_fragment(request):
             # can *clear* a filter, and a key absent from the submission has to
             # disappear from the address bar rather than survive in it.
             updates=(
-                {key: params.get(key, "") for key in PROGRAMME_FIELDS}
-                | {"fookus": FOCUS_REGISTER, "page": ""}
+                {key: params.get(key, "") for key in PROGRAMME_FIELDS} | {"page": ""}
             ),
         ),
     )

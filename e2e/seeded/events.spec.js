@@ -16,11 +16,13 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "../helpers.js"
 
 const PAGE = "/sundmused/";
 
-/* `/sundmused/` now opens on Ülevaade and the register is one of six focus views.
-   Every test below is about the register, so the focus is composed here rather
-   than repeated in fourteen call sites — a test that forgot it would assert
-   against the overview and fail in a way that looks like a data problem. */
-const REGISTER = "fookus=programm";
+/* `/sundmused/` now opens on Ülevaade and has three focus views. The register
+   folded onto Ülevaade on 2026-08-17 and no longer has one of its own — it
+   renders whenever the overview does — but every test below is still about
+   the register specifically, so the focus is composed here rather than
+   repeated in fourteen call sites, exactly as it was pinned to its own focus
+   before the merge. */
+const REGISTER = "fookus=ulevaade";
 
 function registerUrl(query = "") {
   const rest = query.replace(/^\?/, "");
@@ -164,15 +166,12 @@ test("clearing the filters returns to the default period", async ({ page }) => {
   await page.getByRole("link", { name: "Eemalda filtrid" }).click();
 
   /* Back to the default period, and still on the register: clearing a filter is
-     not a request to be moved to another view.
-
-     Compared as parts rather than against a pattern. A `?` inside a template
-     literal handed to `new RegExp` is a quantifier unless it survives two rounds
-     of escaping, and a regex that silently stops asserting what it reads like is
-     worse than no assertion. */
+     not a request to be moved to another view. The cleared link carries no
+     query string at all now — `Ülevaade` is where the register lives and is
+     also the page's own default, so nothing needs writing out. */
   const cleared = new URL(page.url());
   expect(cleared.pathname).toBe(PAGE);
-  expect(cleared.search).toBe(`?${REGISTER}`);
+  expect(cleared.search).toBe("");
   await expect(page.getByText(/Valitud periood: \d{4}/)).toBeVisible();
 });
 

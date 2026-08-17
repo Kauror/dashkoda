@@ -1,14 +1,15 @@
 """The Sündmused register: the exact lookup surface of the dashboard.
 
-`/sundmused/?fookus=programm`. The view renders; what the reader sees — which
-period is the default, how a filter state becomes a URL, how the table
-paginates and orders — is decided here, so the template holds layout and no
-business rule.
+`/sundmused/`. Ürituste nimekiri was its own focus until 2026-08-17, when its
+whole content moved onto `Ülevaade`; the view renders it there now, whenever
+that focus is active, and this module still decides everything the template
+does not — which period is the default, how a filter state becomes a URL, how
+the table paginates and orders.
 
-The headline figures are **not** here. They belong to `Ülevaade`, which is the
-page that answers questions; the register lists rows and states its own count
-under the filters. Computing the same three counts again above the table would
-put one number on screen twice and cost three queries per render to do it.
+The headline figures live in `Ülevaade` too, built separately by
+`intelligence.py`; the register lists rows and states its own count under the
+filters. Computing the same three counts again above the table would put one
+number on screen twice and cost three queries per render to do it.
 
 Two properties are deliberate:
 
@@ -65,12 +66,6 @@ from .selectors import (
 )
 
 ALL_YEARS_LABEL = "Kõik aastad"
-
-#: Which focus of `/sundmused/` the register is. It lives here rather than in
-#: `intelligence.py` because this module owns every link the register emits and
-#: is the lighter of the two: `intelligence` reaches into the shop and GA4, and
-#: the search fragment has no business importing either.
-REGISTER_FOCUS = "programm"
 
 # How many numbered page links surround the current one. Enough to move a few
 # pages at a time without turning a long history into a wall of numbers.
@@ -352,7 +347,7 @@ def build_programme_page(summary: EventProgrammeSummary, params) -> ProgrammePag
         sort_options=_sort_options(filters, offer_registrations=bool(registration_pages)),
         coverage_start=get_coverage().earliest,
         quality=_quality_links(snapshot),
-        clear_url=f"{reverse('events')}?{urlencode({'fookus': REGISTER_FOCUS})}",
+        clear_url=reverse("events"),
         all_years_url=_url(replace(filters, year=None)),
         shows_registrations=bool(registration_pages),
     )
@@ -496,12 +491,7 @@ def _url(filters: ProgrammeFilters, *, page: int | None = None) -> str:
     depends on the reader's calendar year to mean what it meant when it was
     built.
     """
-    # The focus travels in every link this page emits, so a pagination click, a
-    # sort chip or a data-quality link lands the reader back on the register
-    # rather than dropping them on the overview with their filters intact and
-    # nothing visibly filtered.
     query: list[tuple[str, str]] = [
-        ("fookus", REGISTER_FOCUS),
         ("year", str(filters.year) if filters.year is not None else YEAR_ALL),
     ]
     for name, value in (

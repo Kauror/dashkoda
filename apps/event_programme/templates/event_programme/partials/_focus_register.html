@@ -1,5 +1,5 @@
 {% comment %}
-Programm — the exact register.
+Sündmuste programm — the exact register, on `Ülevaade` since 2026-08-17.
 
 Unchanged in behaviour from the page this dashboard grew out of, and
 deliberately so: whole-population server-side search, real `<select>` controls
@@ -47,13 +47,12 @@ Context:
           hx-sync="this:replace"
           hx-indicator="#programme-filtering">
       {% comment %}
-      The focus and the ordering are chosen by links rather than fields, so both
-      travel as hidden inputs. Without the focus a keystroke would submit a form
-      with no `fookus` and the next full page load would open the overview;
-      without the sort the rows would silently fall back to chronological while
-      the chip still said `Enim vaadatud`.
+      The ordering is chosen by links rather than a field, so it travels as a
+      hidden input: without it the rows would silently fall back to
+      chronological while the chip still said `Enim vaadatud`. No `fookus`
+      input is needed any more — this form only ever renders on `Ülevaade`,
+      which is also where an unmarked URL already lands.
       {% endcomment %}
-      <input type="hidden" name="fookus" value="programm">
       <input type="hidden" name="sort" value="{{ page.filters.sort }}">
 
       <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
