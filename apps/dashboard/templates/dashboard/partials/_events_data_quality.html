@@ -28,7 +28,12 @@ Body only — no `<section>` and no heading of its own. `/haldus/` owns the
 `Andmeallikad ja import` heading this sits under, which is what keeps the
 block's own `<h3>` rows at the right level instead of one too deep.
 {% endcomment %}
-<details class="text-sm">
+{% comment %}
+`id="sundmused-andmeallikad"` added on 2026-08-17, when Õigusloome's own
+`<details>` joined this section — the e2e provenance test needs to scope to
+this block specifically now that it is not the only one here.
+{% endcomment %}
+<details id="sundmused-andmeallikad" class="text-sm">
   <summary class="cursor-pointer text-text-secondary">
     Sündmused ·
         {% if not quality.export_refreshed_at %}
