@@ -267,12 +267,16 @@ def test_an_empty_trend_offers_no_readouts_and_no_false_zero():
 
 
 def test_the_chart_asks_for_the_large_frame_and_dates_itself(two_year_trend):
-    """The question line was struck out; the observation date was not, and it
-    is the part that says what the drawing describes."""
+    """The question line was struck out, then the printed title too (its
+    text stays on the payload for the table caption — `title_hidden` only
+    suppresses the heading). The observation date was struck from neither
+    round: it is the part that says what the drawing describes."""
     chart = total_and_paid_chart(two_year_trend)
 
     assert chart.size == "large"
     assert chart.question == ""
+    assert chart.title_hidden is True
+    assert chart.title == "Liikmeid kokku ja tasunud liikmeid"
     assert chart.observation_label == "Seisuga 31.07.2026"
 
 

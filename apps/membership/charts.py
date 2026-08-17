@@ -360,7 +360,16 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
 
     return ChartPayload(
         payload_id="internal-membership-trend",
+        # The section's own heading is `sr-only`, but the two readouts
+        # printed above the chart already name `Liikmeid kokku` and `Tasunud
+        # liikmeid` directly, so the figcaption's printed title repeated what
+        # a sighted reader had already read and left on 2026-08-17. The title
+        # itself stays on the payload — see `title_hidden` on `ChartPayload`
+        # — so it still captions the table. The observation date stays
+        # printed, same as the question line struck in an earlier round: it
+        # is the part that says what the drawing describes, not a repeat.
         title="Liikmeid kokku ja tasunud liikmeid",
+        title_hidden=True,
         option=option,
         size="large",
         readouts=_trend_readouts(trend, provisional),
@@ -1805,11 +1814,14 @@ def seasonality_chart(by_year: dict[int, tuple[MonthlyValue, ...]]) -> ChartPayl
 
     return ChartPayload(
         payload_id="internal-membership-seasonality",
+        # The section's own heading, `Kuuline liitumine`, already says what
+        # this reads; the printed title and question repeated it and both
+        # left on 2026-08-17. The title itself stays on the payload — see
+        # `title_hidden` on `ChartPayload` — so it still captions the table.
         title=f"{current_year}. aasta kuud võrreldes sama kuu keskmisega",
+        title_hidden=True,
         option=option,
         size="categorical",
-        question="Kas see kuu on aastaajale tavapärasest tugevam või nõrgem?",
-        observation_label=(f"Võrdlusalus {baseline_label}, {len(rows)} võrreldavat kuud"),
         readouts=readouts,
         table_headers=("Kuu", str(current_year), f"{BENCHMARK_YEARS} a keskmine", "Erinevus"),
         table_rows=tuple(
@@ -1820,10 +1832,6 @@ def seasonality_chart(by_year: dict[int, tuple[MonthlyValue, ...]]) -> ChartPayl
             "liitumiste erinevust sama kalendrikuu keskmisest."
         ),
         empty_message="Hooajalisuse võrdluseks ei ole piisavalt täielikke aastaid.",
-        footnotes=(
-            "Keskmine arvutatakse ainult siis, kui kõik võrdlusaastad on selle kuu "
-            "kohta andmed esitanud. Muidu jäetakse kuu graafikult välja.",
-        ),
     )
 
 
