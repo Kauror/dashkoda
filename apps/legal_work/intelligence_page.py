@@ -230,7 +230,6 @@ def _headlines(snapshot, year: int) -> tuple[Headline, ...]:
         Headline(
             label="Hetkel töös",
             value=integer(active),
-            note="Aktiivsed teemad hetkeseisuga",
         ),
     )
 
@@ -262,31 +261,25 @@ def _secondary(snapshot, year: int) -> tuple[Headline, ...]:
 
 
 def _insights(snapshot, year: int) -> tuple[Insight, ...]:
-    """`Mis muutus?` — only comparisons the data can actually support."""
+    """`Mis muutus?` — only comparisons the data can actually support.
+
+    `Arvamusi välja saadetud`, `Arvamuse esitamiseks antud aeg` and
+    `Lähenevad tähtajad` left this section on 2026-08-17; each stated a
+    figure the headline strip, the response-time chart or the deadlines list
+    already carried. `sent_year_on_year`, `response_window_by_year` and
+    `deadline_pressure` are still called elsewhere on this page — see
+    `_headlines`, `_secondary` and `_active` — so nothing computed for them
+    is lost, only their repetition here.
+    """
     from apps.core.formatting import integer, signed_integer
 
     found: list[Insight] = []
-
-    sent_change = sent_year_on_year(snapshot)
-    if sent_change is not None and sent_change.previous:
-        found.append(
-            Insight(
-                label="Arvamusi välja saadetud",
-                detail=(
-                    f"{integer(sent_change.current)} sel aastal seisuga "
-                    f"{sent_change.current_cutoff:%d.%m.%Y}, eelmisel aastal sama "
-                    f"kuupäevani {integer(sent_change.previous)} "
-                    f"({signed_integer(sent_change.absolute_change)})."
-                ),
-                direction=sent_change.direction,
-            )
-        )
 
     arrivals = topics_year_on_year(snapshot)
     if arrivals is not None and arrivals.previous:
         found.append(
             Insight(
-                label="Uusi teemasid saabunud",
+                label="Uusi teemasid sisse",
                 detail=(
                     f"{integer(arrivals.current)} sel aastal seisuga "
                     f"{arrivals.current_cutoff:%d.%m.%Y}, eelmisel aastal sama "
@@ -294,32 +287,6 @@ def _insights(snapshot, year: int) -> tuple[Insight, ...]:
                     f"({signed_integer(arrivals.absolute_change)})."
                 ),
                 direction=arrivals.direction,
-            )
-        )
-
-    windows = {entry.year: entry for entry in response_window_by_year(snapshot)}
-    this_year, last_year = windows.get(year), windows.get(year - 1)
-    if this_year and last_year and this_year.median is not None and last_year.median is not None:
-        found.append(
-            Insight(
-                label="Arvamuse esitamiseks antud aeg",
-                detail=(
-                    f"{year}. aasta mediaan on {this_year.median:.0f} päeva, "
-                    f"{year - 1}. aastal {last_year.median:.0f} päeva."
-                ),
-                direction="down" if this_year.median < last_year.median else "up",
-            )
-        )
-
-    pressure = deadline_pressure(snapshot)
-    if pressure.due_within_7:
-        found.append(
-            Insight(
-                label="Lähenevad tähtajad",
-                detail=(
-                    f"{integer(pressure.due_within_7)} aktiivsel teemal on tähtaeg "
-                    "seitsme päeva jooksul."
-                ),
             )
         )
 

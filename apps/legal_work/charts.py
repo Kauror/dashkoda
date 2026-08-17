@@ -126,7 +126,12 @@ def active_stage_chart(breakdown: StageBreakdown) -> ChartPayload:
 
     return ChartPayload(
         payload_id="legal-active-stages",
+        # The section landmark already carries the focus's name and the total
+        # is restated in `Hetkel töös` above it, so the printed title left on
+        # 2026-08-17. It stays on the payload — see `title_hidden` on
+        # `ChartPayload` — so it still captions the table.
         title=f"Aktiivsed teemad hetkeseisu kaupa – kokku {integer(breakdown.total)}",
+        title_hidden=True,
         option=option,
         table_headers=("Hetkeseis", "Teemasid", "Osakaal"),
         table_rows=tuple(
