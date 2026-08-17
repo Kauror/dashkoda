@@ -119,8 +119,6 @@ def programme_search_fragment(request):
             # the reader's current URL: unlike the other four searches, this one
             # can *clear* a filter, and a key absent from the submission has to
             # disappear from the address bar rather than survive in it.
-            updates=(
-                {key: params.get(key, "") for key in PROGRAMME_FIELDS} | {"page": ""}
-            ),
+            updates=({key: params.get(key, "") for key in PROGRAMME_FIELDS} | {"page": ""}),
         ),
     )
