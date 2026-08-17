@@ -87,9 +87,15 @@ test("the dashboard leads, the archive follows", async ({ page }) => {
   // renders — the dashboard section's own truthful empty state is what's on
   // screen instead, and it is still the first thing on the page, which is
   // the property this test exists to check.
+  //
+  // The archive's own zero-results state (`archive.empty_message`, in
+  // `_news_results.html`) says the same true thing about the same
+  // unconnected source, so the same sentence appears twice on this page —
+  // `.first()` is the dashboard's copy, since it renders before the archive
+  // does.
   await openNews(page);
 
-  const dashboard = page.getByText("Andmeallikas ei ole veel ühendatud.");
+  const dashboard = page.getByText("Andmeallikas ei ole veel ühendatud.").first();
   const archiveSearch = page.getByLabel("Otsi uudist");
   await expect(dashboard).toBeVisible();
   await expect(archiveSearch).toBeVisible();
