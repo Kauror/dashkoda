@@ -3,11 +3,13 @@ import { expect, test } from "@playwright/test";
 import { expectNoHorizontalOverflow, signIn, watchConsole } from "../helpers.js";
 
 /*
- * The five analytical focus views of Sündmused.
+ * The three analytical focus views of Sündmused.
  *
- * `e2e/seeded/events.spec.js` drives the register. This file drives everything
- * else, and it exists because two classes of defect on this dashboard are
- * invisible to every value-inspecting test in the Python suite:
+ * `e2e/seeded/events.spec.js` drives the register, which folded onto Ülevaade
+ * on 2026-08-17 and renders on every test in this file that opens that focus.
+ * This file drives everything else, and it exists because two classes of
+ * defect on this dashboard are invisible to every value-inspecting test in
+ * the Python suite:
  *
  *   - a page that renders every section and loads no chart JavaScript, because a
  *     context key was renamed in one place and not the other. Django resolves the

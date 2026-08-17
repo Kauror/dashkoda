@@ -9,11 +9,13 @@ available history in one current snapshot. Every figure and every row on this
 page comes from that one snapshot; rows from several snapshots are never
 combined to reconstruct a past.
 
-One route, four focus views, chosen by `?fookus=`. `Huvi` and `Planeerimine`
-were the other two and came off on 2026-08-15; `Hinnastruktuur` was the one
-section worth keeping out of either and is on `Ülevaade` now. An unknown focus —
-including an old `?fookus=huvi` bookmark — falls back to `Ülevaade` rather than
-producing an error page, so nothing needed a redirect.
+One route, three focus views, chosen by `?fookus=`. `Huvi` and `Planeerimine`
+came off on 2026-08-15; `Hinnastruktuur` was the one section worth keeping out
+of either and is on `Ülevaade` now. `Ürituste nimekiri` came off on 2026-08-17 —
+its whole register moved onto `Ülevaade` too, so the exact list and the answer
+above it are one screen rather than a tab apart. An unknown focus — including
+an old `?fookus=huvi` or `?fookus=programm` bookmark — falls back to `Ülevaade`
+rather than producing an error page, so nothing needed a redirect.
 
 The header and the year control are constant; the analytical surface between
 them changes. Provenance is **not** on this page any more: `Andmete kohta` moved
@@ -85,12 +87,17 @@ attendees.
 
     {% if intelligence.overview %}
       {% include "event_programme/partials/_focus_overview.html" with view=intelligence.overview page=intelligence only %}
+      {% comment %}
+      Ürituste nimekiri, folded onto `Ülevaade` on 2026-08-17. `page` is a
+      `ProgrammePage`, built alongside `intelligence.overview` in `views.py`
+      whenever this focus is active — not one of `IntelligencePage`'s own
+      fields, because it comes from a different module and a different query.
+      {% endcomment %}
+      {% include "event_programme/partials/_focus_register.html" with page=page only %}
     {% elif intelligence.volume %}
       {% include "event_programme/partials/_focus_volume.html" with view=intelligence.volume page=intelligence only %}
     {% elif intelligence.formats %}
       {% include "event_programme/partials/_focus_formats.html" with view=intelligence.formats page=intelligence only %}
-    {% elif page %}
-      {% include "event_programme/partials/_focus_register.html" with page=page only %}
     {% endif %}
 
   {% else %}

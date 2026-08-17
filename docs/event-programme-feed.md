@@ -289,19 +289,21 @@ than fail validation.
 
 ### The Sündmused dashboard
 
-`/sundmused/` is one route with six focus views, chosen by `?fookus=`. An
-unknown value falls back to `ulevaade` rather than producing an error page, and
-only the active focus is computed — a reader on the overview pays for neither
-the seasonality medians nor GA4.
+`/sundmused/` is one route with three focus views, chosen by `?fookus=`. An
+unknown value — including a retired `huvi`, `planeerimine` or `programm`
+bookmark — falls back to `ulevaade` rather than producing an error page, and
+only the active focus is computed — a reader on `Maht` or `Formaadid` pays for
+neither the exact register's paginated query nor GA4.
 
 | `fookus` | Answers | Reads |
 | --- | --- | --- |
-| `ulevaade` | what the programme looks like right now | programme, GA4 |
+| `ulevaade` | what the programme looks like right now, and the exact register behind it | programme, GA4 |
 | `maht` | how much, and when | programme |
 | `formaadid` | what kinds of events, and how that shifted | programme |
-| `huvi` | which events the public looked at | programme, GA4, Commerce |
-| `planeerimine` | how far ahead events are arranged, and what they cost | programme |
-| `programm` | the exact register | programme, GA4, Commerce |
+
+`Huvi` and `Planeerimine` came off on 2026-08-15; `Ürituste nimekiri`, the
+exact register, followed on 2026-08-17 — its whole content, search and all,
+moved onto `ulevaade` rather than staying a separate tab.
 
 The period control selects an **event cohort** — events whose own start date
 falls in the year — and never a measurement window. An event's page may have
@@ -420,9 +422,9 @@ a stable tie-break on event name and service code — so two events on one day n
 swap places between requests or between pages. Pagination links, the clear-filters
 action and the data-quality links are rebuilt from the validated filter state, so
 a link carries exactly the filters that were applied and a bogus parameter cannot
-travel from page to page. Every link the register emits carries `fookus=programm`,
-so a pagination click or a sort chip cannot drop the reader on the overview with
-filters applied and nothing on screen saying so.
+travel from page to page. None of them need to carry a focus any more: the
+register only ever renders on `ulevaade`, which is also where an unmarked URL
+already lands.
 
 `Enim vaadatud` and `Enim registreerimisühikuid` rank the **whole filtered
 population** before the page slice — ranking a page of results would rank

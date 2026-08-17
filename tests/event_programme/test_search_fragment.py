@@ -70,11 +70,12 @@ def test_the_chosen_ordering_survives_a_keystroke():
         markup = handle.read()
 
     assert '<input type="hidden" name="sort"' in markup
-    # The focus is the same class of state and the same failure: without it a
-    # keystroke pushes a URL with no `fookus`, and the next full page load opens
-    # the overview with a filter applied and nothing on screen saying so.
-    assert '<input type="hidden" name="fookus"' in markup
-    assert "fookus" in PROGRAMME_PARAMS
+    # `fookus` carries no state here any more: the register moved onto
+    # `Ülevaade` on 2026-08-17, which is also `parse_focus`'s default, so a
+    # keystroke that pushes a URL with no focus at all already opens where the
+    # register renders.
+    assert '<input type="hidden" name="fookus"' not in markup
+    assert "fookus" not in PROGRAMME_PARAMS
 
 
 def test_a_cleared_filter_leaves_the_address_bar(viewer_client):

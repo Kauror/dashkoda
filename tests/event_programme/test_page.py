@@ -24,7 +24,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from apps.event_programme.intelligence import FOCUS_REGISTER
+from apps.event_programme.intelligence import FOCUS_OVERVIEW
 from apps.event_programme.models import EventProgrammeItem
 from apps.event_programme.selectors import PAGE_SIZE, get_current_event_programme_snapshot
 
@@ -44,18 +44,18 @@ NAME_CELL = 1
 class RegisterClient:
     """A viewer that always asks for the register.
 
-    `/sundmused/` now opens on `Ülevaade`, and the register is one of six focus
-    views. Every test in this module is about the register, so the focus travels
-    with the request here rather than being repeated in forty-nine call sites —
-    and a test that forgot it would assert against the overview and fail in a
-    way that looks like a data problem.
+    The register moved onto `Ülevaade` on 2026-08-17 and no longer has a focus
+    of its own, but `Ülevaade` is also `parse_focus`'s default — so asking for
+    it explicitly keeps every test in this module pinned to the page the
+    register actually renders on, the same way it was pinned to `?fookus=` when
+    the register was its own tab.
     """
 
     def __init__(self, client):
         self._client = client
 
     def get(self, path, data=None, **extra):
-        return self._client.get(path, {"fookus": FOCUS_REGISTER, **(data or {})}, **extra)
+        return self._client.get(path, {"fookus": FOCUS_OVERVIEW, **(data or {})}, **extra)
 
 
 @pytest.fixture
@@ -312,18 +312,20 @@ def test_the_page_no_longer_carries_the_export_connection_strip(viewer, programm
     assert "Viimane edukas sünkroonimine" not in page
 
 
-def test_the_register_carries_no_figure_strip_of_its_own(viewer, programme):
+def test_the_register_shares_the_page_with_the_overviews_own_headline(viewer, programme):
     """Headline counts belong to Ülevaade; the register lists rows.
 
-    The strip used to sit above this table and now would repeat, on every
-    register render, three counts the overview already states — including one
-    the table states for itself two lines below. What the register keeps is the
-    filter a reader acts on.
+    Until 2026-08-17 those were two different renders and the register's own
+    markup carried no figure strip of its own — a duplicate of the overview's
+    counts sitting above a table that states its own count two lines below.
+    Nothing about the register changed when it moved: it still draws no figure
+    strip of its own. What changed is that it now shares a response with
+    `Ülevaade`'s real one, so that strip is expected here too.
     """
     page = body(viewer.get(PAGE_URL))
 
-    assert 'id="section-figures"' not in page
-    assert "Sündmusi perioodil" not in strip_tags(page)
+    assert 'id="section-headline"' in page, "the merged page carries Ülevaade's own headline strip"
+    assert "Sündmusi perioodil" not in strip_tags(page), "not the register's own copy of it"
     assert 'name="public_link"' in page, "the link filter is still offered"
     assert "Vastavaid sündmusi" in strip_tags(page), "the table states its own count"
 
