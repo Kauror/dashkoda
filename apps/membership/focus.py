@@ -1,6 +1,6 @@
 """Which membership question the page is answering.
 
-The Liikmeskond page grew from one report into five analytical views, and a
+The Liikmeskond page grew from one report into several analytical views, and a
 single scroll through all of them buries the few figures most readers open the
 page for. `fookus` names which view is drawn.
 
@@ -43,23 +43,20 @@ FOCUS_MOVEMENT = "liikumine"
 #: Every focus, in the order the navigation lists them, with the label shown.
 #:
 #: The order is the reading order of the dashboard rather than an alphabet:
-#: how many members there are, whether that number is growing, who they are,
-#: who they are by name, and who arrived or left.
+#: how many members there are, whether that number is moving, and who they
+#: are by name.
 #:
-#: `nimekiri` follows `koosseis` because the two read the same roster export:
-#: the composition view is that roster counted, and the list is that roster
-#: itself. A reader who has just seen that a fifth of the membership is in
-#: Tartumaa is one click from the members it is made of.
-#:
-#: `liikmemaks` is deliberately absent: it retired on 2026-08-16 and its chart
-#: draws on the overview, so the reading order no longer passes through
-#: "whether they pay". `FOCUS_FEES` survives below as a retirement key.
+#: `liikmemaks` retired on 2026-08-16, its chart joining the overview's trend
+#: section. `koosseis` and `liikumine` retired on 2026-08-17: `koosseis`'s
+#: distributions joined the overview alongside the composition preview they
+#: used to link out to, and `liikumine` merged into `kasv`, which took its
+#: content and the new name `Sisse-välja` — arrivals, departures and the
+#: composition flow that predicts them read as one question now, not two.
+#: All three survive below as retirement keys.
 FOCUS_LABELS: tuple[tuple[str, str], ...] = (
     (FOCUS_OVERVIEW, "Ülevaade"),
-    (FOCUS_GROWTH, "Kasv ja püsimine"),
-    (FOCUS_COMPOSITION, "Koosseis"),
+    (FOCUS_GROWTH, "Sisse-välja"),
     (FOCUS_REGISTER, "Liikmete nimekiri"),
-    (FOCUS_MOVEMENT, "Liikumine ja põhjused"),
 )
 
 FOCUS_KEYS: tuple[str, ...] = tuple(key for key, _label in FOCUS_LABELS)
@@ -70,9 +67,17 @@ DEFAULT_FOCUS = FOCUS_OVERVIEW
 #: Retired views and the view that inherited each one's content. `Liikmemaks`
 #: was a whole focus holding one chart; the chart joined the overview's trend
 #: section on 2026-08-16, under the same window control, so its key resolves
-#: there — an explicit map rather than the unknown-key fallback, the same
-#: pattern as the shop's `vaartus`.
-RETIRED_FOCUSES: dict[str, str] = {FOCUS_FEES: FOCUS_OVERVIEW}
+#: there. `liikumine` merged into `kasv` on 2026-08-17. `koosseis` mostly
+#: joined the overview that day too — see `FOCUS_LABELS` — but two of its
+#: charts followed `liikumine` into `kasv` instead, so neither destination is
+#: a clean fit; the overview is where most of it landed and where a stale
+#: bookmark is least likely to land on nothing. An explicit map rather than
+#: the unknown-key fallback, the same pattern as the shop's `vaartus`.
+RETIRED_FOCUSES: dict[str, str] = {
+    FOCUS_FEES: FOCUS_OVERVIEW,
+    FOCUS_MOVEMENT: FOCUS_GROWTH,
+    FOCUS_COMPOSITION: FOCUS_OVERVIEW,
+}
 
 
 def resolve_focus(raw: str | None) -> str:

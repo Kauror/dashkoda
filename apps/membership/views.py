@@ -14,20 +14,26 @@ the same measurement only appears when both actually exist. Nothing on this page
 adds them, compares them as though they should agree, or continues one series
 with the other.
 
-## One page, four focuses
+## One page, three focuses
 
-The page answers four different management questions and `fookus` names which
+The page answers three different management questions and `fookus` names which
 one is drawn. It is an ordinary GET parameter, every control is a link, and an
 unknown value renders the overview rather than raising — so the page survives a
 stale bookmark, a typed URL and the back button. There is no client-side state
-and no SPA. `Liikmemaks` was a fifth focus holding one chart; the chart draws
-on the overview since 2026-08-16 and the retired key resolves there.
+and no SPA.
 
-The overview is the default and is built to be read without interaction: three
-headline figures, the membership trend with the fee history under one window,
-what changed, and the current year's movement. The other three focuses are
-where the analysis lives. Anything a control governs sits inside the section
-that carries the control, which is the rule the range control already followed.
+Three keys have retired into this shape: `liikmemaks` on 2026-08-16, its one
+chart onto the overview; `koosseis` and `liikumine` on 2026-08-17 — `koosseis`
+mostly onto the overview, `liikumine` into `kasv`, which took its content and
+the name `Sisse-välja`. See `RETIRED_FOCUSES` in `focus.py`.
+
+The overview is the default and is built to be read without interaction: the
+headline figures, what changed and who the members are, the current year's
+movement, the membership trend with the fee history under one window, and the
+composition distributions those "who" facts preview. `Sisse-välja` is where
+the turnover analysis lives — arrivals, departures and what predicts them.
+Anything a control governs sits inside the section that carries the control,
+which is the rule the range control already followed.
 """
 
 from datetime import timedelta
@@ -67,9 +73,7 @@ from .composition_selectors import (
     get_current_composition_snapshot,
 )
 from .focus import (
-    FOCUS_COMPOSITION,
     FOCUS_GROWTH,
-    FOCUS_MOVEMENT,
     FOCUS_OVERVIEW,
     FOCUS_REGISTER,
     PARAM_FOCUS,
@@ -228,13 +232,18 @@ def membership_overview(request):
 
     # Which focuses have something to draw. A navigation item leading to an
     # empty page reads as a fault, so an unbuilt focus is simply not offered.
+    # `Sisse-välja` draws from four sources since the 2026-08-17 merge — the
+    # trend, the monthly recruitment, the movement and the composition flow —
+    # any one of which is enough to offer it.
     available = {FOCUS_OVERVIEW}
-    if trend.has_data or any(monthly.values()):
+    if (
+        trend.has_data
+        or any(monthly.values())
+        or latest is not None
+        or batches
+        or composition is not None
+    ):
         available.add(FOCUS_GROWTH)
-    if latest is not None or batches:
-        available.add(FOCUS_MOVEMENT)
-    if composition is not None:
-        available.add(FOCUS_COMPOSITION)
     if register_snapshot is not None:
         available.add(FOCUS_REGISTER)
 
@@ -312,15 +321,11 @@ def membership_overview(request):
             if focus == FOCUS_OVERVIEW
             else (),
             "movement_summary": build_movement_summary(latest) if focus == FOCUS_OVERVIEW else None,
-            "composition_preview": build_composition_preview(
-                composition,
-                link_query=f"?{urlencode({**carried, PARAM_FOCUS: FOCUS_COMPOSITION})}",
-            )
+            # No longer a link out: the distributions it previews joined this
+            # same page on 2026-08-17, in `section-structure` below.
+            "composition_preview": build_composition_preview(composition)
             if focus == FOCUS_OVERVIEW
             else None,
-            # Read only by the composition focus, to state the date the
-            # whole view describes before any chart is reached.
-            "composition_snapshot": composition if focus == FOCUS_COMPOSITION else None,
             # The members list and what it is a reading of. Present only on the
             # focus that draws them, so no other view can start rendering rows.
             "member_list": member_list,
@@ -351,8 +356,6 @@ def _sections_for(focus, **ctx) -> list[AnalyticsSection]:
     builders = {
         FOCUS_OVERVIEW: _overview_sections,
         FOCUS_GROWTH: _growth_sections,
-        FOCUS_MOVEMENT: _movement_sections,
-        FOCUS_COMPOSITION: _composition_sections,
         # The members list draws no chart. It is a table, a search box and a
         # comparison, all of which the template renders from context — so this
         # focus contributes no analytical section and, because `sections` is
@@ -381,18 +384,24 @@ def _trend_section(*, trend, presets, has_range_choice, section_id="section-tren
     )
 
 
-def _overview_sections(*, trend, fee_rows, presets, has_range_choice, **_ignored):
-    """The membership trend and, under the same window, the fee history.
+def _overview_sections(*, trend, fee_rows, presets, has_range_choice, composition, **_ignored):
+    """The membership trend, the fee history, and what kinds of organisations
+    make up the membership.
 
     `Liikmemaks` was a whole focus holding the one fee chart; since 2026-08-16
     it draws here, in the section the range control already governs — the two
     series answer over the same window, so one control serves both and the
     reader stops switching views to hold the pair in mind.
+
+    `Koosseisu jaotused` joined the overview on 2026-08-17 from the retired
+    `Koosseis` focus, right below `Kes on meie liikmed?` — the four facts that
+    preview it. A reader no longer has to leave the page to read the
+    distribution behind a fact they have just seen.
     """
     charts = [total_and_paid_chart(trend)] if trend.has_data else []
     if fee_rows:
         charts.append(fee_collection_chart(fee_rows))
-    return [
+    sections = [
         AnalyticsSection(
             section_id="section-trend",
             title="Liikmeskonna areng",
@@ -403,6 +412,45 @@ def _overview_sections(*, trend, fee_rows, presets, has_range_choice, **_ignored
             show_custom_range=has_range_choice,
         )
     ]
+
+    if composition is not None:
+        on = composition.snapshot_date
+
+        # Ordinal dimensions keep their scale order; nominal ones are ranked,
+        # because for a county or a sector the ranking is most of the answer.
+        structure = [
+            (Dimension.EMPLOYEE_SIZE, "Ettevõtte suurus", False),
+            (Dimension.REGION, "Piirkonnad", True),
+            (Dimension.SECTOR, "Tegevusalad", True),
+            (Dimension.TENURE_BAND, "Liikmestaaž", False),
+        ]
+
+        # One section, two columns from `xl`. Four stacked full-width sections
+        # of the same categorical shape were twice the scroll to say four
+        # things, and each chart already carries its own title.
+        structure_charts = []
+        for dimension, title, ranked in structure:
+            chart = composition_chart(
+                composition.dimension(dimension),
+                payload_id=f"membership-composition-{dimension.replace('_', '-')}",
+                title=title,
+                snapshot_date=on,
+                ranked=ranked,
+            )
+            if chart is not None:
+                structure_charts.append(chart)
+        if structure_charts:
+            sections.append(
+                AnalyticsSection(
+                    section_id="section-structure",
+                    title="Koosseisu jaotused",
+                    show_title=False,
+                    charts=tuple(structure_charts),
+                    grid=True,
+                )
+            )
+
+    return sections
 
 
 def _register_sections(**_ignored):
@@ -425,16 +473,23 @@ def _growth_sections(
     benchmark,
     supported,
     control_state,
+    latest,
+    batches,
+    composition,
     **_ignored,
 ):
-    """Recruitment, the stock it feeds, and the seasonal shape of both.
+    """Recruitment, departures, the stock both feed, and what predicts them.
 
-    Four different quantities live under "growth" and the section keeps them
-    apart: the membership stock is a level, recruitment is a flow, a calendar
-    month has a seasonal position, and a period the board reported without
-    splitting into months is none of the three. True retention is a fifth thing
-    and is not here at all — no source in this application records departures
-    per member, so a retention figure would have to be invented.
+    `Sisse-välja` merged from `Kasv ja püsimine` and `Liikumine ja põhjused` on
+    2026-08-17: who is arriving, who is leaving and which categories forecast
+    the arrivals read as one question — the membership's turnover — not two.
+    `Juhatuse otsused`, one board decision's own list toggled by `batches`,
+    `decisions` and `chosen`, left the movement section the same day it left
+    `Liikumine ja põhjused`; those two are still computed by the caller and
+    still accepted here so its signature does not have to change. True
+    retention is still not here at all — no source in this application
+    records departures per member, so a retention figure would have to be
+    invented.
     """
     sections = [
         _trend_section(
@@ -524,18 +579,9 @@ def _growth_sections(
                 charts=(period_chart,),
             )
         )
-    return sections
 
-
-def _movement_sections(*, latest, batches, decisions, chosen, control_state, **_ignored):
-    """Who arrived and who left, as a year-to-date breakdown.
-
-    `Juhatuse otsused` — one board decision's own list, toggled by `batches`,
-    `decisions`, `chosen` and `control_state` — left this focus on 2026-08-17.
-    Those four are still computed by the caller and still accepted here so its
-    signature does not have to change; nothing below composes them into a
-    section any more.
-    """
+    # Who arrived and who left, as a year-to-date breakdown — merged in from
+    # `Liikumine ja põhjused` on 2026-08-17.
     movement_charts = []
     if latest is not None:
         movements = get_membership_size_movement(latest.observation.pk)
@@ -548,102 +594,51 @@ def _movement_sections(*, latest, batches, decisions, chosen, control_state, **_
             movement_charts.append(
                 removal_reasons_chart(reasons, observation_date=latest.observation_date)
             )
-
-    return [
+    sections.append(
         AnalyticsSection(
             section_id="section-movement",
             title="Liikmete liikumine",
             description="",
             charts=tuple(movement_charts),
-        ),
-    ]
-
-
-def _composition_sections(*, composition=None, **_ignored):
-    """What kinds of organisations the membership is made of.
-
-    Everything here describes **one dated roster export** and says so in every
-    heading, because a composition total is not a membership count: the board
-    report and the public directory both measure that differently, and putting
-    a third number beside them without its date would invite a comparison none
-    of the three supports.
-
-    The focus is not offered until a roster has been imported, so there is no
-    empty state to draw. `composition_chart` still returns `None` for a
-    dimension with nothing in it, and a section with no chart renders nothing.
-    """
-    if composition is None:
-        return []
-
-    on = composition.snapshot_date
-    sections: list[AnalyticsSection] = []
-
-    # Ordinal dimensions keep their scale order; nominal ones are ranked, because
-    # for a county or a sector the ranking is most of the answer.
-    structure = [
-        (Dimension.EMPLOYEE_SIZE, "section-size", "Ettevõtte suurus", False),
-        (Dimension.REGION, "section-region", "Piirkonnad", True),
-        (Dimension.SECTOR, "section-sector", "Tegevusalad", True),
-        (Dimension.TENURE_BAND, "section-tenure", "Liikmestaaž", False),
-    ]
-
-    # One section, two columns from `xl`. Four stacked full-width sections of
-    # the same categorical shape were twice the scroll to say four things, and
-    # each chart already carries its own title — left on 2026-08-17 along with
-    # the per-chart questions and the sector's EMTAK/NACE footnote.
-    structure_charts = []
-    for dimension, _section_id, title, ranked in structure:
-        chart = composition_chart(
-            composition.dimension(dimension),
-            payload_id=f"membership-composition-{dimension.replace('_', '-')}",
-            title=title,
-            snapshot_date=on,
-            ranked=ranked,
         )
-        if chart is not None:
-            structure_charts.append(chart)
-    if structure_charts:
-        sections.append(
-            AnalyticsSection(
-                section_id="section-structure",
-                title="Koosseisu jaotused",
-                show_title=False,
-                charts=tuple(structure_charts),
-                grid=True,
-            )
-        )
-
-    cohorts = join_cohort_chart(composition.dimension(Dimension.JOIN_COHORT), snapshot_date=on)
-    if cohorts is not None:
-        sections.append(
-            AnalyticsSection(
-                section_id="section-cohorts",
-                title="Tänased liikmed liitumisaasta järgi",
-                show_title=False,
-                charts=(cohorts,),
-            )
-        )
-
-    # Which kinds of organisation are over-represented among the members who
-    # joined most recently. Sector carries the most signal and is the only
-    # dimension drawn here — three growth-index charts would ask the reader to
-    # hold three baselines at once.
-    rows, suppressed = get_composition_growth(composition, Dimension.SECTOR)
-    growth = growth_index_chart(
-        rows,
-        suppressed,
-        dimension_label="Tegevusalad",
-        snapshot_date=on,
-        recent_total=composition.recent_joiner_count,
     )
-    if growth is not None:
-        sections.append(
-            AnalyticsSection(
-                section_id="section-growth-index",
-                title="Aastaga liitunute valdkonnad",
-                charts=(growth,),
+
+    if composition is not None:
+        on = composition.snapshot_date
+
+        # Which joining years make up today's membership — merged in from
+        # `Koosseis` on 2026-08-17, beside the movement it complements.
+        cohorts = join_cohort_chart(composition.dimension(Dimension.JOIN_COHORT), snapshot_date=on)
+        if cohorts is not None:
+            sections.append(
+                AnalyticsSection(
+                    section_id="section-cohorts",
+                    title="Tänased liikmed liitumisaasta järgi",
+                    show_title=False,
+                    charts=(cohorts,),
+                )
             )
+
+        # Which kinds of organisation are over-represented among the members
+        # who joined most recently. Sector carries the most signal and is the
+        # only dimension drawn here — three growth-index charts would ask the
+        # reader to hold three baselines at once.
+        rows, suppressed = get_composition_growth(composition, Dimension.SECTOR)
+        growth = growth_index_chart(
+            rows,
+            suppressed,
+            dimension_label="Tegevusalad",
+            snapshot_date=on,
+            recent_total=composition.recent_joiner_count,
         )
+        if growth is not None:
+            sections.append(
+                AnalyticsSection(
+                    section_id="section-growth-index",
+                    title="Aastaga liitunute valdkonnad",
+                    charts=(growth,),
+                )
+            )
 
     return sections
 

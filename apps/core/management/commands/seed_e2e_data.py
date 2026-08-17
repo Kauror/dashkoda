@@ -93,9 +93,10 @@ class Command(BaseCommand):
             # same page, and seeding it separately is what makes it visible to
             # the browser suite at all.
             membership_seed.seed_decision_batches(today),
-            # Aggregate composition, so the Koosseis focus is offered at
-            # all in a seeded environment. It is a separate source from the
-            # two above and is never added to either.
+            # Aggregate composition, so the distributions on the overview and
+            # the two flow charts on Sisse-välja draw at all in a seeded
+            # environment. It is a separate source from the two above and is
+            # never added to either.
             membership_seed.seed_composition(today),
             # The roster's rows and the directory's published codes, so the
             # Liikmete nimekiri focus and the two-source comparison are drawn

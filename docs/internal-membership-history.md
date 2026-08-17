@@ -441,21 +441,31 @@ actor. They never carry CSV bodies, source prose, user-entered notes, session
 data or tracebacks. The note a user types is stored on the observation, where it
 belongs, and is deliberately not copied into the audit summary.
 
-## The page: four focuses behind one URL
+## The page: three focuses behind one URL
 
-`/liikmeskond/` answers four different management questions and `fookus` names
-which one is drawn:
+`/liikmeskond/` answers three different management questions and `fookus`
+names which one is drawn:
 
 ```text
 fookus=ulevaade    Ülevaade               (default)
-fookus=kasv        Kasv ja püsimine
-fookus=koosseis    Koosseis
-fookus=liikumine   Liikumine ja põhjused
+fookus=kasv        Sisse-välja
+fookus=nimekiri    Liikmete nimekiri
 ```
 
-`fookus=liikmemaks` was a fifth, holding the one fee-collection chart. Since
-2026-08-16 that chart draws in the overview's trend section under the same
-window control, and the retired key resolves to the overview.
+Two keys retired into this shape on 2026-08-17: `fookus=liikumine`
+(`Liikumine ja põhjused`) merged into `kasv`, which took its content and the
+new name `Sisse-välja` — arrivals, departures and the composition signal that
+forecasts them read as one question, not two. `fookus=koosseis` (`Koosseis`)
+mostly joined the overview, right below the `Kes on meie liikmed?` preview it
+used to link out to; its two flow-related charts — the joining-year chart and
+the growth-index chart — followed `liikumine` into `kasv` instead. Both
+retired keys still resolve, to whichever focus took their content — see
+`RETIRED_FOCUSES` in `apps/membership/focus.py`.
+
+`fookus=liikmemaks` retired earlier, on 2026-08-16, holding the one
+fee-collection chart. Since then that chart draws in the overview's trend
+section under the same window control, and the retired key resolves to the
+overview.
 
 It is an ordinary GET parameter, every control is a link, and an unknown value
 renders the overview rather than raising — the same rule `ranges.py` applies to

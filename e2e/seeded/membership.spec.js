@@ -19,16 +19,20 @@ import {
 const PAGE = "/liikmeskond/";
 
 /*
- * The page is four focused views behind one URL, so a test has to say which
+ * The page is three focused views behind one URL, so a test has to say which
  * one it is asserting about. `fookus` is an ordinary GET parameter and every
  * control is a link, which is what lets these navigate by URL rather than by
- * clicking through a client-side router. `liikmemaks` retired on 2026-08-16:
- * its one chart draws on the overview, and the key resolves there.
+ * clicking through a client-side router.
+ *
+ * `liikmemaks` retired on 2026-08-16, its one chart onto the overview.
+ * `liikumine` and `koosseis` retired on 2026-08-17: `liikumine` merged into
+ * `kasv`, which took its content and the new name `Sisse-välja`; `koosseis`
+ * mostly landed on the overview, but two of its charts — the joining-year
+ * chart and the growth-index chart — followed `liikumine` into `kasv`
+ * instead. See `RETIRED_FOCUSES` in `apps/membership/focus.py`.
  */
 const GROWTH = "?fookus=kasv";
 const RETIRED_FEES = "?fookus=liikmemaks";
-const MOVEMENT = "?fookus=liikumine";
-const COMPOSITION = "?fookus=koosseis";
 const REGISTER = "?fookus=nimekiri";
 
 /*
@@ -101,12 +105,11 @@ test("each focus draws its own analysis and names itself", async ({ page }) => {
     page.getByRole("heading", { name: "Uute liikmete dünaamika" }),
   ).toHaveCount(0);
 
-  // Each named focus carries its own section, and only when navigated to.
-  for (const [query, title] of [
-    [GROWTH, "Uute liikmete dünaamika"],
-    [MOVEMENT, "Liikmete liikumine"],
-  ]) {
-    await page.goto(`${PAGE}${query}`);
+  // `Sisse-välja` carries both sections since the 2026-08-17 merge — the
+  // recruitment dynamics and the movement they used to sit under two
+  // separate tabs for — and neither is offered on the overview.
+  await page.goto(`${PAGE}${GROWTH}`);
+  for (const title of ["Uute liikmete dünaamika", "Liikmete liikumine"]) {
     await expect(page.getByRole("heading", { name: title })).toBeVisible();
   }
 
@@ -153,23 +156,27 @@ test("an unknown focus renders the overview rather than an error", async ({
   ).toHaveCount(1);
 });
 
-test("the composition view no longer states the date it describes inline", async ({
+test("the composition distributions no longer state the date they describe inline", async ({
   page,
 }) => {
   oncePerRun();
   /*
    * `Koosseisu ulatus` — the as-of date and row-count sentence that used to
-   * open this view — left on 2026-08-17. Every composition chart still
-   * carries the same date in its own observation label, so the view lost a
-   * repeated sentence, not the information.
+   * open the retired composition focus — left on 2026-08-17 along with the
+   * focus itself; its distributions joined the overview the same day, right
+   * below `Kes on meie liikmed?`. Every composition chart still carries the
+   * same date in its own observation label, so the view lost a repeated
+   * sentence, not the information.
    */
-  await open_(page, COMPOSITION);
+  await open_(page, "");
 
   await expect(page.getByText(/Koosseis seisuga/i)).toHaveCount(0);
   await expect(
     page.getByText(/ei ole sama mis juhatuse aruande liikmete arv/i),
   ).toHaveCount(0);
-  await expect(canvases(page).first()).toBeVisible();
+  await expect(
+    page.locator('section[aria-labelledby="section-structure"]'),
+  ).toBeVisible();
 });
 
 test("the joining-year chart no longer states its retention caveat inline", async ({
@@ -179,9 +186,10 @@ test("the joining-year chart no longer states its retention caveat inline", asyn
   /*
    * The chart itself, and the fact that it counts survivors rather than
    * joiners, is unchanged — only the footnote spelling that out left the
-   * page on 2026-08-17.
+   * page on 2026-08-17, the same day the chart followed `liikumine` from the
+   * retired composition focus into `Sisse-välja`.
    */
-  await open_(page, COMPOSITION);
+  await open_(page, GROWTH);
 
   await expect(page.getByText(/ei ole püsimamäär/i)).toHaveCount(0);
 });
@@ -210,7 +218,7 @@ test("the size-movement tooltip never states a departure as a negative", async (
    * the server value being right is only half of it — the browser must show
    * that value and not the one it drew.
    */
-  await open_(page, MOVEMENT);
+  await open_(page, GROWTH);
 
   const heading = page.getByRole("heading", { name: "Liikmete liikumine" });
   await expect(heading).toBeVisible();
@@ -398,7 +406,7 @@ test("the decision section no longer renders even when a batch exists", async ({
 }) => {
   oncePerRun();
 
-  await open_(page, MOVEMENT);
+  await open_(page, GROWTH);
 
   await expect(page.locator("#section-decisions")).toHaveCount(0);
   await expect(page.getByText("Juhatuse otsused")).toHaveCount(0);

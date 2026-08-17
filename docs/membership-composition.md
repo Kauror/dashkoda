@@ -234,9 +234,17 @@ Aggregates only, from the export dated 2026-06-09:
 
 ## Interface
 
-`fookus=koosseis` on `/liikmeskond/`. The focus is not offered until a roster
-has been imported, because a navigation item leading to an empty page reads as a
-fault.
+There was a dedicated `fookus=koosseis` focus until 2026-08-17. It retired that
+day: the size/region/sector/tenure distributions (`section-structure`) joined
+`/liikmeskond/`'s overview, directly below the `Kes on meie liikmed?` preview
+that used to link out to them, and the two flow-related charts — joining year
+and growth index — joined `fookus=kasv` (`Sisse-välja`) instead, beside the
+movement they complement. A stale `?fookus=koosseis` link still resolves,
+to the overview — see `RETIRED_FOCUSES` in `apps/membership/focus.py`.
+
+None of this is offered until a roster has been imported: `section-structure`
+renders nothing on the overview and the two flow charts render nothing on
+`Sisse-välja`, because a section with no chart draws no frame.
 
 Charts are horizontal bars throughout — Estonian sector and county names need a
 readable line of text beside each bar rather than a rotated axis label — and
@@ -248,7 +256,7 @@ the meaning. Nominal ones (county, sector) are ranked largest-first because for
 them the ranking is most of the answer. A ranked chart folds its tail into
 `Muu`, never into `Teadmata` — several small categories and "the source did not
 say" are different things, and a reader cannot tell them apart once they are
-added together. The chart's data table always lists every category in full.
+added together.
 
-The overview carries a four-fact preview under `Kes on meie liikmed?`, and it is
-omitted entirely when no roster has been imported.
+The overview carries a four-fact preview under `Kes on meie liikmed?`, omitted
+entirely when no roster has been imported.
