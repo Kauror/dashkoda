@@ -313,8 +313,9 @@ def test_the_audience_strip_names_every_channel_and_says_which_are_empty(
 
     **The website is not among them.** Its sessions are the `Koduleht ja
     uudised` card's headline, and one measure under two labels on one page
-    invites a reconciliation nobody can perform; `build_channel_band` leaves the
-    slot out at the source, so the query does not run either.
+    invites a reconciliation nobody can perform. The slot was removed from
+    `build_channel_band` outright — this page was its only consumer — so the two
+    GA4 reads behind it do not run either.
     """
     authenticate_viewer(client)
 

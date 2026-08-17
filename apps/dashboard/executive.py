@@ -175,10 +175,12 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
         ),
         upcoming=build_timeline(legal_summary=legal_work, events_executive=events_exec),
         interest=_interest_panels(website_exec, news_exec, shop_exec),
-        # Audiences only. The website slot's sessions are the `Koduleht ja
+        # Audiences only, and by construction rather than by argument: the band
+        # had a website slot until 2026-08-17, and it was removed there because
+        # this page was its only consumer. Sessions are the `Koduleht ja
         # uudised` card's headline, and one measure under two labels on one page
         # invites a reconciliation nobody can perform.
-        channels=build_channel_band(include_website=False),
+        channels=build_channel_band(),
         data_status=_data_status(
             legal_work=legal_work,
             membership=membership,

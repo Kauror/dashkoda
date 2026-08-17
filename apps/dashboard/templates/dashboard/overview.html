@@ -251,9 +251,10 @@ across domains, no index and no score.
       `automaatselt uuendatud` appear nowhere near them, and a channel nobody
       has entered reads `Andmed puuduvad`, never `0`;
     - **never repeat the website.** Sessions are the `Koduleht ja uudised`
-      card's headline; `build_channel_band(include_website=False)` leaves the
-      slot out at the source rather than the template hiding it, so the query
-      does not run either.
+      card's headline. The band had a `Kodulehe külastused` slot until
+      2026-08-17 and it was removed from `build_channel_band` outright, because
+      this page was its only consumer — so the template is not hiding a slot,
+      there is no slot, and the two GA4 reads behind it do not run.
 
   It is deliberately the quietest section on the page and deliberately last:
   audience sizes are context, and the operational intelligence above them is
