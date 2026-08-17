@@ -217,17 +217,19 @@ def test_no_member_response_rate_is_offered_anywhere(client, authenticate_viewer
 
 
 def test_the_feedback_view_states_what_it_is_not(client, authenticate_viewer, register):
-    """The caption moved to `Andmete seis` on 2026-08-16; the rule did not.
+    """The card is still here; the caption that qualifies it is not, any more.
 
-    It matters more after that move, not less: the figure was renamed to
-    `Liikmete tagasiside kokku`, and `kokku` invites exactly the reading —
-    a count of members — that this sentence exists to refuse.
+    It moved to `Andmete seis` on 2026-08-16, and `Andmete seis` itself moved
+    to `/haldus/` on 2026-08-17 — see
+    `tests/dashboard/test_admin_area.py::test_the_legal_work_data_block_arrived`
+    for where the rule lives now. The card stays: `kokku` still invites the
+    misreading this page must not create.
     """
     authenticate_viewer(client)
 
     content = get(client, "tagasiside")
 
-    assert "ei ole unikaalsete liikmete arv" in content
+    assert "ei ole unikaalsete liikmete arv" not in content
     assert "Liikmete tagasiside kokku" in content
 
 
@@ -320,13 +322,14 @@ def test_the_feedback_focus_keeps_its_caveats_without_a_chart(
     assert "sama liige võib anda tagasisidet" in content
 
 
-def test_the_page_dates_the_data_by_the_workbook(client, authenticate_viewer, register):
-    """Today's date beside a figure would claim the figure is today's."""
+def test_the_page_no_longer_dates_the_data_by_the_workbook(client, authenticate_viewer, register):
+    """The as-of line moved to `/haldus/` whole on 2026-08-17 — the fact is
+    not lost, only relocated; see `apps/legal_work/admin/_data_about.html`."""
     authenticate_viewer(client)
 
     content = get(client)
 
-    assert "Andmed seisuga 10.08.2026" in content
+    assert "Andmed seisuga 10.08.2026" not in content
 
 
 def test_the_search_reaches_the_whole_register_from_the_overview(

@@ -154,7 +154,10 @@ test("the provenance block is on no focus, and is on /haldus/", async ({ page })
   }
 
   await page.goto("/haldus/");
-  const details = page.locator('section[aria-labelledby="section-andmeallikad"] details');
+  // Scoped to Sündmused' own block by id: `Andmeallikad ja import` holds more
+  // than one domain's `<details>` since Õigusloome joined it on 2026-08-17,
+  // so counting every `<details>` in the shared section counts the wrong thing.
+  const details = page.locator("#sundmused-andmeallikad");
   await expect(details).toHaveCount(1);
   // Still folded: Admin is where the diagnostics live, not where they shout.
   await expect(details).not.toHaveAttribute("open", /.*/);

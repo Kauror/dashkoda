@@ -64,7 +64,9 @@ test("the workbook programme is the page's primary content", async ({ page }) =>
   expect(errors).toEqual([]);
 
   await page.goto("/haldus/");
-  const provenance = page.locator('section[aria-labelledby="section-andmeallikad"] details');
+  // Scoped to Sündmused' own block by id — see events-intelligence.spec.js
+  // for why counting every `<details>` in the shared section stopped working.
+  const provenance = page.locator("#sundmused-andmeallikad");
   await expect(provenance).toHaveCount(1);
   await provenance.locator("summary").click();
   await expect(page.getByRole("heading", { name: "Koda.ee avalik kalender" })).toBeVisible();

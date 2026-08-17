@@ -74,6 +74,16 @@ never be given.
       dashboard rather than only the one disclosure it replaces.
       {% endcomment %}
       {% include "visibility/admin/_mailings_data_about.html" %}
+      {% comment %}
+      Õigusloome's block, moved here 2026-08-17 — the header's as-of/schema
+      line and the whole on-page `Andmete seis` section, whole.
+      {% endcomment %}
+      {% include "legal_work/admin/_data_about.html" with summary=legal_work_summary quality=legal_work_quality only %}
+      {% comment %}
+      Liikmeskond's block, moved here the same day — the header's per-source
+      stamps and the whole on-page `Andmete seis` section, whole.
+      {% endcomment %}
+      {% include "membership/admin/_data_about.html" with source_stamps=membership_source_stamps latest=membership_latest quality=membership_quality quality_badge=membership_quality_badge reconciliations=membership_reconciliations only %}
     </div>
   </section>
 

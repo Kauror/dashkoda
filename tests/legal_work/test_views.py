@@ -37,12 +37,18 @@ def test_the_navigation_item_is_now_a_real_route(client, authenticate_viewer):
 
 
 def test_without_data_the_page_shows_truthful_empty_states(client, authenticate_viewer):
+    """One truthful sentence, page-wide, since `Andmete seis` — the section
+    that used to carry both this message and the separate `Ühendamata`
+    status badge — moved to `/haldus/` on 2026-08-17. The badge went with
+    it; the guarantee that every focus states its own emptiness did not,
+    matching the pattern `visibility/koduleht.html` already uses for the
+    same "nothing collected yet" case.
+    """
     authenticate_viewer(client)
 
     content = client.get(PAGE_URL).content.decode()
 
     assert "Andmeallikas ei ole veel ühendatud." in content
-    assert "Ühendamata" in content
 
 
 def test_with_data_the_page_shows_its_sections(client, authenticate_viewer, imported_snapshot):
@@ -52,7 +58,8 @@ def test_with_data_the_page_shows_its_sections(client, authenticate_viewer, impo
 
     assert "Hetkel töös" in content
     assert "Viimati välja läinud" in content
-    assert "Andmete seis" in content
+    # `Andmete seis` moved to `/haldus/` on 2026-08-17; see
+    # `tests/dashboard/test_admin_area.py::test_the_legal_work_data_block_arrived`.
     assert "Sünteetiline avatud teema" in content
 
 
@@ -89,8 +96,11 @@ def test_the_workbook_row_total_is_not_a_headline_figure(
 ):
     """ "Kirjeid kokku" answers how big the file is, not how much work there is.
 
-    It stays in Andmete seis, which is the section about the published snapshot;
-    it is no longer one of the figures the page leads with.
+    It is not one of the figures the page leads with — and since `Andmete
+    seis` (the section that described the file) moved to `/haldus/` on
+    2026-08-17, it is not anywhere on this page at all any more. See
+    `tests/dashboard/test_admin_area.py::test_the_legal_work_data_block_arrived`
+    for where it lives now.
     """
     authenticate_viewer(client)
 
@@ -99,7 +109,7 @@ def test_the_workbook_row_total_is_not_a_headline_figure(
 
     assert "Kirjeid kokku" not in figures
     assert "Hetkel töös" in figures
-    assert "Kirjeid kokku" in content, "the data-state section still describes the file"
+    assert "Kirjeid kokku" not in content
 
 
 def test_the_open_table_no_longer_carries_the_next_step_column(
@@ -139,19 +149,27 @@ def test_every_section_the_overview_links_to_exists_on_this_page(
         assert f'id="{section_id}"' in content, f"the overview links to #{section_id}"
 
 
-def test_the_page_states_the_data_reporting_date(client, authenticate_viewer, imported_snapshot):
+def test_the_page_no_longer_states_the_data_reporting_date(
+    client, authenticate_viewer, imported_snapshot
+):
+    """The as-of/schema line left the header on 2026-08-17 — moved, not
+    copied, to `/haldus/` along with the rest of `Andmete seis`. See
+    `tests/dashboard/test_admin_area.py::test_the_legal_work_data_block_arrived`.
+    """
     authenticate_viewer(client)
 
     content = client.get(PAGE_URL).content.decode()
 
-    assert "Andmed seisuga" in content
-    stated = imported_snapshot.reporting_date
-    assert f"{stated.day}.{stated:%m.%y}" in content
+    assert "Andmed seisuga" not in content
 
 
-def test_a_failed_check_is_disclosed_while_old_data_is_shown(
+def test_a_failed_check_is_no_longer_disclosed_on_this_page(
     client, authenticate_viewer, imported_snapshot, legal_work_source
 ):
+    """The stale-after-failure callout moved to `/haldus/` with the rest of
+    `Andmete seis` on 2026-08-17. See
+    `tests/dashboard/test_admin_area.py::test_the_legal_work_data_block_states_a_failed_check`.
+    """
     state = get_feed_state(legal_work_source)
     state.last_result = SyncResult.FAILED
     state.last_error_summary = "Sünteetiline sisemine viga."
@@ -160,9 +178,8 @@ def test_a_failed_check_is_disclosed_while_old_data_is_shown(
 
     content = client.get(PAGE_URL).content.decode()
 
-    assert "Viimane kontroll ebaõnnestus." in content
-    assert "Kuvatakse viimase eduka impordi andmeid." in content
-    # The viewer never sees the internal diagnostic.
+    assert "Viimane kontroll ebaõnnestus." not in content
+    # The viewer never sees the internal diagnostic, on this page or Admin.
     assert "Sünteetiline sisemine viga." not in content
 
 

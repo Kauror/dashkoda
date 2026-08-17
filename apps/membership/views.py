@@ -84,8 +84,6 @@ from .intelligence import (
     build_headlines,
     build_insights,
     build_movement_summary,
-    build_quality_badge,
-    build_source_stamps,
 )
 from .internal_selectors import (
     DEFAULT_MONTHLY_HISTORY_YEARS,
@@ -109,7 +107,6 @@ from .ranges import (
     range_presets,
     resolve_window,
 )
-from .reconciliation import reconcile_history
 from .register_selectors import (
     PAGE_SIZE,
     compare_sources,
@@ -173,19 +170,6 @@ def membership_overview(request):
         )
     else:
         baseline_history = ()
-
-    # A longer, still bounded run for the stock-and-flow check. Seven years
-    # is enough to fill the six periods the diagnostic lists and is a few
-    # dozen rows, not a scan that grows every month.
-    if latest is not None:
-        reconciliation_history = get_internal_membership_observations(
-            date_from=latest.observation_date.replace(
-                year=latest.observation_date.year - RECONCILIATION_LOOKBACK_YEARS
-            ),
-            date_to=latest.observation_date,
-        )
-    else:
-        reconciliation_history = ()
 
     monthly_years = _monthly_years(quality.latest_observation_date)
     monthly = get_monthly_new_members(monthly_years) if monthly_years else {}
@@ -312,9 +296,11 @@ def membership_overview(request):
             # Read only by the closing note, which says the two counts are
             # not the same measurement and appears only when both exist.
             "summary": summary,
-            # The internal board-report history, clearly separate.
+            # The internal board-report history, clearly separate. Only
+            # `internal_latest` still governs anything on this page — the
+            # "nothing imported yet" empty state — now that `Andmete seis`
+            # itself has moved to `/haldus/`.
             "internal_latest": latest,
-            "internal_quality": quality,
             "internal_trend": trend,
             "focus": focus,
             "focus_links": focus_links(focus, carried=carried, available=frozenset(available)),
@@ -337,17 +323,6 @@ def membership_overview(request):
             # Read only by the composition focus, to state the date the
             # whole view describes before any chart is reached.
             "composition_snapshot": composition if focus == FOCUS_COMPOSITION else None,
-            "quality_badge": build_quality_badge(quality),
-            # Evidence for the methodology disclosure, never a headline: a
-            # residual is a question about four reported figures, not a
-            # correction to any of them.
-            "reconciliations": reconcile_history(reconciliation_history),
-            "source_stamps": build_source_stamps(
-                latest=latest,
-                quality=quality,
-                composition_date=composition.snapshot_date if composition else None,
-                register_date=register_snapshot.snapshot_date if register_snapshot else None,
-            ),
             # The members list and what it is a reading of. Present only on the
             # focus that draws them, so no other view can start rendering rows.
             "member_list": member_list,
@@ -764,9 +739,6 @@ def _one_of(raw: str | None, allowed, fallback: str) -> str:
     """
     return raw if raw in allowed else fallback
 
-
-#: How far back the stock-and-flow diagnostic looks for periods to check.
-RECONCILIATION_LOOKBACK_YEARS = 7
 
 #: Which board decision the decision section describes.
 PARAM_DECISION = "otsus"

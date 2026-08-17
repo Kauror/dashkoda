@@ -194,6 +194,14 @@ def reconcile_year(
     )
 
 
+#: How far back the caller should fetch observations for `reconcile_history` to
+#: check. Seven years is enough to fill the six periods `limit` lists below.
+#: Moved here from `apps/membership/views.py` on 2026-08-17, when the
+#: diagnostic itself moved off the dashboard to `/haldus/`: the lookback is a
+#: property of the check, not of whichever page happens to run it.
+RECONCILIATION_LOOKBACK_YEARS = 7
+
+
 def reconcile_history(points: tuple, *, limit: int = 6) -> tuple[Reconciliation, ...]:
     """The most recent periods that can be checked, newest first.
 

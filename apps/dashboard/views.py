@@ -4,7 +4,17 @@ from django.views.decorators.http import require_GET
 from apps.event_programme.intelligence import build_coverage
 from apps.event_programme.selectors import get_event_programme_summary
 from apps.events.selectors import count_upcoming_within, get_event_summary
+from apps.legal_work.analytics import data_quality
 from apps.legal_work.selectors import get_legal_work_summary
+from apps.membership.composition_selectors import get_current_composition_snapshot
+from apps.membership.intelligence import build_quality_badge, build_source_stamps
+from apps.membership.internal_selectors import (
+    get_internal_membership_latest,
+    get_internal_membership_observations,
+    get_internal_membership_quality_summary,
+)
+from apps.membership.reconciliation import RECONCILIATION_LOOKBACK_YEARS, reconcile_history
+from apps.membership.register_selectors import get_current_register_snapshot
 from apps.membership.selectors import get_membership_summary
 from apps.news.selectors import get_news_summary
 from apps.visibility.ga4_selectors import get_coverage
@@ -106,6 +116,27 @@ def admin_area(request):
     programme = get_event_programme_summary()
     public_calendar = get_event_summary()
 
+    # Õigusloome's own summary read, the same function its own page reads —
+    # its `Andmete seis` moved here whole on 2026-08-17.
+    legal_work_summary = get_legal_work_summary()
+
+    # Liikmeskond's own provenance read, moved here whole the same day. The
+    # same functions and the same bounded reconciliation lookback its own
+    # page used — see `apps/membership/views.py` before 2026-08-17.
+    membership_latest = get_internal_membership_latest()
+    membership_quality = get_internal_membership_quality_summary()
+    membership_composition = get_current_composition_snapshot()
+    membership_register = get_current_register_snapshot()
+    if membership_latest is not None:
+        membership_reconciliation_history = get_internal_membership_observations(
+            date_from=membership_latest.observation_date.replace(
+                year=membership_latest.observation_date.year - RECONCILIATION_LOOKBACK_YEARS
+            ),
+            date_to=membership_latest.observation_date,
+        )
+    else:
+        membership_reconciliation_history = ()
+
     # Koduleht's coverage is reported over the **whole** collected history, not
     # over a default window. There is no period control on this page, and a
     # table quietly describing the last thirty days would be read as describing
@@ -134,6 +165,22 @@ def admin_area(request):
             ),
             "website_coverage": website_coverage,
             "website_period_coverage": website_period_coverage,
+            "legal_work_summary": legal_work_summary,
+            "legal_work_quality": (
+                data_quality(legal_work_summary.snapshot) if legal_work_summary.has_data else None
+            ),
+            "membership_source_stamps": build_source_stamps(
+                latest=membership_latest,
+                quality=membership_quality,
+                composition_date=(
+                    membership_composition.snapshot_date if membership_composition else None
+                ),
+                register_date=(membership_register.snapshot_date if membership_register else None),
+            ),
+            "membership_latest": membership_latest,
+            "membership_quality": membership_quality,
+            "membership_quality_badge": build_quality_badge(membership_quality),
+            "membership_reconciliations": reconcile_history(membership_reconciliation_history),
             "can_add_data": request.user.is_authenticated and request.user.is_staff,
         },
     )

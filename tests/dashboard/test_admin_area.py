@@ -171,6 +171,162 @@ def test_the_mailings_page_no_longer_carries_its_data_block(viewer_client):
     assert "Andmete kohta" not in content
 
 
+def test_the_legal_work_data_block_arrived(viewer_client):
+    """Õigusloome's `Andmete seis`, moved here on 2026-08-17 — the header's
+    as-of/schema line and the whole on-page disclosure, together.
+
+    No workbook is imported here on purpose: the block's own empty state
+    ("Andmeallikas ei ole veel ühendatud.") and the feedback-count qualifier
+    are unconditional prose, so both have to render for a source that has
+    collected nothing — exactly when a maintainer is most likely to open
+    this page.
+    """
+    content = viewer_client.get(reverse("dashboard-admin")).content.decode()
+
+    # `Õigusloome` and `Andmeallikas ei ole veel ühendatud.` both also appear
+    # in `Andmete seis` above this section, so the block's own anchor is what
+    # actually names it — a page missing this block would still pass an
+    # assertion on either string alone.
+    assert 'id="oigusloome-andmeallikad"' in content
+    assert "Andmeallikas ei ole veel ühendatud." in content
+    # The rule the block exists to state, regardless of whether data exists.
+    assert "ei ole unikaalsete liikmete arv" in content
+
+
+@pytest.fixture
+def legal_work_snapshot(tmp_path):
+    """A published Õigusloome snapshot, the same chain
+    `tests/legal_work/conftest.py::imported_snapshot` builds, reproduced here
+    because that fixture is declared for `tests/legal_work/` alone."""
+    from django.core.files import File
+
+    from apps.legal_work.bootstrap import ensure_legal_work_source
+    from apps.legal_work.importer import import_artifact
+    from apps.sources.services import register_artifact
+    from tests.legal_work.workbook_factory import write_workbook
+
+    source = ensure_legal_work_source()
+    path = write_workbook(tmp_path / "synthetic.xlsx")
+    with path.open("rb") as handle:
+        artifact = register_artifact(
+            source=source,
+            upload=File(handle, name="dashkoda_oigusloome.xlsx"),
+            original_name="dashkoda_oigusloome.xlsx",
+            mime_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    return import_artifact(artifact, dry_run=False).snapshot
+
+
+def test_the_legal_work_data_block_states_the_workbook_date(
+    client, authenticate_viewer, legal_work_snapshot
+):
+    """The other half: with a workbook imported, the as-of/schema line and
+    the file-level facts it used to lead the Õigusloome page with are here."""
+    authenticate_viewer(client)
+
+    content = client.get(reverse("dashboard-admin")).content.decode()
+
+    stated = legal_work_snapshot.reporting_date
+    # `%d.%m.%Y`, not `{stated.day}.{stated:%m.%Y}`: the template's `date:"d.m.Y"`
+    # zero-pads the day, and an unpadded day only happens to match it on dates
+    # from the 10th onward.
+    assert f"Andmed seisuga {stated:%d.%m.%Y}" in content
+    assert "Kirjeid kokku" in content
+
+
+def test_the_legal_work_data_block_states_a_failed_check(
+    client, authenticate_viewer, legal_work_snapshot
+):
+    """The stale-after-failure callout, moved off `/oigusloome/` on
+    2026-08-17 along with the rest of `Andmete seis`. See
+    `tests/legal_work/test_views.py::test_a_failed_check_is_no_longer_disclosed_on_this_page`.
+    """
+    from apps.legal_work.bootstrap import ensure_legal_work_source
+    from apps.legal_work.models import SyncResult
+    from apps.legal_work.sync import get_feed_state
+
+    state = get_feed_state(ensure_legal_work_source())
+    state.last_result = SyncResult.FAILED
+    state.last_error_summary = "Sünteetiline sisemine viga."
+    state.save()
+    authenticate_viewer(client)
+
+    content = client.get(reverse("dashboard-admin")).content.decode()
+
+    assert "Viimane kontroll ebaõnnestus." in content
+    assert "Kuvatakse viimase eduka impordi andmeid." in content
+    # The viewer never sees the internal diagnostic, here either.
+    assert "Sünteetiline sisemine viga." not in content
+
+
+def test_the_legal_work_page_no_longer_states_the_workbook_date(
+    client, authenticate_viewer, legal_work_snapshot
+):
+    """Moved, not copied — the other half of the pair above. A workbook is
+    imported here too, so the absence means the block left rather than that
+    nothing was ever there to show."""
+    authenticate_viewer(client)
+
+    content = client.get("/oigusloome/").content.decode()
+
+    assert "Andmed seisuga" not in content
+    assert "Kirjeid kokku" not in content
+
+
+def test_the_membership_data_block_arrived(viewer_client):
+    """Liikmeskond's `Andmete seis`, moved here on 2026-08-17 — the header's
+    per-source stamps and the whole on-page disclosure, together.
+
+    No internal report is imported here on purpose, matching the Õigusloome
+    test above: the heading itself has to render for a source that has
+    collected nothing.
+    """
+    content = viewer_client.get(reverse("dashboard-admin")).content.decode()
+
+    # `Liikmeskond` alone appears in the sidebar and in `Andmete seis` above
+    # this section too, so the block's own anchor is the specific claim.
+    assert 'id="liikmeskond-andmeallikad"' in content
+
+
+def test_the_membership_data_block_states_the_report_facts(client, authenticate_viewer, tmp_path):
+    """The other half: with an internal report imported, the source stamps,
+    the quality badge, the conflict notice and the two-sources-are-different
+    rule are all here.
+
+    The default synthetic package carries at least one conflicted metric —
+    the same fact `tests/membership/test_membership_page.py`'s
+    `test_conflict_notice_no_longer_reaches_this_page` used to check on the
+    page itself, before this notice moved here on 2026-08-17.
+    """
+    from apps.membership.history_import import import_history_package
+    from tests.membership.package_factory import build_package
+
+    authenticate_viewer(client)
+    import_history_package(build_package(tmp_path / "package.zip"), dry_run=False)
+
+    content = client.get(reverse("dashboard-admin")).content.decode()
+
+    assert "Sisemine aruanne" in content
+    assert "vastuolude tõttu graafikult välja jäetud" in content
+    assert "Avalik liikmekataloog ja sisemine aruanne loendavad eri asju" in content
+
+
+def test_the_membership_page_no_longer_carries_its_data_block(
+    client, authenticate_viewer, tmp_path
+):
+    """Moved, not copied — the other half of the pair above."""
+    from apps.membership.history_import import import_history_package
+    from tests.membership.package_factory import build_package
+
+    authenticate_viewer(client)
+    import_history_package(build_package(tmp_path / "package.zip"), dry_run=False)
+
+    content = client.get("/liikmeskond/").content.decode()
+
+    assert "Sisemine aruanne" not in content
+    assert "Avalik liikmekataloog ja sisemine aruanne loendavad eri asju" not in content
+
+
 def test_andmete_seis_arrived_and_keeps_its_anchor(viewer_client):
     """The other half of the move off Koja töölaud.
 

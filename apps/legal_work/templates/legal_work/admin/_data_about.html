@@ -1,0 +1,86 @@
+{% comment %}
+Õigusloome's `Andmete seis`, moved off the dashboard to `/haldus/` on
+2026-08-17, whole and unedited — the header's as-of/schema line, the source
+state, the field coverage and the feedback-count qualifier all arrive intact.
+
+`id="oigusloome-andmeallikad"` is what `_register_results.html`'s warning note
+deep-links to, so a record flagged in the register still reaches this exact
+block rather than the top of a shared section.
+
+Context:
+  summary  – LegalWorkSummary
+  quality  – DataQuality | None
+{% endcomment %}
+<div id="oigusloome-andmeallikad" class="flex flex-col gap-3 scroll-mt-4">
+
+  <h3 class="text-sm font-semibold text-text">Õigusloome</h3>
+
+  {% if summary.has_data %}
+    <p class="text-sm text-text-secondary">
+      Andmed seisuga {{ summary.reporting_date|date:"d.m.Y" }} · skeem {{ summary.snapshot.schema_version }}.
+    </p>
+  {% endif %}
+
+  {% include "legal_work/partials/data_state.html" %}
+
+  {% comment %}
+  Kaur moved this sentence off the `Liikmete tagasiside kokku` card on
+  2026-08-16, into this same disclosure — `kokku` invites the figure to be
+  read as a number of members, and it is a number of feedback instances. One
+  member commenting on six topics is six. It travels with the block.
+  {% endcomment %}
+  <p class="dk-meta">
+    Liikmete tagasiside on juhtumite arv teemade lõikes — see
+    <strong>ei ole unikaalsete liikmete arv</strong>. Üks liige, kes andis
+    tagasisidet kuuel teemal, on kuus juhtumit.
+  </p>
+
+  {% if summary.has_data %}
+    <dl class="flex flex-wrap gap-x-6 gap-y-2 border-t border-border pt-3 text-sm">
+      <div class="flex items-center gap-1.5">
+        <dt class="text-text-muted">Kirjeid kokku:</dt>
+        <dd class="font-medium text-text">{{ summary.total_count }}</dd>
+      </div>
+      <div class="flex items-center gap-1.5">
+        <dt class="text-text-muted">Hetkel töös:</dt>
+        <dd class="font-medium text-text">{{ summary.open_count }}</dd>
+      </div>
+    </dl>
+    {% if quality %}
+      <details class="text-sm">
+        <summary class="cursor-pointer text-text-secondary">Väljade kaetus ja andmekvaliteet</summary>
+        <div class="mt-2 w-full overflow-x-auto">
+          <table class="w-full min-w-max border-collapse text-sm">
+            <caption class="sr-only">Väljade kaetus praeguses hetkeseisus</caption>
+            <thead>
+              <tr>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Väli</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Täidetud</th>
+                <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Kirjetest</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for entry in quality.coverage %}
+                <tr>
+                  <th scope="row" class="border-b border-border px-4 py-2 text-left font-medium text-text">{{ entry.label }}</th>
+                  <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ entry.present }}</td>
+                  <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ entry.total }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <ul class="mt-2 flex flex-col gap-1 text-sm text-text-secondary">
+          <li>Hoiatustega kirjeid: {{ quality.warning_records }}</li>
+          <li>Saabumise kuupäev aruandekuupäevast hilisem: {{ quality.future_received }}</li>
+          <li>Tähtaeg saabumisest varasem: {{ quality.negative_window }}</li>
+        </ul>
+        <p class="mt-2 text-sm text-text-secondary">
+          Neid kirjeid ei parandata ega kustutata. Nad jäävad imporditud kujul alles;
+          muutub ainult see, millised statistikud neid kasutavad.
+        </p>
+      </details>
+    {% endif %}
+  {% endif %}
+
+</div>
