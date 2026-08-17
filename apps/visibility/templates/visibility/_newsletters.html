@@ -7,12 +7,14 @@ Three rules this markup exists to keep:
   * every rate names its denominator. `Avamismäär` is opens over *delivered*,
     and `Klikke avajate seas` is clicks over *opens* — two different questions
     that would look like one column of percentages if the notes were dropped;
-  * a section with no sends shows a sentence, never a zero. There is no
-    historical Smaily data to fall back on, so the empty state says collection
-    starts from now rather than implying nothing was ever sent;
+  * a section with no sends shows a sentence, never a zero. That sentence is
+    inside the results region now — `Ühtegi saadetud uudiskirja ei leitud.` —
+    rather than replacing the whole section, so the search box survives an
+    empty property. Hiding it was how the merge nearly took the archive's
+    search away from a property that had collected nothing;
   * the search never hides the filter chips or itself. A term matching nothing
     still renders the form, because the control that clears the search is inside
-    it — see the `has_issues or is_searching` guard below.
+    it — see the `has_sends or is_searching` guard below.
 
 **How many people are on each list is not here.** It is one card up, under
 `Uudiskirjad`, where `build_newsletter_slot` lists all three. This section had
@@ -43,8 +45,16 @@ throughout.
       {% endfor %}
     </nav>
 
-    {% if newsletters.has_any_data %}
-      {% if newsletters.figures %}
+    {% comment %}
+    The rates are conditional; the box below them is not.
+
+    This section used to hide itself whole behind `has_any_data`, and the
+    archive page it absorbed always rendered its form — so on a property with
+    no sends yet, merging the two would have taken the search away. The empty
+    case is stated inside the results region instead, where the swap can keep
+    it up to date.
+    {% endcomment %}
+    {% if newsletters.figures %}
         <dl class="flex flex-wrap gap-x-8 gap-y-3">
           {% for figure in newsletters.figures %}
             <div class="flex flex-col gap-0.5">
@@ -57,15 +67,16 @@ throughout.
       {% endif %}
 
       {% comment %}
-      No guard of its own: `has_any_data` above *is* `has_issues or
-      is_searching` now that the audience rows are gone, so a second identical
-      condition here would only be a place for the two to drift apart.
+      No guard: the box and the table render whether or not anything has been
+      collected. `NewsletterSection.has_any_data` still exists and still means
+      `has_sends or is_searching` — nothing on this page consults it since
+      2026-08-16, and the reason is in the comment above the rates.
       {% endcomment %}
       <div class="flex min-w-0 flex-col gap-3">
         {% comment %}
         A constant heading. It sits outside the region a keystroke replaces, so
         it cannot describe the search — which mode the rows are in is stated
-        inside `partials/_newsletter_results.html`, where it can keep up.
+        inside `partials/_campaign_history_results.html`, where it can keep up.
         {% endcomment %}
         <h3 class="sr-only">Saadetud uudiskirjad</h3>
 
@@ -82,9 +93,10 @@ throughout.
         real rather than a placeholder, because a placeholder disappears the
         moment somebody types.
 
-        It searches the subject stored in PostgreSQL and never contacts Smaily,
-        exactly as the archive page's box does — same parameter name, same
-        question, so the "vaata kõiki" link below can simply carry it across.
+        It searches the subject stored in PostgreSQL and never contacts Smaily.
+        There used to be a second box on `/otsepostitused/ajalugu/` asking the
+        same question through the same `otsi` parameter; that page merged into
+        this one on 2026-08-16 and this is the box that survived.
 
         Four attributes carry the live behaviour, and each is load-bearing:
 
@@ -113,9 +125,9 @@ throughout.
                    placeholder="Pealkirja osa…"
                    autocomplete="off"
                    class="dk-input w-full min-w-0"
-                   hx-get="{% url 'mailings-search' %}"
+                   hx-get="{% url 'mailings-history-search' %}"
                    hx-trigger="input changed delay:250ms, search"
-                   hx-target="#newsletter-results"
+                   hx-target="#history-results"
                    hx-swap="innerHTML"
                    hx-include="closest form"
                    hx-sync="this:replace"
@@ -142,27 +154,21 @@ throughout.
         </form>
 
         {% comment %}
-        The swapped region. `aria-live="polite"` matches what the connection
-        strip's fragment region used to do: the rows arrive without a page
-        change, so a screen reader is told rather than left on a page that
-        silently became a different page.
+        The swapped region, and since 2026-08-16 the archive rather than the
+        fifteen most recent sends. `Saadetised` was this table with no limit and
+        a paginator, under the same headings, reading the same `uudiskiri` and
+        `otsi`; merging the two pages meant one of them had to go, and the one
+        that shows everything is the one worth keeping.
+
+        `aria-live="polite"`: the rows arrive without a page change, so a screen
+        reader is told rather than left on a page that silently became a
+        different page.
         {% endcomment %}
-        <div id="newsletter-results"
+        <div id="history-results"
              aria-live="polite"
              class="flex min-w-0 flex-col gap-3">
-          {% include "visibility/partials/_newsletter_results.html" with newsletters=newsletters only %}
+          {% include "visibility/partials/_campaign_history_results.html" with history=history only %}
         </div>
       </div>
-    {% else %}
-      {% comment %}
-      The detail no longer carries the sentence about list history not being
-      backfillable. That was true of the subscriber counts, and the subscriber
-      counts are not in this section any more — left here it would explain a
-      limitation of something the reader cannot see. The sends themselves *are*
-      collected retrospectively, all fourteen years of them, so the only honest
-      reason this is empty is that nothing has been collected yet.
-      {% endcomment %}
-      {% include "dashboard/components/empty_state.html" with message="Andmed puuduvad." detail="Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist." only %}
-    {% endif %}
   </div>
 </section>

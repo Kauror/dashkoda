@@ -225,13 +225,18 @@ def _redirect_keeping_query(request, route: str):
 def campaign_history(request):
     """Where the send archive used to live, before Uudised and before this.
 
-    Redirects to `mailings-history`. No loop is possible: the target is a
-    different path whose view renders rather than redirects. It used to point at
-    `news-newsletter-history`, which now redirects to the same place — so this
-    is aimed at the final destination instead of chaining through it, and an
+    Redirects to `mailings`. No loop is possible: the target is a different path
+    whose view renders rather than redirects. It used to point at
+    `news-newsletter-history`, which redirects to the same place — so this is
+    aimed at the final destination instead of chaining through it, and an
     ancient bookmark costs one hop rather than two.
+
+    That destination changed on 2026-08-16, when the archive moved onto
+    `Otsepostitused` itself. `mailings-history` is a redirect now, so aiming
+    here at it would reintroduce exactly the second hop this docstring exists
+    to explain away.
     """
-    return _redirect_keeping_query(request, "mailings-history")
+    return _redirect_keeping_query(request, "mailings")
 
 
 @require_GET
@@ -254,7 +259,11 @@ def campaign_history_search_fragment(request):
 #: news archive's period, category and ordering are **not** here — this page has
 #: no article archive to preserve, and carrying them would put parameters into
 #: an address that nothing on it reads.
-MAILINGS_PARAMS = (PARAM_NEWSLETTER, PARAM_NEWSLETTER_SEARCH)
+#: Where the archive sits on the merged page. Both the redirect and the search
+#: fragment name it, so a reader who lands from an old bookmark and one who
+#: types in the box end up looking at the same thing.
+HISTORY_ANCHOR = "#section-newsletter-analytics"
+
 
 #: What the send history understands.
 MAILINGS_HISTORY_PARAMS = (PARAM_NEWSLETTER, PARAM_HISTORY_SEARCH, PARAM_HISTORY_PAGE)
@@ -270,6 +279,13 @@ def mailings(request):
     `build_newsletter_section` renders the same searchable sends table it did
     under Uudised.
 
+    `Saadetised` merged into this page on 2026-08-16 at the owner's request. It
+    was one table — every completed send, filtered and paginated — and this page
+    already carried the fifteen newest of exactly those rows under exactly the
+    same column headings, with its own search on the same `otsi` parameter. Two
+    boxes reading one parameter on one page could not both be right, so the
+    archive won: it is the superset, and it paginates.
+
     Reads PostgreSQL only. The subject search never contacts Smaily, and no page
     render ever does.
     """
@@ -281,7 +297,6 @@ def mailings(request):
         {
             "navigation": NAVIGATION,
             "active_nav": "mailings",
-            "active_section": "overview",
             # No `freshness`: only `dashboard/partials/freshness.html` reads that
             # key and only the fragment endpoint renders it, so passing it here
             # would be a source-state query for something nothing displays. Each
@@ -306,58 +321,11 @@ def mailings(request):
                 # state and only that.
                 carried="",
             ),
-        },
-    )
-
-
-@require_GET
-def mailings_search_fragment(request):
-    """The sends table alone, for a reader typing in the subject box.
-
-    Only the sends section is rebuilt. The comparison, the block change and the
-    rankings above it are unaffected by a subject search and re-running their
-    aggregates on every keystroke would buy nothing.
-    """
-    newsletters = build_newsletter_section(
-        newsletter_key=request.GET.get(PARAM_NEWSLETTER),
-        search=request.GET.get(PARAM_NEWSLETTER_SEARCH),
-        carried="",
-    )
-    return search_fragment(
-        request,
-        "visibility/partials/_newsletter_results.html",
-        {"newsletters": newsletters},
-        pushed=push_url(
-            request,
-            path=reverse("mailings"),
-            allowed=MAILINGS_PARAMS,
-            # The section's own parsing has already trimmed and bounded the
-            # term, so what reaches the address bar is what reached the query.
-            updates={PARAM_NEWSLETTER_SEARCH: newsletters.search},
-            anchor="#section-newsletter-analytics",
-        ),
-    )
-
-
-@require_GET
-def mailings_history(request):
-    """Every completed Smaily send, filterable and searchable.
-
-    The archive behind the overview's most-recent list: fourteen years of
-    campaigns, including every one that matches none of the three newsletters.
-    Reads PostgreSQL only — the subject search never contacts Smaily.
-
-    A second route rather than a focus of the page above, because fourteen years
-    of sends is not a section: rendering three thousand rows into the overview
-    would make every visit pay for history almost nobody wants on that visit.
-    """
-    return render(
-        request,
-        "visibility/campaign_history.html",
-        {
-            "navigation": NAVIGATION,
-            "active_nav": "mailings",
-            "active_section": "history",
+            # The archive, which was `/otsepostitused/ajalugu/` until
+            # 2026-08-16. `Saadetised` held nothing but this table, so it is
+            # here rather than behind a second address — and it replaced the
+            # fifteen most recent sends this page used to list, which were its
+            # first page with a limit on it.
             "history": build_campaign_history(
                 newsletter_key=request.GET.get(PARAM_NEWSLETTER),
                 search=request.GET.get(PARAM_HISTORY_SEARCH),
@@ -365,6 +333,24 @@ def mailings_history(request):
             ),
         },
     )
+
+
+@require_GET
+def mailings_history(request):
+    """`/otsepostitused/ajalugu/` — kept as a redirect, not a page.
+
+    The archive moved onto `Otsepostitused` itself on 2026-08-16. This address
+    was linked from the overview for months and is in readers' history, so it
+    answers rather than 404s, and it carries the query across: a bookmarked
+    newsletter and search still open filtered.
+
+    `lk` travels too. A bookmark of page 40 is a bookmark of page 40.
+    """
+    query = request.GET.urlencode()
+    destination = reverse("mailings")
+    if query:
+        return redirect(f"{destination}?{query}{HISTORY_ANCHOR}", permanent=True)
+    return redirect(f"{destination}{HISTORY_ANCHOR}", permanent=True)
 
 
 @require_GET
@@ -384,8 +370,9 @@ def mailings_history_search_fragment(request):
         {"history": history},
         pushed=push_url(
             request,
-            path=reverse("mailings-history"),
+            path=reverse("mailings"),
             allowed=MAILINGS_HISTORY_PARAMS,
             updates={PARAM_HISTORY_SEARCH: history.search, PARAM_HISTORY_PAGE: ""},
+            anchor=HISTORY_ANCHOR,
         ),
     )

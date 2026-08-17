@@ -34,15 +34,11 @@ test("capture the news page", async ({ page }, testInfo) => {
 test("capture the mailings section", async ({ page }, testInfo) => {
   // Reviewed as a pair with Uudised and Koduleht: what the newsletter move
   // changed is which page carries the section, not anything the section says.
+  // The separate archive capture went on 2026-08-16 — the archive is the sends
+  // table on this page now, so `fullPage` already covers it.
   await signIn(page);
   await page.goto("/otsepostitused/");
   await page.screenshot({ path: shot(testInfo, "mailings"), fullPage: true });
-});
-
-test("capture the newsletter archive", async ({ page }, testInfo) => {
-  await signIn(page);
-  await page.goto("/otsepostitused/ajalugu/");
-  await page.screenshot({ path: shot(testInfo, "newsletter-archive"), fullPage: true });
 });
 
 test("capture the admin area", async ({ page }, testInfo) => {

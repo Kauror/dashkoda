@@ -232,20 +232,28 @@ appears only when unclassified sends exist), the aggregate rates that filtering
 to one newsletter adds, and under `Viimased saadetud uudiskirjad` the most
 recent completed sends of every kind.
 
-The recent sends are searchable in place, under `otsi` — the same parameter the
-archive uses, because it is the same question against the same stored subjects.
-The filter chips carry the term, so switching newsletter keeps the search rather
-than silently widening it, and `Vaata kõiki` opens the archive already holding
-both. Nothing here contacts Smaily.
+The sends are searchable in place, under `otsi`. The filter chips carry the
+term, so switching newsletter keeps the search rather than silently widening it.
+Nothing here contacts Smaily.
 
-`/otsepostitused/ajalugu/` is the archive behind it, and the section's second
-view — every completed send, 50 to a page, filterable by type and searchable by
-subject. Fourteen years of campaigns is not a section, which is why it is its
-own route rather than a tab on the page above.
+**The table is the archive**, since 2026-08-16: every completed send, 50 to a
+page, filterable by type and searchable by subject. It had a route of its own —
+`/otsepostitused/ajalugu/`, `Saadetised` in the view navigation — on the
+argument that fourteen years of campaigns is not a section. What settled it the
+other way was that the overview already listed the fifteen newest of exactly
+those rows, under the same headings, with its own box on the same `otsi`
+parameter: one page cannot have two searches reading one parameter, and of the
+two tables only one paginates.
 
-Every address the archive has ever had still resolves. `/nahtavus/uudiskirjad/`
-and `/uudised/uudiskirjad/` both redirect to it with their query string intact,
-so a saved bookmark keeps its newsletter, term and page; and
+`Viimased saadetud uudiskirjad`, `Vaata kõiki` and the view chips all went with
+that merge, along with `TOP_ISSUES`, `NewsletterSection.issues` and the
+`mailings-search` fragment. What `build_newsletter_section` still does is the
+filter and the aggregate rates; the rows are `build_campaign_history`'s.
+
+Every address the archive has ever had still resolves, `/otsepostitused/ajalugu/`
+included — it is a permanent redirect to the section now. `/nahtavus/uudiskirjad/`
+and `/uudised/uudiskirjad/` redirect with their query string intact, so a saved
+bookmark keeps its newsletter, term and page; and
 `/uudised/?fookus=uudiskirjad` reaches the overview carrying `uudiskiri` and
 `otsi`, which are the two parameters that still mean the same thing there. Each
 is one hop: when the section moved, the older redirect was re-aimed at the new

@@ -18,7 +18,7 @@ recalculates anything.
 up to a number of people, and a `Kokku` row would silently claim the overlap is
 zero. Each newsletter stands under its own name.
 
-Context: page, newsletters, newsletter_slot, active_section
+Context: page, newsletters, newsletter_slot, history
 {% endcomment %}
 
 {% block title %}Otsepostitused – DashKoda{% endblock %}
@@ -41,7 +41,10 @@ Context: page, newsletters, newsletter_slot, active_section
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Otsepostitused</h1>
   </header>
 
-  {% include "visibility/partials/_mailings_nav.html" with active_section=active_section only %}
+  {% comment %}
+  The `Ülevaade` / `Saadetised` chips went on 2026-08-16 with the second view
+  they switched between. One page needs no view navigation.
+  {% endcomment %}
 
   {% comment %}
   The audiences, from the same `ChannelSlot` the overall dashboard's band
@@ -144,10 +147,12 @@ Context: page, newsletters, newsletter_slot, active_section
   {% endif %}
 
   {% comment %}
-  The searchable recent sends, from `newsletter_page.build_newsletter_section`.
-  Unchanged: same builder, same template, same `otsi` parameter.
+  The filter, the aggregate rates and — since `Saadetised` merged in on
+  2026-08-16 — the whole archive, paginated. Two builders now:
+  `build_newsletter_section` for the rates, `build_campaign_history` for the
+  rows.
   {% endcomment %}
-  {% include "visibility/_newsletters.html" with newsletters=newsletters only %}
+  {% include "visibility/_newsletters.html" with newsletters=newsletters history=history only %}
 
   {% comment %}
   `Andmete kohta` moved to `/haldus/` on 2026-08-16, the same way Koduleht's

@@ -299,8 +299,13 @@ def _redirect_keeping_query(request, route: str):
 
 @require_GET
 def legacy_newsletter_history(request):
-    """`/uudised/uudiskirjad/` — where the send archive lived."""
-    return _redirect_keeping_query(request, "mailings-history")
+    """`/uudised/uudiskirjad/` — where the send archive lived.
+
+    Aimed at `mailings` rather than `mailings-history` since 2026-08-16: the
+    archive moved onto `Otsepostitused` itself, and pointing here at the address
+    it left would cost a second hop through a redirect kept only for bookmarks.
+    """
+    return _redirect_keeping_query(request, "mailings")
 
 
 @require_GET
@@ -318,6 +323,9 @@ def legacy_newsletter_history_search(request):
 def legacy_newsletter_search(request):
     """`/uudised/otsi/uudiskirjad/` — the newsletter section's live search.
 
-    Kept for the same reason as the one above.
+    Kept for the same reason as the one above. It points at the archive's
+    fragment since 2026-08-16: `Saadetised` merged into `Otsepostitused`, and
+    the box that survived the merge is the archive's. Both read `otsi`, so a
+    request arriving here still asks the question it was asking.
     """
-    return _redirect_keeping_query(request, "mailings-search")
+    return _redirect_keeping_query(request, "mailings-history-search")

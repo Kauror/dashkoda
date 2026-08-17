@@ -9,7 +9,6 @@ from .views import (
     mailings,
     mailings_history,
     mailings_history_search_fragment,
-    mailings_search_fragment,
 )
 
 # The website surface is `Koduleht` at `/koduleht/` now. The route keeps the name
@@ -52,7 +51,6 @@ urlpatterns = [
         name="visibility-traffic-search",
     ),
     path("otsepostitused/", mailings, name="mailings"),
-    path("otsepostitused/otsi/", mailings_search_fragment, name="mailings-search"),
     path("otsepostitused/ajalugu/", mailings_history, name="mailings-history"),
     path(
         "otsepostitused/ajalugu/otsi/",

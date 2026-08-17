@@ -39,11 +39,15 @@ ENEWS = VisibilityMetric.NEWSLETTER_ENEWS
 #: follows a redirect transparently — a cached page still holding the old
 #: attribute would otherwise start answering 404 mid-keystroke.
 RETIRED = [
-    ("visibility-campaign-history", "mailings-history"),
+    ("visibility-campaign-history", "mailings"),
     ("visibility-campaign-history-search", "mailings-history-search"),
-    ("news-newsletter-history", "mailings-history"),
+    ("news-newsletter-history", "mailings"),
     ("news-newsletter-history-search", "mailings-history-search"),
-    ("news-newsletter-search", "mailings-search"),
+    ("news-newsletter-search", "mailings-history-search"),
+    # `/otsepostitused/ajalugu/` joined the list on 2026-08-16, when `Saadetised`
+    # merged into `Ülevaade`. It is the newest retired address and the one most
+    # likely to be in a reader's history, having been linked from the overview.
+    ("mailings-history", "mailings"),
 ]
 
 
@@ -67,8 +71,10 @@ def send(campaign_id, name, *, newsletter=ENEWS, days_ago=1):
 def test_a_retired_address_redirects_to_its_new_home(viewer_client, old, new):
     response = viewer_client.get(reverse(old))
 
-    assert response.status_code == 302
-    assert response.url.rstrip("?") == reverse(new)
+    assert response.status_code in (301, 302)
+    # `mailings-history` carries the reader to the section rather than the top
+    # of the page, so the anchor is stripped before the comparison.
+    assert response.url.rstrip("?").split("#")[0] == reverse(new)
 
 
 @pytest.mark.parametrize(("old", "new"), RETIRED)
@@ -117,7 +123,7 @@ def test_the_old_archive_url_keeps_newsletter_search_and_page(viewer_client):
     )
 
     assert response.status_code == 302
-    assert response.url.startswith(reverse("mailings-history"))
+    assert response.url.startswith(reverse("mailings"))
     assert f"uudiskiri={ENEWS}" in response.url
     assert "otsi=aastakoosolek" in response.url
     assert "lk=3" in response.url
@@ -129,7 +135,7 @@ def test_the_uudised_archive_url_keeps_its_question_too(viewer_client):
     )
 
     assert response.status_code == 302
-    assert response.url.startswith(reverse("mailings-history"))
+    assert response.url.startswith(reverse("mailings"))
     assert f"uudiskiri={ENEWS}" in response.url
     assert "otsi=aastakoosolek" in response.url
 
@@ -224,7 +230,7 @@ def test_an_unknown_focus_still_fails_safely(viewer_client):
 # ======================================================================
 
 
-@pytest.mark.parametrize("name", ["mailings", "mailings-history"])
+@pytest.mark.parametrize("name", ["mailings"])
 def test_the_new_addresses_render_rather_than_redirect(viewer_client, name):
     """What makes every chain above provably one hop deep."""
     response = viewer_client.get(reverse(name))

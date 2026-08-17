@@ -201,7 +201,7 @@ def test_the_section_default_is_all_and_lists_every_kind():
     collect()
     section = build_newsletter_section()
     assert not section.is_filtered
-    assert len(section.issues) == len(EVERY_KIND)
+    assert section.total_sends == len(EVERY_KIND)
 
 
 def test_the_archive_holds_the_whole_population():
@@ -287,34 +287,40 @@ def test_the_backfill_imports_every_type_not_only_eteataja():
 # -- the page ---------------------------------------------------------------
 
 
-def test_the_page_shows_every_kind_and_links_to_the_archive(viewer_client):
+def test_the_page_shows_every_kind(viewer_client):
     collect()
     page = viewer_client.get(reverse("mailings")).content.decode()
 
-    assert "Viimased saadetud uudiskirjad" in page
+    # `Viimased saadetud uudiskirjad` went with the fifteen-row table on
+    # 2026-08-16; the archive's own heading is what names the rows now.
+    assert "Saadetud uudiskirjad" in page
     assert OTHER_LABEL in page
     assert "Kutse ärifoorumile" in page
 
 
-def test_the_archive_page_renders(viewer_client):
+def test_the_archive_renders_on_otsepostitused(viewer_client):
+    """It has no page of its own since 2026-08-16 — it is the sends table."""
     collect()
-    page = viewer_client.get(reverse("mailings-history")).content.decode()
+    page = viewer_client.get(reverse("mailings")).content.decode()
 
     assert "Saadetud uudiskirjad" in page
     assert "Kutse ärifoorumile" in page
     assert "Sündmuste kalender" in page
 
 
-def test_the_archive_states_its_scope_once(viewer_client):
-    """The subtitle went on 2026-08-16; the section header it duplicated stays.
+def test_the_archive_states_its_scope(viewer_client):
+    """The table has to say it is the whole population, not a recent slice.
 
-    `Kõik Smailyst välja saadetud kampaaniad` sat directly above
-    `Kõik saadetised`, which says the same thing about the same table. Only the
-    duplicate left — a page that had dropped both would no longer tell the
-    reader the table is the whole population rather than a recent slice.
+    Two headings said so until 2026-08-16: a subtitle, then `Kõik saadetised`.
+    The subtitle went as a duplicate, and the heading went with the page when
+    `Saadetised` merged into `Ülevaade` — so what carries the scope now is the
+    summary line above the rows, which states the count and the span it covers.
+
+    Asserted against the count rather than a heading precisely because the
+    headings have now been wrong twice.
     """
     collect()
-    page = viewer_client.get(reverse("mailings-history")).content.decode()
+    page = viewer_client.get(reverse("mailings")).content.decode()
 
-    assert "Kõik saadetised" in page
+    assert f"{len(EVERY_KIND)} saadetud uudiskirja" in page
     assert "Kõik Smailyst välja saadetud kampaaniad" not in page

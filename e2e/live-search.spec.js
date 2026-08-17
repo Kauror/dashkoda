@@ -15,7 +15,9 @@ import { TEST_PIN, signIn, watchConsole } from "./helpers.js";
  * what it can hold is the mechanics rather than which rows come back.
  */
 
-const ARCHIVE = "/otsepostitused/ajalugu/";
+// The archive merged into Otsepostitused itself on 2026-08-16; its fragment
+// kept its address, because only htmx ever asks for it.
+const ARCHIVE = "/otsepostitused/";
 const ARCHIVE_FRAGMENT = "/otsepostitused/ajalugu/otsi/";
 const OLD_ARCHIVE = "/nahtavus/uudiskirjad/";
 const OLDER_ARCHIVE = "/uudised/uudiskirjad/";
@@ -89,7 +91,7 @@ test("without JavaScript the same box is an ordinary form", async ({ browser }) 
 
   // A real navigation this time, to the page itself rather than the fragment,
   // and the term survives it. Live search is an enhancement; this is the floor.
-  await expect(page).toHaveURL(/\/otsepostitused\/ajalugu\/\?/);
+  await expect(page).toHaveURL(/\/otsepostitused\/\?/);
   await expect(page).toHaveURL(/otsi=foorum/);
   await expect(page.getByLabel("Otsi uudiskirja")).toHaveValue("foorum");
 
@@ -103,7 +105,7 @@ test("the archive's old address still opens it, keeping the question", async ({ 
   await signIn(page);
   await page.goto(`${OLD_ARCHIVE}?uudiskiri=koik&otsi=foorum`);
 
-  await expect(page).toHaveURL(/\/otsepostitused\/ajalugu\//);
+  await expect(page).toHaveURL(/\/otsepostitused\//);
   await expect(page).toHaveURL(/otsi=foorum/);
   await expect(page.getByLabel("Otsi uudiskirja")).toHaveValue("foorum");
 });
@@ -115,7 +117,7 @@ test("the archive's intermediate address still opens it too", async ({ page }) =
   await signIn(page);
   await page.goto(`${OLDER_ARCHIVE}?uudiskiri=koik&otsi=foorum`);
 
-  await expect(page).toHaveURL(/\/otsepostitused\/ajalugu\//);
+  await expect(page).toHaveURL(/\/otsepostitused\//);
   await expect(page).toHaveURL(/otsi=foorum/);
   await expect(page.getByLabel("Otsi uudiskirja")).toHaveValue("foorum");
 });
