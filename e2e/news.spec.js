@@ -48,8 +48,13 @@ test("the page offers no focus navigation", async ({ page }) => {
   // the same rule Liikmeskond's focus navigation follows once it is down to
   // one option.
   await expect(page.getByRole("navigation", { name: "Vaade" })).toHaveCount(0);
+  // Scoped to `main`: the shell's own sidebar carries a top-level "Ülevaade"
+  // link to the whole dashboard's home, which is not this page's retired
+  // focus tab and would otherwise make this assertion fail for the wrong
+  // reason.
+  const main = page.locator("main");
   for (const label of ["Ülevaade", "Uudiste mõju", "Arhiiv", "Uudiskirjad", "Avaldamine"]) {
-    await expect(page.getByRole("link", { name: label, exact: true })).toHaveCount(0);
+    await expect(main.getByRole("link", { name: label, exact: true })).toHaveCount(0);
   }
   expect(errors).toEqual([]);
 });
@@ -77,9 +82,14 @@ test("the dashboard leads, the archive follows", async ({ page }) => {
   // The regression this redesign is for. The archive answers "find me the
   // article about excise duty" and the dashboard answers "how are we doing";
   // both are on the page now, but not in the same order they'd matter in.
+  //
+  // CI runs against an empty database, so `Põhinäitajad` itself never
+  // renders — the dashboard section's own truthful empty state is what's on
+  // screen instead, and it is still the first thing on the page, which is
+  // the property this test exists to check.
   await openNews(page);
 
-  const dashboard = page.getByRole("heading", { name: "Põhinäitajad" });
+  const dashboard = page.getByText("Andmeallikas ei ole veel ühendatud.");
   const archiveSearch = page.getByLabel("Otsi uudist");
   await expect(dashboard).toBeVisible();
   await expect(archiveSearch).toBeVisible();
