@@ -583,56 +583,24 @@ def _composition_sections(*, composition=None, **_ignored):
     # Ordinal dimensions keep their scale order; nominal ones are ranked, because
     # for a county or a sector the ranking is most of the answer.
     structure = [
-        (
-            Dimension.EMPLOYEE_SIZE,
-            "section-size",
-            "Ettevõtte suurus",
-            "Kui suured on koja liikmed?",
-            False,
-        ),
-        (
-            Dimension.REGION,
-            "section-region",
-            "Piirkonnad",
-            "Kus koja liikmed asuvad?",
-            True,
-        ),
-        (
-            Dimension.SECTOR,
-            "section-sector",
-            "Tegevusalad",
-            "Millistel tegevusaladel koja liikmed tegutsevad?",
-            True,
-        ),
-        (
-            Dimension.TENURE_BAND,
-            "section-tenure",
-            "Liikmestaaž",
-            "Kui kaua on tänased liikmed kojas olnud?",
-            False,
-        ),
+        (Dimension.EMPLOYEE_SIZE, "section-size", "Ettevõtte suurus", False),
+        (Dimension.REGION, "section-region", "Piirkonnad", True),
+        (Dimension.SECTOR, "section-sector", "Tegevusalad", True),
+        (Dimension.TENURE_BAND, "section-tenure", "Liikmestaaž", False),
     ]
 
     # One section, two columns from `xl`. Four stacked full-width sections of
     # the same categorical shape were twice the scroll to say four things, and
-    # each chart already carries its own title and question.
+    # each chart already carries its own title — left on 2026-08-17 along with
+    # the per-chart questions and the sector's EMTAK/NACE footnote.
     structure_charts = []
-    for dimension, _section_id, title, question, ranked in structure:
+    for dimension, _section_id, title, ranked in structure:
         chart = composition_chart(
             composition.dimension(dimension),
             payload_id=f"membership-composition-{dimension.replace('_', '-')}",
             title=title,
-            question=question,
             snapshot_date=on,
             ranked=ranked,
-            footnotes=(
-                (
-                    "Tegevusala on tuletatud EMTAK/NACE koodist jaotise "
-                    f"tasemel (klassifikaatori versioon {composition.sector_mapping_version}).",
-                )
-                if dimension == Dimension.SECTOR
-                else ()
-            ),
         )
         if chart is not None:
             structure_charts.append(chart)

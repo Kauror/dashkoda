@@ -174,10 +174,9 @@ than unbuilt UI:
 
 Tenure is valid, because it is measured on members who are here. The joining-year
 distribution is valid, because it describes today's membership. Neither is
-retention, and `join_cohort_chart` carries a footnote saying so:
-
-> Graafik näitab, millal tänased liikmed liitusid. See ei ole püsimamäär:
-> lahkunud liikmeid nimekirjas ei ole.
+retention. `join_cohort_chart` carried a footnote saying so on the page until
+2026-08-17; the caveat is still true, it is just stated here rather than on the
+chart now.
 
 ## Import
 
