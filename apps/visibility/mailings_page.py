@@ -128,6 +128,10 @@ def _summary(metric: str) -> dict:
     The label comes from the visibility registry through the aggregate, which is
     the one place a newsletter is named; `smaily_segments` maps segments to
     newsletters and does not carry display text.
+
+    Carries only the two rates. Send and delivery counts left this comparison
+    on 2026-08-17 — they duplicated the newsletter card above rather than
+    telling the reader anything the rates didn't.
     """
     aggregate = get_newsletter_aggregate(metric)
     return {
@@ -135,8 +139,6 @@ def _summary(metric: str) -> dict:
         "label": aggregate.label,
         "open_rate": share_percent(aggregate.open_rate),
         "click_rate": share_percent(aggregate.click_rate),
-        "campaigns": aggregate.campaigns,
-        "delivered": integer(aggregate.delivered) if aggregate.delivered else "",
     }
 
 

@@ -34,9 +34,9 @@ behind this page, and `test_membership_stores_no_member_rows` enforces that.
   header + what each source is as of
   focus navigation
   four headline answers        (overview only)
+  Sel aastal                   (overview only)
   the membership trend
   Mis muutus?                  (overview only)
-  Sel aastal                   (overview only)
   the focus's own analysis
   Andmete kohta
 
@@ -192,6 +192,65 @@ by a rule written for this one.
           </div>
         {% endfor %}
       </dl>
+    </section>
+  {% endif %}
+
+  {# ---------------- 3a. Sel aastal ---------------- #}
+  {% comment %}
+  Moved up to sit directly under the headline strip on 2026-08-17 — it reads as
+  this year's continuation of those figures, not as a footnote several sections
+  later.
+
+  The current year's movement, as typography rather than a chart: two counts,
+  their difference and the suspended total are four numbers, and drawing four
+  numbers as bars adds a canvas, an axis and a legend to a fact that fits on one
+  line. The size-band diverging chart under `Liikumine ja põhjused` is where the
+  question that genuinely needs a picture is answered.
+
+  The difference is labelled as the difference between two reported counts. It
+  is **not** the change in the membership: `new_members_ytd` and
+  `removed_members_ytd` are two figures from a board report, and subtracting
+  them does not produce the movement of the stock. Calling it `neto` would claim
+  a reconciliation this page has not done.
+  {% endcomment %}
+  {% if movement_summary %}
+    <section aria-labelledby="section-this-year" class="dk-section">
+      {% include "dashboard/components/section_header.html" with title="Sel aastal" heading_id="section-this-year" description=movement_summary.observation_label only %}
+      <div class="dk-section-body">
+        <dl class="flex flex-wrap gap-x-10 gap-y-4">
+          {% if movement_summary.joined %}
+            <div class="min-w-0">
+              <dt class="text-sm text-text-secondary">Liitunud</dt>
+              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.joined }}</dd>
+            </div>
+          {% endif %}
+          {% if movement_summary.removed %}
+            <div class="min-w-0">
+              <dt class="text-sm text-text-secondary">Väljaarvatud</dt>
+              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.removed }}</dd>
+            </div>
+          {% endif %}
+          {% comment %}
+          The difference row left on 2026-08-16. `movement_summary.difference`
+          is still computed and still carries its tone and direction; nothing
+          renders it.
+          {% endcomment %}
+          {% if movement_summary.suspended %}
+            <div class="min-w-0">
+              <dt class="text-sm text-text-secondary">Peatatud liikmeid</dt>
+              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.suspended }}</dd>
+            </div>
+          {% endif %}
+        </dl>
+        {% comment %}
+        The sentence that went with the row above it. It said the difference was
+        the gap between two reported counts rather than the membership's net
+        change — with no difference printed, there is nothing left on this page
+        for it to qualify. If the row ever returns, this must return with it:
+        the two figures are reported separately and subtracting them does not
+        reconcile the stock.
+        {% endcomment %}
+      </div>
     </section>
   {% endif %}
 
@@ -650,62 +709,7 @@ by a rule written for this one.
     </section>
   {% endif %}
 
-  {# ---------------- 6. Sel aastal ---------------- #}
-  {% comment %}
-  The current year's movement, as typography rather than a chart: two counts,
-  their difference and the suspended total are four numbers, and drawing four
-  numbers as bars adds a canvas, an axis and a legend to a fact that fits on one
-  line. The size-band diverging chart under `Liikumine ja põhjused` is where the
-  question that genuinely needs a picture is answered.
-
-  The difference is labelled as the difference between two reported counts. It
-  is **not** the change in the membership: `new_members_ytd` and
-  `removed_members_ytd` are two figures from a board report, and subtracting
-  them does not produce the movement of the stock. Calling it `neto` would claim
-  a reconciliation this page has not done.
-  {% endcomment %}
-  {% if movement_summary %}
-    <section aria-labelledby="section-this-year" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Sel aastal" heading_id="section-this-year" description=movement_summary.observation_label only %}
-      <div class="dk-section-body">
-        <dl class="flex flex-wrap gap-x-10 gap-y-4">
-          {% if movement_summary.joined %}
-            <div class="min-w-0">
-              <dt class="text-sm text-text-secondary">Liitunud</dt>
-              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.joined }}</dd>
-            </div>
-          {% endif %}
-          {% if movement_summary.removed %}
-            <div class="min-w-0">
-              <dt class="text-sm text-text-secondary">Väljaarvatud</dt>
-              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.removed }}</dd>
-            </div>
-          {% endif %}
-          {% comment %}
-          The difference row left on 2026-08-16. `movement_summary.difference`
-          is still computed and still carries its tone and direction; nothing
-          renders it.
-          {% endcomment %}
-          {% if movement_summary.suspended %}
-            <div class="min-w-0">
-              <dt class="text-sm text-text-secondary">Peatatud liikmeid</dt>
-              <dd class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ movement_summary.suspended }}</dd>
-            </div>
-          {% endif %}
-        </dl>
-        {% comment %}
-        The sentence that went with the row above it. It said the difference was
-        the gap between two reported counts rather than the membership's net
-        change — with no difference printed, there is nothing left on this page
-        for it to qualify. If the row ever returns, this must return with it:
-        the two figures are reported separately and subtracting them does not
-        reconcile the stock.
-        {% endcomment %}
-      </div>
-    </section>
-  {% endif %}
-
-  {# ---------------- 6b. Kes on meie liikmed? ---------------- #}
+  {# ---------------- 6. Kes on meie liikmed? ---------------- #}
   {% comment %}
   Four facts and a link, not a second copy of the composition page. A reader who
   wants the distributions follows the link; a reader who wants a sense of the

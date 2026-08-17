@@ -33,10 +33,6 @@ source/medium and no campaign here, because neither is stored — a row saying
     {% include "dashboard/components/section_header.html" with title="Kanalid arvudes" heading_id="section-kanalite-tabel" only %}
     <div class="dk-section-body">
       {% include "visibility/koduleht/_table.html" with table=page.channel_table only %}
-      <p class="dk-meta mt-3">
-        Allikas on GA4 vaikimisi kanalirühm. Kasutajate arvu kanali kohta ei kuvata — seda ei saa
-        päevade lõikes kokku liita.
-      </p>
     </div>
   </section>
 {% endif %}

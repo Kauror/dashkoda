@@ -163,31 +163,31 @@ test("the excluded traffic still counts towards the site's own figures", async (
   expect(figures.some((value) => /[1-9]/.test(value))).toBe(true);
 });
 
-test("the content mix states which denominator it used", async ({ page }) => {
+test("the content mix no longer states its denominator inline", async ({ page }) => {
   oncePerRun();
   await signIn(page);
   await page.goto("/koduleht/?fookus=sisu");
 
-  // "Vaadatud sisu jaotus" is a share of rankable content, which is smaller than
-  // the site's page views. Calling it the site's traffic would be wrong.
+  // The footnote and the chart's own question left the page on 2026-08-17.
   await expect(page.getByRole("heading", { name: "Vaadatud sisu jaotus" })).toBeVisible();
-  await expect(page.locator("main")).toContainText("järjestatavaks sisuks");
+  await expect(page.locator("main")).not.toContainText("järjestatavaks sisuks");
 });
 
-test("the movement lists find the pages the seed made move", async ({ page }) => {
+test("the movement list finds the pages the seed made move", async ({ page }) => {
   oncePerRun();
   await signIn(page);
   await page.goto("/koduleht/?fookus=sisu&periood=30");
 
   const movement = page.locator(MOVEMENT);
   await expect(movement).toContainText("Kasvavad lehed");
-  // Deliberately neutral: traffic falls because an event ended, not because
-  // anybody failed.
-  await expect(movement).toContainText("Vähenenud tähelepanu");
   await expect(movement).not.toContainText("Halvimad");
-
   await expect(movement).toContainText("sunteetiline-kasvav");
-  await expect(movement).toContainText("sunteetiline-vaibuv");
+
+  // `Vähenenud tähelepanu`, the declining half, left the page on 2026-08-17.
+  // `sunteetiline-vaibuv` was the seed's declining fixture; it rendered only
+  // there and is gone with it.
+  await expect(movement).not.toContainText("Vähenenud tähelepanu");
+  await expect(movement).not.toContainText("sunteetiline-vaibuv");
 });
 
 test("a page with no previous measurement states that rather than a percentage", async ({

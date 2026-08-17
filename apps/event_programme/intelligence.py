@@ -602,7 +602,6 @@ def build_formats(snapshot, *, year: int | None, today: date) -> FormatsView:
             tags,
             payload_id="events-tags",
             title="Teemad",
-            question="Millised teemad programmis domineerivad?",
         ),
         delivery_over_time=charts.mix_over_time_chart(
             delivery_years,
@@ -614,16 +613,12 @@ def build_formats(snapshot, *, year: int | None, today: date) -> FormatsView:
                 ("hybrid", "Hübriid"),
                 (analytics.UNKNOWN_KEY, analytics.UNKNOWN_LABEL),
             ),
-            footnotes=(
-                "Osakaalud, mitte arvud: küsimus on programmi koosseisust, mitte selle mahust.",
-            ),
         ),
         tag_over_time=(
             charts.mix_over_time_chart(
                 tag_years,
                 payload_id="events-tags-years",
                 title="Teemade muutus",
-                question="Millised teemad on aastatega kasvanud või kahanenud?",
                 keys=(*top_tags, ("_other", "Muu")),
             )
             if top_tags

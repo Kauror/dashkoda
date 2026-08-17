@@ -2170,18 +2170,25 @@ def growth_index_chart(
 ) -> ChartPayload | None:
     """Which kinds of organisation are over-represented among recent joiners?
 
-    One share divided by another, times a hundred. A category at 100 holds the
-    same share of the recent joiners as it does of the membership; above that it
-    is over-represented among them and below it under-represented.
+    Draws the plain headcount — how many recent joiners fall in each category —
+    rather than the ratio that used to lead the chart. The ratio read as a
+    "growth index", a number with no unit a reader had to look up to interpret;
+    the count is the number itself. `row.index` and the overall/recent shares
+    are still computed and still in the tooltip and the table, where over- or
+    under-representation is stated as two real shares side by side instead of
+    one derived figure that would need a legend to read.
 
-    That is the whole calculation, and it is stated on the page beside the
-    chart. It is descriptive: no model, no smoothing, no significance test, and
-    no claim that a difference will persist.
+    The row order is unchanged: still ranked by representation, most
+    over-represented category first, so the bars are not sorted by the count
+    they draw. That is deliberate — the ranking is still "who stands out
+    against their own baseline", the same question this chart has always
+    answered, just answered with what actually happened rather than a ratio of
+    two things that happened.
 
     Categories with too few members on either side are **named as withheld**
-    rather than drawn at zero or at 100. A ratio built on two organisations
-    swings by tens of points on a single membership, and ranking that beside a
-    category of nine hundred would present noise as a finding.
+    rather than drawn at zero. A share built on two organisations swings by
+    tens of points on a single membership, and ranking that beside a category
+    of nine hundred would present noise as a finding.
     """
     if not rows:
         return None
@@ -2191,7 +2198,7 @@ def growth_index_chart(
         {
             "xAxis": {
                 "type": "value",
-                "name": "Kasvuindeks (100 = sama osakaal)",
+                "name": "Hiljuti liitunuid",
                 "nameLocation": "middle",
                 "nameGap": 28,
             },
@@ -2203,31 +2210,22 @@ def growth_index_chart(
             "tooltip": {"trigger": "item"},
             "series": [
                 {
-                    "name": "Kasvuindeks",
+                    "name": "Hiljuti liitunuid",
                     "type": "bar",
                     "labelLayout": dict(LABEL_LAYOUT),
                     "data": [
                         {
-                            "value": _number(row.index),
+                            "value": _number(row.recent_count),
                             "tip": row.key,
                             "label": {
                                 **BAR_LABEL,
                                 "show": True,
                                 "position": "right",
-                                "formatter": integer(row.index),
+                                "formatter": integer(row.recent_count),
                             },
                         }
                         for row in rows
                     ],
-                    # The reference line is the whole point of the scale: a bar
-                    # means nothing until you can see which side of parity it
-                    # falls on.
-                    "markLine": {
-                        "silent": True,
-                        "symbol": "none",
-                        "data": [{"xAxis": 100}],
-                        "label": {"formatter": "100", "position": "end"},
-                    },
                 }
             ],
             "dashkoda": {
@@ -2240,7 +2238,7 @@ def growth_index_chart(
                                 "value": (
                                     f"{percent(row.recent_share_pct)} ({integer(row.recent_count)})"
                                 ),
-                                "emphasis": False,
+                                "emphasis": True,
                             },
                             {
                                 "label": "Osakaal kogu liikmeskonnast",
@@ -2250,13 +2248,7 @@ def growth_index_chart(
                                 ),
                                 "emphasis": False,
                             },
-                            {
-                                "label": "Kasvuindeks",
-                                "value": integer(row.index),
-                                "emphasis": True,
-                            },
                         ],
-                        "note": "100 = sama osakaal mõlemas",
                     }
                     for row in rows
                 },
@@ -2266,12 +2258,12 @@ def growth_index_chart(
     )
 
     footnotes = [
-        "Kasvuindeks = hiljuti liitunute osakaal jagatud kogu liikmeskonna "
-        "osakaaluga, korrutatud sajaga. 100 tähendab sama esindatust, üle 100 "
-        "suuremat ja alla 100 väiksemat.",
         "«Hiljuti liitunud» on need tänased liikmed, kelle liitumiskuupäev jääb "
         "hetkeseisule eelnenud 12 kuu sisse. See ei ole kõigi viimase aasta "
         "uute liikmete arv — vahepeal lahkunuid nimekirjas ei ole.",
+        "Kategooriad on järjestatud esindatuse järgi: kõige rohkem üle "
+        "esindatud kategooria — suurim osakaal hiljuti liitunute seas võrreldes "
+        "osakaaluga kogu liikmeskonnast — on esimene.",
     ]
     if suppressed:
         footnotes.append(
@@ -2294,7 +2286,6 @@ def growth_index_chart(
             "Osakaal hiljuti",
             "Liikmeid kokku",
             "Osakaal kokku",
-            "Kasvuindeks",
         ),
         table_rows=tuple(
             (
@@ -2303,14 +2294,10 @@ def growth_index_chart(
                 percentage(row.recent_share_pct, places=1),
                 row.overall_count,
                 percentage(row.overall_share_pct, places=1),
-                row.index,
             )
             for row in rows
         ),
-        summary=(
-            f"Horisontaalne tulpgraafik {len(rows)} kategooria kasvuindeksiga, "
-            "võrdlusjoon 100 juures."
-        ),
-        empty_message="Kasvuindeksi arvutamiseks ei ole piisavalt liikmeid.",
+        summary=(f"Horisontaalne tulpgraafik {len(rows)} kategooria hiljuti liitunute arvuga."),
+        empty_message="Esindatust ei saa arvutada: liiga vähe liikmeid.",
         footnotes=tuple(footnotes),
     )

@@ -80,8 +80,6 @@ Context: page, newsletters, newsletter_slot, history
         <thead>
           <tr>
             <th scope="col" class="border-b border-border px-3 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Uudiskiri</th>
-            <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Saadetisi</th>
-            <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Kättetoimetatud</th>
             <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Avamismäär</th>
             <th scope="col" class="border-b border-border px-3 py-2 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Klikimäär</th>
           </tr>
@@ -92,8 +90,6 @@ Context: page, newsletters, newsletter_slot, history
               <th scope="row" class="border-b border-border px-3 py-2 text-left font-medium text-text">
                 <a class="dk-link-quiet" href="?uudiskiri={{ row.metric|urlencode }}">{{ row.label }}</a>
               </th>
-              <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.campaigns|integer }}</td>
-              <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.delivered|default:"—" }}</td>
               <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.open_rate|default:"—" }}</td>
               <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ row.click_rate|default:"—" }}</td>
             </tr>

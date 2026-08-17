@@ -55,6 +55,12 @@ const canvases = (page) => page.locator("[data-chart-canvas] canvas");
 /** Hover the middle of a chart and return whatever tooltip text appears. */
 async function tooltipText(page, index = 0) {
   const canvas = canvases(page).nth(index);
+  // Scrolled into view first, same reason `the size-movement tooltip` test
+  // below does it explicitly: `boundingBox` reports viewport coordinates and
+  // `mouse.move` does not scroll, so a canvas below the fold sends the mouse
+  // nowhere. `Sel aastal` moving up the page on 2026-08-17 pushed the trend
+  // chart — this helper's usual index-0 target — past the fold on `desktop`.
+  await canvas.scrollIntoViewIfNeeded();
   const box = await canvas.boundingBox();
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   const tooltip = page.locator(".dk-chart-tooltip").first();

@@ -154,10 +154,10 @@ def monthly_flow_chart(
     *,
     payload_id: str,
     title: str,
-    question: str,
     current: MonthlyFlow,
     previous: MonthlyFlow,
     series_label: str,
+    question: str = "",
 ) -> ChartPayload:
     """Twelve months of one measure, this year against last.
 
@@ -379,7 +379,6 @@ def response_window_chart(years: tuple[ResponseWindowYear, ...]) -> ChartPayload
     return ChartPayload(
         payload_id="legal-response-window",
         title="Arvamuse esitamiseks antud keskmine aeg",
-        question="Kui palju aega antakse Kojale arvamuse esitamiseks?",
         option=option,
         table_headers=("Aasta", "Mediaan (päeva)", "Keskmine (päeva)", "Arvestatud teemasid"),
         table_rows=tuple(
@@ -431,7 +430,6 @@ def response_window_distribution_chart(
     return ChartPayload(
         payload_id="legal-window-distribution",
         title="Arvamuse esitamiseks antud aja jaotus",
-        question="Kui sageli on vastamisaeg lühike?",
         option=option,
         readouts=(
             Readout(
@@ -607,7 +605,6 @@ def annual_topics_chart(points: tuple[AnnualPoint, ...]) -> ChartPayload:
     return ChartPayload(
         payload_id="legal-annual-topics",
         title="Teemad aastate lõikes",
-        question="Kui palju õigusloome tööd on Kojal aastate lõikes olnud?",
         option=option,
         table_headers=("Aasta", "Teemasid"),
         table_rows=tuple(

@@ -344,9 +344,7 @@ dashboard overview. They stay on the default focus and keep their ids;
             <tr>
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Aasta</th>
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Teemasid</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Mõõdetud</th>
               <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Tagasisidega</th>
-              <th scope="col" class="border-b border-border px-4 py-2 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Juhtumeid</th>
             </tr>
           </thead>
           <tbody>
@@ -354,9 +352,7 @@ dashboard overview. They stay on the default focus and keep their ids;
               <tr>
                 <th scope="row" class="border-b border-border px-4 py-2 text-left font-medium text-text">{{ year.year }}</th>
                 <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ year.total_topics }}</td>
-                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ year.tracked_topics }}</td>
                 <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ year.with_feedback }}</td>
-                <td class="border-b border-border px-4 py-2 tabular-nums text-text-secondary">{{ year.feedback_instances|default_if_none:"—" }}</td>
               </tr>
             {% endfor %}
           </tbody>

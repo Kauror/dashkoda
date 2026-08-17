@@ -408,11 +408,14 @@ def test_a_page_dashkoda_cannot_name_shows_its_path(history):
 # ---------------------------------------------------------------------------
 
 
-def test_the_content_mix_states_its_denominator(history, viewer_client):
+def test_the_content_mix_no_longer_states_its_denominator_inline(history, viewer_client):
+    """The footnote and the chart's own question left the page on 2026-08-17,
+    with `Enim vaadatud sisu`'s question alongside them."""
     rendered = body(viewer_client.get(PAGE_URL, {"fookus": "sisu"}))
 
-    assert "järjestatavaks sisuks" in rendered
-    assert "Kogu kodulehe liiklus" not in rendered
+    assert "järjestatavaks sisuks" not in rendered
+    assert "Millised kodulehe osad tähelepanu saavad" not in rendered
+    assert "Mida perioodil kõige rohkem loeti" not in rendered
 
 
 def test_the_language_split_disclaims_visitor_identity(history, viewer_client):
@@ -421,10 +424,14 @@ def test_the_language_split_disclaims_visitor_identity(history, viewer_client):
     assert "mitte külastaja rahvust" in rendered
 
 
-def test_decline_is_worded_neutrally(history, viewer_client):
+def test_the_declining_pages_table_left_the_page(history, viewer_client):
+    """`Vähenenud tähelepanu`, the declining half of `Mis kasvas ja mis
+    vähenes`, left on 2026-08-17. `page.falling_table` is still built; nothing
+    renders it. `Kasvavad lehed` stayed and is worded neutrally regardless."""
     rendered = body(viewer_client.get(PAGE_URL, {"fookus": "sisu"}))
 
-    assert "Vähenenud tähelepanu" in rendered
+    assert "Vähenenud tähelepanu" not in rendered
+    assert "Kasvavad lehed" in rendered
     for forbidden in ("Halvimad lehed", "halb", "ebaõnnestunud"):
         assert forbidden not in rendered
 
