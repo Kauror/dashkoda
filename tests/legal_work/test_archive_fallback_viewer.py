@@ -75,7 +75,29 @@ def both_published(imported_snapshot, publish_current_topics, publish_archived_t
 def page(viewer, url=LEGAL_URL) -> str:
     response = viewer.get(url)
     assert response.status_code == 200
-    return response.content.decode("utf-8")
+    return _without_register(response.content.decode("utf-8"))
+
+
+def _without_register(markup: str) -> str:
+    """Cut the register explorer's own drill-down out of the markup.
+
+    Unconditional on the overview since 2026-08-18, and its row layout draws a
+    record's topic as plain text always — `_register_results.html` labels the
+    resource link by what it is ("Koja arvamus", "Avalik konsultatsioon")
+    rather than wrapping the topic name the way `legal_topic.html` does for
+    `Hetkel töös` and `Viimati välja läinud`. A regex built for that shared
+    component's shape does not — and should not have to — understand the
+    register's, so this scopes the cross-list consistency checks below to the
+    lists that actually share it. `test_register.py` and
+    `test_register_search.py` hold the register's own rendering to account.
+    """
+    start = markup.find('id="section-register"')
+    if start == -1:
+        return markup
+    end = markup.find('id="section-open"', start)
+    if end == -1:
+        return markup
+    return markup[:start] + markup[end:]
 
 
 def linked(markup: str, topic: str, url: str) -> int:

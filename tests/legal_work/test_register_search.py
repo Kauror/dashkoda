@@ -472,10 +472,13 @@ def test_the_fragment_resets_the_page_number(viewer):
     assert "lk=" not in response.headers["HX-Push-Url"]
 
 
-def test_the_fragment_still_offers_the_status_chips(viewer, make_workbook, register_workbook):
-    """They live inside the swapped region precisely so each one carries the
-    term the reader has just typed; outside, they would still hold whatever was
-    there at page load."""
+def test_the_fragment_carries_the_search_term_into_the_result_count(
+    viewer, make_workbook, register_workbook
+):
+    """The register's own status, year and other filters live in the
+    persistent form, outside the swapped region — six controls is too many to
+    re-render on every keystroke, and none of them changes with the term.
+    What must still travel with a keystroke is the result itself."""
     publish(
         [synthetic_row(record_id="SYN-1", topic="Käibemaksu teema", source_row=2)],
         make_workbook,
@@ -484,7 +487,7 @@ def test_the_fragment_still_offers_the_status_chips(viewer, make_workbook, regis
 
     content = viewer.get(reverse(FRAGMENT), {"otsing": "Käibemaksu"}).content.decode()
 
-    assert "Välja läinud" in content
+    assert "Käibemaksu teema" in content
     assert "otsing=K%C3%A4ibemaksu" in content
 
 
