@@ -1,0 +1,204 @@
+{% comment %}
+Koduleht, in one scroll.
+
+The order is the order the questions are asked: how much traffic, how it moved
+day by day, where it came from, what was read, which pages changed, what is
+worth a second look, and then the explorer for one specific page.
+
+This was three tabbed views until 2026-08-18 — `Ülevaade`, `Sisu ja lehed`,
+`Kanalid`. A tab strip made a reader choose a question before seeing a single
+answer, and the same figures were built two and three times across the three.
+
+Nothing here holds an analytical rule. Every figure was decided in
+`apps.visibility.website_page`, and a section that is absent is absent because
+its own coverage rule refused it there.
+{% endcomment %}
+
+{# ---------------- Primary figures ---------------- #}
+<section aria-labelledby="section-kpi" class="dk-section">
+  <h2 id="section-kpi" class="sr-only">Peamised näitajad</h2>
+  <div class="dk-section-body">
+    {% include "visibility/koduleht/_headlines.html" with headlines=page.headlines secondary=page.secondary only %}
+  </div>
+</section>
+
+{# ---------------- The daily trend ---------------- #}
+{% if page.trend %}
+  <section aria-labelledby="section-trend" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kodulehe liiklus päevade kaupa" heading_id="section-trend" only %}
+    <div class="dk-section-body flex flex-col gap-4">
+      {% include "visibility/koduleht/_metric_switch.html" with options=page.metric_options only %}
+      {% include "dashboard/components/chart_figure.html" with chart=page.trend only %}
+    </div>
+  </section>
+{% endif %}
+
+{# ---------------- Kust tullakse ---------------- #}
+{% comment %}
+The channel table, with a bar on its leading figure. The description states what
+GA4 counts as an engaged session, because `Engagement'i määr` is the one column
+here whose definition a reader cannot guess — and a rate whose numerator is
+undefined is a rate nobody can use.
+{% endcomment %}
+{% if page.channel_table.has_rows %}
+  <section aria-labelledby="section-kust" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Kust tullakse" heading_id="section-kust" description="Engagement = külastus, mis kestis üle 10 sekundi või puudutas mitut lehte." only %}
+    <div class="dk-section-body">
+      {% include "visibility/koduleht/_table.html" with table=page.channel_table only %}
+    </div>
+  </section>
+{% endif %}
+
+{# ---------------- The two proportions ---------------- #}
+{% comment %}
+Side by side from `lg`: both are one bar and a short legend, and stacked they
+were two full-width bands saying very little each.
+{% endcomment %}
+{% if page.content_mix.has_data or page.language.has_data %}
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    {% if page.content_mix.has_data %}
+      {% include "visibility/koduleht/_mix.html" with title="Vaadatud sisu jaotus" heading_id="section-sisujaotus" bar=page.content_mix_bar table=page.content_mix_table only %}
+    {% endif %}
+    {% if page.language.has_data %}
+      {% include "visibility/koduleht/_mix.html" with title="Lehevaatamised sisukeele järgi" heading_id="section-keeled" description="Mõõdab loetud lehe keelt, mitte külastaja rahvust ega asukohta." bar=page.language_bar table=page.language_table only %}
+    {% endif %}
+  </div>
+{% endif %}
+
+{# ---------------- What was read, and what moved ---------------- #}
+{% comment %}
+`Kasvavad lehed` is built only when both windows were covered well enough for
+the difference to be about the website rather than about the collector, so the
+right-hand column is genuinely absent on a period the collector did not cover —
+which is why this is a grid of what exists rather than a fixed pair.
+
+`Vähenenud tähelepanu` is not here. It was the other half of a `Mis kasvas ja
+mis vähenes` section, and a falling ranking on a dashboard is read as a list of
+failures when it is mostly a list of pages whose campaign ended.
+{% endcomment %}
+{% if page.top_pages_table.has_rows or page.rising_table %}
+  <div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+    {% if page.top_pages_table.has_rows %}
+      <section aria-labelledby="section-enim" class="dk-section">
+        {% include "dashboard/components/section_header.html" with title="Enim vaadatud lehed" heading_id="section-enim" description="Lehevaatamised valitud perioodil." only %}
+        <div class="dk-section-body">
+          {% include "visibility/koduleht/_table.html" with table=page.top_pages_table only %}
+        </div>
+      </section>
+    {% endif %}
+
+    {% if page.rising_table %}
+      <section aria-labelledby="section-kasvavad" class="dk-section">
+        {% include "dashboard/components/section_header.html" with title="Kasvavad lehed" heading_id="section-kasvavad" description="Võrreldes eelmise sama pika perioodiga." only %}
+        <div class="dk-section-body">
+          {% include "visibility/koduleht/_table.html" with table=page.rising_table only %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+{% endif %}
+
+{# ---------------- Three things worth a second look ---------------- #}
+{% if page.opportunities %}
+  {% include "visibility/koduleht/_opportunities.html" with opportunities=page.opportunities heading_id="section-voimalused" only %}
+{% endif %}
+
+{# ---------------- Otsi lehte ---------------- #}
+{% comment %}
+The explorer. Search runs over the whole measured population rather than over
+the ranking above it, so a page that is nowhere near the top is still findable
+by name or by path.
+
+Every control is an ordinary GET link or form carrying the resolved state, so a
+search, a section and a page number are all bookmarkable and reachable with the
+back button.
+{% endcomment %}
+<section aria-labelledby="section-otsing" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title="Otsi lehte" heading_id="section-otsing" only %}
+  <div class="dk-section-body flex flex-col gap-4">
+
+    {% if page.section_options %}
+      <nav aria-label="Sisu" class="flex flex-wrap items-center gap-2">
+        {% for option in page.section_options %}
+          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+             href="?{{ option.query }}#section-otsing"
+             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.section.label }}</a>
+        {% endfor %}
+      </nav>
+    {% endif %}
+
+    <form method="get" action="" class="flex flex-wrap items-end gap-3">
+      <input type="hidden" name="periood" value="{{ page.query.period }}">
+      {% if page.query.date_from %}<input type="hidden" name="alates" value="{{ page.query.date_from }}">{% endif %}
+      {% if page.query.date_to %}<input type="hidden" name="kuni" value="{{ page.query.date_to }}">{% endif %}
+      {% if page.query.section %}<input type="hidden" name="sisu" value="{{ page.query.section }}">{% endif %}
+      <div class="flex min-w-0 flex-1 flex-col gap-1">
+        <label class="sr-only" for="koduleht-otsing">Lehe nimi või aadress</label>
+        {% comment %}
+        htmx is an enhancement, never the mechanism. The form submits to the
+        page itself, so a reader with no JavaScript searches exactly as well;
+        what the attributes buy is the results region updating as they type.
+        {% endcomment %}
+        <input class="dk-input" type="search" id="koduleht-otsing" name="otsing"
+               value="{{ page.query.search }}" maxlength="120" autocomplete="off"
+               placeholder="nt liikmemaks või /et/uudised/…"
+               hx-get="{% url 'visibility-traffic-search' %}"
+               hx-trigger="input changed delay:250ms, search"
+               hx-target="#koduleht-otsingutulemused"
+               hx-swap="innerHTML"
+               hx-include="closest form"
+               hx-sync="this:replace"
+               hx-indicator="#koduleht-otsin">
+      </div>
+      <button class="dk-button dk-button-primary" type="submit">Otsi</button>
+      {% if page.query.search %}
+        <a class="dk-button dk-button-secondary" href="?{{ page.clear_search_query }}">Tühjenda</a>
+      {% endif %}
+      <p id="koduleht-otsin" class="dk-indicator dk-meta" aria-hidden="true">Otsin…</p>
+    </form>
+
+    <p class="dk-meta">
+      Otsib kogu lehekataloogist — iga lehe vaatamised, engagement ja muutus valitud perioodil.
+    </p>
+
+    {% include "visibility/koduleht/_search_results.html" with page=page only %}
+  </div>
+</section>
+
+{# ---------------- One page's own analysis ---------------- #}
+{% if page.query.detail %}
+  <section aria-labelledby="section-leht" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Ühe lehe analüüs" heading_id="section-leht" only %}
+    <div class="dk-section-body flex flex-col gap-4">
+      {% if page.detail %}
+        {% comment %}
+        The title and the path are both shown because neither replaces the
+        other: a catalogued page has a title somebody wrote, and the path is
+        what the measurement is actually keyed by.
+        {% endcomment %}
+        <div class="flex flex-col gap-1">
+          <h3 class="text-lg font-semibold text-text">{{ page.detail_title }}</h3>
+          <p class="dk-meta break-all">{{ page.detail.path }}</p>
+        </div>
+
+        <dl class="flex flex-wrap gap-x-8 gap-y-3">
+          {% for readout in page.detail_readouts %}
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <dt class="text-sm text-text-secondary">{{ readout.label }}</dt>
+              <dd class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ readout.value }}</dd>
+              {% if readout.note %}<dd class="dk-meta">{{ readout.note }}</dd>{% endif %}
+            </div>
+          {% endfor %}
+        </dl>
+
+        {% if page.detail_chart %}
+          {% include "dashboard/components/chart_figure.html" with chart=page.detail_chart only %}
+        {% endif %}
+
+        <p><a class="dk-link" href="?{{ page.clear_detail_query }}">← Tagasi tulemuste juurde</a></p>
+      {% else %}
+        {% include "dashboard/components/empty_state.html" with message="Sellele aadressile ei ole mõõtmisandmeid." detail="Leht võib olla olemas, kuid GA4 ei ole selle kohta ridu kogunud. Mõõtmata ei ole sama mis null vaatamist." only %}
+      {% endif %}
+    </div>
+  </section>
+{% endif %}

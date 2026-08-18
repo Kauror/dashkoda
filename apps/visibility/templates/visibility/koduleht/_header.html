@@ -1,46 +1,29 @@
 {% comment %}
-The page header: what this is, how current the source is, which view, which
-window.
+The page header: what this is, over what window.
 
-The focus navigation and the period control are separate on purpose. One chooses
-the question, the other chooses the window it is asked over, and every link
-carries both — so changing the view never silently changes the period, and
-changing the period never drops the reader back to the overview.
+The focus navigation left on 2026-08-18 with the three views it switched
+between. A tab strip made a reader choose a question before seeing a single
+answer, and the page is short enough to read in one scroll.
+
+The period control sits on the title's own row, because it governs the whole
+page rather than any one section below it — every figure on Koduleht is measured
+over this window, which is exactly the case a page-level control is for.
 
 A period the history cannot fill is shown **disabled rather than hidden**. A
-reader who looks for `5 aastat` and finds no such control learns nothing; one
-who finds it inert learns the Chamber has not been measuring that long.
+reader who looks for `1 aasta` and finds no such control learns nothing; one who
+finds it inert learns the Chamber has not been measuring that long.
 
 The custom range is a real GET form with two date inputs, so it works with no
-JavaScript. Its hidden fields carry the server-resolved view and section rather
-than the incoming query string, which is what keeps an unvalidated parameter
-from being reflected back into an address.
+JavaScript. Its hidden fields carry the server-resolved state rather than the
+incoming query string, which is what keeps an unvalidated parameter from being
+reflected back into an address.
 {% endcomment %}
-<header class="flex flex-col gap-4">
-  <div class="flex flex-wrap items-end justify-between gap-3">
-    <div class="flex min-w-0 flex-col gap-1">
-      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">{{ page.title }}</h1>
-      {% comment %}
-      The freshness line left every Koduleht view on 2026-08-16. It is not lost:
-      `Andmete kohta` on `/haldus/` states where GA4 coverage begins and ends,
-      in a table built for exactly that question.
-      {% endcomment %}
-    </div>
-  </div>
-
-  {# ---------------- Focus navigation ---------------- #}
-  <nav aria-label="Vaade" class="flex flex-wrap gap-2 border-b border-border pb-3">
-    {% for option in page.focuses %}
-      <a class="dk-tab{% if option.is_active %} dk-tab-active{% endif %}"
-         href="?{{ option.query }}"
-         {% if option.is_active %}aria-current="page"{% endif %}>{{ option.label }}</a>
-    {% endfor %}
-  </nav>
+<header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+  <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">{{ page.title }}</h1>
 
   {% if page.has_data %}
-    {# ---------------- Measurement window ---------------- #}
-    <div class="flex flex-col gap-3">
-      <nav id="periood" aria-label="Periood" class="flex flex-wrap items-center gap-2">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <nav id="periood" aria-label="Periood" class="flex flex-wrap items-center gap-1 rounded-md border border-border bg-surface p-1">
         {% for option in page.period_options %}
           {% if option.is_offered %}
             <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
@@ -51,42 +34,40 @@ from being reflected back into an address.
                   title="Nii pikka ajalugu ei ole veel kogutud">{{ option.label }}</span>
           {% endif %}
         {% endfor %}
+
+        <details class="relative"{% if page.period.is_custom %} open{% endif %}>
+          <summary class="dk-chip{% if page.period.is_custom %} dk-chip-active{% endif %} cursor-pointer list-none">Vali vahemik</summary>
+          <form method="get" action="" class="mt-2 flex flex-wrap items-end gap-3">
+            <input type="hidden" name="periood" value="kohandatud">
+            {% if page.query.section %}<input type="hidden" name="sisu" value="{{ page.query.section }}">{% endif %}
+            {% if page.query.search %}<input type="hidden" name="otsing" value="{{ page.query.search }}">{% endif %}
+            {% if page.query.detail %}<input type="hidden" name="leht" value="{{ page.query.detail }}">{% endif %}
+            <div class="flex flex-col gap-1">
+              <label class="dk-meta" for="koduleht-alates">Alates</label>
+              <input class="dk-input dk-input-date" type="date" id="koduleht-alates" name="alates"
+                     value="{{ page.query.date_from }}">
+            </div>
+            <div class="flex flex-col gap-1">
+              <label class="dk-meta" for="koduleht-kuni">Kuni</label>
+              <input class="dk-input dk-input-date" type="date" id="koduleht-kuni" name="kuni"
+                     value="{{ page.query.date_to }}">
+            </div>
+            <button class="dk-button dk-button-secondary" type="submit">Näita</button>
+          </form>
+        </details>
       </nav>
 
-      <details class="text-sm"{% if page.period.is_custom %} open{% endif %}>
-        <summary class="cursor-pointer text-text-secondary">Vali vahemik</summary>
-        <form method="get" action="" class="mt-3 flex flex-wrap items-end gap-3">
-          <input type="hidden" name="fookus" value="{{ page.focus.key }}">
-          <input type="hidden" name="periood" value="kohandatud">
-          {% if page.query.section %}<input type="hidden" name="sisu" value="{{ page.query.section }}">{% endif %}
-          {% if page.query.search %}<input type="hidden" name="otsing" value="{{ page.query.search }}">{% endif %}
-          {% if page.query.detail %}<input type="hidden" name="leht" value="{{ page.query.detail }}">{% endif %}
-          <div class="flex flex-col gap-1">
-            <label class="dk-meta" for="koduleht-alates">Alates</label>
-            <input class="dk-input dk-input-date" type="date" id="koduleht-alates" name="alates"
-                   value="{{ page.query.date_from }}">
-          </div>
-          <div class="flex flex-col gap-1">
-            <label class="dk-meta" for="koduleht-kuni">Kuni</label>
-            <input class="dk-input dk-input-date" type="date" id="koduleht-kuni" name="kuni"
-                   value="{{ page.query.date_to }}">
-          </div>
-          <button class="dk-button dk-button-secondary" type="submit">Näita</button>
-        </form>
-      </details>
-
       {% comment %}
-      The comparison window is no longer spelled out here: every figure that uses
-      it now says `vs eelnev periood` on the figure itself. A comparison that is
-      *refused* still states why — that is a data warning, not a repetition of
-      the window.
+      The window in dates, beside the control that set it. A refused comparison
+      still says why — that is a data warning rather than a repetition of the
+      window, and it is the one thing a reader must not have to hunt for.
       {% endcomment %}
-      <p class="dk-meta">
-        {{ page.period.range_label }} ({{ page.period.days }} päeva)
+      <p class="dk-meta tabular-nums">
+        {{ page.period.range_label }}
         {% if not page.comparison.is_available and page.comparison.unavailable_reason %}
-          <span aria-hidden="true"> · </span>{{ page.comparison.unavailable_reason }}
+          <span class="block">{{ page.comparison.unavailable_reason }}</span>
         {% endif %}
-        {% if page.period.custom_note %}<span class="text-warning">{{ page.period.custom_note }}</span>{% endif %}
+        {% if page.period.custom_note %}<span class="block text-warning">{{ page.period.custom_note }}</span>{% endif %}
       </p>
     </div>
   {% endif %}

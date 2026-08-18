@@ -87,8 +87,15 @@ class FreshnessState:
         return base
 
 
-def latest_import_at():
-    """When any source this dashboard reads last published successfully.
+def latest_import_at(source_slug: str = ""):
+    """When a source — or any source — last published successfully.
+
+    With no slug this answers for the whole application, which is what the front
+    page asks: it spans every domain and can only say when data last came in at
+    all. With one, it answers for that feed alone, which is a stronger statement
+    and the right one for a page built from a single source: every figure on
+    Koduleht comes from GA4, so GA4's own last success *is* the date those
+    figures are current to.
 
     The one timestamp the overview prints. It is **not** "the figures above are
     current as of this": the seven sources are collected on seven cadences, and
@@ -106,12 +113,10 @@ def latest_import_at():
     """
     from apps.sources.models import ImportRun, ImportStatus
 
-    latest = (
-        ImportRun.objects.filter(status=ImportStatus.SUCCEEDED, finished_at__isnull=False)
-        .order_by("-finished_at")
-        .values_list("finished_at", flat=True)
-        .first()
-    )
+    runs = ImportRun.objects.filter(status=ImportStatus.SUCCEEDED, finished_at__isnull=False)
+    if source_slug:
+        runs = runs.filter(source__slug=source_slug)
+    latest = runs.order_by("-finished_at").values_list("finished_at", flat=True).first()
     return timezone.localtime(latest) if latest else None
 
 

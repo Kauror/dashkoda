@@ -38,7 +38,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from urllib.parse import quote
 
 from apps.core.formatting import (
@@ -51,6 +51,7 @@ from apps.core.formatting import (
 )
 from apps.core.query_state import parse_page as core_parse_page
 from apps.core.query_state import parse_search as core_parse_search
+from apps.dashboard.freshness import latest_import_at
 
 from .content_performance import ContentPerformanceRow, describe_pages, paths_for_title
 from .content_sections import (
@@ -70,10 +71,9 @@ from .ga4_selectors import (
     search_pages,
 )
 from .period_users import get_period_users
+from .registry import SOURCE_GA4
 from .website_analytics import (
-    MATRIX_DRAWN_LIMIT,
     QUADRANT_LABELS,
-    WEEKDAY_NAMES,
     EngagementMatrix,
     PageMovementResult,
     WebsiteChannelPerformance,
@@ -89,8 +89,6 @@ from .website_analytics import (
     get_page_detail,
     get_page_movement,
     get_traffic_summary,
-    get_weekday_pattern,
-    rank_channel_movement,
 )
 
 # Aliased on the way in. Several of these build a chart that is stored on a
@@ -103,14 +101,7 @@ from .website_charts import (
     WebsiteChart,
     parse_traffic_metric,
 )
-from .website_charts import channel_engagement_chart as build_channel_engagement_chart
-from .website_charts import channel_sessions_chart as build_channel_sessions_chart
-from .website_charts import content_mix_chart as build_content_mix_chart
-from .website_charts import engagement_matrix_chart as build_engagement_matrix_chart
-from .website_charts import language_chart as build_language_chart
-from .website_charts import top_pages_chart as build_top_pages_chart
 from .website_charts import traffic_trend_chart as build_traffic_trend_chart
-from .website_charts import weekday_chart as build_weekday_chart
 from .website_period import (
     CUSTOM_KEY,
     PARAM_FROM,
@@ -236,9 +227,9 @@ class SectionOption:
     """One chip of the content filter on `Lehed`, with its link already built.
 
     The `sisu` parameter has been read, validated and carried since the filter
-    was written: `_content_view` narrows the search by it, `WebsiteQuery.build`
-    emits it, and the search form on `Lehed` holds it as a hidden field so a
-    keystroke cannot drop it. Nothing ever *set* it — no template rendered a
+    was written: the page view narrows the search by it, `WebsiteQuery.build`
+    emits it, and the search form holds it as a hidden field so a keystroke
+    cannot drop it. Nothing ever *set* it — no template rendered a
     control — so it could only be reached by typing it into the address bar.
 
     These are that control. Built here for the same reason `FocusOption` is:
@@ -611,31 +602,6 @@ def build_headlines(
     return tuple(headlines)
 
 
-def build_unstripped_measures(
-    summary: WebsiteTrafficSummary,
-    previous: WebsiteTrafficSummary | None,
-    comparison: WebsiteComparison,
-) -> tuple[WebsiteHeadline, ...]:
-    """Measures that are still computed but no longer carry a card.
-
-    `Kaasatud külastuste osakaal` left the KPI strip on 2026-08-16 and did not
-    leave the page: it is still one of the movements in `Perioodi muutus`, and
-    its definition is still in `Andmete kohta`. It is built here rather than in
-    `build_headlines` so that nothing renders it as a card by accident.
-    """
-    previous = previous or WebsiteTrafficSummary(start=None, end=None, days=0)
-    rate = _rate_headline(
-        key="kaasatuse_maar",
-        label="Kaasatud külastuste osakaal",
-        current=summary.engagement_rate,
-        previous=previous.engagement_rate,
-        can_compare=comparison.can_compare_site,
-        comparison_period=comparison.range_label,
-        unavailable_note=_comparison_note(comparison),
-    )
-    return (rate,) if rate is not None else ()
-
-
 def _comparison_note(comparison: WebsiteComparison) -> str:
     """Why a delta is missing, in words, so the gap is a statement."""
     if comparison.unavailable_reason:
@@ -673,6 +639,16 @@ class TableRow:
     badge: str = ""
     note: str = ""
     direction: str = ""
+    #: 0-100. Draws a proportion bar behind the row's leading figure, so a
+    #: ranking can be read as shape before it is read as numbers. Computed here
+    #: rather than in the template: a bar length is arithmetic, and the Content
+    #: Security Policy means it is drawn as SVG geometry rather than a width.
+    bar_pct: float | None = None
+    #: Which series slot this row's swatch takes, when the row is a band of a
+    #: stacked bar drawn above it. `0` means no swatch. The number rather than a
+    #: colour, because the design system owns the palette and its order is the
+    #: accessibility mechanism.
+    slot: int = 0
 
 
 @dataclass(frozen=True)
@@ -694,6 +670,11 @@ class TableView:
         return bool(self.rows)
 
 
+#: How many series slots the design system defines. A seventh band folds back
+#: onto the first, which is what every chart builder already does at `MIX_KEYS`.
+SERIES_SLOTS = 6
+
+
 def _share(value: float | None) -> str:
     """A stored fraction as a percentage a reader can read, or a dash."""
     return percent(value * 100) if value is not None else "–"
@@ -707,6 +688,65 @@ def _relative(value: float | None) -> str:
     return signed_percent(value * 100) if value is not None else "–"
 
 
+def _bar(value: int | float | None, largest: int | float | None) -> float | None:
+    """One row's share of the largest row, as a 0-100 bar length.
+
+    Against the largest row rather than against the total, because these bars
+    are read as a ranking: dividing by the total makes every bar short as soon
+    as the tail is long, and the shape a reader wants is "how does this row
+    compare with the biggest one".
+
+    `None` when there is nothing to scale against, which draws no bar at all —
+    a full-width bar for a single row would state a proportion nobody measured.
+    """
+    if value is None or not largest or largest <= 0:
+        return None
+    return max(0.0, min(100.0, float(value) / float(largest) * 100.0))
+
+
+@dataclass(frozen=True)
+class MixSegment:
+    """One band of a stacked proportion bar, already positioned.
+
+    `x` and `width` are percentages of the bar, computed here because a
+    cumulative offset is arithmetic and the Content Security Policy means the
+    template can only place it as an SVG attribute anyway.
+
+    `slot` is a chart-series slot number, not a colour. The design system owns
+    which hue slot three is and validated the order as a set; a template naming
+    `#199e70` would be a seventh definition of the palette.
+    """
+
+    label: str
+    x: float
+    width: float
+    slot: int
+
+
+def build_mix_bar(rows) -> tuple[MixSegment, ...]:
+    """A share row per band, laid end to end in the order given.
+
+    Rows whose share the source did not measure contribute no band — never a
+    zero-width one, and never a band sized by the leftover. A bar that adds up
+    to less than the whole is the honest drawing of a partly classified
+    population, and stretching it to fill would be the page inventing the
+    missing part.
+    """
+    segments: list[MixSegment] = []
+    offset = 0.0
+    for index, row in enumerate(rows):
+        if row.share is None:
+            continue
+        width = max(0.0, min(100.0 - offset, float(row.share) * 100.0))
+        if width <= 0:
+            continue
+        segments.append(
+            MixSegment(label=row.label, x=offset, width=width, slot=(index % SERIES_SLOTS) + 1)
+        )
+        offset += width
+    return tuple(segments)
+
+
 def build_mix_table(mix: WebsiteContentMix) -> TableView:
     """Section mix, spelled. Share movement is in percentage points, not percent."""
     rows = tuple(
@@ -714,8 +754,11 @@ def build_mix_table(mix: WebsiteContentMix) -> TableView:
             label=row.label,
             values=(integer(row.page_views), _share(row.share), _points(row.share_change_points)),
             direction=_direction(row.share_change_points),
+            # The same slot the stacked bar above these rows gives this band, so
+            # a swatch and its segment cannot drift apart.
+            slot=(index % SERIES_SLOTS) + 1,
         )
-        for row in mix.rows
+        for index, row in enumerate(mix.rows)
     )
     return TableView(
         caption="Vaadatud sisu jaotus osade kaupa",
@@ -730,8 +773,11 @@ def build_language_table(mix: WebsiteLanguageMix) -> TableView:
             label=row.label,
             values=(integer(row.page_views), _share(row.share), _points(row.share_change_points)),
             direction=_direction(row.share_change_points),
+            # The same slot the stacked bar above these rows gives this band, so
+            # a swatch and its segment cannot drift apart.
+            slot=(index % SERIES_SLOTS) + 1,
         )
-        for row in mix.rows
+        for index, row in enumerate(mix.rows)
     )
     return TableView(
         caption="Lehevaatamised sisukeele järgi",
@@ -741,7 +787,18 @@ def build_language_table(mix: WebsiteLanguageMix) -> TableView:
 
 
 def build_channel_table(channels: tuple[WebsiteChannelPerformance, ...]) -> TableView:
-    """One row per channel: volume, share, quality, and both kinds of movement."""
+    """One row per channel: volume, share, engagement, and the movement.
+
+    Six columns since 2026-08-18, down from eight. It carried three movements —
+    absolute, relative and share points — which is three answers to one question
+    in a row a reader scans; the relative one survives because it is the one
+    that compares a small channel with a large one honestly.
+
+    The leading figure carries a bar. A channel table is read as a ranking
+    first, and a column of right-aligned numbers makes the reader do the
+    ordering that the shape can do for them.
+    """
+    largest = max((channel.sessions for channel in channels), default=None)
     rows = tuple(
         TableRow(
             label=channel.channel,
@@ -750,13 +807,10 @@ def build_channel_table(channels: tuple[WebsiteChannelPerformance, ...]) -> Tabl
                 _share(channel.share),
                 integer(channel.engaged_sessions) if channel.engaged_sessions is not None else "–",
                 _share(channel.engagement_rate),
-                signed_integer(channel.session_change)
-                if channel.session_change is not None
-                else "–",
                 _relative(channel.relative_change),
-                _points(channel.share_change_points),
             ),
             direction=_direction(channel.session_change),
+            bar_pct=_bar(channel.sessions, largest),
         )
         for channel in channels
     )
@@ -766,13 +820,34 @@ def build_channel_table(channels: tuple[WebsiteChannelPerformance, ...]) -> Tabl
             "Kanal",
             "Külastused",
             "Osakaal",
-            "Kaasatud külastused",
-            "Kaasatuse määr",
+            "Engagement",
+            "Engagement'i määr",
             "Muutus",
-            "Suhteline",
-            "Osakaalu muutus",
         ),
         rows=rows,
+    )
+
+
+def build_top_pages_table(rows, *, caption: str) -> TableView:
+    """The most-viewed pages, as a ranking with its own bars.
+
+    A `ContentPerformanceRow` already knows its label, its type and its views;
+    this only scales the bars and formats the count, so the ranking on the page
+    and the one in the search results cannot disagree about either.
+    """
+    largest = max((row.page_views for row in rows), default=None)
+    return TableView(
+        caption=caption,
+        headers=("Leht", "Lehevaatamised"),
+        rows=tuple(
+            TableRow(
+                label=row.label,
+                values=(integer(row.page_views),),
+                badge=row.type_label or "",
+                bar_pct=_bar(row.page_views, largest),
+            )
+            for row in rows
+        ),
     )
 
 
@@ -923,99 +998,6 @@ def build_secondary_readouts(summary: WebsiteTrafficSummary) -> tuple[SecondaryR
 
 # ---------------------------------------------------------------------------
 # Mis muutus?
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class WebsiteInsight:
-    """One deterministic statement about what moved.
-
-    Built from the comparisons already computed, by rules written in Python and
-    covered by tests. Nothing here calls a language model, and there is no
-    composite index: a reader can trace every line back to two measured numbers.
-    """
-
-    label: str
-    value: str
-    direction: str = ""
-    detail: str = ""
-
-
-def build_insights(
-    headlines: tuple[WebsiteHeadline, ...],
-    channels: tuple[WebsiteChannelPerformance, ...],
-    mix: WebsiteContentMix | None,
-    *,
-    unstripped: tuple[WebsiteHeadline, ...] = (),
-) -> tuple[WebsiteInsight, ...]:
-    """Three or four movements worth stating, largest first.
-
-    Only signals whose comparison survived the coverage check reach here, because
-    a headline with no delta has nothing to say about change.
-
-    `unstripped` is for measures that are still measured and still worth stating
-    as a movement, but no longer have a card in the KPI strip. The engagement
-    rate is the first of them: it left the strip on 2026-08-16, and because this
-    function derives its labels *from* the strip, dropping the card would
-    otherwise have deleted the movement too — silently, since nothing else
-    mentions it.
-    """
-    # Insertion order decided which movements survived the cap below, which is
-    # how adding `Kasutajad` to the strip silently truncated the engagement rate
-    # out of this section: five measures, four places, and the rate appended
-    # last. The order is stated instead. Average engagement time is deliberately
-    # last of the five — it moves least and explains least — so the four that
-    # get printed are the counts, the users and the rate.
-    priority = ("kasutajad", "seansid", "lehevaatamised", "kaasatuse_maar", "kaasatuse_aeg")
-    measures = sorted(
-        (headline for headline in (*headlines, *unstripped) if headline.has_change),
-        key=lambda headline: (
-            priority.index(headline.key) if headline.key in priority else len(priority)
-        ),
-    )
-    insights: list[WebsiteInsight] = [
-        WebsiteInsight(
-            label=headline.label,
-            value=headline.change,
-            direction=headline.direction,
-            detail=headline.change_label,
-        )
-        for headline in measures
-    ]
-
-    leader = next((channel for channel in channels if channel.share is not None), None)
-    if leader is not None and leader.share_change_points is not None:
-        insights.append(
-            WebsiteInsight(
-                label=f"Suurima kanali osakaal — {leader.channel}",
-                value=percentage_points(leader.share_change_points),
-                direction=_direction(leader.share_change_points),
-                detail=f"{percent(leader.share * 100)} kõigist külastustest.",
-            )
-        )
-
-    if mix is not None:
-        moved = [row for row in mix.rows if row.share_change_points is not None]
-        if moved:
-            largest = max(moved, key=lambda row: abs(row.share_change_points))
-            insights.append(
-                WebsiteInsight(
-                    label=f"Suurim sisunihe — {largest.label}",
-                    value=percentage_points(largest.share_change_points),
-                    direction=_direction(largest.share_change_points),
-                    detail=(
-                        f"{percent(largest.share * 100)} vaadatud sisust."
-                        if largest.share is not None
-                        else ""
-                    ),
-                )
-            )
-
-    return tuple(insights[:4])
-
-
-# ---------------------------------------------------------------------------
-# Võimalused
 # ---------------------------------------------------------------------------
 
 
@@ -1197,34 +1179,33 @@ class WebsiteIntelligencePage:
     previous_summary: WebsiteTrafficSummary | None = None
     headlines: tuple[WebsiteHeadline, ...] = ()
     secondary: tuple[SecondaryReadout, ...] = ()
-    insights: tuple[WebsiteInsight, ...] = ()
     opportunities: tuple[WebsiteOpportunity, ...] = ()
+    #: When GA4 collection last published successfully. One source, so unlike
+    #: the front page this *is* the date the figures above describe being
+    #: current to — every number on this page comes from the same feed.
+    updated_at: datetime | None = None
 
     trend: WebsiteChart | None = None
     metric_options: tuple[tuple[str, str, bool, str], ...] = ()
-    weekday: WebsiteChart | None = None
 
     content_mix: WebsiteContentMix | None = None
     content_mix_table: TableView | None = None
-    content_mix_chart: WebsiteChart | None = None
+    content_mix_bar: tuple[MixSegment, ...] = ()
     top_pages: tuple[ContentPerformanceRow, ...] = ()
-    top_pages_chart: WebsiteChart | None = None
+    top_pages_table: TableView | None = None
     movement: PageMovementResult | None = None
     rising_table: TableView | None = None
-    falling_table: TableView | None = None
+    #: Read by `build_opportunities` and drawn nowhere. The quadrant scatter it
+    #: used to feed left with the tab strip on 2026-08-18; the two rules that
+    #: read the quadrants — deeper-but-quieter, busier-but-shallower — are two of
+    #: the three tiles at the foot of the page, and they need the matrix itself.
     matrix: EngagementMatrix | None = None
-    matrix_chart: WebsiteChart | None = None
     language: WebsiteLanguageMix | None = None
     language_table: TableView | None = None
-    language_chart: WebsiteChart | None = None
+    language_bar: tuple[MixSegment, ...] = ()
 
     channels: tuple[WebsiteChannelPerformance, ...] = ()
     channel_table: TableView | None = None
-    channel_chart: WebsiteChart | None = None
-    channel_engagement_chart: WebsiteChart | None = None
-    rising_channels: tuple[WebsiteChannelPerformance, ...] = ()
-    falling_channels: tuple[WebsiteChannelPerformance, ...] = ()
-    channel_minimum_sessions: int = 0
 
     search: PageSearchResults | None = None
     search_table: TableView | None = None
@@ -1248,24 +1229,20 @@ class WebsiteIntelligencePage:
 
     @property
     def charts(self) -> tuple[WebsiteChart, ...]:
-        """Every chart on the current view, for the bundle gate in `extra_head`.
+        """Every chart on the page, for the bundle gate in `extra_head`.
 
         The chart JavaScript loads only when there is something to draw, and this
         is the single expression the template asks — a second, differently-named
         context key is how a page once shipped every section and no chart script
         at all.
+
+        Two, since 2026-08-18. There were nine: the composition charts became
+        stacked bars drawn in SVG, the two rankings and the channel breakdown
+        became tables, and the weekday and matrix charts left the page entirely.
+        A canvas is worth its bundle when the shape carries the meaning, which
+        is true of a time series and of very little else here.
         """
-        candidates = (
-            self.trend,
-            self.weekday,
-            self.content_mix_chart,
-            self.top_pages_chart,
-            self.matrix_chart,
-            self.language_chart,
-            self.channel_chart,
-            self.channel_engagement_chart,
-            self.detail_chart,
-        )
+        candidates = (self.trend, self.detail_chart)
         return tuple(chart for chart in candidates if chart is not None)
 
     @property
@@ -1446,13 +1423,19 @@ def build_website_page(
             search=results,
             search_table=build_search_table(results, query) if results else None,
         )
-    if focus.key == FOCUS_CHANNELS:
-        return _channels_view(base, start, end, previous_start, previous_end, comparison)
-    if focus.key == FOCUS_CONTENT:
-        return _content_view(
-            base, query, start, end, previous_start, previous_end, comparison, section, term, number
-        )
-    return _overview(base, query, start, end, previous_start, previous_end, comparison, metric)
+    return _page_view(
+        base,
+        query,
+        start,
+        end,
+        previous_start,
+        previous_end,
+        comparison,
+        metric,
+        section,
+        term,
+        number,
+    )
 
 
 def _summaries(start, end, previous_start, previous_end):
@@ -1472,8 +1455,35 @@ def _metric_options(query: WebsiteQuery, active: str):
     )
 
 
-def _overview(base, query, start, end, previous_start, previous_end, comparison, metric):
-    """The first screen: answers before the reader interacts with anything."""
+def _page_view(
+    base,
+    query,
+    start,
+    end,
+    previous_start,
+    previous_end,
+    comparison,
+    metric,
+    section,
+    term,
+    number,
+):
+    """The whole page, in one read.
+
+    Koduleht was three views behind a tab strip — `Ülevaade`, `Sisu ja lehed`,
+    `Kanalid` — until 2026-08-18. The tabs made a reader choose a question
+    before seeing any answer, and the same figures were built two and three
+    times across them: the content mix, the movement, the matrix and the
+    channel performance each had two call sites with slightly different limits.
+
+    One page now, in the order the questions are asked: how much traffic, is it
+    rising, where does it come from, what is being read, which pages moved, and
+    then the explorer for a specific page. Every figure is built once.
+
+    Nothing analytical moved. A section that is absent is absent because its own
+    coverage rule refused it, exactly as before — `compare_pages` still gates
+    the movement, and `can_compare_channels` still gates the channel deltas.
+    """
     summary, previous = _summaries(start, end, previous_start, previous_end)
     headlines = build_headlines(
         summary, previous, comparison, is_custom_period=base["period"].is_custom
@@ -1497,10 +1507,25 @@ def _overview(base, query, start, end, previous_start, previous_end, comparison,
         previous_start=previous_start if compare_pages else None,
         previous_end=previous_end if compare_pages else None,
     )
+    language = get_language_mix(
+        start=start,
+        end=end,
+        previous_start=previous_start if compare_pages else None,
+        previous_end=previous_end if compare_pages else None,
+    )
 
     top = describe_pages(
-        get_top_pages(start=start, end=end, limit=OVERVIEW_TOP_PAGES),
-        section=base["section"],
+        get_top_pages(
+            start=start,
+            end=end,
+            limit=OVERVIEW_TOP_PAGES,
+            prefix=section.prefixes,
+            # Inside a section, its own listing page; across everything, every
+            # section's — so a ranking of content is never topped by the page
+            # that merely lists it.
+            exclude=(all_index_paths() if section.is_everything else section.index_paths),
+        ),
+        section=section,
     )
 
     # A ranking and a matrix describe the days that were collected, and say so
@@ -1518,16 +1543,39 @@ def _overview(base, query, start, end, previous_start, previous_end, comparison,
             limit=MOVEMENT_ROWS,
         )
 
-    opportunity_paths = set()
+    named_paths = set()
     if movement:
-        opportunity_paths.update(row.path for row in movement.rising[:1])
+        named_paths.update(row.path for row in movement.rising)
     if matrix and matrix.has_data:
-        opportunity_paths.update(
+        named_paths.update(
             page.path
             for quadrant in ("vahe-sygav", "palju-lyhike")
             for page in matrix.in_quadrant(quadrant)[:20]
         )
-    titles = _titles_for(opportunity_paths) if opportunity_paths else {}
+    titles = _titles_for(named_paths) if named_paths else {}
+
+    # The page explorer. Search runs over the whole measured population rather
+    # than the ranking above it, and a selected page's own analysis renders at
+    # the foot of the page.
+    search_results = _page_search_results(term, start, end, section, number)
+
+    detail = None
+    detail_title = ""
+    detail_chart = None
+    detail_readouts: tuple[SecondaryReadout, ...] = ()
+    if query.detail:
+        detail = get_page_detail(
+            path=query.detail,
+            start=start,
+            end=end,
+            previous_start=previous_start,
+            previous_end=previous_end,
+        )
+        if detail is not None:
+            detail_title = _titles_for((detail.path,)).get(detail.path, detail.path)
+            detail_series = get_page_series(path=detail.path, start=start, end=end)
+            detail_chart = build_traffic_trend_chart(detail_series, metric="lehevaatamised")
+            detail_readouts = build_detail_readouts(detail)
 
     return WebsiteIntelligencePage(
         **base,
@@ -1535,33 +1583,35 @@ def _overview(base, query, start, end, previous_start, previous_end, comparison,
         previous_summary=previous,
         headlines=headlines,
         secondary=build_secondary_readouts(summary),
-        insights=build_insights(
-            headlines,
-            top_channels,
-            mix,
-            unstripped=build_unstripped_measures(summary, previous, comparison),
-        ),
         opportunities=build_opportunities(
             movement=movement, matrix=matrix, channels=top_channels, titles=titles, query=query
         ),
         trend=build_traffic_trend_chart(series, metric=metric),
         metric_options=_metric_options(query, metric),
-        # Inherited from the retired `Liiklus` view. The pattern itself refuses
-        # a window under eight weeks, so on the default month this is `None`
-        # and the overview stays exactly as short as it was.
-        weekday=(
-            build_weekday_chart(pattern, names=WEEKDAY_NAMES)
-            if (pattern := get_weekday_pattern(start=start, end=end))
-            else None
-        ),
         channels=top_channels,
         channel_table=build_channel_table(top_channels),
-        channel_chart=(
-            build_channel_sessions_chart(top_channels, site_sessions=summary.sessions)
-            if top_channels
+        content_mix=mix,
+        content_mix_table=build_mix_table(mix),
+        content_mix_bar=build_mix_bar(mix.rows),
+        language=language,
+        language_table=build_language_table(language),
+        language_bar=build_mix_bar(language.rows),
+        top_pages=top,
+        top_pages_table=build_top_pages_table(top, caption="Enim vaadatud lehed"),
+        movement=movement,
+        rising_table=(
+            build_movement_table(movement.rising, titles, caption="Kasvavad lehed")
+            if movement
             else None
         ),
-        top_pages=top,
+        matrix=matrix,
+        search=search_results,
+        search_table=build_search_table(search_results, query) if search_results else None,
+        detail=detail,
+        detail_title=detail_title,
+        detail_readouts=detail_readouts,
+        detail_chart=detail_chart,
+        updated_at=latest_import_at(SOURCE_GA4),
     )
 
 
@@ -1592,148 +1642,6 @@ def _page_search_results(term, start, end, section, number) -> PageSearchResults
     )
 
 
-def _content_view(
-    base, query, start, end, previous_start, previous_end, comparison, section, term, number
-):
-    """Which parts of the site hold attention, and which pages are changing."""
-    compare_pages = comparison.can_compare_pages
-    mix = get_content_mix(
-        start=start,
-        end=end,
-        previous_start=previous_start if compare_pages else None,
-        previous_end=previous_end if compare_pages else None,
-    )
-    language = get_language_mix(
-        start=start,
-        end=end,
-        previous_start=previous_start if compare_pages else None,
-        previous_end=previous_end if compare_pages else None,
-    )
-    top = describe_pages(
-        get_top_pages(
-            start=start,
-            end=end,
-            limit=CONTENT_TOP_PAGES,
-            prefix=section.prefixes,
-            # Inside a section, its own listing page; across everything, every
-            # section's — so a ranking of content is never topped by the page
-            # that merely lists it.
-            exclude=(all_index_paths() if section.is_everything else section.index_paths),
-        ),
-        section=section,
-    )
-    matrix = get_engagement_matrix(start=start, end=end)
-
-    movement = None
-    if compare_pages and previous_start and previous_end:
-        movement = get_page_movement(
-            start=start,
-            end=end,
-            previous_start=previous_start,
-            previous_end=previous_end,
-            limit=MOVEMENT_ROWS,
-        )
-
-    named_paths = set()
-    if movement:
-        named_paths.update(row.path for row in (*movement.rising, *movement.falling))
-    named_paths.update(page.path for page in matrix.pages[:MATRIX_DRAWN_LIMIT])
-    titles = _titles_for(named_paths) if named_paths else {}
-
-    # The page explorer, inherited from the retired `Lehed` view. Search runs
-    # over the whole measured population rather than the ranking above it, and
-    # a selected page's own analysis renders at the foot of this view.
-    search_results = _page_search_results(term, start, end, section, number)
-
-    detail = None
-    detail_title = ""
-    detail_chart = None
-    detail_readouts: tuple[SecondaryReadout, ...] = ()
-    if query.detail:
-        detail = get_page_detail(
-            path=query.detail,
-            start=start,
-            end=end,
-            previous_start=previous_start,
-            previous_end=previous_end,
-        )
-        if detail is not None:
-            detail_title = _titles_for((detail.path,)).get(detail.path, detail.path)
-            series = get_page_series(path=detail.path, start=start, end=end)
-            detail_chart = build_traffic_trend_chart(series, metric="lehevaatamised")
-            detail_readouts = build_detail_readouts(detail)
-
-    return WebsiteIntelligencePage(
-        **base,
-        content_mix=mix,
-        content_mix_table=build_mix_table(mix),
-        content_mix_chart=build_content_mix_chart(mix) if mix.has_data else None,
-        top_pages=top,
-        top_pages_chart=(
-            build_top_pages_chart(top, total_page_views=mix.total_page_views) if top else None
-        ),
-        movement=movement,
-        rising_table=(
-            build_movement_table(movement.rising, titles, caption="Kasvavad lehed")
-            if movement
-            else None
-        ),
-        falling_table=(
-            build_movement_table(movement.falling, titles, caption="Vähenenud tähelepanu")
-            if movement
-            else None
-        ),
-        matrix=matrix,
-        matrix_chart=build_engagement_matrix_chart(matrix, labels=titles, limit=MATRIX_DRAWN_LIMIT)
-        if matrix.has_data
-        else None,
-        language=language,
-        language_table=build_language_table(language),
-        language_chart=build_language_chart(language) if language.has_data else None,
-        opportunities=build_opportunities(
-            movement=movement, matrix=matrix, channels=(), titles=titles, query=query
-        ),
-        search=search_results,
-        search_table=build_search_table(search_results, query) if search_results else None,
-        detail=detail,
-        detail_title=detail_title,
-        detail_readouts=detail_readouts,
-        detail_chart=detail_chart,
-    )
-
-
-def _channels_view(base, start, end, previous_start, previous_end, comparison):
-    """Where traffic comes from, and how engaged it is."""
-    summary, previous = _summaries(start, end, previous_start, previous_end)
-    compare = comparison.can_compare_channels
-    channels = get_channel_performance(
-        start=start,
-        end=end,
-        previous_start=previous_start if compare else None,
-        previous_end=previous_end if compare else None,
-        site_sessions=summary.sessions,
-        previous_site_sessions=previous.sessions if previous else None,
-    )
-    movement = rank_channel_movement(channels, days=(end - start).days + 1)
-
-    return WebsiteIntelligencePage(
-        **base,
-        summary=summary,
-        previous_summary=previous,
-        channels=channels,
-        channel_table=build_channel_table(channels),
-        channel_chart=(
-            build_channel_sessions_chart(channels, site_sessions=summary.sessions)
-            if channels
-            else None
-        ),
-        channel_engagement_chart=build_channel_engagement_chart(channels) if channels else None,
-        rising_channels=movement.rising,
-        falling_channels=movement.falling,
-        channel_minimum_sessions=movement.minimum_sessions,
-    )
-
-
 __all__ = [
     "DEFAULT_FOCUS",
     "FOCUSES",
@@ -1755,10 +1663,10 @@ __all__ = [
     "SectionOption",
     "PageSearchResults",
     "SecondaryReadout",
+    "MixSegment",
     "TableRow",
     "TableView",
     "WebsiteHeadline",
-    "WebsiteInsight",
     "WebsiteIntelligencePage",
     "WebsiteOpportunity",
     "WebsiteQuery",
@@ -1766,9 +1674,9 @@ __all__ = [
     "build_detail_readouts",
     "build_headlines",
     "build_language_table",
+    "build_mix_bar",
     "build_mix_table",
     "build_movement_table",
-    "build_insights",
     "build_opportunities",
     "build_search_table",
     "build_secondary_readouts",

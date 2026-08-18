@@ -203,33 +203,36 @@ The grain follows the span — daily under ~120 days, weekly under ~400, monthly
 beyond — and the aggregation happens in PostgreSQL rather than by loading years
 of rows into Python.
 
-Acquisition has a focus view of its own now. On Nähtavus it was a `<details>`
-that started shut, because a dozen channel rows pushed the content ranking below
-the fold; Koduleht gives it `fookus=kanalid` instead, so nothing has to be
-collapsed to make room for it.
+Acquisition is `Kust tullakse`, a table with a bar on its leading figure. On
+Nähtavus it was a `<details>` that started shut, because a dozen channel rows
+pushed the content ranking below the fold; the table is compact enough that
+nothing has to be collapsed to make room for it.
 
 The overview card keeps its single headline figure and gains nothing.
 
-### The three views
+### One page
 
-`fookus` chooses the question and `periood` chooses the window it is asked over,
-and the two are independent — changing one never silently changes the other.
-Every control is an ordinary GET link carrying the whole state, so a view is
-bookmarkable, shareable and reload-safe without JavaScript.
+The tab strip retired on 2026-08-18. `fookus` had chosen the question before the
+reader saw a single answer, and the same figures were built two and three times
+across the three views it offered. Koduleht is now one scroll, in the order the
+questions are asked:
 
-| `fookus` | Answers |
+| Section | Answers |
 | --- | --- |
-| `ulevaade` | how much traffic, whether it is changing, how engaged, what moved |
-| `sisu` | the section mix, the ranking, what grew and fell, language — and the page explorer: search the whole measured population, then read one page |
-| `kanalid` | where sessions came from and how engaged each channel's were |
+| Peamised näitajad | how much traffic, and whether it is changing |
+| Kodulehe liiklus päevade kaupa | the shape of it, day by day |
+| Kust tullakse | where the sessions came from, and how engaged each channel's were |
+| Vaadatud sisu jaotus · Lehevaatamised sisukeele järgi | the two proportions, each a stacked bar and its legend |
+| Enim vaadatud lehed · Kasvavad lehed | what was read, and what moved |
+| Tähelepanuväärsed lehed | three deterministic rules, stated with their evidence |
+| Otsi lehte | the explorer: search the whole measured population, then read one page |
 
-There were five. `liiklus` retired on 2026-08-16 — it had become the overview's
-own strip and trend under a second heading, and the overview took its weekday
-chart when it went — and `lehed` was the page explorer on an otherwise empty
-view, so it lives at the foot of `Sisu ja lehed` now. Both retired keys resolve
-to the view that inherited their content, so a saved link keeps answering its
-question. An unknown value resolves to `ulevaade` rather than to an error, the
-same rule the period follows.
+`periood` still chooses the window, every control is still an ordinary GET link
+carrying the whole state, and the page is bookmarkable, shareable and
+reload-safe without JavaScript. The five `fookus` keys — `ulevaade`, `liiklus`,
+`sisu`, `kanalid`, `lehed` — still resolve rather than error, so a saved link
+still opens the page; it simply opens all of it. An unknown value resolves the
+same way, which is the rule the period follows too.
 
 ### What is shown, and what is refused
 

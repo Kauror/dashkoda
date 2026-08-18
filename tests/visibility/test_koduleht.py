@@ -12,7 +12,6 @@ import datetime as dt
 
 import pytest
 
-from apps.visibility.period_users import record_period_users
 from apps.visibility.website_page import (
     FOCUS_CHANNELS,
     FOCUS_CONTENT,
@@ -24,7 +23,7 @@ from apps.visibility.website_page import (
     parse_focus,
 )
 
-from .conftest import END, PAGE_URL, PREV_END, PREV_START, START
+from .conftest import PAGE_URL, PREV_START, START
 
 pytestmark = pytest.mark.django_db
 
@@ -80,7 +79,8 @@ def test_an_unknown_focus_renders_the_overview_through_the_view(history, viewer_
     response = viewer_client.get(PAGE_URL, {"fookus": "ei-ole"})
 
     assert response.status_code == 200
-    assert "Perioodi muutus" in body(response)
+    # Every key lands on the one page, which always draws its primary figures.
+    assert "Peamised näitajad" in body(response)
 
 
 def test_changing_focus_keeps_the_measurement_period(history, viewer_client):
@@ -115,38 +115,6 @@ def test_the_overview_answers_the_five_second_questions(history):
     assert "Keskmine kaasatuse aeg / külastus" in labels
 
 
-def test_the_engagement_rate_left_the_primary_strip(history):
-    """Moved off the strip on 2026-08-16, not deleted from the page.
-
-    Both halves are asserted: a metric quietly dropped from the product would
-    pass the first line on its own.
-    """
-    page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
-
-    assert "kaasatuse_maar" not in {headline.key for headline in page.headlines}
-    assert any("Kaasatud külastuste osakaal" in insight.label for insight in page.insights)
-
-
-def test_the_rate_survives_the_four_movement_cap(history):
-    """The regression that shipped twice: five measures, four places.
-
-    `Perioodi muutus` prints at most four movements. When the rate was a card it
-    was fourth by insertion order and got in; adding `Kasutajad` to the strip
-    pushed it to fifth and truncated it away, which reads exactly like a metric
-    that stopped moving. The order is explicit now, and this is what says so.
-    """
-    record_period_users(START, END, 4210)
-    record_period_users(PREV_START, PREV_END, 4000)
-
-    page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
-    labels = [insight.label for insight in page.insights]
-
-    assert len(page.insights) <= 4
-    assert "Kaasatud külastuste osakaal" in labels
-    # The one it outranks, so a future reshuffle has to be deliberate.
-    assert "Keskmine kaasatuse aeg / külastus" not in labels
-
-
 def test_the_headline_totals_are_the_period_sums(history):
     page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
 
@@ -156,14 +124,23 @@ def test_the_headline_totals_are_the_period_sums(history):
 
 
 def test_a_rate_moves_in_percentage_points_and_a_count_in_percent(history):
-    """The rate now states its movement from `Perioodi muutus` rather than the strip."""
+    """Two kinds of movement, spelled two ways, and never interchangeably.
+
+    A count moves by a percentage of itself; a rate moves by percentage points,
+    because the difference between two percentages is not a percentage. The
+    engagement-time card is the strip's own rate and states its movement the
+    same way — it was `Perioodi muutus` that carried the engagement *share*
+    until that strip left on 2026-08-18.
+    """
     page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
     by_key = {headline.key: headline for headline in page.headlines}
 
     assert by_key["seansid"].change.endswith("%")
 
-    rate = next(i for i in page.insights if "Kaasatud külastuste osakaal" in i.label)
-    assert rate.value.endswith("pp")
+    mix = page.content_mix_table
+    # The share movement of a content band, which is the page's remaining
+    # percentage-point figure.
+    assert any(row.values[2].endswith("pp") for row in mix.rows if row.values[2])
 
 
 def test_no_headline_carries_a_delta_when_the_comparison_is_refused(ga4_day):
@@ -239,14 +216,6 @@ def test_engagement_time_reads_as_a_duration():
 # ---------------------------------------------------------------------------
 
 
-def test_the_insight_strip_is_deterministic_and_bounded(history):
-    page = build_website_page(focus_key=FOCUS_OVERVIEW, period_key="30")
-
-    assert page.insights
-    assert len(page.insights) <= 4
-    assert all(insight.value for insight in page.insights)
-
-
 def test_no_composite_score_is_invented(history, viewer_client):
     rendered = body(viewer_client.get(PAGE_URL))
 
@@ -291,18 +260,25 @@ def test_the_overview_does_not_run_the_movement_query_when_it_cannot_compare(ga4
     assert page.movement is None
 
 
-def test_the_page_explorer_builds_no_channel_analysis(history):
-    page = build_website_page(focus_key=FOCUS_PAGES, period_key="30")
+def test_the_page_builds_every_section_once(history):
+    """One page, one read, every section.
 
-    assert page.channels == ()
-    assert page.channel_chart is None
+    The three tabbed views each built a subset, and the two tests that stood
+    here pinned that isolation: the explorer built no channel analysis, the
+    channel view built no content analysis. Both are meaningless now and their
+    successor is the opposite claim — whichever key a bookmark carries, the
+    reader gets the whole page.
+    """
+    for key in (FOCUS_OVERVIEW, FOCUS_CONTENT, FOCUS_CHANNELS, FOCUS_PAGES):
+        page = build_website_page(focus_key=key, period_key="30")
 
-
-def test_the_channels_view_builds_no_content_analysis(history):
-    page = build_website_page(focus_key=FOCUS_CHANNELS, period_key="30")
-
-    assert page.content_mix is None
-    assert page.matrix is None
+        assert page.channels, f"{key} lost the channel analysis"
+        assert page.channel_table.has_rows
+        assert page.content_mix is not None, f"{key} lost the content analysis"
+        assert page.language is not None
+        assert page.top_pages_table.has_rows
+        # Read by the tiles at the foot of the page rather than drawn.
+        assert page.matrix is not None
 
 
 # ---------------------------------------------------------------------------
@@ -410,7 +386,9 @@ def test_a_page_dashkoda_cannot_name_shows_its_path(history):
 
 def test_the_content_mix_no_longer_states_its_denominator_inline(history, viewer_client):
     """The footnote and the chart's own question left the page on 2026-08-17,
-    with `Enim vaadatud sisu`'s question alongside them."""
+    with the ranking's own question alongside them. `Enim vaadatud sisu` became
+    `Vaadatud sisu jaotus` and the ranking `Enim vaadatud lehed` on 2026-08-18;
+    neither carries a question line."""
     rendered = body(viewer_client.get(PAGE_URL, {"fookus": "sisu"}))
 
     assert "järjestatavaks sisuks" not in rendered
@@ -426,7 +404,9 @@ def test_the_language_split_disclaims_visitor_identity(history, viewer_client):
 
 def test_the_declining_pages_table_left_the_page(history, viewer_client):
     """`Vähenenud tähelepanu`, the declining half of `Mis kasvas ja mis
-    vähenes`, left on 2026-08-17. `page.falling_table` is still built; nothing
+    vähenes`, left the page on 2026-08-17 and its builder on 2026-08-18 —
+    a falling ranking on a dashboard is read as a list of failures when it is
+    mostly a list of pages whose campaign ended. Nothing
     renders it. `Kasvavad lehed` stayed and is worded neutrally regardless."""
     rendered = body(viewer_client.get(PAGE_URL, {"fookus": "sisu"}))
 
