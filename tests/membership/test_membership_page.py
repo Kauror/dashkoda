@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 import pytest
 from django.urls import reverse
+from django.utils.html import strip_tags
 
 from apps.access.middleware import CSP
 from apps.core.formatting import GROUP_SEPARATOR, integer
@@ -45,8 +46,8 @@ def public_observation(db):
     )
 
 
-def _page(client):
-    return client.get(reverse("membership")).content.decode()
+def _page(client, params=None):
+    return client.get(reverse("membership"), params or {}).content.decode()
 
 
 def test_the_public_catalogue_is_no_longer_on_this_page(viewer_client, public_observation):
@@ -275,27 +276,93 @@ def test_the_headline_strip_answers_four_questions_not_nine(viewer_client, impor
     assert "Peamised näitajad" in body
     for label in (
         "Liikmeid kokku",
-        "Liikmed ja tasunud liikmeid",
+        "Tasunud liikmeid",
         "Liikmemaksu laekumine",
+        "Sel aastal",
     ):
         assert label in body, f"headline missing: {label}"
 
-    # `Tasunute osakaal` folded into the card above it on 2026-08-16. It is no
-    # longer a card of its own, but the trend chart's readouts still carry the
-    # label, so this is scoped to the strip rather than the page.
     strip = body.split('id="section-headlines"', 1)[1].split("</section>", 1)[0]
+    # `Tasunute osakaal` folded into the card above it on 2026-08-16 and is the
+    # share inside that card's own value since 2026-08-18. It is not a card.
     assert "Tasunute osakaal" not in strip
-    assert "tasunud" in strip
+    # The member total belongs to the first cell and appears once in the strip:
+    # the paid card led with both until 2026-08-18, which printed its
+    # neighbour's figure a second time.
+    assert strip.count("Liikmeid kokku") == 1
 
 
-def test_the_suspended_count_moved_out_of_the_headline_strip(viewer_client, imported_package):
-    """It is a secondary status and belongs beside the movement it describes."""
+def test_this_years_movement_is_the_strips_fourth_cell(viewer_client, imported_package):
+    """`Sel aastal` was a section below the strip until 2026-08-18.
+
+    That put the year's arrivals a scroll away from the total they move, and
+    left the strip a column short. The three counts are inside the strip now.
+    """
+    body = _page(viewer_client)
+    strip = body.split('id="section-headlines"', 1)[1].split("</section>", 1)[0]
+
+    assert "Sel aastal" in strip
+    for word in ("liitunud", "väljaarvatud", "peatatud"):
+        assert word in strip, f"missing from the year cell: {word}"
+
+
+def test_the_retired_sections_are_gone_rather_than_emptied(viewer_client, imported_package):
+    """Three sections left the overview on 2026-08-18.
+
+    `Mis muutus?` — every comparison it drew is in the strip or on a chart.
+    The four-fact `Kes on meie liikmed?` strip — its facts are the subtitles of
+    the four charts they previewed, and the heading now belongs to those charts.
+    `Sel aastal` as a section — the strip's fourth cell.
+
+    `Kes on meie liikmed?` survives as the charts' own heading and is asserted
+    where a roster exists — this package imports none, so the section is
+    correctly absent here and the heading may appear **at most** once.
+    """
     body = _page(viewer_client)
 
-    assert "Sel aastal" in body
-    assert "Peatatud liikmeid" in body
-    # It is inside the current-year block, which follows the headline strip.
-    assert body.index("Peatatud liikmeid") > body.index("Liikmemaksu laekumine")
+    assert "Mis muutus?" not in body
+    assert "Koosseisu jaotused" not in body
+    assert body.count("Kes on meie liikmed?") <= 1
+    # The four facts that used to sit above the charts.
+    for retired in ("Suurim suurusklass", "Suurim piirkond", "Mediaanstaaž"):
+        assert retired not in body
+
+
+def test_each_overview_section_is_named_by_what_it_draws(viewer_client, imported_package):
+    """The two time series are sections of their own, each with its own name.
+
+    They shared one section and one range control until 2026-08-18, which made
+    the fee chart read as a detail of the membership trend rather than as the
+    other half of the board's question.
+    """
+    body = _page(viewer_client)
+
+    assert "Liikmete arv ja tasunud liikmed" in body
+    assert 'id="section-trend"' in body
+    assert 'id="section-fees"' in body
+    # The range control belongs to the trend, and sits before the fee section.
+    assert body.index('id="section-trend"') < body.index('id="section-fees"')
+
+
+def test_the_trend_chart_does_not_repeat_the_strip_beneath_it(viewer_client, imported_package):
+    """Its readouts are the strip's first two cells, word for word.
+
+    They are dropped on this view and kept on `Sisse-välja`, which carries no
+    strip to repeat.
+
+    Asserted on what a reader **sees**, with the JSON payload cut out first: the
+    series is named `Liikmeid kokku` inside the chart's own option and inside
+    its tooltip rows, which is where it belongs — a canvas whose lines have no
+    names is not an improvement. What must not appear twice is the readout.
+    """
+
+    def visible(markup: str, section_id: str) -> str:
+        section = markup.split(f'id="{section_id}"', 1)[1].split("</section>", 1)[0]
+        return strip_tags(re.sub(r"<script.*?</script>", "", section, flags=re.S))
+
+    assert "Liikmeid kokku" not in visible(_page(viewer_client), "section-trend")
+    # `Sisse-välja` draws the same chart with its readouts: no strip to repeat.
+    assert "Liikmeid kokku" in visible(_page(viewer_client, {"fookus": "kasv"}), "section-stock")
 
 
 def test_the_difference_is_never_presented_as_a_net_membership_change(
@@ -388,8 +455,11 @@ def test_one_word_per_quantity_for_joins_and_exclusions(viewer_client, imported_
     """
     body = _page(viewer_client)
 
-    assert ">Liitunud<" in body
-    assert ">Väljaarvatud<" in body
+    # Lower case since 2026-08-18: the strip's fourth cell writes the noun
+    # after the figure — `128 liitunud` — where a capital would read as the
+    # start of a sentence rather than as the unit of the number before it.
+    assert ">liitunud<" in body
+    assert ">väljaarvatud<" in body
     assert ">Liitus<" not in body
     assert "Välja arvati" not in body
     assert '"label": "Liitus"' not in body and '"label":"Liitus"' not in body

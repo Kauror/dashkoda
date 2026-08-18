@@ -39,7 +39,6 @@ from apps.core.formatting import (
     euros,
     integer,
     long_date,
-    month_name,
     percent,
     percentage_points,
     signed_integer,
@@ -47,13 +46,10 @@ from apps.core.formatting import (
 )
 
 from .analytics import (
-    change,
     compare_with,
-    elapsed_total,
     share_change,
 )
-from .charts import BENCHMARK_YEARS, last_complete_month, monthly_pairs
-from .internal_selectors import InternalQualitySummary, MonthlyValue, ObservationPoint
+from .internal_selectors import InternalQualitySummary, ObservationPoint
 
 # How far back the headline comparisons need observations to reach.
 #
@@ -67,12 +63,20 @@ from .internal_selectors import InternalQualitySummary, MonthlyValue, Observatio
 # one query a lookup rather than a table scan that grows every month.
 KPI_BASELINE_LOOKBACK_DAYS = 425
 
-# How many signals the "Mis muutus?" strip shows.
+# How far from its anniversary a **year-to-date** baseline may sit.
 #
-# Four fills the row at desktop width and stays readable at 375 px. More than
-# that stops being a summary and becomes a second KPI wall, which is the thing
-# this redesign removed.
-MAX_INSIGHTS = 4
+# Much tighter than `YOY_TOLERANCE_DAYS`, and for a reason that is about the
+# metric rather than about the source. A membership total is a stock: the
+# reading nearest an anniversary describes the same kind of thing whether it
+# landed in July or in August, so 45 days of slack costs nothing. `Liitunud` and
+# `Väljaarvatud` are cumulative counts from 1 January, and they grow all year —
+# a baseline six weeks short of the anniversary is six weeks short of the year
+# it is standing in for, and every previous year would read low by construction.
+#
+# Fifteen days is one monthly report either side of the anniversary. Beyond
+# that the comparison is withheld, which is the honest answer: the strip prints
+# the count with no percentage rather than a percentage nobody can trust.
+YTD_TOLERANCE_DAYS = 15
 
 # Tone is what a change *means*, and it is kept apart from `direction`, which is
 # only the arithmetic sign. They agree for membership and disagree for
@@ -124,6 +128,11 @@ class MembershipHeadline:
     tone: str = TONE_NEUTRAL
     comparison_label: str = ""
     note: str = ""
+    #: 0-100, for the one figure that is a completion against a stated target.
+    #: Drawn as SVG geometry, never an inline width — see `kpi_card.html`, whose
+    #: meter this reuses. `None` on every other headline: a proportion bar under
+    #: a member count would be a bar against no denominator.
+    meter_pct: float | None = None
 
     @property
     def is_available(self) -> bool:
@@ -135,22 +144,30 @@ class MembershipHeadline:
 
 
 @dataclass(frozen=True)
-class MembershipInsight:
-    """One deterministic signal in the `Mis muutus?` strip.
+class MovementFigure:
+    """One of the current year's movement counts, with its own comparison.
 
-    Structured rather than a sentence: the label names the metric, the change
-    carries the movement, and the detail names the baseline it was measured
-    against. A reader can check every one of them against the charts below.
+    Structured rather than three parallel tuples on the summary, because each
+    figure compares differently: arrivals rising is good news, departures rising
+    is not, and the suspended total is a state with no year-ago figure to set it
+    against at all.
     """
 
     key: str
-    label: str
     value: str
-    change: str
-    change_label: str
-    direction: str
-    tone: str
-    detail: str = ""
+    #: The noun that follows the figure — `liitunud`, `väljaarvatud`. It sits
+    #: after the number rather than above it, because these three read as one
+    #: sentence about the year.
+    label: str
+    change: str = ""
+    change_label: str = ""
+    direction: str = ""
+    tone: str = TONE_NEUTRAL
+    comparison_label: str = ""
+
+    @property
+    def has_change(self) -> bool:
+        return bool(self.change)
 
 
 @dataclass(frozen=True)
@@ -160,9 +177,11 @@ class MembershipMovementSummary:
     The gap between arrivals and departures is `difference`, and it is labelled
     as the difference between two reported counts everywhere it appears. It is
     not the change in the membership, and this dataset cannot show that it is.
+    Nothing has rendered it since 2026-08-16.
     """
 
     observation_label: str
+    figures: tuple[MovementFigure, ...] = ()
     joined: str = ""
     removed: str = ""
     difference: str = ""
@@ -173,7 +192,7 @@ class MembershipMovementSummary:
 
     @property
     def has_data(self) -> bool:
-        return bool(self.joined or self.removed or self.suspended)
+        return bool(self.figures)
 
     @property
     def has_difference(self) -> bool:
@@ -279,12 +298,13 @@ def build_headlines(
         note="" if total_comparison.is_available else _baseline_note(total_comparison),
     )
 
-    # 2. Liikmed ja tasunud liikmeid — with the share folded in on 2026-08-16.
+    # 2. Tasunud liikmeid — the paid count, its share, and the gap.
     #
-    #    `Tasunute osakaal` was its own card until then, and the two were the
-    #    same pair twice: the share's detail line read `3 426 / 3 429 liiget`,
-    #    which is exactly this card's value. One card now carries the counts,
-    #    the gap between them and the share.
+    #    It led with both totals (`3 406 · 3 233`) until 2026-08-18, and the
+    #    first of them was the card to its left printed a second time. What is
+    #    unique to this card is the *paid* side, so that is what it leads with;
+    #    the share sits beside the count because a paid count without its
+    #    denominator is a number nobody can size.
     #
     #    **The change is the share's, in percentage points, not the total's.**
     #    The card it replaced compared the member total year on year — which is
@@ -304,18 +324,23 @@ def build_headlines(
 
     gap = total - paid if total is not None and paid is not None else None
     share_label = percent(share) if share is not None else ""
+    # Members who have **not** paid, which is a state and not a movement:
+    # nobody left and nobody joined. The share moved into the value above it on
+    # 2026-08-18, so this line no longer repeats it.
     if gap is not None:
         detail = f"vahe {integer(gap)}"
-        if share_label:
-            detail = f"{detail} · tasunud {share_label}"
     else:
         detail = "Vahet ei saa arvutada, sest üks pooltest puudub."
 
     movement = MembershipHeadline(
         key="members_and_paid",
-        label="Liikmed ja tasunud liikmeid",
+        label="Tasunud liikmeid",
         value=(
-            f"{integer(total)} · {integer(paid)}" if total is not None and paid is not None else ""
+            f"{integer(paid)} · {share_label}"
+            if paid is not None and share_label
+            else integer(paid)
+            if paid is not None
+            else ""
         ),
         detail=detail,
         change=percentage_points(points_moved) if points_moved is not None else "",
@@ -353,9 +378,10 @@ def _fee_headline(
     and one never quietly stands in for the other.
 
     The year-ago comparison joined this card on 2026-08-17, matching the other
-    two: computed percentages on both sides, same as `build_insights`' own
-    `fee_collection_yoy` candidate, so a reported figure that disagreed with its
-    own amounts still cannot enter the comparison from either end.
+    two: computed percentages on both sides, so a reported figure that disagreed
+    with its own amounts cannot enter the comparison from either end. The
+    `Mis muutus?` strip carried the same comparison as one of its candidates
+    until that strip retired on 2026-08-18.
     """
     received = latest.value("membership_fees_received_eur")
     budget = latest.value("membership_fee_budget_eur")
@@ -375,7 +401,7 @@ def _fee_headline(
         value, note = "", "Laekumise protsenti ei saa arvutada."
 
     detail = (
-        f"{euros(received)} / {euros(budget)} eelarvest"
+        f"{euros(received)} / {euros(budget)}"
         if received is not None and budget is not None
         else (euros(received) if received is not None else "")
     )
@@ -392,11 +418,22 @@ def _fee_headline(
         else None
     )
 
+    # The one figure on this strip that is a completion against a stated
+    # target, so the one that may carry a bar. Clamped rather than clipped,
+    # because a year that collected more than it budgeted is a real result and
+    # the amounts beneath the bar still state it exactly.
+    meter = (
+        min(100.0, max(0.0, float(computed)))
+        if computed is not None and received is not None and budget is not None
+        else None
+    )
+
     return MembershipHeadline(
         key="fee_collection",
         label="Liikmemaksu laekumine",
         value=value,
         detail=detail,
+        meter_pct=meter,
         change=percentage_points(moved_pp) if moved_pp is not None else "",
         change_label=(
             f"laekumine {percentage_points(moved_pp)} võrreldes aastataguse vaatlusega"
@@ -415,233 +452,37 @@ def _fee_headline(
 
 
 # ---------------------------------------------------------------------------
-# Mis muutus?
-# ---------------------------------------------------------------------------
-
-
-def _elapsed_mean(
-    by_year: dict[int, tuple[MonthlyValue, ...]],
-    *,
-    through: int,
-    years: tuple[int, ...],
-) -> Decimal | None:
-    """The average January-to-`through` total across several years.
-
-    Every named year must have reported every one of those months. An average
-    over "the years that happened to report" is a different quantity each time
-    it is drawn, and a benchmark whose meaning moves is worse than none — the
-    same rule `mean_of_complete_years` applies month by month.
-    """
-    if not years:
-        return None
-    totals = []
-    for year in years:
-        total = elapsed_total(monthly_pairs(by_year.get(year, ())), through=through)
-        if total is None:
-            return None
-        totals.append(total)
-    return (Decimal(sum(totals)) / Decimal(len(totals))).quantize(Decimal("0.1"))
-
-
-def _insight(
-    *,
-    key: str,
-    label: str,
-    value: str,
-    absolute,
-    relative=None,
-    rising_is_good: bool,
-    detail: str,
-    points: bool = False,
-) -> MembershipInsight:
-    body = percentage_points(absolute) if points else signed_integer(absolute)
-    if relative is not None and not points:
-        body = f"{body} · {signed_percent(relative)}"
-    return MembershipInsight(
-        key=key,
-        label=label,
-        value=value,
-        change=body,
-        change_label=f"{body} {detail}",
-        direction=_direction(absolute),
-        tone=_tone(absolute, rising_is_good=rising_is_good),
-        detail=detail,
-    )
-
-
-def build_insights(
-    latest: ObservationPoint | None,
-    history: tuple[ObservationPoint, ...],
-    monthly: dict[int, tuple[MonthlyValue, ...]],
-) -> tuple[MembershipInsight, ...]:
-    """The three or four movements worth naming, in a fixed priority order.
-
-    The order is a product decision written down once, not a ranking by
-    magnitude: a strip that reordered itself by whichever number moved most
-    would put a different metric first on every visit, and a reader would lose
-    the ability to look at the same place twice. Signals that cannot be computed
-    are absent — never shown as zero, never shown as "no change".
-
-    The whole strip is omitted when nothing is available, because an empty panel
-    headed "Mis muutus?" answers its own question wrongly.
-    """
-    if latest is None:
-        return ()
-
-    on = latest.observation_date
-    candidates: list[MembershipInsight | None] = []
-
-    # 1. Membership against a year ago.
-    total = compare_with(latest.value("total_members"), on, _series(history, "total_members"))
-    candidates.append(
-        _insight(
-            key="members_yoy",
-            label="Liikmeid",
-            value=integer(latest.value("total_members")),
-            absolute=total.absolute,
-            relative=total.relative_pct,
-            rising_is_good=True,
-            detail=f"vs {long_date(total.baseline_date)}",
-        )
-        if total.is_available
-        else None
-    )
-
-    # 2. Recruitment against the same elapsed stretch of last year. Only the
-    #    unbroken run of months from January counts, on both sides.
-    years = sorted(monthly)
-    current_year = years[-1] if years else None
-    through = last_complete_month(monthly_pairs(monthly.get(current_year, ()))) if years else None
-    joined_now = (
-        elapsed_total(monthly_pairs(monthly.get(current_year, ())), through=through)
-        if through
-        else None
-    )
-    if through and joined_now is not None:
-        previous = elapsed_total(monthly_pairs(monthly.get(current_year - 1, ())), through=through)
-        if previous is not None:
-            absolute, relative = change(joined_now, previous)
-            candidates.append(
-                _insight(
-                    key="joined_vs_previous_year",
-                    label="Liitumised",
-                    value=integer(joined_now),
-                    absolute=absolute,
-                    relative=relative,
-                    rising_is_good=True,
-                    detail=(f"vs jaanuar–{month_name(through)} {current_year - 1}"),
-                )
-            )
-        else:
-            candidates.append(None)
-    else:
-        candidates.append(None)
-
-    # 3. Paid share, in percentage points.
-    share = latest.paid_member_share_pct
-    share_comparison = compare_with(share, on, _share_series(history))
-    moved = (
-        share_change(share, share_comparison.baseline) if share_comparison.is_available else None
-    )
-    candidates.append(
-        _insight(
-            key="paid_share_yoy",
-            label="Tasunute osakaal",
-            value=percent(share),
-            absolute=moved,
-            rising_is_good=True,
-            points=True,
-            detail=f"vs {long_date(share_comparison.baseline_date)}",
-        )
-        if moved is not None
-        else None
-    )
-
-    # 4. Departures against the same point last year. Both sides are
-    #    year-to-date counts read at nearly the same position in their year,
-    #    which is what makes them comparable at all.
-    removed = compare_with(
-        latest.value("removed_members_ytd"), on, _series(history, "removed_members_ytd")
-    )
-    candidates.append(
-        _insight(
-            key="removed_yoy",
-            label="Väljaarvamised",
-            value=integer(latest.value("removed_members_ytd")),
-            absolute=removed.absolute,
-            relative=removed.relative_pct,
-            rising_is_good=False,
-            detail=f"vs {long_date(removed.baseline_date)}",
-        )
-        if removed.is_available
-        else None
-    )
-
-    # 5. Recruitment against the multi-year average for the same stretch.
-    if through and joined_now is not None and current_year is not None:
-        average = _elapsed_mean(
-            monthly,
-            through=through,
-            years=tuple(range(current_year - BENCHMARK_YEARS, current_year)),
-        )
-        if average is not None:
-            absolute, relative = change(Decimal(joined_now), average)
-            candidates.append(
-                _insight(
-                    key="joined_vs_average",
-                    label="Liitumised",
-                    value=integer(joined_now),
-                    absolute=absolute,
-                    relative=relative,
-                    rising_is_good=True,
-                    detail=f"vs {BENCHMARK_YEARS} a keskmine ({integer(average)})",
-                )
-            )
-
-    # 6. Fee collection against the comparable earlier observation. Computed
-    #    percentages on both sides, so a reported figure that disagreed with its
-    #    own amounts cannot enter the comparison from either end.
-    collection_history = tuple(
-        (point.observation_date, point.computed_collection_pct)
-        for point in history
-        if point.computed_collection_pct is not None
-    )
-    collection = compare_with(latest.computed_collection_pct, on, collection_history)
-    if collection.is_available:
-        moved_pp = share_change(latest.computed_collection_pct, collection.baseline)
-        if moved_pp is not None:
-            candidates.append(
-                _insight(
-                    key="fee_collection_yoy",
-                    label="Liikmemaksu laekumine",
-                    value=percent(latest.computed_collection_pct),
-                    absolute=moved_pp,
-                    rising_is_good=True,
-                    points=True,
-                    detail=f"vs {long_date(collection.baseline_date)}",
-                )
-            )
-
-    return tuple(insight for insight in candidates if insight is not None)[:MAX_INSIGHTS]
-
-
-# ---------------------------------------------------------------------------
 # Sel aastal
 # ---------------------------------------------------------------------------
 
 
-def build_movement_summary(latest: ObservationPoint | None) -> MembershipMovementSummary | None:
-    """The current year's arrivals, departures and the gap between them.
+def build_movement_summary(
+    latest: ObservationPoint | None,
+    history: tuple[ObservationPoint, ...] = (),
+) -> MembershipMovementSummary | None:
+    """The current year's arrivals and departures, each against last year's.
 
-    Deliberately typography rather than a chart. Two counts, their difference
-    and the suspended total are four numbers; drawing four numbers as bars adds
-    a canvas, an axis and a legend to a fact that fits on one line, and the
-    dashboard already carries the size-band diverging chart for the question
-    that genuinely needs a picture.
+    The fourth cell of the headline strip since 2026-08-18. It was a section of
+    its own below the strip, which put the year's movement a scroll away from
+    the membership total it moves — and left the strip a column short.
 
-    The suspended count lives here rather than in the headline strip. It was one
-    of nine equal cards and is a secondary status: it belongs beside the movement
-    it describes, not beside the membership total.
+    Deliberately typography rather than a chart. Three counts are three numbers,
+    and drawing three numbers as bars adds a canvas, an axis and a legend to a
+    fact that fits on one line; `Sisse-välja` carries the size-band diverging
+    chart for the question that genuinely needs a picture.
+
+    ## Why these comparisons use a tighter anniversary than the rest of the page
+
+    `new_members_ytd` is a **cumulative flow**, not a stock. It counts from
+    1 January and grows all year, so a baseline drawn 45 days off its
+    anniversary — which `YOY_TOLERANCE_DAYS` permits, correctly, for a
+    membership total — would be six weeks short of the same point in its own
+    year and would understate every previous year by construction. `Liikmeid
+    kokku` tolerates a loose anniversary because a stock in July and a stock in
+    August describe the same kind of thing. A year-to-date count does not.
+
+    The suspended total carries no comparison. It is a state rather than a
+    year-to-date flow, and it is not reported with a prior-year figure.
     """
     if latest is None:
         return None
@@ -651,11 +492,32 @@ def build_movement_summary(latest: ObservationPoint | None) -> MembershipMovemen
     suspended = latest.value("suspended_members")
     difference = joined - removed if joined is not None and removed is not None else None
 
+    figures: list[MovementFigure] = []
+    for key, value, label, rising_is_good in (
+        ("joined", joined, "liitunud", True),
+        # A rise in departures is an increase and bad news. Direction and tone
+        # are separate fields for exactly this: a strip that painted it green
+        # because the number rose would be worse than one with no colour.
+        ("removed", removed, "väljaarvatud", False),
+    ):
+        if value is None:
+            continue
+        figures.append(
+            _movement_figure(
+                key=key,
+                value=value,
+                label=label,
+                rising_is_good=rising_is_good,
+                latest=latest,
+                history=history,
+            )
+        )
+    if suspended is not None:
+        figures.append(MovementFigure(key="suspended", value=integer(suspended), label="peatatud"))
+
     summary = MembershipMovementSummary(
-        observation_label=(
-            f"{latest.observation_date.year}. aasta algusest, seisuga "
-            f"{long_date(latest.observation_date)}"
-        ),
+        observation_label=f"{latest.observation_date.year}. aasta algusest",
+        figures=tuple(figures),
         joined=integer(joined),
         removed=integer(removed),
         difference=signed_integer(difference) if difference is not None else "",
@@ -667,6 +529,46 @@ def build_movement_summary(latest: ObservationPoint | None) -> MembershipMovemen
         else "",
     )
     return summary if summary.has_data else None
+
+
+def _movement_figure(
+    *,
+    key: str,
+    value,
+    label: str,
+    rising_is_good: bool,
+    latest: ObservationPoint,
+    history: tuple[ObservationPoint, ...],
+) -> MovementFigure:
+    """One count, compared with the same point in the previous year.
+
+    The comparison is a percentage rather than an absolute difference, because
+    that is what one cell of a four-column strip has room for. The counts
+    themselves are on the page, so a reader who wants the absolute change has
+    both sides of it.
+    """
+    field = "new_members_ytd" if key == "joined" else "removed_members_ytd"
+    comparison = compare_with(
+        value,
+        latest.observation_date,
+        _series(history, field),
+        tolerance_days=YTD_TOLERANCE_DAYS,
+    )
+    if not comparison.is_available or not comparison.has_relative:
+        return MovementFigure(key=key, value=integer(value), label=label)
+    return MovementFigure(
+        key=key,
+        value=integer(value),
+        label=label,
+        change=signed_percent(comparison.relative_pct),
+        change_label=(
+            f"{signed_percent(comparison.relative_pct)} võrreldes "
+            f"{comparison.baseline_date.year}. aasta sama ajaga"
+        ),
+        direction=_direction(comparison.absolute),
+        tone=_tone(comparison.absolute, rising_is_good=rising_is_good),
+        comparison_label=f"vs {comparison.baseline_date.year}",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -751,85 +653,43 @@ def build_source_stamps(
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
-class CompositionFact:
-    """One line of the overview's composition preview."""
+def composition_subtitles(snapshot) -> dict[str, str]:
+    """One short line per composition dimension, naming what leads it.
 
-    label: str
-    value: str
-    detail: str = ""
+    These four facts were a strip of their own — `Kes on meie liikmed?`, four
+    readouts sitting above four charts that drew the same four dimensions. On
+    2026-08-18 the strip and the charts became one section: each chart carries
+    its own fact as a subtitle, so the answer sits on the drawing that proves it
+    rather than a scroll above it.
 
+    Each names the largest group in its dimension, **ignoring `Teadmata`**:
+    "most members are unclassified" is a fact about the import rather than about
+    the Chamber, and it does not belong in a line that reads as a statement
+    about the membership. `CompositionDimensionResult.largest` is where that
+    rule lives; this only formats what it returns.
 
-@dataclass(frozen=True)
-class CompositionPreview:
-    """`Kes on meie liikmed?` — four facts about the membership.
-
-    Used to link out to the composition focus for the distributions behind
-    each fact; that focus retired into the overview itself on 2026-08-17, so
-    the four readouts now sit right above the charts they preview and there
-    is nowhere left to link to.
-
-    Omitted entirely when no roster has been imported. An empty panel headed
-    with a question is worse than no panel, and a decorative placeholder would
-    imply a source that does not exist.
-    """
-
-    snapshot_label: str
-    facts: tuple[CompositionFact, ...]
-
-    @property
-    def has_data(self) -> bool:
-        return bool(self.facts)
-
-
-def build_composition_preview(snapshot) -> CompositionPreview | None:
-    """The four facts that describe the membership in one glance.
-
-    Each names the largest group in its dimension, ignoring `Teadmata`: "most
-    members are unclassified" is a fact about the import rather than about the
-    Chamber, and it does not belong in a sentence that reads as a statement
-    about the membership.
+    Tenure is the exception and gets the median instead of a largest band. The
+    bands are an ordinal scale, so "the biggest band" says much less than the
+    midpoint and the share above eleven years — which is the pair the board
+    reads it for.
     """
     if snapshot is None:
-        return None
+        return {}
 
     from .composition import Dimension
 
-    facts: list[CompositionFact] = []
-
-    for dimension, label in (
-        (Dimension.EMPLOYEE_SIZE, "Suurim suurusklass"),
-        (Dimension.REGION, "Suurim piirkond"),
-        (Dimension.SECTOR, "Suurim tegevusala"),
-    ):
+    subtitles: dict[str, str] = {}
+    for dimension in (Dimension.EMPLOYEE_SIZE, Dimension.REGION, Dimension.SECTOR):
         result = snapshot.dimension(dimension)
         largest = result.largest if result else None
         if largest is not None:
-            facts.append(
-                CompositionFact(
-                    label=label,
-                    value=largest.label,
-                    detail=f"{integer(largest.count)} liiget · {percent(largest.share_pct)}",
-                )
-            )
+            subtitles[dimension] = f"suurim: {largest.label.lower()}"
 
     median = snapshot.median_tenure_years
     if median is not None:
+        line = f"mediaan {percent(median).rstrip('%')} a"
         long_share = snapshot.long_tenure_share_pct
-        facts.append(
-            CompositionFact(
-                label="Mediaanstaaž",
-                value=f"{percent(median).rstrip('%')} a",
-                detail=(
-                    f"{percent(long_share)} on liikmed 11+ aastat" if long_share is not None else ""
-                ),
-            )
-        )
-
-    if not facts:
-        return None
-
-    return CompositionPreview(
-        snapshot_label=f"Seisuga {long_date(snapshot.snapshot_date)}",
-        facts=tuple(facts),
-    )
+        if long_share is not None:
+            line = f"{line} · {percent(long_share)} on 11+ aastat"
+        subtitles[Dimension.TENURE_BAND] = line
+    return subtitles

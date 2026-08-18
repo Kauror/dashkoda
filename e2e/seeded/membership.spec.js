@@ -121,15 +121,92 @@ test("each focus draws its own analysis and names itself", async ({ page }) => {
     await expect(page.locator('[data-chart-payload="internal-membership-fees"]')).toBeVisible();
   }
 
-  // Still a heading, still the section's accessible name, just not painted.
+  // The two time series are sections of their own since 2026-08-18, each
+  // named by what it draws and carrying its own controls. `Liikmeskonna areng`
+  // was the sr-only name of the one section that held both.
   await page.goto(PAGE);
+  for (const title of ["Liikmete arv ja tasunud liikmed", "Liikmemaksu laekumine"]) {
+    await expect(page.getByRole("heading", { name: title })).toBeVisible();
+  }
+  for (const gone of ["Liikmeskonna areng", "Ajaloolised trendid", "Mis muutus?"]) {
+    await expect(page.getByRole("heading", { name: gone })).toHaveCount(0);
+  }
+});
+
+test("the strip carries four cells and the year's movement is one of them", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * `Sel aastal` was a section below the strip until 2026-08-18, which put the
+   * year's arrivals a scroll from the total they move and left the strip a
+   * column short. The three counts are inside the strip now, each with its own
+   * comparison where the report supports one.
+   */
+  await open_(page);
+
+  const strip = page.locator('section[aria-labelledby="section-headlines"]');
+  await expect(strip).toBeVisible();
+  for (const label of [
+    "Liikmeid kokku",
+    "Tasunud liikmeid",
+    "Liikmemaksu laekumine",
+    "Sel aastal",
+  ]) {
+    await expect(strip.getByText(label, { exact: false }).first()).toBeVisible();
+  }
+  for (const word of ["liitunud", "väljaarvatud"]) {
+    await expect(strip.getByText(word, { exact: true }).first()).toBeVisible();
+  }
+  /*
+   * The newest seeded report leaves `suspended_members` unreported on purpose,
+   * so the cell must show no third figure at all. A `0 peatatud` here would be
+   * the strip inventing a measurement — which is exactly the shape of defect
+   * the seed carries that gap to catch.
+   */
+  await expect(strip.getByText("peatatud", { exact: true })).toHaveCount(0);
+  await expect(strip.getByText(/0\s+peatatud/)).toHaveCount(0);
+});
+
+test("the range control sits on the heading row of the chart it governs", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * It sat above two charts and governed both, which was true and read as a
+   * page-wide control. The trend is its own section now and the chips are on
+   * that section's heading row; the fee section beside it has its own four
+   * figures there instead.
+   */
+  await open_(page);
+
+  const trend = page.locator('section[aria-labelledby="section-trend"]');
+  await expect(trend.getByRole("group", { name: "Periood" })).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Liikmeskonna areng" }),
-  ).toHaveCount(1);
-  // The single range control that governed only some of the charts is gone.
-  await expect(
-    page.getByRole("heading", { name: "Ajaloolised trendid" }),
+    page.locator('section[aria-labelledby="section-fees"]').getByRole("group", { name: "Periood" }),
   ).toHaveCount(0);
+  // The strip states both figures already, so the trend chart drops the
+  // readouts that repeated them.
+  await expect(trend.getByText("Liikmeid kokku")).toHaveCount(0);
+});
+
+test("the composition charts carry their own facts as subtitles", async ({
+  page,
+}) => {
+  oncePerRun();
+  /*
+   * `Kes on meie liikmed?` was four readouts above four charts drawing the same
+   * four dimensions. One section since 2026-08-18: each chart states its own
+   * largest group — or, for tenure, the median — on the drawing that proves it.
+   */
+  await open_(page);
+
+  const structure = page.locator('section[aria-labelledby="section-structure"]');
+  await expect(structure.getByRole("heading", { name: "Kes on meie liikmed?" })).toBeVisible();
+  await expect(structure.getByText(/suurim:/).first()).toBeVisible();
+  await expect(structure.getByText(/mediaan/).first()).toBeVisible();
+  // The retired four-fact strip.
+  await expect(page.getByText("Suurim piirkond")).toHaveCount(0);
 });
 
 test("an unknown focus renders the overview rather than an error", async ({

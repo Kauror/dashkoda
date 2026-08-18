@@ -14,14 +14,13 @@ from __future__ import annotations
 import datetime as dt
 from decimal import Decimal
 
-from apps.core.formatting import GROUP_SEPARATOR, MINUS_SIGN
+from apps.core.formatting import GROUP_SEPARATOR
 from apps.membership.intelligence import (
-    MAX_INSIGHTS,
     build_headlines,
-    build_insights,
     build_movement_summary,
     build_quality_badge,
     build_source_stamps,
+    composition_subtitles,
 )
 from apps.membership.internal_selectors import (
     InternalQualitySummary,
@@ -165,13 +164,17 @@ def test_a_withheld_total_is_treated_as_missing_rather_than_drawn():
     assert headlines["members_and_paid"].is_available is False
 
 
-def test_the_members_and_paid_card_states_the_gap_without_calling_it_movement():
+def test_the_paid_card_leads_with_the_paid_count_and_its_share():
     """The card that replaced `Liitumised ja väljaarvamised` on 2026-08-16.
 
-    It puts the two counts side by side and names the gap between them. The gap
-    is members who have not paid — nobody joined and nobody left — so the same
-    vocabulary the old card was forbidden is forbidden here, for a different
-    reason and just as firmly.
+    It led with both totals until 2026-08-18, and the first of them was the
+    card to its left printed a second time. What is unique to this card is the
+    paid side, so that is what it leads with — with the share beside it,
+    because a paid count without its denominator is a number nobody can size.
+
+    The gap is members who have **not** paid: nobody joined and nobody left, so
+    the movement vocabulary the old card was forbidden is forbidden here too,
+    for a different reason and just as firmly.
     """
     latest = point(LATEST, total=3429, paid=3426)
 
@@ -180,11 +183,14 @@ def test_the_members_and_paid_card_states_the_gap_without_calling_it_movement():
 
     # `integer` groups thousands with a non-breaking space; compare digits only.
     digits = lambda s: "".join(ch for ch in s if ch.isdigit())  # noqa: E731
-    assert digits(card.value) == "34293426"
-    # The gap leads the detail; the share follows it, from 2026-08-16.
+    assert card.label == "Tasunud liikmeid"
+    assert digits(card.value.split("·")[0]) == "3426"
+    assert "99,9%" in card.value
+    # The member total belongs to the card before this one and appears once.
+    assert "3429" not in digits(card.value)
+    # The gap is the whole of the detail line; the share moved into the value.
     assert card.detail.startswith("vahe")
-    assert digits(card.detail.split("·")[0]) == "3"
-    assert "tasunud" in card.detail
+    assert digits(card.detail) == "3"
     for forbidden in ("neto", "netokasv", "liikmeskonna muutus", "liitus", "välja arvati"):
         assert forbidden not in words
 
@@ -210,7 +216,7 @@ def test_paid_share_moves_in_percentage_points_not_percent():
 
     card = by_key(build_headlines(latest, history))["members_and_paid"]
 
-    assert "96,1" in card.detail
+    assert "96,1" in card.value
     assert "pp" in card.change
     assert "%" not in card.change
     assert "tasunute osakaal" in card.change_label
@@ -250,6 +256,41 @@ def test_a_reported_percentage_is_used_and_labelled_when_amounts_cannot_produce_
     assert "esitatud" in fees.note.lower()
 
 
+def test_the_fee_card_carries_a_meter_and_no_other_card_does():
+    """One figure on the strip is a completion against a stated target.
+
+    A proportion bar under a member count would be a bar against no
+    denominator, so `meter_pct` is set on this card alone.
+    """
+    headlines = by_key(
+        build_headlines(
+            point(LATEST, total=3412, paid=3279, received="410000", budget="500000"), ()
+        )
+    )
+
+    assert headlines["fee_collection"].meter_pct == 82.0
+    assert headlines["total_members"].meter_pct is None
+    assert headlines["members_and_paid"].meter_pct is None
+
+
+def test_a_year_that_collected_more_than_it_budgeted_fills_the_meter_once():
+    """The bar stops at full; the amounts under it still state the overshoot.
+
+    Clamping the drawing is not the same as clipping the figure, and the card
+    prints both — `110,0%` beside a bar that cannot say more than "all of it".
+    """
+    headlines = by_key(build_headlines(point(LATEST, received="550000", budget="500000"), ()))
+
+    assert headlines["fee_collection"].meter_pct == 100.0
+    assert "110,0%" in headlines["fee_collection"].value
+
+
+def test_no_meter_at_all_when_the_amounts_cannot_produce_a_completion():
+    headlines = by_key(build_headlines(point(LATEST, reported_pct="88.0"), ()))
+
+    assert headlines["fee_collection"].meter_pct is None
+
+
 def test_a_zero_budget_produces_no_percentage_rather_than_a_division():
     latest = point(LATEST, received="410000", budget="0")
 
@@ -261,9 +302,8 @@ def test_a_zero_budget_produces_no_percentage_rather_than_a_division():
 def test_fee_collection_is_compared_with_a_genuinely_comparable_year():
     """Joined the card on 2026-08-17, the same baseline rule as the other two.
 
-    Computed on both sides, same as `build_insights`' own `fee_collection_yoy`
-    candidate: a reported percentage `quality.py` withheld cannot enter the
-    comparison from either end.
+    Computed on both sides: a reported percentage `quality.py` withheld cannot
+    enter the comparison from either end.
     """
     latest = point(LATEST, received="410000", budget="500000")
     history = (point(YEAR_AGO, received="450000", budget="500000"), latest)
@@ -287,85 +327,69 @@ def test_fee_collection_has_no_comparison_without_a_comparable_year():
 
 
 # ---------------------------------------------------------------------------
-# Mis muutus?
-# ---------------------------------------------------------------------------
-
-
-def test_insights_are_absent_rather_than_zero_when_nothing_can_be_compared():
-    assert build_insights(point(LATEST, total=3412), (), {}) == ()
-    assert build_insights(None, (), {}) == ()
-
-
-def test_the_strip_is_capped_and_each_signal_names_its_baseline():
-    latest = point(
-        LATEST, total=3412, paid=3279, removed_ytd=146, received="410000", budget="500000"
-    )
-    history = (
-        point(YEAR_AGO, total=3547, paid=3358, removed_ytd=120, received="380000", budget="500000"),
-        latest,
-    )
-    monthly = {2025: months(*[10] * 12, year=2025), 2026: months(*[9] * 7)}
-
-    insights = build_insights(latest, history, monthly)
-
-    assert 0 < len(insights) <= MAX_INSIGHTS
-    for insight in insights:
-        assert insight.detail, f"{insight.key} does not name its baseline"
-        assert insight.change
-
-
-def test_more_departures_is_an_increase_and_still_reads_as_bad_news():
-    """Direction is the arithmetic; tone is the meaning. They differ here."""
-    latest = point(LATEST, removed_ytd=146)
-    history = (point(YEAR_AGO, removed_ytd=120), latest)
-
-    removed = next(i for i in build_insights(latest, history, {}) if i.key == "removed_yoy")
-
-    assert removed.direction == "up"
-    assert removed.tone == "negative"
-
-
-def test_recruitment_is_compared_only_against_the_same_elapsed_months():
-    """July against a full twelve months is a collapse that never happened."""
-    latest = point(LATEST, total=3412)
-    monthly = {2025: months(*[10] * 12, year=2025), 2026: months(*[9] * 7)}
-
-    joined = next(
-        i for i in build_insights(latest, (), monthly) if i.key == "joined_vs_previous_year"
-    )
-
-    # 63 this year against 70 for the same January–July stretch, not against 120.
-    assert joined.value == "63"
-    assert "jaanuar" in joined.detail
-    assert f"{MINUS_SIGN}7" in joined.change
-
-
-def test_recruitment_comparison_withdraws_when_a_month_is_unreported():
-    latest = point(LATEST, total=3412)
-    monthly = {2025: months(10, 10, None, 10, year=2025), 2026: months(9, 9, 9)}
-
-    keys = {insight.key for insight in build_insights(latest, (), monthly)}
-
-    assert "joined_vs_previous_year" not in keys
-
-
-def test_the_insight_order_is_fixed_rather_than_ranked_by_magnitude():
-    """A strip that reorders itself loses the reader's ability to look twice."""
-    latest = point(LATEST, total=3412, paid=3279, removed_ytd=146)
-    history = (point(YEAR_AGO, total=3411, paid=3100, removed_ytd=20), latest)
-
-    keys = [insight.key for insight in build_insights(latest, history, {})]
-
-    assert keys == sorted(keys, key=["members_yoy", "paid_share_yoy", "removed_yoy"].index)
-
-
-# ---------------------------------------------------------------------------
 # Sel aastal
 # ---------------------------------------------------------------------------
 
 
+def test_this_years_counts_each_carry_their_own_comparison():
+    """Arrivals rising is good news; departures rising is not.
+
+    Direction is the arithmetic sign and tone is what the movement means, and
+    they disagree for departures on purpose. A cell that painted more
+    exclusions green because the number rose would be worse than one with no
+    colour at all.
+    """
+    latest = point(LATEST, new_ytd=128, removed_ytd=130)
+    history = (point(YEAR_AGO, new_ytd=127, removed_ytd=186), latest)
+
+    figures = {f.key: f for f in build_movement_summary(latest, history).figures}
+
+    assert figures["joined"].direction == "up"
+    assert figures["joined"].tone == "positive"
+    assert figures["joined"].comparison_label == "vs 2025"
+    assert figures["removed"].direction == "down"
+    assert figures["removed"].tone == "positive"
+    assert "%" in figures["joined"].change
+
+
+def test_a_year_to_date_count_refuses_a_baseline_six_weeks_off_its_anniversary():
+    """The trap this comparison exists to avoid.
+
+    `new_members_ytd` counts from 1 January and grows all year. A baseline 45
+    days short of the anniversary — which the membership *total* tolerates,
+    correctly, because a stock is a stock in July as in August — is six weeks
+    short of the year it stands in for, and every previous year would read low
+    by construction. The count is printed with no percentage instead.
+    """
+    latest = point(LATEST, new_ytd=128)
+    six_weeks_early = (point(dt.date(2025, 6, 18), new_ytd=95), latest)
+    a_fortnight_early = (point(dt.date(2025, 7, 18), new_ytd=127), latest)
+
+    refused = {f.key: f for f in build_movement_summary(latest, six_weeks_early).figures}
+    accepted = {f.key: f for f in build_movement_summary(latest, a_fortnight_early).figures}
+
+    assert refused["joined"].change == ""
+    assert refused["joined"].value == "128"
+    assert accepted["joined"].change != ""
+
+
+def test_the_suspended_total_is_a_state_and_carries_no_comparison():
+    latest = point(LATEST, suspended=45)
+    history = (point(YEAR_AGO, suspended=30), latest)
+
+    figures = {f.key: f for f in build_movement_summary(latest, history).figures}
+
+    assert figures["suspended"].value == "45"
+    assert figures["suspended"].change == ""
+
+
 def test_the_current_year_block_carries_the_suspended_count():
-    """Moved out of the headline strip; it is a secondary status."""
+    """A secondary status, and the third figure of the strip's fourth cell.
+
+    It was moved out of the strip on 2026-08-16 as one of nine equal cards and
+    came back on 2026-08-18 inside `Sel aastal` — beside the movement it
+    describes rather than beside the membership total.
+    """
     summary = build_movement_summary(point(LATEST, new_ytd=111, removed_ytd=146, suspended=71))
 
     assert summary.joined == "111"
@@ -384,6 +408,57 @@ def test_a_reported_zero_is_a_real_value_and_still_renders():
 
     assert summary.joined == "0"
     assert summary.has_data
+
+
+# ---------------------------------------------------------------------------
+# Kes on meie liikmed?
+# ---------------------------------------------------------------------------
+
+
+def test_a_composition_subtitle_never_names_the_unclassified_group():
+    """ "Most members are unclassified" is a fact about the import.
+
+    It is not a statement about the Chamber, and a subtitle that reads as one
+    would be the drawing's own caption saying something the roster does not.
+    `CompositionDimensionResult.largest` is where the rule lives; this checks
+    the subtitle is built from it rather than from the raw categories.
+    """
+    from apps.membership.composition import Dimension
+    from apps.membership.composition_selectors import (
+        CompositionCategory,
+        CompositionDimensionResult,
+        CompositionSnapshot,
+    )
+
+    result = CompositionDimensionResult(
+        dimension=Dimension.REGION,
+        label="Piirkond",
+        population="all_current",
+        total=100,
+        categories=(
+            CompositionCategory(key="unknown", label="Teadmata", count=70, share_pct=Decimal("70")),
+            CompositionCategory(key="37", label="Harjumaa", count=30, share_pct=Decimal("30")),
+        ),
+    )
+    snapshot = CompositionSnapshot(
+        id=1,
+        snapshot_date=LATEST,
+        row_count=100,
+        median_tenure_days=None,
+        coverage_pct={},
+        mapping_version="1",
+        sector_mapping_version="1",
+        dimensions={("all_current", Dimension.REGION): result},
+    )
+
+    subtitles = composition_subtitles(snapshot)
+
+    assert subtitles[Dimension.REGION] == "suurim: harjumaa"
+    assert "teadmata" not in subtitles[Dimension.REGION]
+
+
+def test_there_are_no_subtitles_at_all_without_a_roster():
+    assert composition_subtitles(None) == {}
 
 
 # ---------------------------------------------------------------------------
