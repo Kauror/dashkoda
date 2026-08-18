@@ -1,31 +1,36 @@
 {% comment %}
-Huvitavat — evidence, never a verdict.
+Three things worth a second look — evidence, never a verdict.
 
 Each item is one deterministic rule from `apps.visibility.website_page`, stated
 with the measurements that triggered it. Nothing here is generated text, nothing
 is a score, and nothing says what to do: this data establishes *what* was
-measured and never *why* it moved, so "selle lehe vaatamised kasvasid 68%" is a
-sentence it can support and "this page needs better content" is not.
+measured and never *why* it moved, so "this page's views grew 68%" is a sentence
+it can support and "this page needs better content" is not.
+
+A row of tiles rather than a list, because the three answer different questions
+and a vertical list invites reading them as a ranking. The label is the rule's
+own name, drawn small and upper-case so the subject beneath it is what the eye
+lands on.
 
 Context:
   opportunities – tuple of WebsiteOpportunity
   heading_id    – required, referenced by the section's aria-labelledby
 {% endcomment %}
 <section aria-labelledby="{{ heading_id }}" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Huvitavat" heading_id=heading_id only %}
+  <h2 id="{{ heading_id }}" class="sr-only">Tähelepanuväärsed lehed</h2>
   <div class="dk-section-body">
-    <ul class="flex flex-col gap-4">
+    <ul class="grid grid-cols-1 gap-x-6 gap-y-4 lg:grid-cols-3">
       {% for opportunity in opportunities %}
-        <li class="flex min-w-0 flex-col gap-1 border-l-2 border-brand-border pl-3">
-          <span class="dk-meta">{{ opportunity.label }}</span>
-          <span class="text-sm font-medium text-text">
+        <li class="flex min-w-0 flex-col gap-1">
+          <span class="text-micro font-semibold tracking-wide text-text-muted uppercase">{{ opportunity.label }}</span>
+          <span class="text-sm font-medium break-words text-text">
             {% if opportunity.query %}
-              <a class="dk-link" href="?{{ opportunity.query }}">{{ opportunity.subject }}</a>
+              <a class="dk-link" href="?{{ opportunity.query }}#section-leht">{{ opportunity.subject }}</a>
             {% else %}
               {{ opportunity.subject }}
             {% endif %}
           </span>
-          <span class="dk-meta">{{ opportunity.evidence }}</span>
+          <span class="dk-meta break-words">{{ opportunity.evidence }}</span>
         </li>
       {% endfor %}
     </ul>

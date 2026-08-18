@@ -5,6 +5,13 @@ decides how a share, a percentage-point movement or a signed count is written,
 because that decision lives in `apps.visibility.website_page` beside the one the
 chart tooltips use.
 
+A row may carry `bar_pct`, and then its **leading figure** is drawn with a bar
+behind it. A ranking is read as shape before it is read as numbers, and a column
+of right-aligned figures makes the reader do the ordering the shape can do for
+them. The bar is SVG **geometry**, never an inline width: the Content Security
+Policy is `style-src 'self'`, so a proportion may only be drawn as an attribute.
+Colour comes from Tailwind `fill-*`.
+
 The table owns its own horizontal scroll container, so a wide table never makes
 the page itself scroll sideways on a phone. Nothing inside it is `sr-only`: an
 absolutely-positioned note settles at its untruncated text width and widens the
@@ -41,7 +48,25 @@ Context:
               {% if row.note %}<span class="dk-meta block break-all">{{ row.note }}</span>{% endif %}
             </th>
             {% for cell in row.values %}
-              <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ cell }}</td>
+              {% if forloop.first and row.bar_pct is not None %}
+                {% comment %}
+                The leading figure, with its bar. `min-w-40` reserves the track
+                so the bars of a table share one scale visually as well as
+                arithmetically — without it a short label would give its row a
+                longer track and a smaller number a longer bar.
+                {% endcomment %}
+                <td class="border-b border-border px-3 py-2 tabular-nums text-text-secondary">
+                  <span class="flex items-center gap-2">
+                    <svg viewBox="0 0 100 8" preserveAspectRatio="none" class="h-2 w-24 min-w-24 sm:w-40"
+                         aria-hidden="true" focusable="false">
+                      <rect x="0" y="0" width="{{ row.bar_pct|stringformat:'.2f' }}" height="8" rx="2" class="fill-brand"/>
+                    </svg>
+                    <span class="font-medium text-text">{{ cell }}</span>
+                  </span>
+                </td>
+              {% else %}
+                <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">{{ cell }}</td>
+              {% endif %}
             {% endfor %}
           </tr>
         {% endfor %}

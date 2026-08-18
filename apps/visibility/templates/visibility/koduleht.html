@@ -21,9 +21,15 @@ Four things are deliberate and should stay that way:
   - **every chart keeps its table.** The table is not a fallback: it stays in
     the document for every reader, and only the canvas is hidden when there is
     nothing to draw;
-  - **each focus view is a real URL.** The controls are ordinary GET links
-    carrying the whole state, so a view is bookmarkable, shareable and
-    reload-safe, and none of it needs JavaScript.
+  - **every control is a real URL.** The period, the section filter, the search
+    and a selected page are ordinary GET links and forms carrying the whole
+    state, so any view of this page is bookmarkable, shareable and reload-safe,
+    and none of it needs JavaScript.
+
+The three tabbed views — `Ülevaade`, `Sisu ja lehed`, `Kanalid` — became one
+page on 2026-08-18. A tab strip made a reader choose a question before seeing
+any answer, and the same figures were built two and three times across them.
+Their keys still resolve, so a bookmark of any of the three lands here.
 {% endcomment %}
 
 {% block title %}{{ page.title }} – DashKoda{% endblock %}
@@ -53,18 +59,18 @@ Four things are deliberate and should stay that way:
       </div>
     </section>
   {% else %}
-    {% comment %}
-    Three views since 2026-08-16. `liiklus` resolved into the overview it had
-    come to duplicate, and the `lehed` explorer lives at the foot of Sisu ja
-    lehed — both retired keys land on their inheritor in `parse_focus`.
-    {% endcomment %}
-    {% if page.focus.key == "ulevaade" %}
-      {% include "visibility/koduleht/_overview.html" with page=page only %}
-    {% elif page.focus.key == "sisu" %}
-      {% include "visibility/koduleht/_content.html" with page=page only %}
-    {% elif page.focus.key == "kanalid" %}
-      {% include "visibility/koduleht/_channels.html" with page=page only %}
-    {% endif %}
+    {% include "visibility/koduleht/_page.html" with page=page only %}
+  {% endif %}
+
+  {% comment %}
+  One source, one date. Unlike the front page — which spans seven feeds on seven
+  cadences and can only say when data last came in *at all* — every figure above
+  comes from GA4, so GA4's own last successful collection is the moment these
+  figures are current to. Absent before anything has been collected, rather than
+  printing a date nobody can source.
+  {% endcomment %}
+  {% if page.updated_at %}
+    <p class="dk-meta">Uuendatud {{ page.updated_at|date:"d.m.Y" }} kell {{ page.updated_at|date:"H:i" }}</p>
   {% endif %}
 
   {% comment %}

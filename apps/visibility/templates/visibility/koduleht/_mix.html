@@ -1,0 +1,70 @@
+{% comment %}
+One proportion: a stacked bar, and the bands beneath it as a legend.
+
+Context:
+  title       – section heading
+  heading_id  – required, referenced by the section's aria-labelledby
+  description – optional, a line beneath the heading
+  bar        – tuple of MixSegment, already positioned
+  table      – the matching TableView, one row per band, in the same order
+
+The bar is SVG **geometry** — every offset and width is an attribute, never an
+inline style, because the Content Security Policy is `style-src 'self'`. The
+bands are positioned in Python for the same reason a share is formatted there:
+a cumulative offset is arithmetic, and arithmetic in a template is a rule
+nobody can test.
+
+**A bar that does not reach the end is the honest drawing.** `build_mix_bar`
+gives an unmeasured band no segment rather than a zero-width one, and nothing
+stretches the remainder to fill — a partly classified population looks partly
+classified.
+
+The colour is named by slot, spelled out branch by branch. A class assembled at
+render time — `fill-series-{{ slot }}` — simply would not exist, because
+Tailwind generates utilities by scanning these files for literals.
+
+The swatch and its segment share the row's `slot`, so the legend and the drawing
+cannot drift apart. The bar itself is `aria-hidden`: it is the same figures the
+legend states in words, and a screen reader reading a row of coloured rectangles
+learns nothing the rows below do not say better.
+{% endcomment %}
+<section aria-labelledby="{{ heading_id }}" class="dk-section">
+  {% include "dashboard/components/section_header.html" with title=title heading_id=heading_id description=description only %}
+  <div class="dk-section-body flex flex-col gap-3">
+    {% if bar %}
+      <svg viewBox="0 0 100 8" preserveAspectRatio="none" class="h-2 w-full"
+           aria-hidden="true" focusable="false">
+        {% for segment in bar %}
+          <rect x="{{ segment.x|stringformat:'.3f' }}" y="0"
+                width="{{ segment.width|stringformat:'.3f' }}" height="8"
+                class="{% if segment.slot == 2 %}fill-series-2{% elif segment.slot == 3 %}fill-series-3{% elif segment.slot == 4 %}fill-series-4{% elif segment.slot == 5 %}fill-series-5{% elif segment.slot == 6 %}fill-series-6{% else %}fill-brand{% endif %}"/>
+        {% endfor %}
+      </svg>
+    {% endif %}
+
+    <dl class="flex flex-col gap-1.5">
+      {% for row in table.rows %}
+        <div class="flex flex-wrap items-baseline gap-x-3">
+          <dt class="flex min-w-0 flex-1 items-center gap-2 text-sm text-text">
+            <svg viewBox="0 0 8 8" class="h-2 w-2 shrink-0" aria-hidden="true" focusable="false">
+              <rect x="0" y="0" width="8" height="8" rx="1"
+                    class="{% if row.slot == 2 %}fill-series-2{% elif row.slot == 3 %}fill-series-3{% elif row.slot == 4 %}fill-series-4{% elif row.slot == 5 %}fill-series-5{% elif row.slot == 6 %}fill-series-6{% else %}fill-brand{% endif %}"/>
+            </svg>
+            <span class="min-w-0 break-words">{{ row.label }}</span>
+          </dt>
+          {% comment %}
+          Count, share, movement — the three the builder put in `values`, in
+          that order. The movement carries its own sign, and the colour is a
+          second signal rather than the only one.
+          {% endcomment %}
+          <dd class="shrink-0 text-sm tabular-nums text-text-secondary">
+            <span class="font-medium text-text">{{ row.values.0 }}</span> · {{ row.values.1 }}
+          </dd>
+          <dd class="w-16 shrink-0 text-right text-sm tabular-nums{% if row.direction == 'up' %} text-success{% elif row.direction == 'down' %} text-danger{% else %} text-text-secondary{% endif %}">
+            {{ row.values.2 }}
+          </dd>
+        </div>
+      {% endfor %}
+    </dl>
+  </div>
+</section>

@@ -333,16 +333,13 @@ def test_many_articles_cost_a_fixed_number_of_queries(day, django_assert_num_que
 # -- how the channel breakdown is presented ----------------------------------
 
 
-def test_the_channel_breakdown_is_its_own_view_and_still_lists_every_channel(viewer_client, day):
+def test_the_channel_breakdown_is_on_the_page_and_still_lists_every_channel(viewer_client, day):
     """Twelve channel rows are an answer few readers arrive with.
 
-    On the Nähtavus page they were a `<details>` that started shut, because open
-    they sat between the traffic chart and `Enim vaadatud sisu` and pushed the
-    content ranking — which readers do arrive for — below the fold.
-
-    Koduleht gives acquisition a focus view of its own, so nothing has to be
-    collapsed to make room for it. What has not changed is that the rows are
-    rendered into the page rather than fetched, and that the heading is a real
+    On the Nähtavus page they were a `<details>` that started shut; Koduleht
+    then gave acquisition a focus view of its own; since 2026-08-18 there is one
+    page and `Kust tullakse` is a section in it. Through all three the rows are
+    rendered into the page rather than fetched, and the heading is a real
     heading rather than a summary line.
     """
     day(
@@ -356,6 +353,6 @@ def test_the_channel_breakdown_is_its_own_view_and_still_lists_every_channel(vie
         reverse("visibility"), {"fookus": "kanalid", "periood": "koik"}
     ).content.decode()
 
-    assert "Külastused kanalite kaupa" in page
+    assert "Kust tullakse" in page
     assert "Organic Search" in page
     assert "Direct" in page
