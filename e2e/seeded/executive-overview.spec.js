@@ -31,8 +31,10 @@ test("every domain dashboard has a card, and none is an empty state", async ({ p
 
   const status = page.getByLabel("Põhinäitajad");
 
+  // Level 2: the cards are the page's own second level since the
+  // `Põhinäitajad` heading came off, and an `h3` under the `h1` would skip one.
   for (const card of CARDS) {
-    await expect(status.getByRole("heading", { name: card, level: 3 })).toBeVisible();
+    await expect(status.getByRole("heading", { name: card, level: 2 })).toBeVisible();
   }
   // The retired strategic labels must not come back with the cards. Each of
   // these named a group of domains rather than a dashboard, and a reader
@@ -226,10 +228,11 @@ test("the shop card never calls ordered value revenue", async ({ page }) => {
     .locator("article", { hasText: "E-pood" })
     .first();
 
-  // The period's own words, from the domain: the card cannot say
-  // `viimased 30 päeva` unless the export's own window is thirty days.
-  await expect(card.getByText(/viimased \d+ päeva/)).toBeVisible();
+  // The unit is the domain's own period label, so this asserts the card states
+  // *a* period rather than guessing which: `resolve_period` decides the
+  // export's window, and a seeded window is not the production one.
   await expect(card.getByText("Tellitud väärtus (KM-ta)")).toBeVisible();
+  await expect(card.getByText(/\d{2}\.\d{2}\.\d{2}\s*–\s*\d{2}\.\d{2}\.\d{2}/)).toBeVisible();
   for (const forbidden of [/tulu/i, /käive/i, /laekumine/i]) {
     await expect(card.getByText(forbidden)).toHaveCount(0);
   }
@@ -255,7 +258,9 @@ test("the timeline is chronological, dated, and named for its horizon", async ({
     ),
   );
   for (const lane of lanes) {
-    expect(["Õigusloome", "Sündmused"]).toContain(lane);
+    // Singular since 2026-08-18: each row is one, and `Sündmused` is the
+    // dashboard's name, which reads as a heading beside a single title.
+    expect(["Õigusloome", "Sündmus"]).toContain(lane);
   }
 });
 

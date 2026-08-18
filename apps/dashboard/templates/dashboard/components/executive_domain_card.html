@@ -42,7 +42,14 @@ Direction is never colour alone: the comparison text carries its own sign.
          aria-labelledby="card-{{ card.key }}">
 
   <div class="flex flex-wrap items-baseline justify-between gap-x-3">
-    <h3 id="card-{{ card.key }}" class="min-w-0 text-sm font-semibold text-text">{{ card.label }}</h3>
+    {% comment %}
+    `h2`, not `h3`. The cards are the page's own second level since the
+    `Põhinäitajad` heading came off on 2026-08-18 — with an `h3` the document
+    went straight from the page title to level three, which is a skipped level
+    and exactly what `content.spec.js` checks for. The size is set by the class
+    rather than by the tag, which is what the tag is not for.
+    {% endcomment %}
+    <h2 id="card-{{ card.key }}" class="min-w-0 text-sm font-semibold text-text">{{ card.label }}</h2>
     {% comment %}
     One link per card. A card whose source is not connected keeps it: the
     dashboard behind it exists and explains what the figure would be.

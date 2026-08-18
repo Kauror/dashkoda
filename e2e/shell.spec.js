@@ -58,7 +58,7 @@ test("every domain has a card even before anything is connected", async ({ page 
     "Otsepostitused",
     "E-pood",
   ]) {
-    await expect(cards.getByRole("heading", { name: label, level: 3 })).toBeVisible();
+    await expect(cards.getByRole("heading", { name: label, level: 2 })).toBeVisible();
   }
 });
 
