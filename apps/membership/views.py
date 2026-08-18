@@ -470,7 +470,10 @@ def _composition_section(composition) -> AnalyticsSection:
             question=subtitles.get(dimension, ""),
         )
         if chart is not None:
-            charts.append(chart)
+            # The date and row count are the section's own description now, so
+            # the chart drops its observation label rather than printing the
+            # same sentence under all four drawings.
+            charts.append(replace(chart, observation_label=""))
 
     return AnalyticsSection(
         section_id="section-structure",

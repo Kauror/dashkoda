@@ -426,7 +426,15 @@ def _year_boundaries(series: tuple) -> dict:
             "silent": True,
             "symbol": "none",
             "lineStyle": {"type": "dotted", "width": 1, "opacity": 0.7},
-            "label": {"formatter": "aastavahetus", "position": "insideEndTop"},
+            # Horizontal and above the plot. ECharts rotates a vertical
+            # markLine's label to run along the line by default, which put the
+            # word down the middle of the drawing on its side.
+            "label": {
+                "formatter": "aastavahetus",
+                "position": "end",
+                "rotate": 0,
+                "distance": 6,
+            },
             "data": [{"xAxis": _iso(day)} for day in boundaries],
         }
     }

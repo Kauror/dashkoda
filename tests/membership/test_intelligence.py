@@ -453,8 +453,8 @@ def test_a_composition_subtitle_never_names_the_unclassified_group():
 
     subtitles = composition_subtitles(snapshot)
 
-    assert subtitles[Dimension.REGION] == "suurim: harjumaa"
-    assert "teadmata" not in subtitles[Dimension.REGION]
+    assert subtitles[Dimension.REGION] == "suurim: Harjumaa"
+    assert "Teadmata" not in subtitles[Dimension.REGION]
 
 
 def test_there_are_no_subtitles_at_all_without_a_roster():

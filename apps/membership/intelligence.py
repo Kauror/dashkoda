@@ -683,7 +683,11 @@ def composition_subtitles(snapshot) -> dict[str, str]:
         result = snapshot.dimension(dimension)
         largest = result.largest if result else None
         if largest is not None:
-            subtitles[dimension] = f"suurim: {largest.label.lower()}"
+            # The label as the source wrote it. Lower-casing it read `suurim:
+            # harjumaa`, which is a county with a capital letter — the line is a
+            # caption, not a sentence, and nothing about its position makes a
+            # proper noun stop being one.
+            subtitles[dimension] = f"suurim: {largest.label}"
 
     median = snapshot.median_tenure_years
     if median is not None:
