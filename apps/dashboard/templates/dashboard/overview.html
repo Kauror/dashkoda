@@ -217,7 +217,15 @@ across domains, no index and no score.
         <dl class="flex flex-col divide-y divide-border">
           {% for row in page.audiences %}
             <div class="flex flex-wrap items-baseline justify-between gap-x-3 py-1.5 first:pt-0 last:pb-0">
-              <dt class="min-w-0 text-sm text-text-secondary">
+              {% comment %}
+              The observation date beside the name, because the design system's
+              first rule is that a value is never shown without the date it
+              describes — and these are hand-entered figures whose age is the
+              main thing a reader needs to weigh them. Each row carries its own:
+              seven audiences are read on seven days and one line saying
+              "seisuga" for all of them would be a claim about none of them.
+              {% endcomment %}
+              <dt class="flex min-w-0 flex-wrap items-baseline gap-x-2 text-sm text-text-secondary">
                 {% if row.profile_url %}
                   {# `relative` contains the hidden note, which is absolutely #}
                   {# positioned and would otherwise settle at its spoken width. #}
@@ -229,6 +237,7 @@ across domains, no index and no score.
                 {% else %}
                   {{ row.label }}
                 {% endif %}
+                {% if row.as_of %}<span class="dk-meta">{{ row.as_of|date:"j.m.y" }}</span>{% endif %}
               </dt>
               <dd class="flex shrink-0 items-baseline gap-2 text-sm font-semibold tabular-nums text-text">
                 {% comment %}

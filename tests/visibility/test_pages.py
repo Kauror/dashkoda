@@ -18,28 +18,6 @@ def body(response) -> str:
     return response.content.decode()
 
 
-def _card_heading(page: str, label: str) -> str:
-    """The `<h3>` of one channel card, so a link assertion is about *that* card.
-
-    Searching the whole page for an href proves only that some element somewhere
-    carries it, which is how a test for "this card links here" passes because a
-    different card does.
-
-    Walks the label's occurrences rather than taking the first: a channel name
-    appears in more than one place on the overview, and the first hit is not
-    reliably the heading.
-    """
-    start = 0
-    while True:
-        marker = page.find(label, start)
-        assert marker != -1, f"no <h3> on the page carries {label!r}"
-        opening = page.rfind("<h3", 0, marker)
-        closing = page.find("</h3>", opening) if opening != -1 else -1
-        if opening != -1 and closing > marker:
-            return page[opening:closing]
-        start = marker + 1
-
-
 def visible_text(response) -> str:
     """Rendered text with entities decoded, for assertions about digits.
 
@@ -392,15 +370,21 @@ def test_a_social_row_links_out_and_never_into_dashkoda(submit, viewer_client):
     )
 
     page = body(viewer_client.get(reverse("home")))
+    strip = page[page.index('aria-labelledby="section-channels"') :]
 
-    for label in (
-        "Facebooki jälgijad",
-        "LinkedIni jälgijad",
-        "Instagrami jälgijad",
-        "YouTube’i tellijad",
+    for label, profile in (
+        ("Facebooki jälgijad", "https://www.facebook.com/"),
+        ("LinkedIni jälgijad", "https://www.linkedin.com/"),
+        ("Instagrami jälgijad", "https://www.instagram.com/"),
+        ("YouTube’i tellijad", "https://www.youtube.com/"),
     ):
-        heading = _card_heading(page, label)
-        assert "<a" not in heading, f"{label} links its heading somewhere"
+        assert label in strip, f"missing audience row: {label}"
+        row = strip[: strip.index(label)]
+        row = row[row.rindex("<dt") :]
+        assert profile in row, f"{label} does not link to its own public profile"
+        # An outward link and nothing else: no DashKoda route may appear on a
+        # social row, because no viewer-readable page shows these figures.
+        assert 'href="/' not in row, f"{label} links into DashKoda"
 
     # The figures themselves are still there, and the outbound profile links —
     # which are a different thing — are untouched.
@@ -408,22 +392,22 @@ def test_a_social_row_links_out_and_never_into_dashkoda(submit, viewer_client):
     assert "https://www.facebook.com/" in page
 
 
-def test_no_card_points_at_a_page_that_does_not_show_it(submit, viewer_client):
-    """The defect the three tests above exist to prevent, stated once.
+def test_no_row_points_at_a_page_that_does_not_show_it(submit, viewer_client):
+    """The defect the tests above exist to prevent, stated once.
 
-    A heading link is a promise that the thing named is at the other end. The
+    A link on a name is a promise that the thing named is at the other end. The
     band broke that promise for five of six cards by construction, because one
-    address was shared by slots describing different subjects.
+    address was shared by slots describing different subjects. The flat list has
+    exactly two destinations — Otsepostitused for a newsletter, the Chamber's own
+    public profile for a social channel — and Koduleht is neither, because it
+    shows none of these figures.
     """
     submit(facebook_followers=4200, newsletter_eteataja=1200)
 
     page = body(viewer_client.get(reverse("home")))
+    strip = page[page.index('aria-labelledby="section-channels"') :]
 
-    # No social card points at Koduleht, which shows no social figures.
-    for label in ("Facebooki jälgijad", "LinkedIni jälgijad"):
-        assert PAGE_URL not in _card_heading(page, label)
-    # And the newsletter card does not either.
-    assert PAGE_URL not in _card_heading(page, "Uudiskirjad")
+    assert PAGE_URL not in strip
 
 
 # ======================================================================
