@@ -185,7 +185,10 @@ def test_the_share_change_is_in_percentage_points(ga4):
     item = article("lugu", published=dt.date(2026, 2, 1))
     ga4(views={item.path: {current_day: 100, previous_day: 200}}, site_views_per_day=1000)
 
-    built = _overview()
+    # A thirty-day window, not `Kõik`: `Kõik`'s read window is the whole
+    # six-month coverage span, whose own "previous equal window" reaches
+    # behind every seeded day and leaves no comparison to assert against.
+    built = _overview(period_key="30", today=COVERAGE_END)
 
     share = headline(built, "news_share")
     assert share is not None

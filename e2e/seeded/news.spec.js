@@ -88,9 +88,13 @@ test("rows are compact and carry no article summary", async ({ page }) => {
    * The old rows ran 100–150px because each carried a multi-line RSS summary.
    * The ceiling allows a deliberately absurd seeded headline to wrap onto a
    * second line — that is the title column doing its job — while still failing
-   * if a summary or a second metadata line ever comes back.
+   * if a summary or a second metadata line ever comes back. Raised from 72 to
+   * 76 on 2026-08-18, when `Liik` and `vs tüüpiline` joined the row: two more
+   * cells at the row's own line height nudge a two-line title's row a few
+   * pixels taller under sub-pixel layout rounding, which is not the summary
+   * text this ceiling exists to catch.
    */
-  expect(Math.max(...heights)).toBeLessThan(72);
+  expect(Math.max(...heights)).toBeLessThan(76);
   // And an ordinary row is one line.
   const typical = heights.slice().sort((a, b) => a - b)[
     Math.floor(heights.length / 2)
