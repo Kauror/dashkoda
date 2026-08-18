@@ -57,6 +57,7 @@ from apps.core.formatting import integer
 
 from . import smaily_charts
 from .mailings_period import ResolvedMailingsPeriod, resolve_period
+from .registry import spec_for
 from .smaily_segments import NEWSLETTERS
 from .smaily_selectors import (
     count_sends_between,
@@ -137,6 +138,19 @@ class MailingsPage:
         return share_percent(benchmark) if benchmark is not None else ""
 
 
+def _label_for(metric: str) -> str:
+    """A newsletter's display name.
+
+    `NewsletterSpec` (`smaily_segments.NEWSLETTERS`) names only the segments
+    that make up a newsletter's audience — it carries no label of its own.
+    The name lives in the visibility registry, the one place a metric is
+    named; the metric key itself is the fallback for the registry drifting,
+    not a second source of truth.
+    """
+    registry_spec = spec_for(metric)
+    return registry_spec.label if registry_spec else metric
+
+
 def _newsletter_row(
     spec, *, period: ResolvedMailingsPeriod, sends_since: date, today: date
 ) -> NewsletterRow:
@@ -147,7 +161,7 @@ def _newsletter_row(
     )
     return NewsletterRow(
         metric=spec.metric,
-        label=aggregate.label or spec.label,
+        label=aggregate.label or _label_for(spec.metric),
         subscribers=integer(series.latest.subscribers) if series.latest else "",
         open_rate=share_percent(aggregate.open_rate) if aggregate.has_data else "",
         click_rate=share_percent(aggregate.click_rate) if aggregate.has_data else "",
@@ -214,8 +228,7 @@ def build_mailings_page(
     )
 
     monthly = get_monthly_open_rate(selected, start=period.start, end=period.end)
-    selected_spec = next((spec for spec in NEWSLETTERS if spec.metric == selected), None)
-    selected_label = selected_spec.label if selected_spec else ""
+    selected_label = _label_for(selected)
 
     return MailingsPage(
         period=period,
