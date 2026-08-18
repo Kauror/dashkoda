@@ -25,16 +25,20 @@ pytestmark = pytest.mark.django_db
 
 TODAY = dt.date(2026, 8, 11)
 
-#: Count, page slice, coverage, catalogue facts. Stated as a number rather than
-#: a range so that adding another query is a decision somebody makes on purpose.
+#: Count, page slice, coverage, catalogue facts, and the three benchmark
+#: cohorts (`""`, `meie_uudised`, `soprade_uudised`) the new `vs tüüpiline`
+#: column reads against every row on the page. Stated as a number rather than
+#: a range so that adding another query is a decision somebody makes on
+#: purpose.
 #:
-#: It was five, and the number is the reason this file matters. #106 added a
-#: third catalogue-wide count for the unclassified total without touching this
-#: budget, so the three tests below had been failing on `main` from the moment
-#: it merged — unseen, because that run and the merge run after it were both
-#: cancelled early. The catalogue-wide questions are one conditional aggregate
-#: now, which is why the number went down rather than up.
-EXPECTED_QUERIES = 4
+#: It was four until 2026-08-18, when the archive table grew a `vs tüüpiline`
+#: column: each row now needs a cohort to compare against, and
+#: `analytics.benchmark_cohorts` is one query per cohort rather than one query
+#: for all three — three articles, three cohorts, one query each, whatever the
+#: page size. #106 already established the pattern this budget follows: a
+#: catalogue-wide question is one query regardless of how many rows are shown,
+#: never one per row.
+EXPECTED_QUERIES = 7
 
 
 def catalogue(count: int) -> None:

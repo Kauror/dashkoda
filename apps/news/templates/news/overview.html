@@ -7,10 +7,10 @@ The news intelligence dashboard.
 One view over one address. It carried three focuses between 2026-08-16 and
 2026-08-17 — Ülevaade, Uudiste mõju, Arhiiv — and they merged back: the
 dashboard, the one chart `Uudiste mõju` still drew, and the archive table, top
-to bottom on one screen, in the order the three-focus page had already settled
-on. `Avaldamine` folded into the overview earlier, on 2026-08-16; its retired
-key, and `moju`'s and `arhiiv`'s, all resolve to this one view now — see
-`RETIRED_FOCUSES` in `apps/news/focus.py`.
+to bottom on one screen. It carried two time controls until 2026-08-18 — a
+publication window and a measurement window — and those merged too, into the
+one `Periood` picker in the header below. See `apps/news/page.py` for what that
+did and did not change about what each figure counts.
 
 The page used to open on the archive table, which answered "find me the article
 about excise duty" and answered "how are we doing" somewhere in the middle of
@@ -38,12 +38,6 @@ should stay that way.
 {% block title %}Uudised – DashKoda{% endblock %}
 
 {% block extra_head %}
-  {% comment %}
-  The chart bundle loads only when a chart will actually draw. The archive
-  section ships no chart JavaScript of its own — it is over a megabyte and
-  has no canvas — but it always renders alongside the dashboard now, so this
-  still names the two charts rather than the two focuses that used to gate them.
-  {% endcomment %}
   {% if page.cadence or page.distribution %}
     <script type="module" src="{% static 'build/charts.js' %}"></script>
   {% endif %}
@@ -58,49 +52,71 @@ should stay that way.
   `/haldus/`, along with every other domain's — see
   `apps/news/templates/news/admin/_data_about.html`.
   {% endcomment %}
-  <header class="flex min-w-0 flex-col gap-2">
+  <header class="flex min-w-0 flex-col gap-3">
     <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">Uudised</h1>
-  </header>
 
-  {% comment %}
-  The focus navigation stayed a loop over `page.focuses` rather than a single
-  hardcoded heading — `focus_options` and `FocusOption` are still real, so a
-  section reappearing behind its own address is a matter of adding one
-  `Focus` back to `FOCUSES`, not rebuilding this block. With one focus it
-  renders nothing: a nav with one, unclickable, already-active chip in it
-  reads as a fault, the same rule Liikmeskond's `focus_links` follows.
-  {% endcomment %}
-  {% if page.focuses|length > 1 %}
-    <nav aria-label="Vaade" class="-mx-4 min-w-0 overflow-x-auto px-4 sm:mx-0 sm:px-0">
-      <ul class="flex w-max gap-2 sm:w-auto sm:flex-wrap">
-        {% for option in page.focuses %}
-          <li>
-            <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-               href="{% if option.query %}?{{ option.query }}{% else %}?{% endif %}"
-               {% if option.is_active %}aria-current="page"{% endif %}>{{ option.label }}</a>
-          </li>
+    {% comment %}
+    One picker for the whole page, since 2026-08-18 — the publication window
+    and the reading window used to be two separate controls; `page.py` reads
+    why merging their **interface** is safe where merging their arithmetic
+    would not have been. `archive.periods` is reused rather than duplicated:
+    it already carries the sort, the search and the category through a click,
+    which is exactly what a header-level control also needs.
+    {% endcomment %}
+    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+      <nav aria-label="Periood" class="flex flex-wrap items-center gap-2">
+        {% for option in archive.periods %}
+          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+             href="?{{ option.query }}"
+             {% if option.is_active %}aria-current="page"{% endif %}>{{ option.period.label }}</a>
         {% endfor %}
-      </ul>
-    </nav>
-  {% endif %}
+      </nav>
+      {% if page.period.start and page.period.end %}
+        <p class="dk-meta tabular-nums">{{ page.period.start|date:"d.m.Y" }}–{{ page.period.end|date:"d.m.Y" }}</p>
+      {% endif %}
+    </div>
 
-  {% comment %}
-  Each focus used to restate its own question here, under the navigation. The
-  tab labels already said which question was being asked, so the field went
-  with the line — see `Focus` in `apps/news/focus.py`.
-  {% endcomment %}
+    {% if archive.period.period.is_custom %}
+      {% comment %}
+      Native date fields, submitted by an ordinary GET form. The server
+      resolves whatever arrives — reversed, half-filled or unreadable — and
+      the fields then show the window that was actually applied, so the
+      control never disagrees with the page under it.
+      {% endcomment %}
+      <form method="get" class="flex min-w-0 flex-wrap items-end gap-2">
+        <input type="hidden" name="periood" value="{{ archive.period.key }}">
+        {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
+        {% if archive.search %}<input type="hidden" name="otsing" value="{{ archive.search }}">{% endif %}
+        {% if archive.category %}<input type="hidden" name="kategooria" value="{{ archive.category }}">{% endif %}
+        <div class="flex flex-col gap-1">
+          <label for="alates" class="text-sm text-text-secondary">Alates</label>
+          <input type="date" id="alates" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}" class="dk-input dk-input-date">
+        </div>
+        <div class="flex flex-col gap-1">
+          <label for="kuni" class="text-sm text-text-secondary">Kuni</label>
+          <input type="date" id="kuni" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}" class="dk-input dk-input-date">
+        </div>
+        <button type="submit" class="dk-button dk-button-secondary">Näita</button>
+      </form>
+    {% endif %}
+
+    {% if page.read_is_truncated %}
+      <p class="dk-meta">
+        Mõõdetud lehevaatamisi on alates {{ page.read_start|date:"d.m.Y" }}, seega on loetud periood valitust lühem.
+      </p>
+    {% endif %}
+  </header>
 
   {% comment %}
   All three sections, unconditionally, in the reading order the three-focus
   page had already settled on: the dashboard first, since that answers what
   somebody opens a communications dashboard to ask; the one chart `Uudiste
-  mõju` still drew, right after the dashboard's own reading list, since both
-  are about what is being read; the archive last, because "find me the
+  mõju` still drew, right after; the archive last, because "find me the
   article about excise duty" is a different errand from "how are we doing"
   and an exact lookup belongs at the end of the screen, not the top of it.
   {% endcomment %}
-  {% include "news/partials/_focus_overview.html" with page=page reading_state=reading_state only %}
-  {% include "news/partials/_focus_impact.html" with page=page reading_state=reading_state only %}
+  {% include "news/partials/_focus_overview.html" with page=page only %}
+  {% include "news/partials/_focus_impact.html" with page=page only %}
   {% include "news/partials/_focus_archive.html" with archive=archive only %}
 
   {% comment %}

@@ -236,3 +236,14 @@ def percentage_points(value: Decimal | int | None, *, places: int = 1) -> str:
         return ""
     body = _signed(_decimals(value, places), negative=value < 0, zero=value == 0)
     return f"{body}{GROUP_SEPARATOR}pp"
+
+
+def multiple(value: Decimal | int | float | None, *, places: int = 1) -> str:
+    """`2,2×`, `0,1×` — one figure as a multiple of another.
+
+    Never signed: a multiple has no direction to carry, only a size either side
+    of `1,0×`.
+    """
+    if value is None:
+        return ""
+    return f"{_decimals(value, places)}×"

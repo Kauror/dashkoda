@@ -1,42 +1,21 @@
 {% comment %}
 `Uudiste mõju` — what used to be the deep content-performance view, now the
-one section it retired with when it merged into the overview on 2026-08-17.
+one section it retired with when it merged into the overview on 2026-08-17:
+the shape of a normal article's first month, so a reader can tell whether a
+number elsewhere on the page is remarkable or ordinary.
 
 Three separate rankings used to live here rather than one `Enim vaadatud`
-table, because "what is being read now" and "what performed best on a
-comparable first month" are different questions and one list cannot answer
-both. `Pingerida` — that ranking, with its own lens tabs and read-period
-chips — left first, on 2026-08-16, along with `Jätkuvalt loetav` and `Alla
-tavapärase`. `page.lenses`, `page.read_periods`, `page.ranked`,
-`page.evergreen` and `page.below_normal` are still built by `build_impact`;
-nothing here composes them now.
+table, plus a lens picker and a lens-specific reading window. All of it left
+between 2026-08-16 and 2026-08-18 along with `page.py`'s own `ranked`,
+`evergreen`, `below_normal`, `concentration`, `categories` and `lenses` —
+see that module for what stayed and why.
 
-Context: page, reading_state
+Context: page
 {% endcomment %}
 
-{% comment %}
-The distribution, so a reader can tell whether a number is remarkable. A median
-on its own does not say whether 300 views is strong — the shape does, and it is
-the difference between "this got 300" and "this is in the top tenth".
-{% endcomment %}
 {% if page.distribution %}
   <section aria-labelledby="section-distribution" class="dk-section dk-section-body">
-    <h2 id="section-distribution" class="sr-only">Esimese 30 päeva jaotus</h2>
+    <h2 id="section-distribution" class="sr-only">Kuidas uudised jõuavad</h2>
     {% include "dashboard/components/chart_figure.html" with chart=page.distribution only %}
   </section>
 {% endif %}
-
-{% comment %}
-`Kui koondunud tähelepanu on` and `Koja ja Sõprade uudised` both left this view
-on 2026-08-16.
-
-The Koja/Sõprade dimension is the one to be careful about: it is now nowhere on
-the dashboard as a figure. What remains is the part that governs how the rest of
-the page is read — `Andmete kohta` still states that the two kinds are
-benchmarked **separately**, and why a shared median would file most partner
-articles under `Alla tavapärase`. The comparison went; the rule it existed to
-justify did not.
-
-`page.concentration` and `page.categories` are still built. They are one section
-away from being shown again, and `Alla tavapärase` depends on the same cohorts.
-{% endcomment %}

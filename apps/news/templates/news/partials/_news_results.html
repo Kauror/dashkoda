@@ -39,6 +39,7 @@ two for a long one on a phone.
       <tr>
         <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kuupäev</th>
         <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Uudis</th>
+        <th scope="col" class="hidden border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:table-cell sm:px-3">Liik</th>
         {% comment %}
         `break-all` below `sm` is what lets this table fit a 320-pixel
         phone, and the choice of property is the whole point: a column
@@ -57,6 +58,7 @@ two for a long one on a phone.
         320 pixels and is not worth it anywhere else.
         {% endcomment %}
         <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide break-all text-text-muted uppercase sm:px-3 sm:break-normal">{{ archive.views_heading }}</th>
+        <th scope="col" class="hidden border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:table-cell sm:px-3">vs tüüpiline</th>
       </tr>
     </thead>
     <tbody>
@@ -79,6 +81,9 @@ two for a long one on a phone.
               {{ row.title }}<span class="sr-only"> (koda.ee, avaneb uuel vahelehel)</span>
             </a>
           </th>
+          <td class="hidden border-b border-border px-2 py-1.5 align-top whitespace-nowrap text-text-muted sm:table-cell sm:px-3">
+            {{ row.category_label }}
+          </td>
           {% comment %}
           A measured figure or a dash. Never a zero: an article nobody has
           measured and an article nobody read are different facts, and only
@@ -86,6 +91,16 @@ two for a long one on a phone.
           {% endcomment %}
           <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums sm:px-3 {% if row.has_views %}text-text-secondary{% else %}text-text-muted{% endif %}">
             {% if row.has_views %}{{ row.views|group_thousands }}{% else %}—{% endif %}
+          </td>
+          {% comment %}
+          Views-to-date against comparable articles' typical first month — not
+          the fair, completed-window benchmark used elsewhere on this
+          dashboard, since almost every row here is itself still inside its
+          own first month. `värske` names the one state that is not even
+          that: too little collected yet to compare at all.
+          {% endcomment %}
+          <td class="hidden border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums sm:table-cell sm:px-3 {% if row.benchmark_direction == 'up' %}text-success{% elif row.benchmark_direction == 'down' %}text-danger{% else %}text-text-muted{% endif %}">
+            {% if row.is_fresh %}värske{% elif row.benchmark %}{{ row.benchmark }}{% else %}—{% endif %}
           </td>
         </tr>
       {% endfor %}

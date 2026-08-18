@@ -9,6 +9,24 @@ stays because each function is still independently readable and testable, and
 because the day this page grows a second view again, the "only what it
 renders" rule is exactly what should govern it.
 
+## One window, since 2026-08-18
+
+Until this date the page held two separate time controls: `periood=` — a
+**publication** window, "articles published during this span" — and `loetud=`
+— a **measurement** window, "pages read during this span". `apps/news/periods.py`
+still carries the reasoning for why those are different questions; that
+reasoning is still true. What changed is the interface: the mockup this round
+rebuilt the page to shows one picker, and a second hidden one the reader never
+asked for was worse than one picker used consistently. So every section on this
+page now reads the **same** calendar window — `periood=`'s — and applies it
+according to its own question: `Avaldatud uudiseid` still counts what was
+*published* inside it, `Lehevaatamised` still counts what was *read* inside it,
+clipped to what GA4 has actually collected. The distinction the old two-control
+design protected is preserved in what each figure's own label says it counts,
+not in which control moved it. `apps/news/measurement.py` and its `loetud=`
+parameter retired with the second control; a bookmark that still carries one is
+simply an unread parameter, the same as a stray `fookus=`.
+
 ## Newsletters are not here
 
 They were, as a fifth focus. The Smaily material is now `Otsepostitused` at
@@ -38,12 +56,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-from django.utils import timezone
-
-from apps.core.change import ChangeRow, direction_of, share_percent
+from apps.core.change import direction_of, share_percent
 from apps.core.formatting import (
     integer,
-    percent,
     percentage_points,
     short_date,
     signed_integer,
@@ -52,23 +67,6 @@ from apps.core.formatting import (
 from apps.visibility.ga4_selectors import Coverage, get_coverage
 
 from . import analytics
-from .categories import NewsCategory
-from .focus import (
-    FOCUS_ARCHIVE,
-    FOCUS_IMPACT,
-    FOCUS_OVERVIEW,
-    PARAM_FOCUS,
-    Focus,
-    FocusOption,
-    focus_options,
-    parse_focus,
-)
-from .measurement import (
-    ReadPeriodOption,
-    ResolvedReading,
-    read_period_options,
-    resolve_reading,
-)
 from .periods import ResolvedPeriod, resolve_period
 
 #: Shown where a figure exists but its comparison does not.
@@ -110,81 +108,36 @@ class Headline:
         return bool(self.change)
 
 
-@dataclass(frozen=True)
-class ArticleRow:
-    """One ranked article, with the figure that ranked it.
+def _reading_window(
+    period: ResolvedPeriod, *, coverage: Coverage
+) -> tuple[date | None, date | None, bool]:
+    """The **same** calendar window as `period`, clipped to what GA4 collected.
 
-    `views` is already the answer to the question the list asked — views in the
-    measurement window, or views in the article's first week — so the list never
-    has to explain which number it sorted by.
+    `periood=` is a publication window and may be open at either end — `Kõik`
+    is both ends open, a half-filled custom range is one. A read-based figure
+    has no catalogue to fall back on for an open end, so an open publication
+    bound becomes the corresponding coverage bound here, and a bound outside
+    coverage is pulled in to the nearest collected day. `is_truncated` says
+    when that happened, the same distinction `apps/news/measurement.py` used to
+    draw for its own window.
     """
+    if not coverage.has_data or coverage.earliest is None or coverage.latest is None:
+        return None, None, False
 
-    title: str
-    url: str
-    published_on: date | None
-    category: str
-    views: str
-    #: The comparison against comparable articles, where one is available.
-    benchmark: str = ""
-    benchmark_direction: str = ""
-    note: str = ""
-
-    @property
-    def has_date(self) -> bool:
-        return self.published_on is not None
-
-    @property
-    def category_label(self) -> str:
-        return dict(NewsCategory.choices).get(self.category, "")
-
-    @property
-    def published_label(self) -> str:
-        return short_date(self.published_on) if self.published_on else "Kuupäev teadmata"
+    start = period.start or coverage.earliest
+    end = period.end or coverage.latest
+    truncated = (period.start is not None and period.start < coverage.earliest) or (
+        period.end is not None and period.end > coverage.latest
+    )
+    start = max(start, coverage.earliest)
+    end = min(end, coverage.latest)
+    if start > end:
+        return None, None, truncated
+    return start, end, truncated
 
 
-@dataclass(frozen=True)
-class CategoryRow:
-    """One category's output, fair performance and current attention, formatted.
-
-    The three come from two different windows and the template must not have to
-    know that; the builder passes the windows in separately and the section's
-    caption names both.
-    """
-
-    key: str
-    label: str
-    published: str
-    median: str
-    window_views: str
-
-
-@dataclass(frozen=True)
-class ConcentrationView:
-    """How much of the reading the few most-read articles hold, formatted."""
-
-    articles_read: int
-    top_5: str
-    top_10: str
-    has_data: bool = True
-
-
-@dataclass(frozen=True)
-class Signal:
-    """One item under `Tähelepanu`.
-
-    The evidence, never the explanation. `Sellel uudisel oli halb pealkiri` is a
-    claim the data cannot support; `30 päeva vaatamisi 42% alla sarnaste uudiste
-    mediaani` is what was actually measured, and the communications team is far
-    better placed than a dashboard to say why.
-    """
-
-    label: str
-    evidence: str
-    url: str = ""
-
-
-def _headline_published(period: ResolvedPeriod, *, today: date | None = None) -> Headline:
-    """How much was published in the publication window, against the one before.
+def _headline_published(period: ResolvedPeriod) -> Headline:
+    """How much was published in the window, against the one before.
 
     The comparison is the equal-length window immediately before this one. It is
     a count of articles, never annualised: eleven articles in thirty days is not
@@ -193,11 +146,7 @@ def _headline_published(period: ResolvedPeriod, *, today: date | None = None) ->
     """
     if not period.is_windowed or period.start is None or period.end is None:
         counted = analytics.published_between(None, None)
-        return Headline(
-            key="published",
-            label="Avaldatud uudiseid",
-            value=integer(counted.total),
-        )
+        return Headline(key="published", label="Avaldatud uudiseid", value=integer(counted.total))
 
     current = analytics.published_between(period.start, period.end)
     previous_start, previous_end = analytics.previous_window(period.start, period.end)
@@ -207,7 +156,7 @@ def _headline_published(period: ResolvedPeriod, *, today: date | None = None) ->
         key="published",
         label="Avaldatud uudiseid",
         value=integer(current.total),
-        change=f"{signed_integer(difference)} vs eelmine {period.label.lower()}",
+        change=f"{signed_integer(difference)} vs eelmine periood",
         change_label=f"{signed_integer(difference)} võrreldes eelmise perioodiga",
         direction=direction_of(difference),
     )
@@ -216,9 +165,8 @@ def _headline_published(period: ResolvedPeriod, *, today: date | None = None) ->
 def _headline_news_views(
     current: analytics.NewsTrafficSummary,
     previous: analytics.NewsTrafficSummary,
-    reading: ResolvedReading,
 ) -> Headline | None:
-    """News page views in the measurement window.
+    """News page views in the window.
 
     Page views, not readers: one person opening an article twice is two of these
     and one of those, and the word on the page is `lehevaatamist` throughout.
@@ -239,7 +187,7 @@ def _headline_news_views(
         direction = direction_of(difference)
     return Headline(
         key="news_views",
-        label="Uudiste lehevaatamised",
+        label="Lehevaatamised",
         value=integer(current.news_views),
         change=change,
         change_label=change_label,
@@ -273,7 +221,7 @@ def _headline_news_share(
         direction = direction_of(difference)
     return Headline(
         key="news_share",
-        label="Uudiste osakaal külastustest",
+        label="Osakaal kodulehe külastustest",
         value=share_percent(current.share),
         change=change,
         change_label=change_label,
@@ -282,147 +230,31 @@ def _headline_news_share(
     )
 
 
-def _describe_ranked(
-    resources,
-    *,
-    annotation: str,
-    cohorts: dict[str, analytics.CohortStats] | None = None,
-    unit: str = "vaatamist",
-) -> tuple[ArticleRow, ...]:
-    """Ranked catalogue rows as the page shows them."""
-    rows = []
-    for resource in resources:
-        views = getattr(resource, annotation, None)
-        benchmark_text = ""
-        benchmark_direction = ""
-        if cohorts is not None and views is not None:
-            cohort = analytics.benchmark_for(cohorts, resource.category)
-            result = analytics.benchmark(views, cohort)
-            if result is not None and result.ratio is not None:
-                benchmark_text = f"{signed_percent((result.ratio - 1) * 100)} vs mediaan"
-                benchmark_direction = direction_of(result.difference)
-        rows.append(
-            ArticleRow(
-                title=resource.title,
-                url=resource.canonical_url,
-                # Localised before the date is taken, so an article posted at
-                # half past midnight is dated the day its editor would date it
-                # — the same day `analytics.published_day` filters it under.
-                published_on=(
-                    timezone.localtime(resource.published_at).date()
-                    if resource.published_at
-                    else None
-                ),
-                category=resource.category,
-                views=f"{integer(views)} {unit}" if views is not None else NO_VALUE,
-                benchmark=benchmark_text,
-                benchmark_direction=benchmark_direction,
-            )
-        )
-    return tuple(rows)
+def _headline_typical_first_month(cohorts: dict[str, analytics.CohortStats]) -> Headline | None:
+    """The fourth measure: what a normal article's first month looks like.
 
-
-def _opportunities(
-    *,
-    coverage: Coverage,
-    reading: ResolvedReading,
-    cohorts: dict[str, analytics.CohortStats],
-    traffic: analytics.NewsTrafficSummary,
-    previous: analytics.NewsTrafficSummary,
-) -> tuple[Signal, ...]:
-    """Transparent rules over stored figures. No model, no prose, no score.
-
-    Each signal names the evidence and links to the article. Whether any of them
-    is worth acting on is a judgement about audience and intent that the
-    dashboard cannot make and does not try to.
+    Independent of the window above it on purpose. This is the same trailing
+    twelve-month cohort `Kuidas uudised jõuavad` draws its shape from, so the
+    two say the same "normal" — a card that answered from the window picker
+    instead would call two different populations "typical" on one screen.
     """
-    signals: list[Signal] = []
-
-    if reading.has_window:
-        # An older article collecting current attention. The reader's question is
-        # "why is this being read now", which is worth asking and which the data
-        # cannot answer.
-        for resource in analytics.evergreen(
-            start=reading.start, end=reading.end, limit=1, today=reading.end
-        ):
-            views = getattr(resource, analytics.WINDOW_ANNOTATION, None)
-            if views:
-                signals.append(
-                    Signal(
-                        label="Vanem uudis kogub praegu lugejaid",
-                        evidence=(
-                            f"„{resource.title}“ — {integer(views)} vaatamist "
-                            f"{reading.label.lower()} jooksul, avaldatud "
-                            f"{short_date(timezone.localtime(resource.published_at).date())}."
-                        ),
-                        url=resource.canonical_url,
-                    )
-                )
-
-    # A recent article in the weakest quarter of comparable articles. Stated as a
-    # position in a distribution, never as a failure.
-    weak = _below_normal(coverage=coverage, cohorts=cohorts, limit=1)
-    signals.extend(weak)
-
-    if traffic.share is not None and previous.share is not None:
-        difference = (traffic.share - previous.share) * 100
-        if abs(difference) >= 2:
-            signals.append(
-                Signal(
-                    label="Uudiste osakaal kodulehe vaatamistest muutus",
-                    evidence=(
-                        f"{share_percent(traffic.share)} vs "
-                        f"{share_percent(previous.share)} eelmisel võrdsel perioodil "
-                        f"({percentage_points(difference)})."
-                    ),
-                )
-            )
-    return tuple(signals)
-
-
-def _below_normal(
-    *,
-    coverage: Coverage,
-    cohorts: dict[str, analytics.CohortStats],
-    limit: int = 5,
-) -> tuple[Signal, ...]:
-    """Recently published articles sitting in their cohort's lowest quarter.
-
-    Eligible articles only — a complete first month inside coverage — so nothing
-    here is merely young. The threshold is the cohort's own 25th percentile
-    rather than a percentage chosen by hand, and the wording says where the
-    article sits rather than what it did wrong.
-    """
-    if not coverage.has_data or coverage.latest is None:
-        return ()
-    since = coverage.latest - timedelta(days=180)
-    rows = analytics.annotate_first_window(
-        analytics.eligible_cohort(days=analytics.FIRST_MONTH_DAYS, coverage=coverage, since=since),
-        name=analytics.FIRST_WINDOW_ANNOTATION,
-    ).order_by("-published_at")[:200]
-
-    signals: list[Signal] = []
-    for resource in rows:
-        views = getattr(resource, analytics.FIRST_WINDOW_ANNOTATION, None) or 0
-        cohort = analytics.benchmark_for(cohorts, resource.category)
-        result = analytics.benchmark(views, cohort)
-        if result is None or not result.is_below_normal:
-            continue
-        shortfall = (1 - result.ratio) * 100 if result.ratio is not None else None
-        signals.append(
-            Signal(
-                label="Alla tavapärase",
-                evidence=(
-                    f"„{resource.title}“ — {integer(views)} vaatamist esimese 30 päevaga, "
-                    f"{percent(shortfall)} alla {cohort.label.lower()} mediaani "
-                    f"({integer(cohort.median)})."
-                ),
-                url=resource.canonical_url,
-            )
-        )
-        if len(signals) >= limit:
-            break
-    return tuple(signals)
+    everything = cohorts.get("")
+    if everything is None or not everything.is_usable:
+        return None
+    detail = (
+        f"keskmine pool {integer(everything.p25)} – {integer(everything.p75)}"
+        if everything.p25 is not None and everything.p75 is not None
+        else ""
+    )
+    note = f"{integer(everything.count)} uudise põhjal"
+    if detail:
+        note = f"{detail} · {note}"
+    return Headline(
+        key="typical_first_month",
+        label="Tüüpiline uudis esimese 30 päevaga",
+        value=f"{integer(everything.median)} vaatamist",
+        note=note,
+    )
 
 
 @dataclass(frozen=True)
@@ -435,58 +267,29 @@ class NewsPage:
     2026-08-16, for `avaldamine`), and everything below composes now.
     """
 
-    focus: Focus
-    focuses: tuple[FocusOption, ...]
-    reading: ResolvedReading
-    read_periods: tuple[ReadPeriodOption, ...]
     period: ResolvedPeriod
     coverage: Coverage
+    #: The window the read-based headlines and the distribution chart actually
+    #: queried — `period`'s own bounds, clipped to GA4 coverage.
+    read_start: date | None = None
+    read_end: date | None = None
+    read_is_truncated: bool = False
 
     headlines: tuple[Headline, ...] = field(default_factory=tuple)
-    changes: tuple[ChangeRow, ...] = field(default_factory=tuple)
-    most_read: tuple[ArticleRow, ...] = field(default_factory=tuple)
-    first_week: tuple[ArticleRow, ...] = field(default_factory=tuple)
-    signals: tuple[Signal, ...] = field(default_factory=tuple)
 
     #: `fookus=moju`
-    lens: str = ""
-    lenses: tuple[LensOption, ...] = field(default_factory=tuple)
-    lens_question: str = ""
-    ranked: tuple[ArticleRow, ...] = field(default_factory=tuple)
     distribution: object | None = None
-    evergreen: tuple[ArticleRow, ...] = field(default_factory=tuple)
-    below_normal: tuple[Signal, ...] = field(default_factory=tuple)
-    concentration: ConcentrationView | None = None
-    categories: tuple[CategoryRow, ...] = field(default_factory=tuple)
     cohorts: dict = field(default_factory=dict)
-    #: The publication window the cohort figures describe, so the interface can
-    #: name it rather than leaving "median" and "published" undated.
-    cohort_start: date | None = None
 
     #: `fookus=avaldamine`
     cadence: object | None = None
     counted: analytics.PublishingCount | None = None
-    #: The **publication** window chips. Labelled `Avaldatud:` on the page,
-    #: because the same three lengths mean readership one focus away.
-    periods: tuple = field(default_factory=tuple)
     series_start: date | None = None
     series_end: date | None = None
     grain: str = ""
 
     #: Facts about the catalogue and the coverage, for `Andmete kohta`.
     facts: dict = field(default_factory=dict)
-
-    @property
-    def is_overview(self) -> bool:
-        return self.focus.key == FOCUS_OVERVIEW
-
-    @property
-    def is_impact(self) -> bool:
-        return self.focus.key == FOCUS_IMPACT
-
-    @property
-    def is_archive(self) -> bool:
-        return self.focus.key == FOCUS_ARCHIVE
 
     @property
     def coverage_note(self) -> str:
@@ -497,261 +300,83 @@ class NewsPage:
             f"{short_date(self.coverage.earliest)}."
         )
 
+    @property
+    def read_is_windowed(self) -> bool:
+        return self.read_start is not None and self.read_end is not None
+
 
 def build_overview(
     *,
-    reading: ResolvedReading,
     period: ResolvedPeriod,
     coverage: Coverage,
+    read_start: date | None,
+    read_end: date | None,
+    cohorts: dict[str, analytics.CohortStats],
 ) -> dict:
-    """The default view: four measures, what changed, and what to look at.
+    """The default view: four measures, and what changed.
 
     Ordered so the first screen answers the questions somebody opens this page
     with — how much did we publish, how much was read, how much of the site is
     news, what does a normal article do — before offering anything to
     investigate.
     """
+    has_window = read_start is not None and read_end is not None
     traffic = (
-        analytics.news_traffic(start=reading.start, end=reading.end)
-        if reading.has_window
+        analytics.news_traffic(start=read_start, end=read_end)
+        if has_window
         else analytics.NewsTrafficSummary()
     )
     previous_traffic = (
-        analytics.previous_traffic_within(reading.start, reading.end, coverage)
-        if reading.has_window
+        analytics.previous_traffic_within(read_start, read_end, coverage)
+        if has_window
         else analytics.NewsTrafficSummary()
     )
 
-    # `benchmark_cohorts` is no longer walked here. It was the fourth card's
-    # median and the input to `signals`, and both went on 2026-08-16 — it is
-    # still built on `Uudiste mõju`, which is the focus that uses it.
     headlines = [
         _headline_published(period),
-        _headline_news_views(traffic, previous_traffic, reading),
+        _headline_news_views(traffic, previous_traffic),
         _headline_news_share(traffic, previous_traffic),
+        _headline_typical_first_month(cohorts),
     ]
 
-    most_read = ()
-    if reading.has_window:
-        most_read = _describe_ranked(
-            analytics.most_read(start=reading.start, end=reading.end, limit=6),
-            annotation=analytics.WINDOW_ANNOTATION,
-        )
-
-    # The newsletter comparison strip that used to close this view moved to
-    # `/otsepostitused/` with the rest of the Smaily material. It is not
-    # summarised here in its place: a second copy of three rates on a page whose
-    # subject is articles is exactly the duplication that move was for.
-    # `changes`, `first_week` and `signals` are no longer computed. Their three
-    # sections left this view on 2026-08-16, and this module's rule is that a
-    # focus builds only what it renders — the cohort walk behind `signals` and
-    # the second ranking behind `first_week` were not free. The fields stay on
-    # `NewsPage` with their empty defaults, so restoring a section is putting
-    # its key back here rather than reassembling it.
-    return {
-        "headlines": tuple(headline for headline in headlines if headline is not None),
-        "most_read": most_read,
-    }
+    return {"headlines": tuple(headline for headline in headlines if headline is not None)}
 
 
-def _changes(
-    traffic: analytics.NewsTrafficSummary,
-    previous: analytics.NewsTrafficSummary,
-    period: ResolvedPeriod,
-) -> tuple[ChangeRow, ...]:
-    """`Mis muutus?` — only comparisons both of whose sides exist."""
-    rows: list[ChangeRow] = []
+def build_impact(*, coverage: Coverage) -> dict:
+    """The one section `Uudiste mõju` retired with: the first-month shape.
 
-    if traffic.has_data and previous.has_data and previous.news_views:
-        difference = traffic.news_views - previous.news_views
-        rows.append(
-            ChangeRow(
-                label="Uudiste lehevaatamised",
-                current=integer(traffic.news_views),
-                previous=integer(previous.news_views),
-                change=signed_percent((difference / previous.news_views) * 100),
-                direction=direction_of(difference),
-            )
-        )
-
-    if traffic.share is not None and previous.share is not None:
-        difference = (traffic.share - previous.share) * 100
-        rows.append(
-            ChangeRow(
-                label="Uudiste osakaal kodulehe vaatamistest",
-                current=share_percent(traffic.share),
-                previous=share_percent(previous.share),
-                change=percentage_points(difference),
-                direction=direction_of(difference),
-            )
-        )
-
-    if period.is_windowed and period.start is not None and period.end is not None:
-        current = analytics.published_between(period.start, period.end)
-        previous_start, previous_end = analytics.previous_window(period.start, period.end)
-        earlier = analytics.published_between(previous_start, previous_end)
-        rows.append(
-            ChangeRow(
-                label="Avaldatud uudiseid",
-                current=integer(current.total),
-                previous=integer(earlier.total),
-                change=signed_integer(current.total - earlier.total),
-                direction=direction_of(current.total - earlier.total),
-            )
-        )
-
-    return tuple(rows)
-
-
-#: The impact view's own control.
-PARAM_LENS = "vaade"
-
-#: The three lenses the impact view offers, and the question each answers.
-LENS_NOW = "praegu"
-LENS_WEEK = "nadal"
-LENS_MONTH = "kuu"
-
-LENSES: tuple[tuple[str, str, str], ...] = (
-    (LENS_NOW, "Loetakse praegu", "Mis huvitab lugejaid praegu, olenemata avaldamisajast?"),
-    (LENS_WEEK, "Esimene nädal", "Mis äratas kohe tähelepanu?"),
-    (LENS_MONTH, "Esimene 30 päeva", "Mis toimis võrreldaval esimese kuu alusel?"),
-)
-
-#: The default lens for comparing articles across publication dates. The first
-#: month is the fairest of the three: every article passes through one, and a
-#: total measured figure compares an article's age as much as its reach.
-DEFAULT_LENS = LENS_MONTH
-
-_LENS_KEYS = {key for key, _, _ in LENSES}
-
-
-def parse_lens(raw: str | None) -> str:
-    value = (raw or "").strip()
-    return value if value in _LENS_KEYS else DEFAULT_LENS
-
-
-@dataclass(frozen=True)
-class LensOption:
-    key: str
-    label: str
-    is_active: bool
-    query: str
-
-
-def build_impact(
-    *,
-    reading: ResolvedReading,
-    coverage: Coverage,
-    lens: str,
-    state: str = "",
-) -> dict:
-    """The deep content-performance view.
-
-    Three separate rankings rather than one `Enim vaadatud` table, because
-    "what is being read now" and "what performed best on a comparable first
-    month" are different questions and one list cannot answer both. Which is on
-    screen is a real URL, so a colleague can be sent the exact lens.
+    Three separate rankings and a per-lens control used to live here. All of it
+    left this view between 2026-08-16 and 2026-08-17 except the distribution,
+    which is still the only honest way to say whether a figure is remarkable —
+    see `apps/news/charts.py::first_month_distribution`.
     """
     from . import charts
 
     cohorts = analytics.benchmark_cohorts(coverage=coverage)
     everything = cohorts.get("")
-    cohort_start = (
-        coverage.latest - timedelta(days=analytics.BENCHMARK_COHORT_DAYS - 1)
-        if coverage.latest
-        else None
-    )
-
-    ranked: tuple[ArticleRow, ...] = ()
-    if lens == LENS_NOW and reading.has_window:
-        ranked = _describe_ranked(
-            analytics.most_read(start=reading.start, end=reading.end, limit=20),
-            annotation=analytics.WINDOW_ANNOTATION,
-        )
-    elif lens == LENS_WEEK:
-        ranked = _describe_ranked(
-            analytics.first_week_leaders(coverage=coverage, limit=20),
-            annotation=analytics.FIRST_WINDOW_ANNOTATION,
-        )
-    elif lens == LENS_MONTH:
-        rows = analytics.annotate_first_window(
-            analytics.eligible_cohort(days=analytics.FIRST_MONTH_DAYS, coverage=coverage),
-            name=analytics.FIRST_WINDOW_ANNOTATION,
-        ).order_by(f"-{analytics.FIRST_WINDOW_ANNOTATION}", "-published_at", "path")[:20]
-        ranked = _describe_ranked(
-            rows, annotation=analytics.FIRST_WINDOW_ANNOTATION, cohorts=cohorts
-        )
 
     distribution = None
-    values: list[int] = []
     if everything is not None and everything.is_usable:
+        cohort_start = (
+            coverage.latest - timedelta(days=analytics.BENCHMARK_COHORT_DAYS - 1)
+            if coverage.latest
+            else None
+        )
         values = analytics.cohort_values(
             days=analytics.FIRST_MONTH_DAYS, coverage=coverage, since=cohort_start
         )
         distribution = charts.first_month_distribution(values, everything)
 
-    evergreen_rows: tuple[ArticleRow, ...] = ()
-    if reading.has_window:
-        evergreen_rows = _describe_ranked(
-            analytics.evergreen(start=reading.start, end=reading.end, limit=8, today=reading.end),
-            annotation=analytics.WINDOW_ANNOTATION,
-        )
-
-    return {
-        "lens": lens,
-        "lenses": tuple(
-            LensOption(
-                key=key,
-                label=label,
-                is_active=key == lens,
-                query=_lens_query(key, state),
-            )
-            for key, label, _ in LENSES
-        ),
-        # `lens_question`, `concentration` and `categories` are no longer
-        # computed — the lens sentence and both sections went on 2026-08-16, and
-        # `analytics.concentration` and `analytics.category_performance` are a
-        # query each. Both selectors are untouched and still tested; nothing on
-        # this focus calls them.
-        "ranked": ranked,
-        "distribution": distribution,
-        "evergreen": evergreen_rows,
-        "below_normal": _below_normal(coverage=coverage, cohorts=cohorts, limit=6),
-        "cohort_start": cohort_start,
-        "cohorts": cohorts,
-    }
+    return {"distribution": distribution, "cohorts": cohorts}
 
 
-def _describe_concentration(result: analytics.Concentration) -> ConcentrationView:
-    return ConcentrationView(
-        articles_read=result.articles_read,
-        top_5=share_percent(result.top_5_share),
-        top_10=share_percent(result.top_10_share),
-        has_data=result.has_data,
-    )
+def build_publishing(*, period: ResolvedPeriod, coverage: Coverage) -> dict:
+    """What and how much the Chamber publishes, over the same window.
 
-
-def _lens_query(key: str, state: str) -> str:
-    parts = [f"{PARAM_FOCUS}={FOCUS_IMPACT}"]
-    if key != DEFAULT_LENS:
-        parts.append(f"{PARAM_LENS}={key}")
-    if state:
-        parts.append(state)
-    return "&".join(parts)
-
-
-def build_publishing(*, period: ResolvedPeriod, coverage: Coverage, state: str = "") -> dict:
-    """What and how much the Chamber publishes.
-
-    Everything here is a **publication** question, so the control above it is the
-    publication window and the measurement window has no effect on any of it.
+    Everything here is a **publication** question — `published_at` inside
+    `period`, whatever GA4 does or does not know about it yet.
     """
     from . import charts
-    from .periods import period_options
-
-    # On the overview since 2026-08-16, which is the default focus and emits no
-    # `fookus` parameter — the chips carry only the rest of the page state.
-    periods = period_options(period, sort="", search="", carried=state)
 
     start = period.start
     end = period.end
@@ -761,11 +386,9 @@ def build_publishing(*, period: ResolvedPeriod, coverage: Coverage, state: str =
         earliest = bounds.order_by("published_at").values_list("published_at", flat=True).first()
         latest = bounds.order_by("-published_at").values_list("published_at", flat=True).first()
         if earliest is None or latest is None:
-            return {
-                "cadence": None,
-                "counted": analytics.PublishingCount(),
-                "periods": periods,
-            }
+            return {"cadence": None, "counted": analytics.PublishingCount()}
+        from django.utils import timezone
+
         start = timezone.localtime(earliest).date()
         end = timezone.localtime(latest).date()
 
@@ -784,7 +407,6 @@ def build_publishing(*, period: ResolvedPeriod, coverage: Coverage, state: str =
     return {
         "cadence": charts.publishing_cadence(buckets, grain=grain, partial_from=partial_from),
         "counted": counted,
-        "periods": periods,
         "series_start": start,
         "series_end": end,
         "grain": grain,
@@ -793,75 +415,54 @@ def build_publishing(*, period: ResolvedPeriod, coverage: Coverage, state: str =
 
 def build_news_page(
     *,
-    focus_key: str | None = None,
-    read_key: str | None = None,
     period_key: str | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
-    lens_key: str | None = None,
-    state: str = "",
     today: date | None = None,
 ) -> NewsPage:
     """Assemble the one view — every section this page draws.
 
-    `Uudiste mõju` and `Arhiiv` retired into the overview on 2026-08-17;
-    `focus_key` is still accepted and still resolved, so a stale `?fookus=`
-    bookmark keeps landing on a real page rather than raising, but the
-    resolve no longer decides what gets built. `Andmed tabelina`-style
-    per-view savings do not apply to a page with one view.
+    `focus_key`, `read_key` and `lens_key` are no longer accepted: the three
+    focuses merged on 2026-08-17 and the reading window merged into the
+    publication window on 2026-08-18. A bookmark carrying `fookus=`, `loetud=`
+    or `vaade=` still opens this page — Django simply never reads them.
     """
     coverage = get_coverage()
-    focus = parse_focus(focus_key)
-    reading = resolve_reading(read_key, coverage=coverage)
     period = resolve_period(period_key, date_from, date_to, today=today)
+    read_start, read_end, read_truncated = _reading_window(period, coverage=coverage)
 
     page = {
-        "focus": focus,
-        "focuses": focus_options(focus, state=state),
-        "reading": reading,
-        "read_periods": read_period_options(reading, coverage=coverage, state=state),
         "period": period,
         "coverage": coverage,
+        "read_start": read_start,
+        "read_end": read_end,
+        "read_is_truncated": read_truncated,
         "facts": analytics.catalogue_facts(coverage),
     }
 
-    page.update(build_overview(reading=reading, period=period, coverage=coverage))
-    # The publishing material joined the overview when `avaldamine` retired:
-    # how much the Chamber publishes belongs on the same screen as what is
-    # being read.
-    page.update(build_publishing(period=period, coverage=coverage, state=state))
-    # The distribution chart, `Uudiste mõju`'s one remaining section since its
-    # ranking left on 2026-08-17. `ranked`, `evergreen`, `below_normal` and
-    # `cohorts` are still built and still on `NewsPage`; nothing renders them.
+    impact = build_impact(coverage=coverage)
+    page.update(impact)
     page.update(
-        build_impact(
-            reading=reading,
+        build_overview(
+            period=period,
             coverage=coverage,
-            lens=parse_lens(lens_key),
-            state=state,
+            read_start=read_start,
+            read_end=read_end,
+            cohorts=impact["cohorts"],
         )
     )
+    page.update(build_publishing(period=period, coverage=coverage))
 
     return NewsPage(**page)
 
 
 __all__ = [
-    "DEFAULT_LENS",
-    "LENSES",
-    "LENS_MONTH",
-    "LENS_NOW",
-    "LENS_WEEK",
     "NO_COMPARISON",
     "NO_VALUE",
-    "PARAM_LENS",
-    "ArticleRow",
     "Headline",
-    "LensOption",
     "NewsPage",
-    "Signal",
     "build_impact",
     "build_news_page",
     "build_overview",
     "build_publishing",
-    "parse_lens",
 ]

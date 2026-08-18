@@ -14,12 +14,19 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
  * `Uudiste mõju` still drew, and the archive table, top to bottom on one screen.
  * Every retired key still resolves to this one view rather than raising.
  *
+ * A second merge followed on 2026-08-18: the page carried two time controls,
+ * a publication window (`periood=`) and a measurement window (`loetud=`), until
+ * this round's mockup showed one picker governing everything. `apps/news/page.py`
+ * states why that interface merge is safe where merging the two questions'
+ * arithmetic would not have been.
+ * `loetud=` and `vaade=` (the retired lens control) are no longer read at all.
+ *
  * The page used to be one scroll — an archive table with the newsletter
  * material beneath it — before it grew a focus, and it is one scroll again now
  * that the focus is gone: what these assert is that every section is on the
  * page in the right order, that no tab navigation is offered where there is
  * nothing left to choose between, and that a stale link to any retired focus
- * still renders instead of erroring.
+ * or retired window parameter still renders instead of erroring.
  *
  * CI runs against a container with an empty database, so what these assert is
  * the layout, the controls and the *truthful empty state*.
@@ -53,29 +60,48 @@ test("the page offers no focus navigation", async ({ page }) => {
   // focus tab and would otherwise make this assertion fail for the wrong
   // reason.
   const main = page.locator("main");
-  for (const label of ["Ülevaade", "Uudiste mõju", "Arhiiv", "Uudiskirjad", "Avaldamine"]) {
-    await expect(main.getByRole("link", { name: label, exact: true })).toHaveCount(0);
+  for (const label of [
+    "Ülevaade",
+    "Uudiste mõju",
+    "Arhiiv",
+    "Uudiskirjad",
+    "Avaldamine",
+  ]) {
+    await expect(
+      main.getByRole("link", { name: label, exact: true }),
+    ).toHaveCount(0);
   }
   expect(errors).toEqual([]);
 });
 
 test("every retired focus key still renders the one view", async ({ page }) => {
   await signIn(page);
-  for (const url of [RETIRED_IMPACT, RETIRED_PUBLISHING, RETIRED_ARCHIVE, "/uudised/?fookus=zzz"]) {
+  for (const url of [
+    RETIRED_IMPACT,
+    RETIRED_PUBLISHING,
+    RETIRED_ARCHIVE,
+    "/uudised/?fookus=zzz",
+    "/uudised/?loetud=90",
+    "/uudised/?vaade=kuu",
+  ]) {
     const response = await page.goto(url);
     expect(response.status()).toBe(200);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText("Uudised");
   }
 });
 
-test("the retired newsletter focus leaves for Otsepostitused", async ({ page }) => {
+test("the retired newsletter focus leaves for Otsepostitused", async ({
+  page,
+}) => {
   // A real bookmark. Falling through to the overview would render happily and
   // tell the reader nothing about where what they asked for went.
   await signIn(page);
   await page.goto("/uudised/?fookus=uudiskirjad");
 
   await expect(page).toHaveURL(/\/otsepostitused\/$/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Otsepostitused",
+  );
 });
 
 test("the dashboard leads, the archive follows", async ({ page }) => {
@@ -95,7 +121,9 @@ test("the dashboard leads, the archive follows", async ({ page }) => {
   // does.
   await openNews(page);
 
-  const dashboard = page.getByText("Andmeallikas ei ole veel ühendatud.").first();
+  const dashboard = page
+    .getByText("Andmeallikas ei ole veel ühendatud.")
+    .first();
   const archiveSearch = page.getByLabel("Otsi uudist");
   await expect(dashboard).toBeVisible();
   await expect(archiveSearch).toBeVisible();
@@ -105,12 +133,16 @@ test("the dashboard leads, the archive follows", async ({ page }) => {
   expect(dashboardTop).toBeLessThan(archiveTop);
 });
 
-test("the news page renders no newsletter material at all", async ({ page }) => {
+test("the news page renders no newsletter material at all", async ({
+  page,
+}) => {
   // The move out, asserted the way the move off Nähtavus was: not the section
   // heading, not the card, not the subject search.
   await openNews(page);
 
-  await expect(page.getByRole("heading", { name: "Uudiskirjad", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Uudiskirjad", exact: true }),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "Uudiskirjade tulemused", exact: true }),
   ).toHaveCount(0);
@@ -118,10 +150,16 @@ test("the news page renders no newsletter material at all", async ({ page }) => 
 });
 
 test("the archive keeps every control it had", async ({ page }) => {
+  // `Avaldamisperiood` moved to the page header on 2026-08-18, since it now
+  // governs every section on the page rather than only the archive — see
+  // `apps/news/page.py`. It is `Periood` there now, and it is one control
+  // rather than the three the page used to carry.
   await openNews(page);
 
-  await expect(page.getByRole("navigation", { name: "Avaldamisperiood" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Uudise liik" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Periood" })).toBeVisible();
+  await expect(
+    page.getByRole("navigation", { name: "Uudise liik" }),
+  ).toBeVisible();
   await expect(page.getByLabel("Otsi uudist")).toBeVisible();
 });
 

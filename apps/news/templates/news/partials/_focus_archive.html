@@ -14,26 +14,22 @@ part of that state too, so a chip click could not quietly return the reader to
 a different focus; there is only the one focus left to return to, so it is
 gone from every control here.
 
+The period chips and the custom-range form moved to the page header on
+2026-08-18, since they now govern every section on the page and not only this
+one — see `news/overview.html`. `archive.period` is still read here, to keep
+every control below carrying the window the header chose.
+
 Context: archive
 {% endcomment %}
 
 <section aria-labelledby="section-archive" class="dk-section dk-section-body">
-  <h2 id="section-archive" class="sr-only">Uudiste arhiiv</h2>
+  <h2 id="section-archive" class="text-sm font-medium text-text">Uudised</h2>
 
   <div class="flex min-w-0 flex-col gap-3">
-    <nav aria-label="Avaldamisperiood" class="flex flex-wrap items-center gap-2">
-      <span class="dk-meta">Avaldatud:</span>
-      {% for option in archive.periods %}
-        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-           href="?{{ option.query }}"
-           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
-      {% endfor %}
-    </nav>
-
     {% comment %}
-    Whose news, beside when. `Kõik` is the absence of the filter rather than a
-    third category, and it is the only chip that includes articles DashKoda has
-    not been able to classify.
+    Whose news, beside how it is ordered. `Kõik` is the absence of the filter
+    rather than a third category, and it is the only chip that includes
+    articles DashKoda has not been able to classify.
     {% endcomment %}
     <nav aria-label="Uudise liik" class="flex flex-wrap gap-2">
       {% for option in archive.categories %}
@@ -42,30 +38,6 @@ Context: archive
            {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
       {% endfor %}
     </nav>
-
-    {% if archive.period.period.is_custom %}
-      {% comment %}
-      Native date fields, submitted by an ordinary GET form. The server resolves
-      whatever arrives — reversed, half-filled or unreadable — and the fields
-      then show the window that was actually applied, so the control never
-      disagrees with the list under it.
-      {% endcomment %}
-      <form method="get" class="flex min-w-0 flex-wrap items-end gap-2">
-        <input type="hidden" name="periood" value="{{ archive.period.key }}">
-        {% if archive.sort != "uusimad" %}<input type="hidden" name="sort" value="{{ archive.sort }}">{% endif %}
-        {% if archive.search %}<input type="hidden" name="otsing" value="{{ archive.search }}">{% endif %}
-        {% if archive.category %}<input type="hidden" name="kategooria" value="{{ archive.category }}">{% endif %}
-        <div class="flex flex-col gap-1">
-          <label for="alates" class="text-sm text-text-secondary">Alates</label>
-          <input type="date" id="alates" name="alates" value="{{ archive.period.start|date:'Y-m-d' }}" class="dk-input dk-input-date">
-        </div>
-        <div class="flex flex-col gap-1">
-          <label for="kuni" class="text-sm text-text-secondary">Kuni</label>
-          <input type="date" id="kuni" name="kuni" value="{{ archive.period.end|date:'Y-m-d' }}" class="dk-input dk-input-date">
-        </div>
-        <button type="submit" class="dk-button dk-button-secondary">Näita</button>
-      </form>
-    {% endif %}
 
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <div class="flex flex-wrap items-center gap-x-3 gap-y-2">

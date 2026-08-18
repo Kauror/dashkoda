@@ -24,7 +24,7 @@ from __future__ import annotations
 from datetime import date
 
 from apps.core.chart_payload import ChartPayload, Readout
-from apps.core.formatting import integer, month_name, short_date
+from apps.core.formatting import integer, month_name, percent, short_date
 
 #: Chart geometry, shared so the news charts cannot drift apart from each other.
 GRID = {"left": 56, "right": 24, "top": 32, "bottom": 40, "containLabel": True}
@@ -157,6 +157,11 @@ def first_month_distribution(values: list[int], stats) -> ChartPayload:
     A median on its own does not tell a reader whether 300 views is remarkable or
     ordinary. The distribution does, and it is the difference between "this
     article got 300" and "this article is in the top tenth".
+
+    Horizontal, not vertical: the bands are the reader's real question — "how
+    many barely got read, how many took off" — and a horizontal bar puts the
+    band's own words beside its count rather than under it, where six labels
+    this specific ("70–149") would otherwise crowd a narrow x-axis.
     """
     counts = []
     for low, high, _label in DISTRIBUTION_BANDS:
@@ -164,28 +169,50 @@ def first_month_distribution(values: list[int], stats) -> ChartPayload:
             sum(1 for value in values if value >= low and (high is None or value <= high))
         )
     labels = [label for _, _, label in DISTRIBUTION_BANDS]
+    total = len(values)
+    shares = [(count / total * 100 if total else 0) for count in counts]
 
+    # ECharts' own axis-value `formatter` cannot reach a second, pre-computed
+    # value per bar without a named dimension, and this chart's one series is
+    # a plain array — so the "count · share" label is composed in Python
+    # instead and carried as each datum's own literal `label.formatter`.
+    bars = [
+        {
+            "value": count,
+            "label": {
+                "show": True,
+                "position": "right",
+                "formatter": f"{integer(count)} · {percent(share, places=0)}",
+                **BAR_LABEL,
+            },
+        }
+        for count, share in zip(counts, shares, strict=True)
+    ]
     option = {
         "grid": GRID,
-        "xAxis": _axis(labels),
-        "yAxis": {"type": "value", "splitLine": {"show": True}},
-        "series": [
-            {
-                "type": "bar",
-                "data": counts,
-                "label": {"show": True, "position": "top", **BAR_LABEL},
-                "emphasis": {"focus": "none"},
-            }
-        ],
+        "xAxis": {"type": "value", "splitLine": {"show": True}},
+        "yAxis": {**_axis(labels), "inverse": True},
+        "series": [{"type": "bar", "data": bars, "emphasis": {"focus": "none"}}],
         "tooltip": {"trigger": "axis", "axisPointer": {"type": "shadow"}},
         "animation": True,
     }
-    rows = tuple((label, integer(count)) for label, count in zip(labels, counts, strict=True))
+    rows = tuple(
+        (label, integer(count), percent(share, places=0))
+        for label, count, share in zip(labels, counts, shares, strict=True)
+    )
+    footnotes = [
+        "Ainult uudised, mille esimesed 30 päeva jäävad tervikuna mõõdetud perioodi sisse.",
+    ]
+    if stats.p25 is not None and stats.p90 is not None:
+        footnotes.append(
+            f"Iga neljas uudis jääb alla {integer(stats.p25)} vaatamise · "
+            f"iga kümnes ületab {integer(stats.p90)}."
+        )
     return ChartPayload(
         payload_id="news-first-month-distribution",
-        title="Esimese 30 päeva vaatamised",
+        title="Kuidas uudised jõuavad",
         option=option,
-        table_headers=("Vaatamisi esimese 30 päevaga", "Uudiseid"),
+        table_headers=("Vaatamisi esimese 30 päevaga", "Uudiseid", "Osakaal"),
         table_rows=rows,
         summary=(
             f"Tulpdiagramm {integer(len(values))} uudise esimese 30 päeva vaatamiste "
@@ -201,9 +228,7 @@ def first_month_distribution(values: list[int], stats) -> ChartPayload:
             ),
             Readout(label="Uudiseid", value=integer(stats.count)),
         ),
-        footnotes=(
-            "Ainult uudised, mille esimesed 30 päeva jäävad tervikuna mõõdetud perioodi sisse.",
-        ),
+        footnotes=tuple(footnotes),
         size="categorical",
     )
 

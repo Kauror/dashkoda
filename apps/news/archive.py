@@ -25,8 +25,11 @@ from datetime import date
 from django.core.paginator import EmptyPage, Paginator
 from django.db.models import Count, Q
 
+from apps.core.change import direction_of
+from apps.core.formatting import multiple
 from apps.visibility.ga4_selectors import Coverage, get_coverage
 
+from . import analytics
 from .categories import NewsCategory
 from .periods import (
     SORT_KEYS,
@@ -57,6 +60,12 @@ NO_VIEWS = "—"
 NO_DATE = "Kuupäev teadmata"
 
 
+#: Shown in place of a ratio for an article GA4 has barely had a day to
+#: measure. Published on or after the last collected day, so any ratio would
+#: be reporting on hours of data as though it were the whole picture.
+FRESH = "värske"
+
+
 @dataclass(frozen=True)
 class NewsRow:
     """One line of the archive."""
@@ -65,6 +74,18 @@ class NewsRow:
     url: str
     published_on: date | None
     views: int | None
+    category: str
+    #: `views` measured against comparable articles' typical first month —
+    #: **not** a fair completed-window comparison like `apps/news/analytics.py`'s
+    #: own `benchmark()` result is elsewhere on this dashboard. Most rows here
+    #: are themselves inside a still-open first month, so there is no
+    #: completed window to compare against yet; this instead states how a
+    #: still-accumulating count compares to a finished typical one, which
+    #: reads low for a young article by construction. `is_fresh` is the one
+    #: state that is not this: too little has been collected to say anything.
+    benchmark: str = ""
+    benchmark_direction: str = ""
+    is_fresh: bool = False
 
     @property
     def has_date(self) -> bool:
@@ -73,6 +94,10 @@ class NewsRow:
     @property
     def has_views(self) -> bool:
         return self.views is not None
+
+    @property
+    def category_label(self) -> str:
+        return dict(NewsCategory.choices).get(self.category, "Liik teadmata")
 
 
 @dataclass(frozen=True)
@@ -287,18 +312,42 @@ def _category_options(
     )
 
 
-def _describe(resource: NewsResource) -> NewsRow:
+def _describe(
+    resource: NewsResource,
+    *,
+    cohorts: dict[str, analytics.CohortStats],
+    coverage: Coverage,
+) -> NewsRow:
     """One catalogue row as the page shows it.
 
     The title comes from `NewsResource` and nothing re-reads `NewsItem` to get
     it. That is the whole purpose of the catalogue: the feed's ten current rows
     can name ten articles, and the catalogue can name every one it has seen.
     """
+    published_on = resource.published_at.date() if resource.published_at else None
+    views = getattr(resource, VIEWS_ANNOTATION, None)
+
+    is_fresh = (
+        published_on is not None and coverage.latest is not None and published_on >= coverage.latest
+    )
+    benchmark_text = ""
+    benchmark_direction = ""
+    if views is not None and not is_fresh:
+        cohort = analytics.benchmark_for(cohorts, resource.category)
+        result = analytics.benchmark(views, cohort)
+        if result is not None and result.ratio is not None:
+            benchmark_text = multiple(result.ratio)
+            benchmark_direction = direction_of(result.difference)
+
     return NewsRow(
         title=resource.title,
         url=resource.canonical_url,
-        published_on=resource.published_at.date() if resource.published_at else None,
-        views=getattr(resource, VIEWS_ANNOTATION, None),
+        published_on=published_on,
+        views=views,
+        category=resource.category,
+        benchmark=benchmark_text,
+        benchmark_direction=benchmark_direction,
+        is_fresh=is_fresh,
     )
 
 
@@ -323,6 +372,8 @@ def build_news_archive(
     """
     resolved = resolve_period(period_key, date_from, date_to, today=today)
     queryset = news_resources(period=resolved, search=search, sort=sort, category=category)
+    coverage = get_coverage()
+    cohorts = analytics.benchmark_cohorts(coverage=coverage)
 
     paginator = Paginator(queryset, PER_PAGE)
     try:
@@ -333,7 +384,10 @@ def build_news_archive(
         current = paginator.page(paginator.num_pages)
 
     return NewsArchive(
-        rows=tuple(_describe(resource) for resource in current.object_list),
+        rows=tuple(
+            _describe(resource, cohorts=cohorts, coverage=coverage)
+            for resource in current.object_list
+        ),
         period=resolved,
         periods=period_options(
             resolved, sort=sort, search=search, category=category, carried=carried
@@ -346,7 +400,7 @@ def build_news_archive(
         total=paginator.count,
         page_number=current.number,
         total_pages=paginator.num_pages,
-        coverage=get_coverage(),
+        coverage=coverage,
         carried=carried,
         **_catalogue_facts(),
     )
