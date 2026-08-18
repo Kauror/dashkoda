@@ -321,7 +321,11 @@ def test_the_audience_strip_names_every_channel_and_says_which_are_empty(
     content = client.get("/").content.decode()
 
     for label in (
-        "Uudiskirjad",
+        # One row per newsletter since 2026-08-18, each naming what kind of
+        # audience it is: a flat list has no surrounding card to say so.
+        "e-Teataja uudiskiri",
+        "eNews uudiskiri",
+        "e-Vestnik uudiskiri",
         "Facebooki jälgijad",
         "LinkedIni jälgijad",
         "Instagrami jälgijad",

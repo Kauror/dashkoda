@@ -222,6 +222,13 @@ class AudienceRow:
     as_of: date | None = None
     profile_url: str = ""
     detail_url: str = ""
+    #: This particular figure is old enough to mislead. Not a provenance
+    #: caption — `Käsitsi sisestatud` and `Automaatselt kogutud` are the same
+    #: words on every row of their kind and say nothing about the number they
+    #: sit beside — but an alert about this number, which is why it is the one
+    #: label a quiet list still carries. `channel_card` keeps exactly the same
+    #: one for exactly the same reason.
+    is_stale: bool = False
 
     @property
     def has_value(self) -> bool:
@@ -253,6 +260,7 @@ def build_audience_rows(*, summary: VisibilitySummary | None = None) -> tuple[Au
             value=reading.value,
             as_of=reading.as_of,
             detail_url=reverse("mailings"),
+            is_stale=summary.newsletter.is_stale,
         )
         for reading in summary.newsletter.lists
     ]
@@ -262,6 +270,7 @@ def build_audience_rows(*, summary: VisibilitySummary | None = None) -> tuple[Au
             value=reading.value,
             as_of=reading.as_of,
             profile_url=reading.profile_url,
+            is_stale=reading.is_stale,
         )
         for reading in summary.social
     )

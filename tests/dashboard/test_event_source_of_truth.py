@@ -141,7 +141,9 @@ def test_the_events_card_reads_the_workbook(viewer, published_programme):
     # name — never the retired strategic label.
     page = text_of(viewer.get(reverse("home")))
     assert "Kaasamine" not in page
-    assert "sündmust järgmise 30 päeva jooksul" in page
+    # The unit shortened on 2026-08-18: the card's own heading says which
+    # domain it is, so the word `sündmust` under it was the third time.
+    assert "järgmise 30 päeva jooksul" in page
 
 
 def test_the_overview_names_the_programme_as_its_event_source():
@@ -159,7 +161,7 @@ def test_the_overview_takes_no_event_figure_from_the_public_calendar(viewer):
     response = viewer.get(reverse("home"))
     page = text_of(response)
 
-    assert "sündmust järgmise 30 päeva jooksul" not in page
+    assert "järgmise 30 päeva jooksul" not in page
     assert "Sünteetiline sündmus 0" not in page, (
         "no public-calendar event may reach the executive overview"
     )
@@ -204,5 +206,5 @@ def test_a_stale_programme_keeps_its_figures_on_the_overview(viewer, published_p
     # successfully imported earlier. Asserted on the builder and on the page,
     # because the card is back on the front page since 2026-08-17.
     assert "Algab 30 päeva jooksul 1" in _card_figures(card), "the figures are not withdrawn"
-    assert "sündmust järgmise 30 päeva jooksul" in page
+    assert "järgmise 30 päeva jooksul" in page
     assert "Sünteetiline tõrge" not in page, "no failure detail may reach a viewer"

@@ -26,7 +26,9 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
  */
 
 const CHANNELS = [
-  "Uudiskirjad",
+  "e-Teataja uudiskiri",
+  "eNews uudiskiri",
+  "e-Vestnik uudiskiri",
   "Facebooki jälgijad",
   "LinkedIni jälgijad",
   "Instagrami jälgijad",
@@ -45,10 +47,13 @@ test("the overview strip names every audience and no website figure", async ({ p
 
   await signIn(page);
 
+  // One row per audience since 2026-08-18: the three lists were three sub-rows
+  // of one cell, which made them look like parts of one audience. A row is a
+  // term in a description list rather than a heading.
   for (const channel of CHANNELS) {
-    await expect(page.getByRole("heading", { name: channel, exact: true })).toBeVisible();
+    await expect(page.getByText(channel, { exact: true }).first()).toBeVisible();
   }
-  await expect(page.getByRole("heading", { name: "Kodulehe külastused" })).toHaveCount(0);
+  await expect(page.getByText("Kodulehe külastused")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
 

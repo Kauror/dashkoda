@@ -230,7 +230,18 @@ across domains, no index and no score.
                   {{ row.label }}
                 {% endif %}
               </dt>
-              <dd class="shrink-0 text-sm font-semibold tabular-nums text-text">
+              <dd class="flex shrink-0 items-baseline gap-2 text-sm font-semibold tabular-nums text-text">
+                {% comment %}
+                The one label a quiet list still carries. `Käsitsi sisestatud`
+                and `Automaatselt kogutud` are captions — the same words on
+                every row of their kind, saying nothing about the number beside
+                them — and they are gone. `Vajab uuendamist` is an alert about
+                *this* figure, and dropping it would take a warning off the
+                board's dashboard to tidy a row.
+                {% endcomment %}
+                {% if row.is_stale %}
+                  {% include "dashboard/components/status_badge.html" with label="Vajab uuendamist" variant="warning" only %}
+                {% endif %}
                 {% comment %}
                 `has_value` is `is not None` on the server, so an entered zero
                 renders as the measurement it is. Nothing entered renders as the
@@ -240,7 +251,7 @@ across domains, no index and no score.
                 {% if row.has_value %}
                   {{ row.value|integer }}
                 {% else %}
-                  <span class="font-normal text-text-muted">Andmed puuduvad</span>
+                  <span class="font-normal text-text-muted">Andmed puuduvad.</span>
                 {% endif %}
               </dd>
             </div>
