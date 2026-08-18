@@ -176,6 +176,12 @@ class AnalyticsSection:
     #: — a single column is twice the scroll to say the same four things; a
     #: time series keeps the full width, where its resolution is the point.
     grid: bool = False
+    #: Figures drawn on the section's own heading row rather than under the
+    #: chart. They are the chart's own `readouts` — the caller lifts them here
+    #: and the chart is then rendered without them, so the pair is stated once.
+    #: A section whose heading is the chart's name reads better with its numbers
+    #: beside that name than with a second row of them below it.
+    readouts: tuple[Readout, ...] = ()
 
     @property
     def has_charts(self) -> bool:
@@ -325,6 +331,7 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
                     "labelLayout": dict(LABEL_LAYOUT),
                     "connectNulls": False,
                     "data": paid,
+                    **_year_boundaries(total_series + paid_series),
                 },
             ],
             "dashkoda": {
@@ -360,14 +367,13 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
 
     return ChartPayload(
         payload_id="internal-membership-trend",
-        # The section's own heading is `sr-only`, but the two readouts
-        # printed above the chart already name `Liikmeid kokku` and `Tasunud
-        # liikmeid` directly, so the figcaption's printed title repeated what
-        # a sighted reader had already read and left on 2026-08-17. The title
-        # itself stays on the payload — see `title_hidden` on `ChartPayload`
-        # — so it still captions the table. The observation date stays
-        # printed, same as the question line struck in an earlier round: it
-        # is the part that says what the drawing describes, not a repeat.
+        # The section around this chart is named `Liikmete arv ja tasunud
+        # liikmed` since 2026-08-18 and carries the range control, so the
+        # figcaption prints no title of its own: it would be the same words
+        # twice, one line apart. The title stays on the payload because it is
+        # what captions the data table and names the canvas for a reader who
+        # cannot see it. The observation date stays printed — it says what the
+        # drawing describes rather than repeating what it is called.
         title="Liikmeid kokku ja tasunud liikmeid",
         title_hidden=True,
         option=option,
@@ -385,6 +391,45 @@ def total_and_paid_chart(trend: InternalTrend) -> ChartPayload:
         empty_message="Sisemise aruande vaatlusi ei ole veel imporditud.",
         footnotes=tuple(footnotes),
     )
+
+
+def _year_boundaries(series: tuple) -> dict:
+    """A silent rule at each 1 January the drawn window contains.
+
+    The paid line falls sharply at every year boundary and climbs back over the
+    following months, which is the largest movement on this chart and the one a
+    reader most often reads as a collapse. The rule says where the year changed
+    and nothing else.
+
+    **Deliberately no explanation.** Why the paid count resets — when the
+    Chamber issues its invoices, how long members take to pay — is not in this
+    dataset, and a caption stating a cause the data does not contain would be
+    the one kind of claim this dashboard never makes, however well understood
+    the cause is. The date is a fact; the reason would be an assertion.
+
+    Nothing is drawn when the window holds no boundary, which is the ordinary
+    case for the default twelve months ending mid-year.
+    """
+    days = [day for day, _value in series]
+    if not days:
+        return {}
+    first, last = min(days), max(days)
+    boundaries = [
+        date(year, 1, 1)
+        for year in range(first.year, last.year + 1)
+        if first < date(year, 1, 1) <= last
+    ]
+    if not boundaries:
+        return {}
+    return {
+        "markLine": {
+            "silent": True,
+            "symbol": "none",
+            "lineStyle": {"type": "dotted", "width": 1, "opacity": 0.7},
+            "label": {"formatter": "aastavahetus", "position": "insideEndTop"},
+            "data": [{"xAxis": _iso(day)} for day in boundaries],
+        }
+    }
 
 
 def _end_label(name: str, series: tuple) -> str:

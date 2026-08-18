@@ -487,6 +487,13 @@ connected the page renders no business digits at all, and
 `tests/dashboard/test_overview_data.py` asserts that once sources are connected
 each figure is the one its source published.
 
+`chart_figure` accepts `hide_readouts` for one case: a section whose heading is
+the chart's own name and which has lifted the chart's readouts onto that heading
+row. The Liikmeskond fee section is the caller — four figures beside
+`Liikmemaksu laekumine` rather than a second row of them under the canvas — and
+the flag exists so the pair is stated once rather than the section and the
+figure each owning a copy. Every other caller leaves it unset.
+
 `chart_figure` takes a payload built on the server and renders three things
 together: the canvas, a text summary, and the same values as a table. The summary
 and the table are not a fallback — they stay in the document for every reader,

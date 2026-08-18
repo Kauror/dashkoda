@@ -45,8 +45,8 @@ def public_observation(db):
     )
 
 
-def _page(client):
-    return client.get(reverse("membership")).content.decode()
+def _page(client, params=None):
+    return client.get(reverse("membership"), params or {}).content.decode()
 
 
 def test_the_public_catalogue_is_no_longer_on_this_page(viewer_client, public_observation):
@@ -275,27 +275,89 @@ def test_the_headline_strip_answers_four_questions_not_nine(viewer_client, impor
     assert "Peamised näitajad" in body
     for label in (
         "Liikmeid kokku",
-        "Liikmed ja tasunud liikmeid",
+        "Tasunud liikmeid",
         "Liikmemaksu laekumine",
+        "Sel aastal",
     ):
         assert label in body, f"headline missing: {label}"
 
-    # `Tasunute osakaal` folded into the card above it on 2026-08-16. It is no
-    # longer a card of its own, but the trend chart's readouts still carry the
-    # label, so this is scoped to the strip rather than the page.
     strip = body.split('id="section-headlines"', 1)[1].split("</section>", 1)[0]
+    # `Tasunute osakaal` folded into the card above it on 2026-08-16 and is the
+    # share inside that card's own value since 2026-08-18. It is not a card.
     assert "Tasunute osakaal" not in strip
-    assert "tasunud" in strip
+    # The member total belongs to the first cell and appears once in the strip:
+    # the paid card led with both until 2026-08-18, which printed its
+    # neighbour's figure a second time.
+    assert strip.count("Liikmeid kokku") == 1
 
 
-def test_the_suspended_count_moved_out_of_the_headline_strip(viewer_client, imported_package):
-    """It is a secondary status and belongs beside the movement it describes."""
+def test_this_years_movement_is_the_strips_fourth_cell(viewer_client, imported_package):
+    """`Sel aastal` was a section below the strip until 2026-08-18.
+
+    That put the year's arrivals a scroll away from the total they move, and
+    left the strip a column short. The three counts are inside the strip now.
+    """
+    body = _page(viewer_client)
+    strip = body.split('id="section-headlines"', 1)[1].split("</section>", 1)[0]
+
+    assert "Sel aastal" in strip
+    for word in ("liitunud", "väljaarvatud", "peatatud"):
+        assert word in strip, f"missing from the year cell: {word}"
+
+
+def test_the_retired_sections_are_gone_rather_than_emptied(viewer_client, imported_package):
+    """Three sections left the overview on 2026-08-18.
+
+    `Mis muutus?` — every comparison it drew is in the strip or on a chart.
+    The four-fact `Kes on meie liikmed?` strip — its facts are the subtitles of
+    the four charts they previewed, and the heading now belongs to those charts.
+    `Sel aastal` as a section — the strip's fourth cell.
+
+    The heading `Kes on meie liikmed?` survives, which is why this checks for
+    the retired *strip* by its neighbour rather than by that name.
+    """
     body = _page(viewer_client)
 
-    assert "Sel aastal" in body
-    assert "Peatatud liikmeid" in body
-    # It is inside the current-year block, which follows the headline strip.
-    assert body.index("Peatatud liikmeid") > body.index("Liikmemaksu laekumine")
+    assert "Mis muutus?" not in body
+    assert "Koosseisu jaotused" not in body
+    # The composition heading is the charts' own section now, and there is
+    # exactly one of it.
+    assert body.count("Kes on meie liikmed?") == 1
+    assert 'id="section-structure"' in body
+    # The four facts that used to sit above the charts.
+    for retired in ("Suurim suurusklass", "Suurim piirkond", "Mediaanstaaž"):
+        assert retired not in body
+
+
+def test_each_overview_section_is_named_by_what_it_draws(viewer_client, imported_package):
+    """The two time series are sections of their own, each with its own name.
+
+    They shared one section and one range control until 2026-08-18, which made
+    the fee chart read as a detail of the membership trend rather than as the
+    other half of the board's question.
+    """
+    body = _page(viewer_client)
+
+    assert "Liikmete arv ja tasunud liikmed" in body
+    assert 'id="section-trend"' in body
+    assert 'id="section-fees"' in body
+    # The range control belongs to the trend, and sits before the fee section.
+    assert body.index('id="section-trend"') < body.index('id="section-fees"')
+
+
+def test_the_trend_chart_does_not_repeat_the_strip_beneath_it(viewer_client, imported_package):
+    """Its readouts are the strip's first two cells, word for word.
+
+    They are dropped on this view and kept on `Sisse-välja`, which carries no
+    strip to repeat.
+    """
+    overview = _page(viewer_client)
+    trend = overview.split('id="section-trend"', 1)[1].split("</section>", 1)[0]
+
+    assert "Liikmeid kokku" not in trend
+
+    growth = _page(viewer_client, {"fookus": "kasv"})
+    assert "Liikmeid kokku" in growth
 
 
 def test_the_difference_is_never_presented_as_a_net_membership_change(

@@ -23,7 +23,10 @@ The payload is emitted by `json_script`, which produces a non-executable
 inline script and no `unsafe-eval`.
 
 Context:
-  chart – a ChartPayload from `apps.membership.charts`
+  chart          – a ChartPayload from `apps.membership.charts`
+  hide_readouts  – draw the chart without its analytical header, for a caller
+                   that has lifted the same readouts onto its section heading.
+                   Defaults to false, so every existing caller is unchanged.
 {% endcomment %}
 
 <figure data-chart data-chart-payload="{{ chart.payload_id }}" class="flex w-full flex-col gap-3">
@@ -56,7 +59,7 @@ Context:
   says, in `note`, why the comparison is missing rather than omitting it
   silently.
   {% endcomment %}
-  {% if chart.readouts %}
+  {% if chart.readouts and not hide_readouts %}
     <dl class="flex flex-wrap gap-x-8 gap-y-3">
       {% for readout in chart.readouts %}
         <div class="min-w-0">

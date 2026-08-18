@@ -36,12 +36,14 @@ Anything a control governs sits inside the section that carries the control,
 which is the rule the range control already followed.
 """
 
+from dataclasses import replace
 from datetime import timedelta
 from urllib.parse import urlencode
 
 from django.shortcuts import render
 from django.views.decorators.http import require_GET
 
+from apps.core.formatting import integer, short_date
 from apps.dashboard.freshness import current_freshness
 from apps.dashboard.navigation import NAVIGATION
 
@@ -82,10 +84,9 @@ from .focus import (
 )
 from .intelligence import (
     KPI_BASELINE_LOOKBACK_DAYS,
-    build_composition_preview,
     build_headlines,
-    build_insights,
     build_movement_summary,
+    composition_subtitles,
 )
 from .internal_selectors import (
     DEFAULT_MONTHLY_HISTORY_YEARS,
@@ -312,18 +313,18 @@ def membership_overview(request):
             "focus": focus,
             "focus_links": focus_links(focus, carried=carried, available=frozenset(available)),
             "is_overview": focus == FOCUS_OVERVIEW,
-            # The four questions the page answers before it is scrolled, plus
-            # the strip and the current-year block that sit under them.
+            # The four cells of the headline strip: three figures and the
+            # current year's movement, which was a section of its own until
+            # 2026-08-18 and is the strip's fourth column now.
+            #
+            # `Mis muutus?` was between them and went the same day. Every
+            # comparison it drew is either in the strip — the member total, the
+            # paid share, the fee completion, this year's arrivals and
+            # departures — or on a chart below it.
             "headlines": build_headlines(latest, baseline_history)
             if focus == FOCUS_OVERVIEW
             else (),
-            "insights": build_insights(latest, baseline_history, monthly)
-            if focus == FOCUS_OVERVIEW
-            else (),
-            "movement_summary": build_movement_summary(latest) if focus == FOCUS_OVERVIEW else None,
-            # No longer a link out: the distributions it previews joined this
-            # same page on 2026-08-17, in `section-structure` below.
-            "composition_preview": build_composition_preview(composition)
+            "movement_summary": build_movement_summary(latest, baseline_history)
             if focus == FOCUS_OVERVIEW
             else None,
             # The members list and what it is a reading of. Present only on the
@@ -385,72 +386,102 @@ def _trend_section(*, trend, presets, has_range_choice, section_id="section-tren
 
 
 def _overview_sections(*, trend, fee_rows, presets, has_range_choice, composition, **_ignored):
-    """The membership trend, the fee history, and what kinds of organisations
-    make up the membership.
+    """Three sections, each answering one question and carrying its own control.
 
-    `Liikmemaks` was a whole focus holding the one fee chart; since 2026-08-16
-    it draws here, in the section the range control already governs — the two
-    series answer over the same window, so one control serves both and the
-    reader stops switching views to hold the pair in mind.
+    `Liikmete arv ja tasunud liikmed` is the page's dominant visual and the one
+    thing the range control governs, so the control sits on its heading row.
+    `Liikmemaksu laekumine` was drawn inside that same section until 2026-08-18
+    — one range control above two charts of which it governed both, which was
+    true but made the fee chart look like a detail of the trend. It is its own
+    section now, with its own four figures on its own heading row.
 
-    `Koosseisu jaotused` joined the overview on 2026-08-17 from the retired
-    `Koosseis` focus, right below `Kes on meie liikmed?` — the four facts that
-    preview it. A reader no longer has to leave the page to read the
-    distribution behind a fact they have just seen.
+    `Kes on meie liikmed?` is the third. It was two things until the same day: a
+    strip of four facts, and a separate `Koosseisu jaotused` holding the four
+    charts those facts previewed. A reader had to hold a fact in mind while
+    scrolling to the drawing that proved it. One section now, each chart
+    carrying its own fact as a subtitle.
     """
-    charts = [total_and_paid_chart(trend)] if trend.has_data else []
-    if fee_rows:
-        charts.append(fee_collection_chart(fee_rows))
-    sections = [
-        AnalyticsSection(
-            section_id="section-trend",
-            title="Liikmeskonna areng",
-            show_title=False,
-            description="",
-            charts=tuple(charts),
-            presets=presets,
-            show_custom_range=has_range_choice,
+    sections = []
+
+    if trend.has_data:
+        sections.append(
+            AnalyticsSection(
+                section_id="section-trend",
+                title="Liikmete arv ja tasunud liikmed",
+                # Drawn without its readouts here, and only here. They are
+                # `Liikmeid kokku` and `Tasunud liikmeid` with their year-ago
+                # changes — which is the headline strip one row above, word for
+                # word. `Sisse-välja` draws the same chart with them, because
+                # that view carries no strip to repeat.
+                charts=(replace(total_and_paid_chart(trend), readouts=()),),
+                presets=presets,
+                show_custom_range=has_range_choice,
+            )
         )
-    ]
+
+    if fee_rows:
+        fees = fee_collection_chart(fee_rows)
+        sections.append(
+            AnalyticsSection(
+                section_id="section-fees",
+                title="Liikmemaksu laekumine",
+                charts=(replace(fees, title_hidden=True),),
+                # Lifted onto the heading row rather than drawn twice: the
+                # section is named after the chart, so its four figures belong
+                # beside that name.
+                readouts=fees.readouts,
+            )
+        )
 
     if composition is not None:
-        on = composition.snapshot_date
-
-        # Ordinal dimensions keep their scale order; nominal ones are ranked,
-        # because for a county or a sector the ranking is most of the answer.
-        structure = [
-            (Dimension.EMPLOYEE_SIZE, "Ettevõtte suurus", False),
-            (Dimension.REGION, "Piirkonnad", True),
-            (Dimension.SECTOR, "Tegevusalad", True),
-            (Dimension.TENURE_BAND, "Liikmestaaž", False),
-        ]
-
-        # One section, two columns from `xl`. Four stacked full-width sections
-        # of the same categorical shape were twice the scroll to say four
-        # things, and each chart already carries its own title.
-        structure_charts = []
-        for dimension, title, ranked in structure:
-            chart = composition_chart(
-                composition.dimension(dimension),
-                payload_id=f"membership-composition-{dimension.replace('_', '-')}",
-                title=title,
-                snapshot_date=on,
-                ranked=ranked,
-            )
-            if chart is not None:
-                structure_charts.append(chart)
-        if structure_charts:
-            sections.append(
-                AnalyticsSection(
-                    section_id="section-structure",
-                    title="Koosseisu jaotused",
-                    show_title=False,
-                    charts=tuple(structure_charts),
-                    grid=True,
-                )
-            )
+        sections.append(_composition_section(composition))
 
     return sections
+
+
+def _composition_section(composition) -> AnalyticsSection:
+    """`Kes on meie liikmed?` — four distributions of one roster reading.
+
+    Ordinal dimensions keep their scale order; nominal ones are ranked, because
+    for a county or a sector the ranking is most of the answer.
+
+    Every chart states its own fact in its subtitle — the largest group, or for
+    tenure the median — so the drawing and the sentence about it cannot drift
+    apart. `composition_subtitles` composes them, and it is the one place the
+    "ignore Teadmata" rule is applied.
+    """
+    on = composition.snapshot_date
+    subtitles = composition_subtitles(composition)
+    structure = (
+        (Dimension.EMPLOYEE_SIZE, "Ettevõtte suurus", False),
+        (Dimension.REGION, "Piirkonnad", True),
+        (Dimension.SECTOR, "Tegevusalad", True),
+        (Dimension.TENURE_BAND, "Liikmestaaž", False),
+    )
+
+    charts = []
+    for dimension, title, ranked in structure:
+        chart = composition_chart(
+            composition.dimension(dimension),
+            payload_id=f"membership-composition-{dimension.replace('_', '-')}",
+            title=title,
+            snapshot_date=on,
+            ranked=ranked,
+            question=subtitles.get(dimension, ""),
+        )
+        if chart is not None:
+            charts.append(chart)
+
+    return AnalyticsSection(
+        section_id="section-structure",
+        title="Kes on meie liikmed?",
+        # The roster's own date and its own row count. Not a membership total:
+        # this is what one hand-imported export counted, and the strip above
+        # states the two membership totals that are.
+        description=(f"seisuga {short_date(on)} · {integer(composition.row_count)} liiget"),
+        charts=tuple(charts),
+        grid=True,
+    )
 
 
 def _register_sections(**_ignored):
