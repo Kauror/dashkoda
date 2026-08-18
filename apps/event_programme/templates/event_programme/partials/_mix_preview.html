@@ -15,7 +15,7 @@ Context:
 {% endcomment %}
 
 <div class="flex min-w-0 flex-col gap-2">
-  <h3 class="text-sm font-medium text-text">{{ title }}</h3>
+  {% if title %}<h3 class="text-sm font-medium text-text">{{ title }}</h3>{% endif %}
   {% if distribution.has_data %}
     <dl class="flex flex-col gap-1.5">
       {% for row in distribution.all_rows %}

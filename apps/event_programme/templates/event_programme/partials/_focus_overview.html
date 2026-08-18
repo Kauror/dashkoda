@@ -1,14 +1,9 @@
 {% comment %}
-Ülevaade — what does the programme look like right now?
-
-Built for two readings at once. In five seconds a manager should have the four
-headline answers; in fifteen they should also know what changed, what dominates,
-what is coming and what is being looked at.
-
-`Mis muutus?` is deterministic throughout: every line compares two figures the
-reader can find elsewhere on this page. Nothing here is written by a model,
-nothing scores the programme, and nothing explains *why* a number moved — the
-data cannot establish a cause and a sentence that implies one is an invention.
+The whole analytical surface: headline, both volume charts, the type/mode
+breakdown, price structure and delivery mix over time, and the two standing
+lists. One scroll since 2026-08-18 — `Maht ja kalender` and `Formaadid ja
+teemad` folded in whole; see `intelligence.py` for exactly what came with
+them and what did not.
 
 Context:
   view – an OverviewView
@@ -16,96 +11,103 @@ Context:
 {% endcomment %}
 
 {% comment %}
-The primary answers. Two since 2026-08-15: the programme count and the median
-planning lead were struck, and the two that stayed lost their captions and their
-`Seisuga` rows. Each says what it counts in its own unit, so a card is a
-sentence rather than a number under a heading.
-
-The column count is written out rather than interpolated. `dk-kpi-strip` paints
-`bg-border` behind its cells, so an empty grid track is not blank — it is a grey
-block the width of a card — and a class name built from a variable is invisible
-to the stylesheet build anyway.
+Four cards again since 2026-08-18: each carries its own year-on-year
+comparison in its note, the way every other dashboard's headline strip
+does, rather than repeating the same two figures lower as a `Mis muutus?`
+list.
 {% endcomment %}
 <section aria-labelledby="section-headline" class="dk-section">
   <h2 id="section-headline" class="sr-only">Peamised näitajad</h2>
-  {% comment %}
-  Written out rather than passed through `kpi_card`. That component always draws
-  a caption row and a `Seisuga:` footer, and the board struck both here — a card
-  reduced to a number and a phrase is no longer the shape that component is for,
-  and bending it would have put "Seisuga: —" back under every other dashboard's
-  captionless figure too.
-  {% endcomment %}
-  <div class="dk-kpi-strip sm:grid-cols-1 md:grid-cols-2">
-    {% for figure in view.headline %}
-      <p class="flex flex-wrap items-baseline gap-x-2 px-4 py-4">
-        <span class="text-metric font-semibold tracking-tight tabular-nums text-text">{{ figure.value }}</span>
-        <span class="text-sm text-text-secondary">{{ figure.unit }}</span>
-      </p>
-    {% endfor %}
-  </div>
-</section>
-
-{% if view.changes %}
-  <section aria-labelledby="section-changes" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Võrdluses eelmise aastaga" heading_id="section-changes" only %}
+  {% if view.headline %}
+    <dl class="dk-kpi-strip">
+      {% for card in view.headline %}
+        <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
+          <dt class="text-sm text-text-secondary">{{ card.label }}</dt>
+          <dd class="flex flex-wrap items-baseline gap-x-2">
+            <span class="text-2xl font-semibold tracking-tight tabular-nums text-text">{{ card.value }}</span>
+            {% if card.unit %}<span class="text-sm text-text-secondary">{{ card.unit }}</span>{% endif %}
+            {% if card.direction %}
+              <span class="dk-meta{% if card.direction == 'up' %} text-success{% elif card.direction == 'down' %} text-danger{% endif %}" aria-hidden="true">
+                {% if card.direction == "up" %}↑{% elif card.direction == "down" %}↓{% else %}→{% endif %}
+                {{ card.change }}
+              </span>
+              <span class="sr-only">{{ card.change_label }}</span>
+            {% endif %}
+          </dd>
+          {% if card.note %}<p class="dk-meta">{{ card.note }}</p>{% endif %}
+        </div>
+      {% endfor %}
+    </dl>
+  {% else %}
     <div class="dk-section-body">
-      <dl class="grid grid-cols-1 gap-x-8 gap-y-4 sm:grid-cols-2 xl:grid-cols-3">
-        {% for change in view.changes %}
-          <div class="min-w-0">
-            <dt class="text-sm text-text-secondary">{{ change.label }}</dt>
-            <dd class="flex flex-wrap items-baseline gap-x-2">
-              <span class="text-xl font-semibold tracking-tight tabular-nums text-text">{{ change.value }}</span>
-              {% comment %}
-              A glyph as well as a hue: a change distinguished only by colour
-              does not exist for a reader who cannot separate the colours.
-              {% endcomment %}
-              {% if change.change %}
-                <span class="dk-meta tabular-nums{% if change.direction == 'up' %} text-success{% elif change.direction == 'down' %} text-danger{% endif %}">
-                  {% if change.direction == "up" %}↑{% elif change.direction == "down" %}↓{% else %}→{% endif %}
-                  {{ change.change }}
-                </span>
-              {% endif %}
-            </dd>
-            <p class="dk-meta">{{ change.note }}</p>
-          </div>
-        {% endfor %}
-      </dl>
+      {% include "dashboard/components/empty_state.html" with message="Andmeallikas ei ole veel ühendatud." only %}
     </div>
-  </section>
-{% endif %}
-
-<section aria-labelledby="section-mix" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Mida korraldame?" heading_id="section-mix" only %}
-  {% comment %}
-  Two columns since 2026-08-15: the `Teema` preview was struck. `Formaadid ja
-  teemad` still ranks every theme, and the link below goes there.
-  {% endcomment %}
-  <div class="dk-section-body grid grid-cols-1 gap-6 lg:grid-cols-2">
-    {% include "event_programme/partials/_mix_preview.html" with title="Tüüp" distribution=view.types only %}
-    {% include "event_programme/partials/_mix_preview.html" with title="Toimumisviis" distribution=view.delivery only %}
-  </div>
-  <div class="border-t border-border px-4 py-3 sm:px-5">
-    <a class="dk-link text-sm" href="{% url 'events' %}?fookus=formaadid&amp;year={{ page.year|default:'all' }}">Kõik formaadid ja teemad</a>
-  </div>
+  {% endif %}
 </section>
 
-{% if view.price_chart %}
-  {% comment %}
-  `Hinnastruktuur`, moved here when `Planeerimine` came off. Planned prices from
-  the workbook, never transactions — and a price nobody recorded is not free.
-  Both of those are footnotes on the payload itself, so they travel with the
-  chart wherever it is rendered.
-  {% endcomment %}
-  <section aria-labelledby="section-price" class="dk-section">
-    {# The chart's own title says `Hinnastruktuur`; a visible section heading #}
-    {# said it again one line above. The landmark keeps the name unpainted. #}
-    <h2 id="section-price" class="sr-only">Hinnastruktuur</h2>
-    <div class="dk-section-body pt-4">
-      {% include "dashboard/components/chart_figure.html" with chart=view.price_chart only %}
+{# ---------------- Maht aastate lõikes ---------------- #}
+{% if view.year_chart %}
+  <section aria-labelledby="section-by-year" class="dk-section">
+    <h2 id="section-by-year" class="sr-only">Maht aastate lõikes</h2>
+    <div class="dk-section-body">
+      {% include "dashboard/components/chart_figure.html" with chart=view.year_chart only %}
     </div>
   </section>
 {% endif %}
 
+{# ---------------- Kuude lõikes ---------------- #}
+{% if view.month_chart %}
+  <section aria-labelledby="section-by-month" class="dk-section">
+    <h2 id="section-by-month" class="sr-only">Kuude lõikes</h2>
+    <div class="dk-section-body flex flex-col gap-2">
+      {% include "dashboard/components/chart_figure.html" with chart=view.month_chart only %}
+      {% if view.quarters %}
+        <p class="dk-meta">
+          Kvartalid:
+          {% for quarter in view.quarters %}{{ quarter.key }} {{ quarter.count }}{% if not forloop.last %} · {% endif %}{% endfor %}
+        </p>
+      {% endif %}
+    </div>
+  </section>
+{% endif %}
+
+{# ---------------- Ürituse tüüp / Toimumisviis, Hinnastruktuur / Toimumisviis aastate lõikes ---------------- #}
+<div class="grid grid-cols-1 gap-6 lg:grid-cols-2">
+
+  <section aria-labelledby="section-mix" class="dk-section">
+    {% include "dashboard/components/section_header.html" with title="Ürituse tüüp" heading_id="section-mix" only %}
+    <div class="dk-section-body flex flex-col gap-6">
+      {% include "event_programme/partials/_mix_preview.html" with title="" distribution=view.types only %}
+      <div class="flex flex-col gap-2">
+        <h3 class="text-micro font-semibold tracking-wide text-text-muted uppercase">Toimumisviis {{ page.period_label }}</h3>
+        {% include "event_programme/partials/_mix_preview.html" with title="" distribution=view.delivery only %}
+      </div>
+    </div>
+  </section>
+
+  <div class="flex flex-col gap-6">
+    {% if view.price_chart %}
+      <section aria-labelledby="section-price" class="dk-section">
+        <h2 id="section-price" class="sr-only">Hinnastruktuur</h2>
+        <div class="dk-section-body pt-4">
+          {% include "dashboard/components/chart_figure.html" with chart=view.price_chart only %}
+        </div>
+      </section>
+    {% endif %}
+
+    {% if view.delivery_over_time %}
+      <section aria-labelledby="section-delivery-time" class="dk-section">
+        <h2 id="section-delivery-time" class="sr-only">Toimumisviis aastate lõikes</h2>
+        <div class="dk-section-body pt-4">
+          {% include "dashboard/components/chart_figure.html" with chart=view.delivery_over_time only %}
+        </div>
+      </section>
+    {% endif %}
+  </div>
+
+</div>
+
+{# ---------------- Järgmised sündmused / Enim vaadatud ---------------- #}
 <div class="grid grid-cols-1 gap-6 xl:grid-cols-2">
 
   <section aria-labelledby="section-upcoming" class="dk-section">
@@ -155,10 +157,6 @@ to the stylesheet build anyway.
             </li>
           {% endfor %}
         </ul>
-        {% comment %}
-        Said here rather than left to a reader's assumption: a page view is not
-        a person, and the word "vaatamist" is doing real work.
-        {% endcomment %}
       {% else %}
         {% include "dashboard/components/empty_state.html" with message="Ühelgi tulevasel sündmusel ei ole mõõdetud avalikku lehte." detail="Veebihuvi saab näidata ainult siis, kui sündmus on seotud koda.ee lehega, mida Google Analytics mõõdab." only %}
       {% endif %}

@@ -1,4 +1,4 @@
-"""The `/sundmused/` focus views, end to end through the real view.
+"""The `/sundmused/` page, end to end through the real view.
 
 The unit tests beside this file prove the arithmetic. These prove the two layers
 nothing else touches — the view and the template — because a green selector
@@ -12,14 +12,6 @@ import datetime as dt
 
 import pytest
 from django.urls import reverse
-
-from apps.event_programme.intelligence import (
-    FOCUS_FORMATS,
-    FOCUS_OVERVIEW,
-    FOCUS_VALUES,
-    FOCUS_VOLUME,
-    parse_focus,
-)
 
 from .conftest import synthetic_programme
 
@@ -36,67 +28,38 @@ def _get(client, **params):
 
 
 # ---------------------------------------------------------------------------
-# Focus routing
+# One page, always
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("focus", FOCUS_VALUES)
-def test_every_focus_renders(viewer_client, programme, focus):
-    response = _get(viewer_client, fookus=focus)
+def test_the_page_renders(viewer_client, programme):
+    response = _get(viewer_client)
     assert response.status_code == 200
-    assert response.context["intelligence"].focus == focus
+    assert response.context["intelligence"].overview is not None
 
 
-def test_an_unknown_focus_falls_back_to_the_overview(viewer_client, programme):
-    response = _get(viewer_client, fookus="ei-ole-olemas")
-    assert response.status_code == 200
-    assert response.context["intelligence"].focus == FOCUS_OVERVIEW
+def test_a_stray_focus_parameter_from_an_old_bookmark_is_simply_unread(viewer_client, programme):
+    """`Maht ja kalender`, `Formaadid ja teemad` and the register's own retired
+    focus all folded into the one page on 2026-08-18. `fookus` is not parsed
+    any more, so every value — current, retired, or invented — renders the
+    same page."""
+    for focus in ("ulevaade", "maht", "formaadid", "programm", "ei-ole-olemas"):
+        response = _get(viewer_client, fookus=focus)
+        assert response.status_code == 200
+        assert response.context["intelligence"].overview is not None
 
 
-def test_the_retired_register_focus_resolves_to_the_overview(viewer_client, programme):
-    """`Ürituste nimekiri` folded into `Ülevaade` on 2026-08-17; the old
-    `?fookus=programm` bookmark reads as any other unknown value now."""
-    response = _get(viewer_client, fookus="programm")
-    assert response.status_code == 200
-    assert response.context["intelligence"].focus == FOCUS_OVERVIEW
+def test_the_register_is_always_built(viewer_client, programme):
+    """It was one click away, behind its own focus, until 2026-08-17, then
+    became unconditional the day after."""
+    assert _get(viewer_client).context["page"] is not None
 
 
-def test_no_focus_is_the_overview(viewer_client, programme):
-    assert _get(viewer_client).context["intelligence"].focus == FOCUS_OVERVIEW
-
-
-def test_parse_focus_never_raises():
-    for raw in (None, "", "  ", "programm", "ULEVAADE", 5):
-        assert parse_focus(raw) in FOCUS_VALUES
-
-
-def test_the_register_builds_only_on_the_overview(viewer_client, programme):
-    """Three analyses on one route only works if two of them cost nothing —
-    and the register's paginated query is the expensive one now that it lives
-    on `Ülevaade` rather than behind its own focus."""
-    assert _get(viewer_client, fookus=FOCUS_OVERVIEW).context["page"] is not None
-    assert _get(viewer_client, fookus=FOCUS_VOLUME).context["page"] is None
-    assert _get(viewer_client, fookus=FOCUS_FORMATS).context["page"] is None
-
-
-@pytest.mark.parametrize(
-    ("focus", "expects_bundle"),
-    [
-        # `Ülevaade` draws since `Hinnastruktuur` moved onto it, and the
-        # fixture programme carries prices — so the bundle belongs there now.
-        # The register's own table draws nothing, but it lives here too.
-        (FOCUS_OVERVIEW, True),
-        (FOCUS_VOLUME, True),
-        (FOCUS_FORMATS, True),
-    ],
-)
-def test_the_chart_bundle_loads_exactly_where_a_chart_is_drawn(
-    viewer_client, programme, focus, expects_bundle
-):
+def test_the_chart_bundle_loads_when_the_programme_has_dated_events(viewer_client, programme):
     """The specific failure this guards: a page that renders every section and
     ships no chart JavaScript, which no value-inspecting assertion can see."""
-    html = _get(viewer_client, fookus=focus).content.decode()
-    assert ("build/charts.js" in html) is expects_bundle
+    html = _get(viewer_client).content.decode()
+    assert "build/charts.js" in html
 
 
 # ---------------------------------------------------------------------------
@@ -140,16 +103,11 @@ def test_a_year_the_snapshot_lacks_falls_back(viewer_client, programme):
     assert page.year != 1999
 
 
-def test_focus_links_carry_the_period(viewer_client, programme):
-    page = _get(viewer_client, year="all", fookus=FOCUS_VOLUME).context["intelligence"]
-    for link in page.focus_links:
-        assert "year=all" in link.url
-
-
-def test_year_links_carry_the_focus(viewer_client, programme):
-    page = _get(viewer_client, fookus=FOCUS_FORMATS).context["intelligence"]
+def test_year_links_carry_no_focus_marker(viewer_client, programme):
+    """`fookus` is not parsed any more, so no link needs to carry one."""
+    page = _get(viewer_client).context["intelligence"]
     for link in page.year_links:
-        assert f"fookus={FOCUS_FORMATS}" in link.url
+        assert "fookus" not in link.url
 
 
 # ---------------------------------------------------------------------------
@@ -157,41 +115,56 @@ def test_year_links_carry_the_focus(viewer_client, programme):
 # ---------------------------------------------------------------------------
 
 
-def test_the_overview_answers_the_five_second_questions(viewer_client, programme):
-    """Two figures since 2026-08-15, each naming its own scope.
+def test_the_overview_answers_the_headline_questions(viewer_client, programme):
+    """Four cards since 2026-08-18, each titled and each stating its own
+    scope — the two comparisons that used to render as a separate `Mis
+    muutus?` list are folded into two of the four cards' own notes now."""
+    overview = _get(viewer_client).context["intelligence"].overview
 
-    The programme count and the median planning lead were struck, and the two
-    that stayed lost their captions — so what proves a figure reached the page
-    is the unit beside it, which is now the only thing that says what it counts.
-    """
-    overview = _get(viewer_client, fookus=FOCUS_OVERVIEW).context["intelligence"].overview
-    units = [figure.unit for figure in overview.headline]
-
-    assert len(overview.headline) == 2
-    assert any("järgmise" in unit for unit in units)
-    assert any("toimunud" in unit for unit in units)
-    # No caption survives, so none may be rendered.
-    assert all(not figure.label for figure in overview.headline)
+    assert len(overview.headline) >= 3
+    labels = [card.label for card in overview.headline]
+    assert any("Sündmusi programmis" in label for label in labels)
+    assert any("Järgmise kuu jooksul" in label for label in labels)
     assert overview.types.has_data
     assert overview.delivery.has_data
 
 
-def test_the_struck_headline_figures_are_gone(viewer_client, programme):
-    html = _get(viewer_client, fookus=FOCUS_OVERVIEW).content.decode()
+def test_the_struck_headline_figures_stay_struck(viewer_client, programme):
+    html = _get(viewer_client).content.decode()
 
-    for struck in ("Sündmusi programmis", "Mediaan planeerimisvaru", "Algab lähiajal"):
+    for struck in ("Mediaan planeerimisvaru", "Algab lähiajal"):
         assert struck not in html
-    # `Seisuga:` came off these cards with the captions.
-    assert "Seisuga" not in html
 
 
 def test_the_overview_carries_hinnastruktuur(viewer_client, programme):
     """The one section kept out of `Planeerimine` when that focus came off."""
-    response = _get(viewer_client, fookus=FOCUS_OVERVIEW)
+    response = _get(viewer_client)
     overview = response.context["intelligence"].overview
 
     assert overview.price_chart is not None
     assert "Hinnastruktuur" in response.content.decode()
+
+
+def test_the_overview_carries_the_volume_and_delivery_charts(viewer_client, programme):
+    """`Maht ja kalender` and `Formaadid ja teemad`'s survivors, folded onto
+    the one page on 2026-08-18."""
+    response = _get(viewer_client)
+    overview = response.context["intelligence"].overview
+    html = response.content.decode()
+
+    assert overview.year_chart is not None
+    assert overview.month_chart is not None
+    assert overview.delivery_over_time is not None
+    assert "Maht aastate lõikes" in html
+    assert "Toimumisviis aastate lõikes" in html
+
+
+def test_the_theme_only_charts_and_duration_ranking_did_not_fold_in(viewer_client, programme):
+    """Neither is in the mockup this round rebuilt the page to."""
+    html = _get(viewer_client).content.decode()
+
+    for retired in ("Teemade muutus", "Sündmuste kestus"):
+        assert retired not in html
 
 
 # ---------------------------------------------------------------------------
@@ -199,7 +172,6 @@ def test_the_overview_carries_hinnastruktuur(viewer_client, programme):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("focus", FOCUS_VALUES)
 @pytest.mark.parametrize(
     "forbidden",
     [
@@ -211,21 +183,18 @@ def test_the_overview_carries_hinnastruktuur(viewer_client, programme):
         "Rahulolu",
     ],
 )
-def test_no_focus_claims_something_no_source_establishes(
-    viewer_client, programme, focus, forbidden
-):
+def test_the_page_claims_nothing_no_source_establishes(viewer_client, programme, forbidden):
     """Attendance, capacity, fill rate and satisfaction have no source at all.
 
     They are not merely absent from the selectors — they may not appear as a
     word on the page, because a label is what a reader takes away.
     """
-    html = _get(viewer_client, fookus=focus).content.decode()
+    html = _get(viewer_client).content.decode()
     assert forbidden not in html
 
 
-@pytest.mark.parametrize("focus", FOCUS_VALUES)
-def test_ordered_value_is_never_called_revenue(viewer_client, programme, focus):
-    html = _get(viewer_client, fookus=focus).content.decode()
+def test_ordered_value_is_never_called_revenue(viewer_client, programme):
+    html = _get(viewer_client).content.decode()
     for word in ("Käive", "Tulu ", "Laekunud"):
         assert word not in html
 
@@ -235,23 +204,22 @@ def test_ordered_value_is_never_called_revenue(viewer_client, programme, focus):
 # ---------------------------------------------------------------------------
 
 
-@pytest.mark.parametrize("focus", FOCUS_VALUES)
-def test_provenance_is_on_no_focus(viewer_client, programme, focus):
-    """It was on every one of them until 2026-08-15.
+def test_provenance_is_not_on_the_page(viewer_client, programme):
+    """It was on this page until 2026-08-15.
 
     The board moved it to `/haldus/`: it is pipeline diagnostics, and a manager
     opening this dashboard is not its reader. `tests/dashboard/test_admin_area.py`
     proves it arrived, which is the half that matters — a block deleted from one
     page and never rendered on the other would pass this assertion too.
     """
-    html = _get(viewer_client, fookus=focus).content.decode()
+    html = _get(viewer_client).content.decode()
 
     assert "Andmete kohta" not in html
     assert "Mida need andmed ei tõesta" not in html
 
 
 def test_the_quality_block_states_its_denominators(viewer_client, programme):
-    quality = _get(viewer_client, fookus=FOCUS_OVERVIEW).context["intelligence"].quality
+    quality = _get(viewer_client).context["intelligence"].quality
     assert quality.canonical_events == quality.dated_events + quality.undated_events
     assert quality.type_coverage <= quality.canonical_events
     assert quality.effective_links <= quality.canonical_events
@@ -265,9 +233,7 @@ def test_the_public_calendar_is_secondary_and_not_subtracted(viewer_client, prog
     the whole statement — including that the gap between the two counts is not a
     count of unpublished events, which is the reading this exists to forbid.
     """
-    assert (
-        "Koda.ee avalik kalender" not in _get(viewer_client, fookus=FOCUS_OVERVIEW).content.decode()
-    )
+    assert "Koda.ee avalik kalender" not in _get(viewer_client).content.decode()
 
     admin = viewer_client.get(reverse("dashboard-admin")).content.decode()
     assert "Koda.ee avalik kalender" in admin
@@ -280,18 +246,18 @@ def test_the_page_states_that_occurrences_are_not_sessions(viewer_client, progra
 
 
 # ---------------------------------------------------------------------------
-# Register, folded onto the overview since 2026-08-17
+# Register, unconditional on the page since 2026-08-18
 # ---------------------------------------------------------------------------
 
 
 def test_the_register_still_searches_the_whole_population(viewer_client, programme):
-    response = _get(viewer_client, fookus=FOCUS_OVERVIEW, year="all", q="konverents")
+    response = _get(viewer_client, year="all", q="konverents")
     assert response.status_code == 200
     assert response.context["page"].result_count >= 1
 
 
 def test_the_register_exposes_type_and_delivery_filters(viewer_client, programme):
-    response = _get(viewer_client, fookus=FOCUS_OVERVIEW, year="all", event_type="conference")
+    response = _get(viewer_client, year="all", event_type="conference")
     page = response.context["page"]
     assert page.filters.event_type == "conference"
     assert page.refinement_count >= 1
@@ -299,17 +265,16 @@ def test_the_register_exposes_type_and_delivery_filters(viewer_client, programme
 
 
 def test_delivery_filter_narrows_the_population(viewer_client, programme):
-    page = _get(viewer_client, fookus=FOCUS_OVERVIEW, year="all", delivery_mode="hybrid").context[
-        "page"
-    ]
+    page = _get(viewer_client, year="all", delivery_mode="hybrid").context["page"]
     assert page.filters.delivery_mode == "hybrid"
     assert all(item.delivery_mode == "hybrid" for item in page.items)
 
 
 def test_register_links_carry_no_focus_marker(viewer_client, programme):
-    """`Ülevaade` is the only place the register renders and also `parse_focus`'s
-    default, so none of its own links need to force a focus any more."""
-    page = _get(viewer_client, fookus=FOCUS_OVERVIEW, year="all").context["page"]
+    """The register was the only content on the overview focus since
+    2026-08-17, and `fookus` is not parsed at all since 2026-08-18 — so none
+    of its own links need to carry one."""
+    page = _get(viewer_client, year="all").context["page"]
     assert "fookus=" not in page.all_years_url
     for option in page.sort_options:
         assert "fookus=" not in option.url
@@ -319,6 +284,6 @@ def test_register_links_carry_no_focus_marker(viewer_client, programme):
 
 def test_the_registration_sort_is_not_offered_without_commerce_data(viewer_client, programme):
     """A control that cannot change the picture is worse than no control."""
-    page = _get(viewer_client, fookus=FOCUS_OVERVIEW, year="all").context["page"]
+    page = _get(viewer_client, year="all").context["page"]
     assert [option.label for option in page.sort_options] == ["Kuupäev", "Enim vaadatud"]
     assert page.shows_registrations is False

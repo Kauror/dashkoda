@@ -4,26 +4,22 @@
 {% comment %}
 Sündmused — the event intelligence dashboard.
 
-The Chamber's own event programme, from the canonical Excel export: the whole
-available history in one current snapshot. Every figure and every row on this
-page comes from that one snapshot; rows from several snapshots are never
-combined to reconstruct a past.
+One page since 2026-08-18. It was three focus views chosen by `?fookus=` —
+`Ülevaade`, `Maht ja kalender`, `Formaadid ja teemad` — before that; all three
+folded into one scroll, matching Kaur's mockup. The theme-only charts and the
+duration ranking did not fold in — neither is in the mockup — and neither did
+`Huvi` or `Planeerimine`, both retired on 2026-08-15 already. A stray
+`?fookus=` from an older bookmark is simply an unread parameter now.
 
-One route, three focus views, chosen by `?fookus=`. `Huvi` and `Planeerimine`
-came off on 2026-08-15; `Hinnastruktuur` was the one section worth keeping out
-of either and is on `Ülevaade` now. `Ürituste nimekiri` came off on 2026-08-17 —
-its whole register moved onto `Ülevaade` too, so the exact list and the answer
-above it are one screen rather than a tab apart. An unknown focus — including
-an old `?fookus=huvi` or `?fookus=programm` bookmark — falls back to `Ülevaade`
-rather than producing an error page, so nothing needed a redirect.
+Every figure and every row on this page comes from one imported snapshot, and
+the page reads PostgreSQL and nothing else. It never contacts Microsoft, never
+parses a workbook and never reads Koda.ee while serving a request.
 
-The header and the year control are constant; the analytical surface between
-them changes. Provenance is **not** on this page any more: `Andmete kohta` moved
-to `/haldus/`, where the maintainer material for every dashboard is collecting.
+Provenance is **not** on this page: `Andmete kohta` moved to `/haldus/`, where
+the maintainer material for every dashboard is collecting.
 
-The measurement object is one **canonical programme event** — one service code,
-one row of `DASH_EVENTS`. It is not a session and not a calendar day, and the
-page says so where a reader might otherwise assume otherwise.
+The measurement object is one **canonical programme event** — one service
+code, one row of `DASH_EVENTS`. It is not a session and not a calendar day.
 
 What this page never shows, because no source establishes it: attendance,
 participants, capacity, fill rate, no-show rate or satisfaction. Page views are
@@ -34,12 +30,6 @@ attendees.
 {% block title %}Sündmused – DashKoda{% endblock %}
 
 {% block extra_head %}
-  {% comment %}
-  The chart bundle loads only for the focus views that draw something. The
-  overview and the register are read without ECharts, and shipping a large
-  module to a page with no canvas on it is a cost with no reader at the other
-  end.
-  {% endcomment %}
   {% if intelligence.draws_charts %}
     <script type="module" src="{% static 'build/charts.js' %}"></script>
   {% endif %}
@@ -55,50 +45,26 @@ attendees.
   {% if intelligence.has_data %}
 
     {% comment %}
-    Focus navigation and the period control, together, because the two are the
-    page's whole state. Both are ordinary links carrying server-resolved values
-    — never the incoming query string copied forward — so every view is
-    bookmarkable and no unvalidated input is reflected into an href.
+    The year control. Ordinary links carrying a server-resolved value — never
+    the incoming query string copied forward — so every view is bookmarkable
+    and no unvalidated input is reflected into an href.
 
     The year is an **event cohort**: `2026` means events whose own start date
     falls in 2026. It never means "measured in 2026". Windows for traffic and
     for Commerce are chosen by the analyses that use them and are labelled
     there.
     {% endcomment %}
-    <nav aria-label="Sündmuste vaated" class="flex flex-col gap-3 border-b border-border pb-3">
-      <ul class="flex flex-wrap items-center gap-2">
-        {% for link in intelligence.focus_links %}
-          <li>
-            <a class="dk-chip{% if link.is_active %} dk-chip-active{% endif %}"
-               href="{{ link.url }}"
-               {% if link.is_active %}aria-current="page"{% endif %}>{{ link.label }}</a>
-          </li>
-        {% endfor %}
-      </ul>
-      <div class="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span class="dk-meta">Periood:</span>
-        {% for link in intelligence.year_links %}
-          <a class="dk-chip{% if link.is_active %} dk-chip-active{% endif %}"
-             href="{{ link.url }}"
-             {% if link.is_active %}aria-current="true"{% endif %}>{{ link.label }}</a>
-        {% endfor %}
-      </div>
+    <nav aria-label="Periood" class="flex flex-wrap items-center gap-x-2 gap-y-1 border-b border-border pb-3">
+      <span class="dk-meta">Periood:</span>
+      {% for link in intelligence.year_links %}
+        <a class="dk-chip{% if link.is_active %} dk-chip-active{% endif %}"
+           href="{{ link.url }}"
+           {% if link.is_active %}aria-current="true"{% endif %}>{{ link.label }}</a>
+      {% endfor %}
     </nav>
 
-    {% if intelligence.overview %}
-      {% include "event_programme/partials/_focus_overview.html" with view=intelligence.overview page=intelligence only %}
-      {% comment %}
-      Ürituste nimekiri, folded onto `Ülevaade` on 2026-08-17. `page` is a
-      `ProgrammePage`, built alongside `intelligence.overview` in `views.py`
-      whenever this focus is active — not one of `IntelligencePage`'s own
-      fields, because it comes from a different module and a different query.
-      {% endcomment %}
-      {% include "event_programme/partials/_focus_register.html" with page=page only %}
-    {% elif intelligence.volume %}
-      {% include "event_programme/partials/_focus_volume.html" with view=intelligence.volume page=intelligence only %}
-    {% elif intelligence.formats %}
-      {% include "event_programme/partials/_focus_formats.html" with view=intelligence.formats page=intelligence only %}
-    {% endif %}
+    {% include "event_programme/partials/_focus_overview.html" with view=intelligence.overview page=intelligence only %}
+    {% include "event_programme/partials/_focus_register.html" with page=page only %}
 
   {% else %}
 
