@@ -45,17 +45,10 @@ from datetime import date
 
 from django.urls import reverse
 
-from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
+from apps.core.executive import DomainSignal, SignalDirection, SignalPriority, SignalTone
 from apps.core.formatting import integer, percent
 
-from .content_performance import ContentPerformanceRow, describe_pages
-from .content_sections import (
-    SECTION_ALL,
-    SECTION_EVENTS,
-    SECTION_NEWS,
-    all_index_paths,
-)
-from .ga4_selectors import get_coverage, get_top_pages
+from .ga4_selectors import get_coverage
 from .website_analytics import WebsiteTrafficSummary, get_traffic_summary
 from .website_period import build_comparison, get_period_coverage, parse_period
 
@@ -63,11 +56,6 @@ from .website_period import build_comparison, get_period_coverage, parse_period
 #: calls it worth a manager's attention. Ordinary week-to-week variation on this
 #: property sits well inside it; a fortnight of campaign traffic does not.
 SESSION_CHANGE_PCT = 15.0
-
-#: How many top pages to read before picking one that is neither news nor an
-#: event. Bounded, and generous enough that a week where the news dominates
-#: still yields an ordinary content page.
-TOP_PAGE_SCAN = 12
 
 
 @dataclass(frozen=True)
@@ -85,8 +73,6 @@ class WebsiteExecutive:
     start: date | None = None
     end: date | None = None
     days: int = 0
-    #: The most-viewed page that is neither a news article nor an event page.
-    top_page: ContentPerformanceRow | None = None
 
     signals: tuple[DomainSignal, ...] = ()
 
@@ -122,10 +108,11 @@ class WebsiteExecutive:
 def get_website_executive() -> WebsiteExecutive:
     """Read the default measured window once and shape the website figures.
 
-    Five bounded reads: coverage, this window's totals, its coverage, the
-    previous window's totals, and the top-page slice. None of them grows with
-    the number of pages on the site — `get_top_pages` aggregates and slices in
-    PostgreSQL.
+    Four bounded reads: coverage, this window's totals, its coverage and the
+    previous window's totals. There was a fifth — the leading ordinary content
+    page, for the overview's `Praegu enim huvi` — until that section left the
+    front page on 2026-08-18, and it went with the section rather than being
+    left as a query nobody renders.
     """
     coverage = get_coverage()
     if not coverage.has_data:
@@ -154,7 +141,6 @@ def get_website_executive() -> WebsiteExecutive:
         start=period.start,
         end=period.end,
         days=period.days,
-        top_page=_top_ordinary_page(period.start, period.end),
     )
     return _with_signals(executive)
 
@@ -178,30 +164,6 @@ def _comparison_note(comparison, *, can_compare: bool) -> str:
     if comparison.unavailable_reason:
         return comparison.unavailable_reason
     return "Kahe perioodi mõõdetus erineb liiga palju, et neid võrrelda."
-
-
-def _top_ordinary_page(start: date, end: date) -> ContentPerformanceRow | None:
-    """The most-viewed page that is neither a news article nor an event page.
-
-    News and events have their own panels on the overview, and a Koduleht panel
-    repeating whichever of them happened to win adds nothing. Section listing
-    pages are excluded at the query, because an index collects the traffic of
-    everyone passing through it and would top every ranking forever.
-
-    Falls back to the leading page of any kind when nothing else qualifies —
-    with its section badge, so a reader can see that the site's most-read page
-    that fortnight genuinely was an article. What it never does is invent a name
-    from a slug: `describe_pages` resolves titles from DashKoda's own content
-    catalogues and leaves the path visible when it cannot.
-    """
-    totals = get_top_pages(start=start, end=end, limit=TOP_PAGE_SCAN, exclude=all_index_paths())
-    if not totals:
-        return None
-    rows = describe_pages(totals, section=SECTION_ALL)
-    for row in rows:
-        if not SECTION_NEWS.contains(row.path) and not SECTION_EVENTS.contains(row.path):
-            return row
-    return rows[0] if rows else None
 
 
 def _with_signals(executive: WebsiteExecutive) -> WebsiteExecutive:
@@ -231,6 +193,7 @@ def _with_signals(executive: WebsiteExecutive) -> WebsiteExecutive:
         # verdict — the page states the movement and the reader explains it.
         priority=SignalPriority.ATTENTION if falling else SignalPriority.NOTABLE,
         direction=SignalDirection.DOWN if falling else SignalDirection.UP,
+        tone=SignalTone.NEUTRAL if falling else SignalTone.POSITIVE,
         href=reverse("visibility"),
         as_of=executive.end,
     )

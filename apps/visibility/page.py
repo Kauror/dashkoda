@@ -195,6 +195,91 @@ def _social_slot(reading: MetricReading) -> ChannelSlot:
     )
 
 
+@dataclass(frozen=True)
+class AudienceRow:
+    """One audience, on its own line, with nothing added to anything.
+
+    The overview's `Auditooriumid` strip since 2026-08-18. It draws one flat
+    list where the band drew cells — the three newsletters were a single cell
+    holding three sub-rows, which made them look like parts of one audience
+    when they are three, and gave the four social channels four times the room
+    to say a smaller thing.
+
+    **Sorted by size and never summed.** A subscriber list and a follower count
+    are different kinds of audience and the sort does not make them the same
+    thing; what it does is put the Chamber's largest audiences first, which is
+    the order a reader wants and the order nobody can derive from a fixed
+    registry sequence. Every row keeps the word for what it counts — `uudiskiri`
+    on a list, the registry's own `jälgijad` or `tellijad` on a profile — so a
+    reader can see the two kinds apart while reading them together.
+
+    A row with no reading keeps its name and shows no figure. It sorts last,
+    because "we have not entered this" is not a size.
+    """
+
+    label: str
+    value: int | None = None
+    as_of: date | None = None
+    profile_url: str = ""
+    detail_url: str = ""
+    #: This particular figure is old enough to mislead. Not a provenance
+    #: caption — `Käsitsi sisestatud` and `Automaatselt kogutud` are the same
+    #: words on every row of their kind and say nothing about the number they
+    #: sit beside — but an alert about this number, which is why it is the one
+    #: label a quiet list still carries. `channel_card` keeps exactly the same
+    #: one for exactly the same reason.
+    is_stale: bool = False
+
+    @property
+    def has_value(self) -> bool:
+        # `is not None`, not truthiness: an entered zero is a real reading.
+        return self.value is not None
+
+    @property
+    def external_link_note(self) -> str:
+        return EXTERNAL_LINK_NOTE
+
+
+def build_audience_rows(*, summary: VisibilitySummary | None = None) -> tuple[AudienceRow, ...]:
+    """Every audience the Chamber owns, largest first.
+
+    Reads the same `VisibilitySummary` the band reads, so a figure here and a
+    figure on the Otsepostitused newsletter card cannot disagree — this shapes
+    the same readings into rows rather than computing anything of its own.
+
+    The newsletters are named `<list> uudiskiri` because a flat list has no
+    surrounding card to say what kind of audience a line is. `e-Teataja 20 616`
+    beside `Facebook 12 230` would leave the reader to guess that one counts
+    subscriptions and the other follows.
+    """
+    summary = summary if summary is not None else get_visibility_summary()
+
+    rows = [
+        AudienceRow(
+            label=f"{reading.label} uudiskiri",
+            value=reading.value,
+            as_of=reading.as_of,
+            detail_url=reverse("mailings"),
+            is_stale=summary.newsletter.is_stale,
+        )
+        for reading in summary.newsletter.lists
+    ]
+    rows.extend(
+        AudienceRow(
+            label=reading.label,
+            value=reading.value,
+            as_of=reading.as_of,
+            profile_url=reading.profile_url,
+            is_stale=reading.is_stale,
+        )
+        for reading in summary.social
+    )
+    # Largest first; the unread ones keep their names and go last in the order
+    # the registry fixes, which is the only order they have.
+    rows.sort(key=lambda row: (row.value is None, -(row.value or 0)))
+    return tuple(rows)
+
+
 def build_channel_band(
     *,
     summary: VisibilitySummary | None = None,
@@ -242,8 +327,10 @@ __all__ = [
     "EXTERNAL_LINK_NOTE",
     "NEWSLETTER_LABEL",
     "SOCIAL_METRICS",
+    "AudienceRow",
     "ChannelSlot",
     "VisibilityMetric",
+    "build_audience_rows",
     "build_channel_band",
     "build_newsletter_slot",
 ]

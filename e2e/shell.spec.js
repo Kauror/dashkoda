@@ -11,9 +11,14 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "./helpers.js";
  * separately below; `e2e/seeded/executive-overview.spec.js` holds the other
  * half, where the seeded data does produce signals.
  *
- * `Andmete seis` moved to `/haldus/` on 2026-08-15 and does not come back.
+ * The six domain cards are not here either: they carry no section heading since
+ * 2026-08-18 — six cards under the page title are the page — and are asserted
+ * by their own group name instead, one test down.
+ *
+ * `Andmete seis` moved to `/haldus/` on 2026-08-15 and does not come back;
+ * `Praegu enim huvi` left on 2026-08-18.
  */
-const SECTIONS = ["Põhinäitajad", "Järgmised 30 päeva", "Praegu enim huvi", "Auditooriumid"];
+const SECTIONS = ["Järgmised 30 päeva", "Auditooriumid"];
 
 /*
  * The one heading whose digits are a constant rather than a measurement. It
@@ -42,7 +47,7 @@ test("every domain has a card even before anything is connected", async ({ page 
   // not exist. The card is the page's structure, not a reward for a wired feed.
   await signIn(page);
 
-  const cards = page.getByRole("region", { name: "Põhinäitajad" }).locator("article");
+  const cards = page.getByLabel("Põhinäitajad").locator("article");
 
   await expect(cards).toHaveCount(6);
   for (const label of [
@@ -53,7 +58,7 @@ test("every domain has a card even before anything is connected", async ({ page 
     "Otsepostitused",
     "E-pood",
   ]) {
-    await expect(cards.getByRole("heading", { name: label, level: 3 })).toBeVisible();
+    await expect(cards.getByRole("heading", { name: label, level: 2 })).toBeVisible();
   }
 });
 

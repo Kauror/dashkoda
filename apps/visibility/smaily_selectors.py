@@ -206,6 +206,24 @@ def campaign_queryset(*, metric: str | None = None, search: str = ""):
     return campaigns.order_by("-completed_at", "-campaign_id")
 
 
+def count_sends_between(*, start, end, metric: str | None = None) -> int:
+    """Completed sends whose send moment falls inside a window.
+
+    A count of **letters**, not of recipients: one issue that went out to two
+    lists as two campaigns is two sends here, which is what the Chamber's own
+    send practice makes it — e-Teataja is posted once per list and each posting
+    is its own campaign with its own delivery.
+
+    Bounded by `completed_at`, the moment Smaily finished the send, which is the
+    only date this application holds for a campaign. A campaign still in flight
+    has none and is outside every window by construction rather than by a filter.
+    """
+    campaigns = SmailyCampaign.objects.all()
+    if metric:
+        campaigns = campaigns.filter(newsletter=metric)
+    return campaigns.filter(completed_at__gte=start, completed_at__lt=end).count()
+
+
 def has_unclassified_campaigns() -> bool:
     """Whether the `Muu` filter has anything behind it.
 

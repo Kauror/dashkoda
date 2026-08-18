@@ -28,6 +28,7 @@ motion where nothing moved.
 from __future__ import annotations
 
 from django.urls import reverse
+from django.utils import timezone
 
 from apps.core.formatting import short_date
 from apps.event_programme.executive import get_timeline_events
@@ -50,7 +51,9 @@ DOMAIN_LEGAL = "legal_work"
 DOMAIN_EVENTS = "events"
 
 LABEL_LEGAL = "Õigusloome"
-LABEL_EVENTS = "Sündmused"
+#: Singular, because each row is one. `Sündmused` is the dashboard's name and
+#: reads as a section heading when it sits on a line beside a single title.
+LABEL_EVENTS = "Sündmus"
 
 
 def build_timeline(*, legal_summary, events_executive) -> tuple[ExecutiveUpcomingItem, ...]:
@@ -64,7 +67,11 @@ def build_timeline(*, legal_summary, events_executive) -> tuple[ExecutiveUpcomin
         *_deadline_rows(legal_summary),
         *_event_rows(events_executive),
     ]
-    rows.sort(key=lambda item: (item.when, item.domain_key, item.title))
+    # Under-way rows last, then by date, then by domain and title. Sorting them
+    # by their own start date would put a programme that opened in January above
+    # a deadline falling tomorrow, which is the opposite of what this list is
+    # read for.
+    rows.sort(key=lambda item: (item.is_under_way, item.when, item.domain_key, item.title))
     return tuple(rows[:TIMELINE_LIMIT])
 
 
@@ -97,23 +104,33 @@ def _deadline_rows(summary) -> list[ExecutiveUpcomingItem]:
 
 
 def _event_rows(executive) -> list[ExecutiveUpcomingItem]:
-    """Scheduled events beginning inside the horizon.
+    """Scheduled events beginning inside the horizon, plus the ones under way.
 
     The public link is used when the matcher resolved one, and the row stays
     plain text otherwise. An event DashKoda cannot address is still worth
     knowing is coming.
+
+    **An event that started before today is not dated in this list.** A
+    year-long mentoring programme that opened on 1 January sorted to the top of
+    `Järgmised 30 päeva` under the date `01.01`, which is not a thing happening
+    in the next thirty days — it is a thing already happening. Those rows say
+    `kestev` and carry no start date at all, because the date a reader would
+    read off them is one they cannot act on.
     """
+    today = timezone.localdate()
     rows = []
     for item in get_timeline_events(executive, within_days=HORIZON_DAYS):
         link = getattr(item, "public_link", None)
         url = link.url if link else ""
+        started = item.start_date is not None and item.start_date < today
         rows.append(
             ExecutiveUpcomingItem(
                 when=item.start_date,
+                is_under_way=started,
                 domain_label=LABEL_EVENTS,
                 domain_key=DOMAIN_EVENTS,
                 title=item.event_name,
-                context=_event_context(item),
+                context=_event_context(item, under_way=started),
                 url=url,
                 is_external=bool(url),
             )
@@ -121,14 +138,20 @@ def _event_rows(executive) -> list[ExecutiveUpcomingItem]:
     return rows
 
 
-def _event_context(item) -> str:
+def _event_context(item, *, under_way: bool = False) -> str:
     """Delivery mode and end date, where the workbook classified them.
+
+    An event already under way leads with `kestev`, which is what its missing
+    start date means — the row is in this list because it has not finished, not
+    because it is about to begin.
 
     Never attendance and never capacity: the programme records what was
     scheduled, not who came, and this application has no attendance figure at
     all.
     """
     parts = []
+    if under_way:
+        parts.append("kestev")
     mode = getattr(item, "delivery_mode", "")
     if mode:
         parts.append(mode)

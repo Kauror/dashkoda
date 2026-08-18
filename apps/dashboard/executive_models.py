@@ -38,7 +38,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, datetime
 
-from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
+from apps.core.executive import DomainSignal, SignalDirection, SignalPriority, SignalTone
 
 
 @dataclass(frozen=True)
@@ -124,6 +124,12 @@ class ExecutiveFact:
     as_of: date | datetime | None = None
     #: Where exactly these rows are listed, when such a page exists.
     url: str = ""
+    #: A baseline for the fact directly above, drawn quieter than it. Both
+    #: figures are equally measured — what is smaller is the *claim*: "and here
+    #: is what it was" reads under a figure, not beside it. Used for the
+    #: like-for-like previous year, which is unreadable as a row of its own
+    #: standing at the same weight as this year.
+    is_secondary: bool = False
 
     @property
     def is_available(self) -> bool:
@@ -240,8 +246,34 @@ class ExecutiveSignal:
         return self.signal.has_link
 
     @property
+    def tone(self) -> str:
+        return self.signal.tone
+
+    @property
+    def is_positive(self) -> bool:
+        """Whether the domain called this good news.
+
+        Only ever true of a `NOTABLE` signal in practice, and the property does
+        not assume it: a domain that one day raises something urgent *and*
+        welcome would still get the urgency word, because urgency is what a
+        reader has to act on.
+        """
+        return (
+            self.signal.tone == SignalTone.POSITIVE
+            and self.signal.priority == SignalPriority.NOTABLE
+        )
+
+    @property
     def priority_label(self) -> str:
-        """The urgency in words, because colour is never the only signal."""
+        """The urgency in words, because colour is never the only signal.
+
+        `Positiivne` is the one label that is not an urgency. It replaces
+        `Tähelepanuväärne` when the domain says the movement is the direction it
+        wants — a section that badges a rising paid share with the same word as
+        a falling one is a section a reader stops reading carefully.
+        """
+        if self.is_positive:
+            return "Positiivne"
         return _PRIORITY_LABELS[self.signal.priority]
 
 
@@ -270,48 +302,18 @@ class ExecutiveUpcomingItem:
     url: str = ""
     #: An address outside DashKoda — a public event page.
     is_external: bool = False
+    #: Already running rather than coming. Its `when` is a real date and stays
+    #: on the object — the row simply does not print it, because a start date in
+    #: the past is not something a reader of a thirty-day list can act on.
+    is_under_way: bool = False
 
     @property
     def has_link(self) -> bool:
         return bool(self.url)
 
-
-@dataclass(frozen=True)
-class ExecutiveInterestItem:
-    """One column of `Praegu enim huvi`.
-
-    Three of these appear side by side and their metrics are **not comparable**:
-    page views, article views and acquired units. Each states its own metric name
-    and its own period for exactly that reason, and nothing ranks them against
-    one another or puts them on a shared axis.
-
-    There were four. The fourth was the next scheduled event, and it left on
-    2026-08-17: this section answers "what are people paying attention to", and a
-    date in the future is not an answer to it. Events are on the page twice
-    already — the Sündmused card's headline and the timeline's own lane — and
-    a scheduled date beside three measured figures invited exactly the comparison
-    the rest of this docstring forbids.
-    """
-
-    domain_label: str
-    domain_key: str
-    title: str
-    metric_value: str | None = None
-    metric_label: str = ""
-    period: str = ""
-    #: Secondary context — a publication date, an event date, a product type.
-    context: str = ""
-    url: str = ""
-    is_external: bool = False
-    unavailable_note: str = ""
-
     @property
-    def is_available(self) -> bool:
-        return self.metric_value is not None and bool(self.title)
-
-    @property
-    def has_link(self) -> bool:
-        return bool(self.url)
+    def shows_date(self) -> bool:
+        return not self.is_under_way
 
 
 @dataclass(frozen=True)
@@ -348,16 +350,21 @@ class ExecutiveOverviewPage:
     template tag reaching into a selector, and no JavaScript fetching a figure.
     """
 
-    #: The six domain cards of `Põhinäitajad`, in reading order.
+    #: The six domain cards, in reading order. They are the page's first
+    #: screen and carry no section heading of their own: six cards under one
+    #: title is a strip of figures, and a heading over it would name the page
+    #: twice.
     cards: tuple[ExecutiveDomainCard, ...] = ()
     signals: tuple[ExecutiveSignal, ...] = ()
     upcoming: tuple[ExecutiveUpcomingItem, ...] = ()
-    interest: tuple[ExecutiveInterestItem, ...] = ()
-    #: The audience strip, built by `apps.visibility` as it always was — minus
-    #: the website slot, whose sessions are the `Koduleht ja uudised` card's
-    #: headline and must not appear on one page twice.
-    channels: tuple = ()
+    #: One row per audience, largest first, built by `apps.visibility`. Never
+    #: summed and never totalled — see `AudienceRow`.
+    audiences: tuple = ()
     data_status: tuple[ExecutiveDataStatus, ...] = ()
+    #: When any source this page reads last published successfully. Not a claim
+    #: that every figure above is current as of then — `Andmete seis` states
+    #: each source's own date, and this is the last moment data came in at all.
+    updated_at: datetime | None = None
 
     @property
     def has_signals(self) -> bool:
@@ -366,10 +373,6 @@ class ExecutiveOverviewPage:
     @property
     def has_upcoming(self) -> bool:
         return bool(self.upcoming)
-
-    @property
-    def available_interest(self) -> tuple[ExecutiveInterestItem, ...]:
-        return tuple(item for item in self.interest if item.is_available)
 
     @property
     def has_any_source(self) -> bool:
@@ -439,7 +442,6 @@ __all__ = [
     "ExecutiveDataStatus",
     "ExecutiveDomainCard",
     "ExecutiveFact",
-    "ExecutiveInterestItem",
     "ExecutiveLink",
     "ExecutiveMetric",
     "ExecutiveOverviewPage",

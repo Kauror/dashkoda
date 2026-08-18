@@ -12,14 +12,14 @@ the other: news reading is part of site reading, and a "total reach" summing
 them would count every article view twice. The card therefore carries a share,
 never a sum, and the share is computed by this domain rather than by the page.
 
-## The article panel is about now, not about lifetime
+## The leading article left with the section that showed it
 
-`analytics.most_read` ranks by views **inside the measurement window** and does
-not filter by publication date. An article from two years ago that is being read
-this month legitimately leads the panel — on this property roughly a quarter of
-current news reading goes to articles over a year old. The publication date is
-shown separately so a reader can see that is what happened, which is a different
-statement from "this is the newest article".
+This summary carried the most-read article of the window for the overview's
+`Praegu enim huvi` panel. That section left the front page on 2026-08-18 —
+which single article happened to lead is a browsing question, and `/uudised/`
+ranks them properly — so the field and its query went with it rather than being
+left built and unread. `analytics.most_read` is untouched and the Uudised page
+still calls it.
 """
 
 from __future__ import annotations
@@ -29,15 +29,13 @@ from datetime import date
 
 from django.urls import reverse
 
-from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
+from apps.core.executive import DomainSignal, SignalDirection, SignalPriority, SignalTone
 from apps.core.formatting import integer, percent
 from apps.visibility.ga4_selectors import get_coverage
 from apps.visibility.website_period import parse_period
 
 from .analytics import (
-    WINDOW_ANNOTATION,
     NewsTrafficSummary,
-    most_read,
     news_traffic,
     previous_traffic_within,
     published_between,
@@ -63,9 +61,6 @@ class NewsExecutive:
     published: int | None = None
     start: date | None = None
     end: date | None = None
-    #: The most-read article inside the window, whenever it was published.
-    top_article: object = None
-    top_article_views: int | None = None
 
     signals: tuple[DomainSignal, ...] = ()
 
@@ -111,7 +106,6 @@ def get_news_executive(summary: NewsSummary) -> NewsExecutive:
     # The same refusal the news page applies: a previous window reaching before
     # collection began yields no comparison rather than a partial denominator.
     previous = previous_traffic_within(period.start, period.end, coverage)
-    leader = _leader(period.start, period.end)
 
     executive = NewsExecutive(
         news_views=current.news_views,
@@ -121,8 +115,6 @@ def get_news_executive(summary: NewsSummary) -> NewsExecutive:
         published=_published(summary, period.start, period.end),
         start=period.start,
         end=period.end,
-        top_article=leader,
-        top_article_views=_window_views(leader),
     )
     return _with_signals(executive, current)
 
@@ -136,19 +128,6 @@ def _published(summary: NewsSummary, start: date, end: date) -> int | None:
     if not summary.has_data:
         return None
     return published_between(start, end).total
-
-
-def _leader(start: date, end: date):
-    """The single most-read article in the window, or `None`."""
-    rows = list(most_read(start=start, end=end, limit=1))
-    return rows[0] if rows else None
-
-
-def _window_views(article) -> int | None:
-    """The annotated window view count `most_read` attached, if any."""
-    if article is None:
-        return None
-    return getattr(article, WINDOW_ANNOTATION, None)
 
 
 def _with_signals(executive: NewsExecutive, current: NewsTrafficSummary) -> NewsExecutive:
@@ -177,6 +156,7 @@ def _with_signals(executive: NewsExecutive, current: NewsTrafficSummary) -> News
         ),
         priority=SignalPriority.ATTENTION if falling else SignalPriority.NOTABLE,
         direction=SignalDirection.DOWN if falling else SignalDirection.UP,
+        tone=SignalTone.NEUTRAL if falling else SignalTone.POSITIVE,
         href=reverse("news"),
         as_of=executive.end,
     )

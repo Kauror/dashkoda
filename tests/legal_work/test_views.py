@@ -410,19 +410,21 @@ def test_overview_dates_the_data_by_the_workbook_not_by_page_load(
 ):
     """The claim must be "data as of <workbook date>", not "loaded today".
 
-    The card states the workbook's own reporting date in its period line, and
-    `Andmete seis` at `/haldus/` states it again with the source named. Both are
-    checked, because the front page carrying a date whose source is a scroll and
-    a click away is only honest while that second statement exists.
-    """
-    from apps.core.formatting import short_date
+    `Andmete seis` at `/haldus/` states it with the source named, and that is
+    the one place the claim is made. The card printed it too until 2026-08-18,
+    when the three cards whose figures are a current state rather than a window
+    lost their period lines — a date under a figure that is simply "as of the
+    latest report" told a reader nothing `Andmete seis` does not.
 
+    What must never happen is the page dating the figures by when it was
+    loaded, and that is what this checks: a reporting date that is not today,
+    stated where the source is named.
+    """
     authenticate_viewer(client)
 
     reporting_date = imported_snapshot.reporting_date
     assert reporting_date != dt.date.today()
-
-    assert short_date(reporting_date) in _legal_card().period_line
+    assert _legal_card().period_line == ""
 
     admin = client.get(reverse("dashboard-admin")).content.decode()
     assert "Seis" in admin

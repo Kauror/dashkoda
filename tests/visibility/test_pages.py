@@ -18,28 +18,6 @@ def body(response) -> str:
     return response.content.decode()
 
 
-def _card_heading(page: str, label: str) -> str:
-    """The `<h3>` of one channel card, so a link assertion is about *that* card.
-
-    Searching the whole page for an href proves only that some element somewhere
-    carries it, which is how a test for "this card links here" passes because a
-    different card does.
-
-    Walks the label's occurrences rather than taking the first: a channel name
-    appears in more than one place on the overview, and the first hit is not
-    reliably the heading.
-    """
-    start = 0
-    while True:
-        marker = page.find(label, start)
-        assert marker != -1, f"no <h3> on the page carries {label!r}"
-        opening = page.rfind("<h3", 0, marker)
-        closing = page.find("</h3>", opening) if opening != -1 else -1
-        if opening != -1 and closing > marker:
-            return page[opening:closing]
-        start = marker + 1
-
-
 def visible_text(response) -> str:
     """Rendered text with entities decoded, for assertions about digits.
 
@@ -54,30 +32,48 @@ def visible_text(response) -> str:
 # ======================================================================
 
 
-def test_the_band_has_every_audience_in_order(viewer_client):
-    """Five audiences, newsletter first, then the four social channels.
+def test_the_band_names_every_audience_and_no_website_figure(viewer_client):
+    """Seven rows: three newsletters and four social channels.
 
-    Six until 2026-08-17, when the website slot went. It was the front page's
-    only consumer, and the rebuilt `Koduleht ja uudised` card states sessions
-    over a properly measured window with a proper comparison — so the slot was
-    the weaker of two statements of one measure, on one page, under two labels.
-    Sessions are not an audience anyway: they are visits, and one person
-    visiting twice is two of them.
+    One row per audience since 2026-08-18. The three lists were three sub-rows
+    of a single `Uudiskirjad` cell, which made them look like parts of one
+    audience when they are three — and each row now names what kind of audience
+    it is, because a flat list has no surrounding card to say so.
+
+    The website slot went on 2026-08-17. It was the front page's only consumer,
+    and the rebuilt `Koduleht ja uudised` card states sessions over a properly
+    measured window with a proper comparison. Sessions are not an audience
+    anyway: they are visits, and one person visiting twice is two of them.
     """
     page = body(viewer_client.get(reverse("home")))
 
-    positions = [
-        page.index(label)
-        for label in (
-            "Uudiskirjad",
-            "Facebooki jälgijad",
-            "LinkedIni jälgijad",
-            "Instagrami jälgijad",
-            "YouTube’i tellijad",
-        )
-    ]
-    assert positions == sorted(positions), "the band is out of the required order"
+    for label in (
+        "e-Teataja uudiskiri",
+        "eNews uudiskiri",
+        "e-Vestnik uudiskiri",
+        "Facebooki jälgijad",
+        "LinkedIni jälgijad",
+        "Instagrami jälgijad",
+        "YouTube’i tellijad",
+    ):
+        assert label in page, f"missing audience row: {label}"
     assert "Kodulehe külastused" not in page
+
+
+def test_the_audiences_are_ordered_by_size(submit, viewer_client):
+    """Largest first, which is the order a reader wants and the registry has not.
+
+    Sorting a subscriber list against a follower count does not make them the
+    same kind of audience — nothing here adds two of them — but it does put the
+    Chamber's largest audiences at the top.
+    """
+    submit(facebook_followers=4200, newsletter_eteataja=9000, linkedin_followers=2500)
+
+    page = body(viewer_client.get(reverse("home")))
+    strip = page[page.index('aria-labelledby="section-channels"') :]
+
+    assert strip.index("e-Teataja uudiskiri") < strip.index("Facebooki jälgijad")
+    assert strip.index("Facebooki jälgijad") < strip.index("LinkedIni jälgijad")
 
 
 def test_instagram_is_present(viewer_client):
@@ -188,6 +184,10 @@ def test_a_stale_reading_is_marked_on_the_band(submit, viewer_client, days_ago):
 
     assert "Vajab uuendamist" in page
     assert "4 200" in page, "a stale figure is still the last thing anybody counted"
+    # An alert about this figure, not a caption on it, which is why it is
+    # the one label the flattened strip still carries.
+    for caption in ("Kasitsi sisestatud", "Automaatselt kogutud"):
+        assert caption not in page
 
 
 def test_each_social_card_links_to_the_correct_public_page(submit, viewer_client):
@@ -284,14 +284,22 @@ def test_the_band_lists_each_newsletter_and_totals_none_of_them(submit, viewer_c
 
 
 def test_the_band_names_the_newsletters_nobody_has_entered(submit, viewer_client):
+    """A list nobody has read keeps its row and shows no figure.
+
+    `Sisestamata: …` was one cell's summary of which of its three sub-rows were
+    missing. With one row per list the row itself is the statement, and it says
+    `Andmed puuduvad.` — never a zero, which would claim the newsletter has no
+    subscribers.
+    """
     submit(newsletter_eteataja=1200)
 
     page = body(viewer_client.get(reverse("home")))
+    strip = page[page.index('aria-labelledby="section-channels"') :]
 
-    assert "1 200" in page
-    # Named as unentered rather than drawn as a zero.
-    assert "Sisestamata" in page
-    assert "eNews" in page
+    assert "1 200" in strip
+    assert "eNews uudiskiri" in strip
+    assert "Andmed puuduvad." in strip
+    assert ">0<" not in strip
 
 
 # ----------------------------------------------------------------------
@@ -316,10 +324,10 @@ def test_the_newsletter_card_links_to_the_page_that_shows_newsletters(submit, vi
     submit(newsletter_eteataja=1200)
 
     page = body(viewer_client.get(reverse("home")))
-    heading = _card_heading(page, "Uudiskirjad")
+    strip = page[page.index('aria-labelledby="section-channels"') :]
 
-    assert f'href="{reverse("mailings")}"' in heading
-    assert f'href="{reverse("news")}"' not in heading
+    assert f'href="{reverse("mailings")}"' in strip
+    assert f'href="{reverse("news")}"' not in strip
 
 
 def test_the_website_figures_link_to_koduleht(submit, viewer_client, ga4_day, today, days_ago):
@@ -340,13 +348,19 @@ def test_the_website_figures_link_to_koduleht(submit, viewer_client, ga4_day, to
     assert "Vaata kodulehte" in page
 
 
-def test_the_social_cards_link_nowhere(submit, viewer_client):
+def test_a_social_row_links_out_and_never_into_dashkoda(submit, viewer_client):
     """There is no viewer-readable page of social history to point at.
 
     Koduleht deliberately shows none, and the admin entry list is staff-only —
     linking a viewer there would advertise a door they cannot open, which is the
-    same rule that keeps `Lisa andmed` off their page. A plain heading is the
-    honest state, not an oversight.
+    same rule that keeps `Lisa andmed` off their page.
+
+    So the only address a social row may carry is the Chamber's own public
+    profile, which is fixed application configuration rather than a stored
+    value. Until 2026-08-18 that link sat under the figure as `Avalik leht` and
+    the name was plain text; in a one-line row the name *is* the link, and the
+    rule that matters is unchanged — it leaves DashKoda, and it never points at
+    a DashKoda page that would not show the figure.
     """
     submit(
         facebook_followers=4200,
@@ -356,15 +370,21 @@ def test_the_social_cards_link_nowhere(submit, viewer_client):
     )
 
     page = body(viewer_client.get(reverse("home")))
+    strip = page[page.index('aria-labelledby="section-channels"') :]
 
-    for label in (
-        "Facebooki jälgijad",
-        "LinkedIni jälgijad",
-        "Instagrami jälgijad",
-        "YouTube’i tellijad",
+    for label, profile in (
+        ("Facebooki jälgijad", "https://www.facebook.com/"),
+        ("LinkedIni jälgijad", "https://www.linkedin.com/"),
+        ("Instagrami jälgijad", "https://www.instagram.com/"),
+        ("YouTube’i tellijad", "https://www.youtube.com/"),
     ):
-        heading = _card_heading(page, label)
-        assert "<a" not in heading, f"{label} links its heading somewhere"
+        assert label in strip, f"missing audience row: {label}"
+        row = strip[: strip.index(label)]
+        row = row[row.rindex("<dt") :]
+        assert profile in row, f"{label} does not link to its own public profile"
+        # An outward link and nothing else: no DashKoda route may appear on a
+        # social row, because no viewer-readable page shows these figures.
+        assert 'href="/' not in row, f"{label} links into DashKoda"
 
     # The figures themselves are still there, and the outbound profile links —
     # which are a different thing — are untouched.
@@ -372,22 +392,22 @@ def test_the_social_cards_link_nowhere(submit, viewer_client):
     assert "https://www.facebook.com/" in page
 
 
-def test_no_card_points_at_a_page_that_does_not_show_it(submit, viewer_client):
-    """The defect the three tests above exist to prevent, stated once.
+def test_no_row_points_at_a_page_that_does_not_show_it(submit, viewer_client):
+    """The defect the tests above exist to prevent, stated once.
 
-    A heading link is a promise that the thing named is at the other end. The
+    A link on a name is a promise that the thing named is at the other end. The
     band broke that promise for five of six cards by construction, because one
-    address was shared by slots describing different subjects.
+    address was shared by slots describing different subjects. The flat list has
+    exactly two destinations — Otsepostitused for a newsletter, the Chamber's own
+    public profile for a social channel — and Koduleht is neither, because it
+    shows none of these figures.
     """
     submit(facebook_followers=4200, newsletter_eteataja=1200)
 
     page = body(viewer_client.get(reverse("home")))
+    strip = page[page.index('aria-labelledby="section-channels"') :]
 
-    # No social card points at Koduleht, which shows no social figures.
-    for label in ("Facebooki jälgijad", "LinkedIni jälgijad"):
-        assert PAGE_URL not in _card_heading(page, label)
-    # And the newsletter card does not either.
-    assert PAGE_URL not in _card_heading(page, "Uudiskirjad")
+    assert PAGE_URL not in strip
 
 
 # ======================================================================

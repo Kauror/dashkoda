@@ -1,29 +1,39 @@
 {% comment %}
-One domain card of `Põhinäitajad`.
+One domain card. Six of them are the front page's first screen.
 
 Context:
   card – an `ExecutiveDomainCard`
 
 Six of these sit in a grid — three columns on a desktop, two on a tablet, one on
 a phone — so the card is compact by contract rather than by taste. Its shape is
-fixed and identical on all six, which is what lets a reader scan them: the
-domain, the figure, the comparison, the supporting facts, and a footer holding
-the period on the left and the way out on the right.
+fixed and identical on all six, which is what lets a reader scan them:
+
+  DOMAIN                      Vaata →
+  BIG NUMBER  unit
+  comparison
+
+  fact label            value
+    baseline              value
+  fact label            value
+
+  period line
+
+The way out moved into the header on 2026-08-18. It was a footer row of its own,
+which cost every card a rule and a line of height to hold one link — and put six
+identical `Vaata …` links along the bottom edge of the grid, where they read as
+a row of buttons rather than as each card's own next step.
 
 What this card deliberately does not render:
 
   - a **question line** or a **meaning sentence**. Both restated the figure
-    immediately above them. The board struck the questions on 2026-08-15 and the
-    sentences went with the tall pillar card on 2026-08-17;
+    immediately above them;
   - a **sparkline**. Six cards fit two rows only because none of them is tall,
     and a trend a couple of centimetres wide cannot be read anyway;
   - a **source caption under every number**. Provenance lives in the data —
     `ExecutiveMetric` and `ExecutiveFact` still carry `source` and `as_of`, and
-    `Andmete seis` at `/haldus/` is built from the same objects. What the card
-    shows instead is one `period_line`, which the builder composes so that a card
-    mixing two sources (Liikmeskond) can name both cadences in one short line;
+    `Andmete seis` at `/haldus/` is built from the same objects;
   - a **status colour for the card as a whole**. There is no red/amber/green
-    verdict on a domain. What needs attention is in `Tähelepanu` above, decided
+    verdict on a domain. What needs attention is in `Tähelepanu` below, decided
     by the domain that measured it.
 
 Direction is never colour alone: the comparison text carries its own sign.
@@ -31,7 +41,23 @@ Direction is never colour alone: the comparison text carries its own sign.
 <article class="dk-card flex min-w-0 flex-col gap-2.5 p-4"
          aria-labelledby="card-{{ card.key }}">
 
-  <h3 id="card-{{ card.key }}" class="text-sm font-semibold text-text">{{ card.label }}</h3>
+  <div class="flex flex-wrap items-baseline justify-between gap-x-3">
+    {% comment %}
+    `h2`, not `h3`. The cards are the page's own second level since the
+    `Põhinäitajad` heading came off on 2026-08-18 — with an `h3` the document
+    went straight from the page title to level three, which is a skipped level
+    and exactly what `content.spec.js` checks for. The size is set by the class
+    rather than by the tag, which is what the tag is not for.
+    {% endcomment %}
+    <h2 id="card-{{ card.key }}" class="min-w-0 text-sm font-semibold text-text">{{ card.label }}</h2>
+    {% comment %}
+    One link per card. A card whose source is not connected keeps it: the
+    dashboard behind it exists and explains what the figure would be.
+    {% endcomment %}
+    {% for link in card.links %}
+      <a class="dk-link shrink-0 text-sm" href="{{ link.url }}">Vaata →<span class="sr-only"> {{ link.label }}</span></a>
+    {% endfor %}
+  </div>
 
   {% if card.is_available %}
     {# ---- Headline ---- #}
@@ -39,7 +65,7 @@ Direction is never colour alone: the comparison text carries its own sign.
       <p class="flex flex-wrap items-baseline gap-x-2">
         <span class="text-2xl font-semibold tabular-nums tracking-tight text-text">{{ card.headline.value }}</span>
         {% if card.headline.unit %}
-          <span class="text-sm text-text-secondary">{{ card.headline.unit }}</span>
+          <span class="min-w-0 text-sm text-text-secondary">{{ card.headline.unit }}</span>
         {% endif %}
       </p>
       {% comment %}
@@ -53,8 +79,8 @@ Direction is never colour alone: the comparison text carries its own sign.
 
       A refused comparison says why, in the same place. The website's coverage
       rules are the case it exists for: two windows measured to different
-      completeness are not subtractable, and printing a delta anyway would report
-      the collector's gaps as the Chamber's audience.
+      completeness are not subtractable, and printing a delta anyway would
+      report the collector's gaps as the Chamber's audience.
       {% endcomment %}
       {% if card.headline.has_comparison %}
         <p class="flex flex-wrap items-baseline gap-x-2 text-sm">
@@ -74,15 +100,23 @@ Direction is never colour alone: the comparison text carries its own sign.
     {% if card.available_facts %}
       <dl class="flex flex-col gap-1 border-t border-border pt-2.5">
         {% for fact in card.available_facts %}
+          {% comment %}
+          A secondary fact is the baseline of the one above it and is drawn
+          quieter than it. Both figures are equally measured — what is smaller
+          is the claim, because "and here is what it was" reads under a figure
+          rather than beside it.
+          {% endcomment %}
           <div class="flex flex-wrap items-baseline justify-between gap-x-3">
-            <dt class="min-w-0 text-sm text-text-secondary">
+            <dt class="min-w-0 {% if fact.is_secondary %}dk-meta{% else %}text-sm text-text-secondary{% endif %}">
               {% if fact.has_link %}
                 <a class="dk-link-quiet" href="{{ fact.url }}">{{ fact.label }}</a>
               {% else %}
                 {{ fact.label }}
               {% endif %}
             </dt>
-            <dd class="text-sm font-medium tabular-nums text-text">{{ fact.value }}</dd>
+            <dd class="shrink-0 tabular-nums {% if fact.is_secondary %}dk-meta{% else %}text-sm font-medium text-text{% endif %}">
+              {{ fact.value }}
+            </dd>
           </div>
         {% endfor %}
       </dl>
@@ -95,18 +129,16 @@ Direction is never colour alone: the comparison text carries its own sign.
     <p class="text-sm text-text-secondary">{{ card.unavailable_note }}</p>
   {% endif %}
 
-  {# ---- Period and the way out ---- #}
-  <div class="mt-auto flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1 border-t border-border pt-2.5">
-    {% comment %}
-    Empty for an unavailable card: a period beside no figure describes nothing,
-    and "Seisuga —" is the sort of row that teaches a reader to stop reading
-    them.
-    {% endcomment %}
-    <span class="dk-meta">{{ card.period_line }}</span>
-    <span class="flex flex-wrap gap-x-3 gap-y-1 text-sm">
-      {% for link in card.links %}
-        <a class="dk-link" href="{{ link.url }}">{{ link.label }}</a>
-      {% endfor %}
-    </span>
-  </div>
+  {% comment %}
+  The period, when the figure is a window rather than a current state. Three of
+  the six carry one and three do not, and that is the distinction: a card
+  reading "as of the latest report" has nothing a date would add that
+  `Andmete seis` does not already state per source.
+
+  `mt-auto` keeps it on the card's own floor, so a row of cards of unequal
+  height still aligns its period lines.
+  {% endcomment %}
+  {% if card.period_line %}
+    <p class="dk-meta mt-auto border-t border-border pt-2.5">{{ card.period_line }}</p>
+  {% endif %}
 </article>

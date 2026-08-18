@@ -29,10 +29,12 @@ test.beforeEach(async ({ page }) => {
 test("every domain dashboard has a card, and none is an empty state", async ({ page }) => {
   const errors = watchConsole(page);
 
-  const status = page.getByRole("region", { name: "Põhinäitajad" });
+  const status = page.getByLabel("Põhinäitajad");
 
+  // Level 2: the cards are the page's own second level since the
+  // `Põhinäitajad` heading came off, and an `h3` under the `h1` would skip one.
   for (const card of CARDS) {
-    await expect(status.getByRole("heading", { name: card, level: 3 })).toBeVisible();
+    await expect(status.getByRole("heading", { name: card, level: 2 })).toBeVisible();
   }
   // The retired strategic labels must not come back with the cards. Each of
   // these named a group of domains rather than a dashboard, and a reader
@@ -58,7 +60,7 @@ test("the six cards use the width rather than stacking down the page", async ({ 
    * sidebar arrives at 1024 and takes 17rem out of this grid.
    */
   const width = page.viewportSize().width;
-  const cards = page.getByRole("region", { name: "Põhinäitajad" }).locator("article");
+  const cards = page.getByLabel("Põhinäitajad").locator("article");
   await expect(cards).toHaveCount(6);
 
   const lefts = await cards.evaluateAll((nodes) =>
@@ -73,6 +75,19 @@ test("the six cards use the width rather than stacking down the page", async ({ 
   } else {
     expect(columns).toBe(1);
   }
+});
+
+test("the cards come before the exceptions", async ({ page }) => {
+  /*
+   * `Tähelepanu` opened the page for a day and a half and was the wrong thing
+   * to meet first: a section of exceptions means nothing until the ordinary
+   * state is on screen, and on a quiet week it is not rendered at all — a page
+   * that opens with an empty section reads as a broken one.
+   */
+  const cards = await page.getByLabel("Põhinäitajad").boundingBox();
+  const attention = await page.getByRole("region", { name: "Tähelepanu" }).boundingBox();
+
+  expect(cards.y).toBeLessThan(attention.y);
 });
 
 test("the attention section shows what a domain flagged, worst first", async ({ page }) => {
@@ -98,11 +113,15 @@ test("the attention section shows what a domain flagged, worst first", async ({ 
   const words = await attention
     .locator(".dk-badge")
     .evaluateAll((nodes) => nodes.map((node) => node.textContent.trim()));
-  const order = ["Kiireloomuline", "Tähelepanu", "Tähelepanuväärne"];
+  // `Positiivne` is the one badge that is not an urgency: the domain said the
+  // movement is the direction it wants. It sorts with the notable ones, which
+  // is what it is.
+  const order = ["Kiireloomuline", "Tähelepanu", "Tähelepanuväärne", "Positiivne"];
   for (const word of words) {
     expect(order).toContain(word);
   }
-  const positions = words.map((word) => order.indexOf(word));
+  const rank = { Kiireloomuline: 0, Tähelepanu: 1, Tähelepanuväärne: 2, Positiivne: 2 };
+  const positions = words.map((word) => rank[word]);
   expect([...positions].sort()).toEqual(positions);
 });
 
@@ -111,17 +130,19 @@ test("the membership card leads with the public directory count", async ({ page 
    * The card prints one total and no captions. What holds the "never two
    * unlabelled totals" rule is that the directory count is the only member
    * total on the card at all — the report contributes ratios and a
-   * joined/removed pair, and the period line names both cadences so a reader
-   * can see which figure is recounted daily and which is reported monthly.
+   * joined/removed pair, and `Andmete seis` at `/haldus/` names each source's
+   * own date.
+   *
+   * The card's own two-date line went on 2026-08-18 with the period lines of
+   * the three cards whose figures are a current state rather than a window.
    */
   const card = page
-    .getByRole("region", { name: "Põhinäitajad" })
+    .getByLabel("Põhinäitajad")
     .locator("article", { hasText: "Liikmeskond" })
     .first();
 
   await expect(card.getByText("liiget")).toBeVisible();
   await expect(card.getByText("Tasunud liikmete osakaal")).toBeVisible();
-  await expect(card.getByText(/kataloog \d/)).toBeVisible();
   // The struck chrome must stay gone.
   await expect(card.getByText("Liikmeid kokku")).toHaveCount(0);
   await expect(card.getByText("Koda.ee liikmekataloog")).toHaveCount(0);
@@ -135,7 +156,7 @@ test("the legal card leads with open matters, not with opinions sent", async ({ 
    * this pins which one is the headline.
    */
   const card = page
-    .getByRole("region", { name: "Põhinäitajad" })
+    .getByLabel("Põhinäitajad")
     .locator("article", { hasText: "Õigusloome" })
     .first();
 
@@ -149,11 +170,11 @@ test("the events card leads with the near-term horizon and claims no attendance"
   page,
 }) => {
   const card = page
-    .getByRole("region", { name: "Põhinäitajad" })
+    .getByLabel("Põhinäitajad")
     .locator("article", { hasText: "Sündmused" })
     .first();
 
-  await expect(card.getByText("sündmust järgmise 30 päeva jooksul")).toBeVisible();
+  await expect(card.getByText("järgmise 30 päeva jooksul")).toBeVisible();
   await expect(card.getByText("Sündmusi tänavu")).toBeVisible();
   // DashKoda holds no attendance figure at all, so no wording may imply one.
   for (const forbidden of [/osalej/i, /kohalolij/i, /registreerimis/i]) {
@@ -168,13 +189,15 @@ test("the website card spells sessions and page views differently", async ({ pag
    * the smaller one's word.
    */
   const card = page
-    .getByRole("region", { name: "Põhinäitajad" })
+    .getByLabel("Põhinäitajad")
     .locator("article", { hasText: "Koduleht ja uudised" })
     .first();
 
-  await expect(card.getByText("külastust")).toBeVisible();
+  await expect(card.getByText(/külastust · \d+ p/)).toBeVisible();
   await expect(card.getByText("Uudiste vaatamised")).toBeVisible();
-  await expect(card.getByText("Uudiste osa kodulehe vaatamistest")).toBeVisible();
+  // Both sides of the share are page views over the same days. Spelling the
+  // denominator as visits would claim a ratio between two different measures.
+  await expect(card.getByText("Uudiste osa vaatamistest")).toBeVisible();
   // The newsletter rate moved to its own card on 2026-08-17.
   await expect(card.getByText(/e-Teataja/)).toHaveCount(0);
 });
@@ -186,12 +209,14 @@ test("the mailings card carries rates and never an audience", async ({ page }) =
    * list, and no number anywhere is a sum across them.
    */
   const card = page
-    .getByRole("region", { name: "Põhinäitajad" })
+    .getByLabel("Põhinäitajad")
     .locator("article", { hasText: "Otsepostitused" })
     .first();
 
   await expect(card.getByText("e-Teataja avamismäär")).toBeVisible();
   await expect(card.getByText("e-Teataja klikimäär")).toBeVisible();
+  // How much went out, which is the one thing the rates cannot say.
+  await expect(card.getByText(/Uudiskirju saadetud viimased \d+ päeva/)).toBeVisible();
   for (const forbidden of [/tellija/i, /auditoorium/i, /kokku/i]) {
     await expect(card.getByText(forbidden)).toHaveCount(0);
   }
@@ -199,12 +224,16 @@ test("the mailings card carries rates and never an audience", async ({ page }) =
 
 test("the shop card never calls ordered value revenue", async ({ page }) => {
   const card = page
-    .getByRole("region", { name: "Põhinäitajad" })
+    .getByLabel("Põhinäitajad")
     .locator("article", { hasText: "E-pood" })
     .first();
 
-  await expect(card.getByText("ühikut ostetud")).toBeVisible();
+  // The unit and the period line are the domain's own words — `resolve_period`
+  // decides the export's window and a seeded window is not the production one —
+  // so what is asserted here is the vocabulary this test exists for, plus that
+  // the card is showing a figure at all.
   await expect(card.getByText("Tellitud väärtus (KM-ta)")).toBeVisible();
+  await expect(card.getByText(/[0-9]/).first()).toBeVisible();
   for (const forbidden of [/tulu/i, /käive/i, /laekumine/i]) {
     await expect(card.getByText(forbidden)).toHaveCount(0);
   }
@@ -230,27 +259,20 @@ test("the timeline is chronological, dated, and named for its horizon", async ({
     ),
   );
   for (const lane of lanes) {
-    expect(["Õigusloome", "Sündmused"]).toContain(lane);
+    // Singular since 2026-08-18: each row is one, and `Sündmused` is the
+    // dashboard's name, which reads as a heading beside a single title.
+    expect(["Õigusloome", "Sündmus"]).toContain(lane);
   }
 });
 
-test("the interest strip is website, news and shop, each with its own metric", async ({ page }) => {
+test("the page carries no interest strip", async ({ page }) => {
   /*
-   * Three columns whose figures are not comparable — page views, article views,
-   * acquired units — so each states its own metric name and nothing ranks them.
-   * The next scheduled event was a fourth until 2026-08-17; it answered a
-   * different question and events already hold a card and the whole timeline.
+   * `Praegu enim huvi` left on 2026-08-18. Which single page, article and
+   * product happened to lead is a browsing question, and the three domain cards
+   * already carry the volumes those leaders are a slice of.
    */
-  const interest = page.getByRole("region", { name: "Praegu enim huvi" });
-
-  const headings = await interest
-    .locator("article h3")
-    .evaluateAll((nodes) => nodes.map((node) => node.textContent.trim()));
-  expect(headings).toEqual(["Koduleht", "Uudised", "E-pood"]);
-
-  await expect(interest.getByText("lehevaatamist")).toBeVisible();
-  await expect(interest.getByText("vaatamist perioodil")).toBeVisible();
-  await expect(interest.getByText("ühikut ostetud")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Praegu enim huvi" })).toHaveCount(0);
+  await expect(page.getByText("lehevaatamist")).toHaveCount(0);
 });
 
 test("the homepage does not reproduce the Õigusloome lists", async ({ page }) => {
@@ -274,10 +296,10 @@ test("a failed refresh keeps the figures and discloses itself", async ({ page })
   await expect(page.locator("main")).not.toContainText("Andmete seis");
 
   const card = page
-    .getByRole("region", { name: "Põhinäitajad" })
+    .getByLabel("Põhinäitajad")
     .locator("article", { hasText: "Koduleht ja uudised" })
     .first();
-  await expect(card.getByText("külastust")).toBeVisible();
+  await expect(card.getByText(/külastust · \d+ p/)).toBeVisible();
 
   await page.goto("/haldus/");
   const status = page.getByRole("region", { name: "Andmete seis" });
@@ -294,10 +316,49 @@ test("the audience strip lists every channel and totals none of them", async ({ 
   // The website is not an audience row: its sessions are a card headline above,
   // and one measure under two labels invites a reconciliation nobody can do.
   await expect(channels.getByText("Kodulehe külastused")).toHaveCount(0);
+  // One row per audience since 2026-08-18, largest first. The three lists were
+  // three sub-rows of one cell, which made them look like parts of one
+  // audience when they are three.
+  const values = await channels
+    .locator("dd")
+    .evaluateAll((nodes) =>
+      nodes
+        .map((node) => Number(node.textContent.replace(/[^0-9]/g, "")))
+        .filter((value) => Number.isFinite(value) && value > 0),
+    );
+  expect(values.length).toBeGreaterThan(3);
+  expect([...values].sort((a, b) => b - a)).toEqual(values);
   // Hand-entered figures never borrow a collected feed's vocabulary.
   for (const forbidden of [/sünkroonitud/i, /API-ga ühendatud/i, /automaatselt uuendatud/i]) {
     await expect(channels.getByText(forbidden)).toHaveCount(0);
   }
+});
+
+test("the footer names when data last came in and where the dates live", async ({ page }) => {
+  /*
+   * `Uuendatud` is the last moment any source finished publishing — not a claim
+   * that every figure above is current as of then. The seven sources are
+   * collected on seven cadences, which is exactly what the link beside it is
+   * for.
+   */
+  await expect(page.getByText(/Uuendatud \d{2}\.\d{2}\.\d{4} kell \d{2}:\d{2}/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "Andmete kohta" })).toBeVisible();
+});
+
+test("an event already under way is listed without a start date", async ({ page }) => {
+  /*
+   * A year-long programme that opened on 1 January sorted to the top of
+   * `Järgmised 30 päeva` under `01.01`, which is not a thing happening in the
+   * next thirty days — it is a thing already happening. Those rows say `kestev`
+   * and sit at the end.
+   */
+  const timeline = page.getByRole("region", { name: "Järgmised 30 päeva" });
+  const ongoing = timeline.locator("li", { hasText: "kestev" });
+
+  if ((await ongoing.count()) === 0) {
+    return;
+  }
+  await expect(ongoing.first().locator("time")).toHaveCount(0);
 });
 
 test("data quality stays in Admin and does not return to the front page", async ({ page }) => {

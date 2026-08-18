@@ -40,7 +40,7 @@ from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
-from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
+from apps.core.executive import DomainSignal, SignalDirection, SignalPriority, SignalTone
 from apps.core.formatting import integer, percent, percentage_points
 
 from .analytics import share_change
@@ -210,6 +210,9 @@ def _signals(internal: ObservationPoint | None) -> tuple[DomainSignal, ...]:
             # one is worth knowing and is not a problem to be solved.
             priority=SignalPriority.ATTENTION if falling else SignalPriority.NOTABLE,
             direction=SignalDirection.DOWN if falling else SignalDirection.UP,
+            # More of the membership having paid is the direction the Chamber
+            # wants, and this domain is the only place that can say so.
+            tone=SignalTone.NEUTRAL if falling else SignalTone.POSITIVE,
             as_of=internal.observation_date,
         ),
     )

@@ -427,8 +427,14 @@ def test_the_legal_card_leads_with_the_stock_of_open_matters():
     assert card.headline.unit == "teemat töös"
     assert card.headline.comparison is None
     labels = [fact.label for fact in card.available_facts]
-    assert "Tähtaegu 7 päeva jooksul" in labels
     assert "Arvamusi saadetud tänavu" in labels
+    # The baseline is drawn quieter than the figure it is a baseline for.
+    baseline = next(f for f in card.available_facts if f.label == "Sama ajaks eelmisel aastal")
+    assert baseline.is_secondary
+    # Both deadline counts belong to `Tähelepanu`, where they arrive as the
+    # domain's own signals with a link to the list the rows sit in. A quiet
+    # copy on the card is the one a reader meets first.
+    assert not any("Tähtaeg" in label or "Tähtaegu" in label for label in labels)
 
 
 def test_a_legal_snapshot_without_an_open_count_is_unavailable_and_not_nought():
@@ -471,10 +477,11 @@ def test_the_events_card_leads_with_the_near_term_horizon():
 
     assert NEAR_TERM_DAYS == HORIZON_DAYS
     assert card.headline.value == "6"
-    assert card.headline.unit == f"sündmust järgmise {NEAR_TERM_DAYS} päeva jooksul"
+    assert card.headline.unit == f"järgmise {NEAR_TERM_DAYS} päeva jooksul"
     labels = [fact.label for fact in card.available_facts]
     assert "Sündmusi tänavu" in labels
-    assert "Sama ajaks eelmisel aastal" in labels
+    baseline = next(f for f in card.available_facts if f.label == "Sama ajaks eelmisel aastal")
+    assert baseline.is_secondary
 
 
 def test_no_card_claims_an_attendance_figure():
@@ -518,10 +525,13 @@ def test_the_website_card_never_calls_a_page_view_a_visit():
         NewsExecutive(news_views=2100, site_share=0.23, published=11, end=date(2026, 8, 14)),
     )
 
-    assert card.headline.unit == "külastust"
+    assert card.headline.unit == "külastust · 30 p"
     labels = [fact.label for fact in card.facts]
     assert "Uudiste vaatamised" in labels
-    assert "Uudiste osa kodulehe vaatamistest" in labels
+    # Both sides of the share are GA4 page views over the same days. Spelling
+    # the denominator as visits would claim a ratio between two measures.
+    assert "Uudiste osa vaatamistest" in labels
+    assert not any("külastus" in label.casefold() for label in labels)
     # No label may spell a page view as a visit.
     for label in labels:
         folded = label.casefold()
@@ -553,7 +563,9 @@ def test_the_shop_card_never_calls_ordered_value_revenue():
         )
     )
 
-    assert card.headline.unit == "ühikut ostetud"
+    # The domain's own period label, lower-cased. The card cannot say
+    # `viimase 30 päeva jooksul` unless the export's window is thirty days.
+    assert card.headline.unit == "viimased 30 päeva"
     labels = [fact.label for fact in card.facts]
     assert "Tellitud väärtus (KM-ta)" in labels
     words = " ".join(labels + [card.headline.unit]).casefold()
@@ -587,6 +599,8 @@ def test_the_mailings_card_carries_rates_and_never_an_audience():
             ),
         ),
         issues=12,
+        sends_recent=9,
+        sends_previous=8,
     )
 
     card = _mailings_card(summary)
@@ -597,11 +611,43 @@ def test_the_mailings_card_carries_rates_and_never_an_audience():
     # points, and `+9%` of a percentage overstates it by an order of magnitude.
     assert "pp" in card.headline.comparison.text
     labels = [fact.label for fact in card.available_facts]
-    assert labels == ["e-Teataja klikimäär", "eNews avamismäär", "e-Vestnik avamismäär"]
+    assert labels == ["e-Teataja klikimäär", "Uudiskirju saadetud viimased 30 päeva"]
     # Nothing on this card is an audience, and nothing is a sum.
     words = " ".join(labels + [card.headline.unit, card.period_line]).casefold()
     for forbidden in ("tellija", "auditoorium", "kokku", "nimekirja suurus"):
         assert forbidden not in words
+
+
+def test_the_cadence_figure_counts_letters_and_states_its_movement():
+    """How much went out, which is the one thing the rates cannot say.
+
+    A month with no letters and a month with four both have an open rate, and
+    only one of them is a month of work.
+    """
+    from apps.dashboard.executive import _mailings_card
+    from apps.visibility.mailings_executive import MailingsExecutive, NewsletterRates
+
+    def card_for(recent, previous):
+        return _mailings_card(
+            MailingsExecutive(
+                flagship=NewsletterRates(
+                    metric="newsletter_eteataja", label="e-Teataja", open_rate=0.48
+                ),
+                sends_recent=recent,
+                sends_previous=previous,
+            )
+        )
+
+    by_label = lambda card: {f.label: f.value for f in card.available_facts}  # noqa: E731
+    label = "Uudiskirju saadetud viimased 30 päeva"
+
+    assert by_label(card_for(9, 8))[label] == "9 (+1)"
+    # No movement to state is not a movement of zero worth printing.
+    assert by_label(card_for(9, 9))[label] == "9"
+    # A month in which nothing went out is a real answer and prints.
+    assert by_label(card_for(0, 4))[label].startswith("0")
+    # Nothing collected is not nothing sent.
+    assert label not in by_label(card_for(None, None))
 
 
 def test_an_uncollected_newsletter_is_unavailable_rather_than_a_zero_rate():
@@ -636,31 +682,112 @@ def test_the_data_status_section_speaks_per_source_not_per_collector():
 
 
 @pytest.mark.django_db
-def test_the_interest_strip_is_website_news_and_shop_only():
-    """Three columns, and the next event is deliberately not one of them.
+def test_the_page_carries_no_interest_strip():
+    """`Praegu enim huvi` left on 2026-08-18, and its type went with it.
 
-    This section answers "what are people paying attention to". A scheduled date
-    is not an answer to it, and events already hold a card above and the whole
-    of `Järgmised 30 päeva` between.
+    Which single page, article and product happened to lead is a browsing
+    question, and the three domain cards already carry the volumes those
+    leaders are a slice of. Removed rather than unrendered: the three domain
+    fields behind it — `top_page`, `top_article`, `top_product` — and their
+    three bounded queries per render went too.
     """
+    from apps.news.executive import NewsExecutive
+    from apps.shop.executive import ShopExecutive
+    from apps.visibility.executive import WebsiteExecutive
+
     page = _overview()
 
-    assert [item.domain_key for item in page.interest] == ["website", "news", "shop"]
+    assert not hasattr(page, "interest")
+    for summary in (WebsiteExecutive, NewsExecutive, ShopExecutive):
+        fields = set(summary.__dataclass_fields__)
+        assert not any(name.startswith("top_") for name in fields), fields
 
 
 @pytest.mark.django_db
-def test_the_audience_strip_never_repeats_the_website():
+def test_the_audience_rows_are_one_per_audience_and_never_repeat_the_website():
     """Sessions are the `Koduleht ja uudised` headline and appear once.
 
-    The website slot was removed from `build_channel_band` outright rather than
-    filtered out here: the overview was its only consumer, so a slot the band
-    still built would be a query nobody renders. Asserted on the label the slot
-    used to carry, because that is what a reintroduction would bring back.
+    The website slot was removed from the band outright on 2026-08-17 rather
+    than filtered out here: the overview was its only consumer, so a slot the
+    band still built would be a query nobody renders.
+
+    The three newsletters are three rows since 2026-08-18, not three sub-rows of
+    one cell. They are three audiences, and a cell around them made them look
+    like parts of one.
     """
     page = _overview()
 
-    assert page.channels, "the strip still names the audiences"
-    assert all("külastused" not in slot.label.casefold() for slot in page.channels)
+    assert page.audiences, "the strip still names the audiences"
+    labels = [row.label for row in page.audiences]
+    assert all("külastused" not in label.casefold() for label in labels)
+    assert sum("uudiskiri" in label for label in labels) == 3
+
+
+@pytest.mark.django_db
+def test_the_audiences_are_sorted_by_size_and_never_totalled():
+    """Largest first, and nothing anywhere adds two of them together.
+
+    A subscriber list and a follower count are different kinds of audience and
+    the sort does not make them the same thing; what it does is put the
+    Chamber's largest audiences first. A row nobody has entered sorts last,
+    because "not entered" is not a size.
+    """
+    from apps.visibility.page import AudienceRow, build_audience_rows
+
+    rows = build_audience_rows()
+
+    assert not hasattr(rows, "total")
+    assert all(isinstance(row, AudienceRow) for row in rows)
+    assert not any(hasattr(row, "share") or hasattr(row, "total") for row in rows)
+
+    ordered = [row for row in rows if row.has_value]
+    assert [row.value for row in ordered] == sorted((row.value for row in ordered), reverse=True)
+    # Every unread row is after every read one.
+    seen_missing = False
+    for row in rows:
+        seen_missing = seen_missing or not row.has_value
+        assert not (seen_missing and row.has_value)
+
+
+def test_a_domain_may_say_a_signal_is_good_news_and_the_badge_says_so():
+    """`Positiivne` is the one badge that is not an urgency.
+
+    Direction is the arithmetic sign and priority is how much it matters;
+    neither says whether a reader should be pleased. A rise in unanswered
+    deadlines and a rise in the paid share would otherwise wear the same badge.
+    """
+    from apps.core.executive import SignalTone
+
+    positive = DomainSignal(
+        key="membership-paid-share",
+        headline="Tasunud liikmete osakaal tõusis +2,1 pp.",
+        evidence="",
+        priority=SignalPriority.NOTABLE,
+        tone=SignalTone.POSITIVE,
+    )
+    ordinary = signal("other", SignalPriority.NOTABLE)
+    urgent = DomainSignal(
+        key="u",
+        headline="H",
+        evidence="",
+        priority=SignalPriority.CRITICAL,
+        tone=SignalTone.POSITIVE,
+    )
+
+    collected = collect_signals(
+        (
+            ("membership", "Liikmeskond", (positive,)),
+            ("shop", "E-pood", (ordinary,)),
+            ("legal_work", "Õigusloome", (urgent,)),
+        )
+    )
+    by_key = {entry.key: entry for entry in collected}
+
+    assert by_key["membership-paid-share"].priority_label == "Positiivne"
+    assert by_key["other"].priority_label == "Tähelepanuväärne"
+    # Urgency outranks good news: what a reader has to act on keeps its word.
+    assert by_key["u"].priority_label == "Kiireloomuline"
+    assert not by_key["u"].is_positive
 
 
 @pytest.mark.django_db

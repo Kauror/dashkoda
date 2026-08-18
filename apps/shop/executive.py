@@ -1,6 +1,6 @@
 """What the E-pood domain tells the main dashboard.
 
-The E-pood card's figures and the shop panel of `Praegu enim huvi`.
+The E-pood card's figures.
 
 ## Event registrations are excluded, and that is the whole design
 
@@ -44,7 +44,7 @@ from decimal import Decimal
 
 from django.urls import reverse
 
-from apps.core.executive import DomainSignal, SignalDirection, SignalPriority
+from apps.core.executive import DomainSignal, SignalDirection, SignalPriority, SignalTone
 from apps.core.formatting import euros, integer, percent
 
 from .comparison import derive_period_pair
@@ -56,7 +56,6 @@ from .selectors import (
     ShopCoverage,
     get_free_paid_split,
     get_shop_coverage,
-    get_top_products,
     get_totals,
 )
 
@@ -84,8 +83,6 @@ class ShopExecutive:
     #: Free units as a percentage of the **classified** ones, as the domain
     #: computes it. Already a percentage, not a 0–1 ratio.
     free_share: Decimal | None = None
-    #: The most-acquired non-event product inside the period.
-    top_product: object = None
     #: The export's own coverage. Every figure above stops at `coverage_end`.
     source_as_of: date | None = None
     period_start: date | None = None
@@ -121,8 +118,9 @@ def get_shop_executive() -> ShopExecutive:
     """Read the anchored period once and shape the non-event figures.
 
     Four aggregate reads over `ShopDailyFact`, all filtered to
-    `NON_EVENT_TYPES`, plus one bounded product ranking. Nothing grows with the
-    catalogue.
+    `NON_EVENT_TYPES`. There was a fifth — the leading product, for the
+    overview's `Praegu enim huvi` panel — until that section left the front page
+    on 2026-08-18. Nothing here grows with the catalogue.
     """
     coverage = get_shop_coverage()
     if not coverage.has_data:
@@ -146,7 +144,6 @@ def get_shop_executive() -> ShopExecutive:
         previous_units=_previous_units(period.start, period.end, coverage),
         ordered_value_net=totals.ordered_value_net,
         free_share=_free_share(mix),
-        top_product=_top_product(window),
         source_as_of=coverage.source_as_of or coverage.coverage_end,
         period_start=period.start,
         period_end=period.end,
@@ -189,12 +186,6 @@ def _free_share(mix: MixBreakdown) -> Decimal | None:
     return mix.free_share if mix.is_known else None
 
 
-def _top_product(window: ComparisonWindow):
-    """The most-acquired non-event product in the period, or `None`."""
-    rows = get_top_products(window, limit=1, product_types=NON_EVENT_TYPES)
-    return rows[0] if rows else None
-
-
 def _with_signals(executive: ShopExecutive, coverage: ShopCoverage) -> ShopExecutive:
     """At most one: acquisitions that moved materially against the period before."""
     change = executive.change_pct
@@ -215,6 +206,7 @@ def _with_signals(executive: ShopExecutive, coverage: ShopCoverage) -> ShopExecu
         ),
         priority=SignalPriority.ATTENTION if falling else SignalPriority.NOTABLE,
         direction=SignalDirection.DOWN if falling else SignalDirection.UP,
+        tone=SignalTone.NEUTRAL if falling else SignalTone.POSITIVE,
         href=reverse("shop"),
         as_of=coverage.source_as_of or coverage.coverage_end,
     )
