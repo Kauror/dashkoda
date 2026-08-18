@@ -21,23 +21,8 @@ from apps.dashboard.freshness import current_freshness
 from apps.dashboard.live_search import push_url, search_fragment
 from apps.dashboard.navigation import NAVIGATION
 
-from .intelligence_page import (
-    FOCUS_OVERVIEW,
-    FOCUS_REGISTER,
-    PARAM_FOCUS,
-    build_page,
-    parse_focus,
-)
-from .register import REGISTER_PARAMS, build_register
-from .search import (
-    PARAM_PAGE,
-    PARAM_QUERY,
-    PARAM_STATUS,
-    build_search,
-    parse_page,
-    parse_query,
-    parse_status,
-)
+from .intelligence_page import FOCUS_OVERVIEW, PARAM_FOCUS, build_page, parse_focus
+from .register import PARAM_PAGE, PARAM_QUERY, REGISTER_PARAMS, build_register
 from .selectors import (
     get_current_snapshot,
     get_latest_sent_items,
@@ -66,28 +51,20 @@ def legal_work_overview(request):
 
     page = build_page(snapshot, focus=focus, page_url=reverse("legal-work"))
 
-    # The standing lists render on the overview alone since 2026-08-16 — the
-    # sub-focuses repeated them wholesale under their charts — so only the
-    # overview pays for the queries. Bounded exactly as before.
+    # The standing lists and the register explorer render on the overview
+    # alone, since 2026-08-18 unconditionally rather than behind their own
+    # focus — `Töövoog ja arvamused` draws only charts, and pays for none of
+    # this.
     if focus == FOCUS_OVERVIEW:
         open_items = list(get_open_items(snapshot))
         sent_items = list(get_latest_sent_items(snapshot))
+        register = build_register(snapshot, request.GET)
     else:
         open_items = []
         sent_items = []
+        register = None
 
-    # The register focus gets the full explorer: facets, filters and per-record
-    # detail. Every other focus keeps the plain term-and-status search, which is
-    # what the overview has always carried.
-    register = build_register(snapshot, request.GET) if focus == FOCUS_REGISTER else None
-
-    search = build_search(
-        snapshot,
-        query=parse_query(request.GET.get(PARAM_QUERY)),
-        status=parse_status(request.GET.get(PARAM_STATUS)),
-        page=parse_page(request.GET.get(PARAM_PAGE)),
-    )
-    links = resolve_links_for(open_items, sent_items, page.deadlines, search.results)
+    links = resolve_links_for(open_items, sent_items, page.deadlines)
 
     return render(
         request,
@@ -107,16 +84,9 @@ def legal_work_overview(request):
             "open_items": present_topics(open_items, links),
             "sent_items": present_topics(sent_items, links),
             "deadlines": present_deadlines(page.deadlines, links),
-            "search": search.presented_with(links),
             "register": register,
         },
     )
-
-
-#: What this page understands. A live-search fragment carries the reader's
-#: current query forward so a reload keeps the status they had chosen — and
-#: carries *only* these, because the value ends up in somebody's address bar.
-LEGAL_WORK_PARAMS = (PARAM_QUERY, PARAM_STATUS, PARAM_PAGE, PARAM_FOCUS)
 
 
 @require_GET
@@ -131,49 +101,24 @@ def legal_work_search_fragment(request):
     from a keystroke as it is from a reload — one query for one list, rather
     than the page's one query for four.
 
-    Page one, always: a new term is a new question, and a reader on page 3 of
-    one search would otherwise be told there are no results for the next.
-
-    On the register focus the same route answers with the register's own rows,
-    because the reader there is typing into a box that has six filters beside
-    it. Rebuilding the plain search would silently drop every one of them and
-    hand back a wider answer than the page claims to be showing.
+    The register is the only search this page has had since 2026-08-18, when
+    the plain term-and-status search it used to carry alongside the register
+    explorer was retired — the register's own text field already reaches
+    everything that one did, plus the facets beside it.
     """
     snapshot = get_current_snapshot()
-
-    if parse_focus(request.GET.get(PARAM_FOCUS)) == FOCUS_REGISTER:
-        register = build_register(snapshot, request.GET)
-        return search_fragment(
-            request,
-            "legal_work/partials/_register_results.html",
-            {"register": register},
-            pushed=push_url(
-                request,
-                path=reverse("legal-work"),
-                allowed=(PARAM_FOCUS, *REGISTER_PARAMS),
-                # Every value has been through the register's own validation, so
-                # what reaches the address bar is what reached the query.
-                updates={PARAM_QUERY: register.state.query, PARAM_PAGE: ""},
-                anchor="#section-register",
-            ),
-        )
-
-    search = build_search(
-        snapshot,
-        query=parse_query(request.GET.get(PARAM_QUERY)),
-        status=parse_status(request.GET.get(PARAM_STATUS)),
-    )
+    register = build_register(snapshot, request.GET)
     return search_fragment(
         request,
-        "legal_work/partials/_search_results.html",
-        {"search": search.presented_with(resolve_links_for(search.results))},
+        "legal_work/partials/_register_results.html",
+        {"register": register},
         pushed=push_url(
             request,
             path=reverse("legal-work"),
-            allowed=LEGAL_WORK_PARAMS,
-            # The section's own parsing has already trimmed and bounded the
-            # term, so what reaches the address bar is what reached the query.
-            updates={PARAM_QUERY: search.query, PARAM_STATUS: search.status, PARAM_PAGE: ""},
-            anchor="#section-search",
+            allowed=REGISTER_PARAMS,
+            # Every value has been through the register's own validation, so
+            # what reaches the address bar is what reached the query.
+            updates={PARAM_QUERY: register.state.query, PARAM_PAGE: ""},
+            anchor="#section-register",
         ),
     )

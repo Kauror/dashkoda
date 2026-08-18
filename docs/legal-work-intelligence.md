@@ -62,6 +62,16 @@ months or assigning them to January.
 | Deadline bands | Where is pressure building? | open rows with a future deadline | mutually exclusive bands | none |
 | `Arvamus saadetud hiljemalt tähtajaks` | Did sends carry a date on or before the deadline? | sent rows **with** a deadline | nothing else can be judged | none |
 
+The page these definitions feed changed shape on 2026-08-18: five focuses
+became two, `Ülevaade` and `Töövoog ja arvamused`. Every rule in this table is
+unchanged, but two chart titles are not what a reader now sees on screen —
+`Aktiivsed teemad hetkeseisu kaupa` no longer has a chart of its own (the
+`Hetkel töös` total it broke down still leads the headline strip), and
+`Teemad aastate lõikes` and `Välja saadetud arvamused aastate lõikes` draw as
+one combined `Aastate lõikes` chart, `annual_activity_chart` in
+`apps/legal_work/charts.py`, with the feedback-coverage share as a third,
+line series.
+
 ### Year-on-year, precisely
 
 Current: 1 January of the reporting year → `reporting_date`.

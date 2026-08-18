@@ -299,6 +299,13 @@ def test_a_malformed_query_renders_a_page_rather_than_an_error(viewer, query):
 
 
 # -- through the page --------------------------------------------------------
+#
+# The register explorer is the only search this page has had since
+# 2026-08-18, when the plain term-and-status search it used to carry
+# alongside it was retired — the register's own `otsing` field already
+# reaches everything that one did, plus the facets beside it. `search.py`'s
+# own `build_search`/`LegalWorkSearch` above are unaffected; only what the
+# page wires them to changed, and it no longer wires them to anything.
 
 
 def test_the_page_searches_and_says_what_it_searched(viewer, make_workbook, register_workbook):
@@ -313,8 +320,7 @@ def test_the_page_searches_and_says_what_it_searched(viewer, make_workbook, regi
 
     body = viewer.get(reverse("legal-work"), {"otsing": "Leitav"}).content.decode()
 
-    # The heading itself, not the submit button, which also reads `Otsi`.
-    assert ">Otsi</h2>" in body
+    assert ">Register</h2>" in body
     assert "Leitav teema" in body
     assert "1 kirje." in body
 
@@ -333,13 +339,9 @@ def test_the_standing_lists_stay_while_searching(viewer, make_workbook, register
     assert "Viimati välja läinud" in body
 
 
-def test_the_page_says_nothing_about_the_search_before_one_is_made(
-    viewer, make_workbook, register_workbook
-):
-    """The scope note was a permanent line answering an unasked question.
-
-    The box and the status chips stay; only the caption went.
-    """
+def test_the_register_search_box_is_always_on_the_page(viewer, make_workbook, register_workbook):
+    """Unconditional since 2026-08-18 — it used to be one click away, on its
+    own retired focus."""
     publish(
         [synthetic_row(record_id="SYN-1", topic="Teema", source_row=2)],
         make_workbook,
@@ -348,7 +350,6 @@ def test_the_page_says_nothing_about_the_search_before_one_is_made(
 
     body = viewer.get(reverse("legal-work")).content.decode()
 
-    assert "Otsitakse kõigist registri kirjetest" not in body
     assert 'id="otsing"' in body
     assert "Välja läinud" in body
 
@@ -373,9 +374,10 @@ def test_the_search_costs_no_extra_link_query(
     with CaptureQueriesContext(connection) as searched:
         viewer.get(reverse("legal-work"), {"otsing": "Avatud"})
 
-    # A count and a page slice, and nothing else — in particular no second link
-    # resolution, which would be one query per extra list.
-    assert len(searched) - len(plain) <= 2
+    # The register resolves its own links independently of the standing
+    # lists', so a search costs its own handful of queries on top of theirs —
+    # bounded, not zero, and never growing with the result count.
+    assert len(searched) - len(plain) <= 4
 
 
 # -- the live-search fragment ------------------------------------------------
@@ -459,7 +461,7 @@ def test_the_fragment_pushes_the_page_it_belongs_to(viewer):
     pushed = response.headers["HX-Push-Url"]
     assert pushed.startswith(reverse("legal-work"))
     assert "otsing=k%C3%A4ibemaks" in pushed
-    assert pushed.endswith("#section-search")
+    assert pushed.endswith("#section-register")
 
 
 def test_the_fragment_resets_the_page_number(viewer):
@@ -470,27 +472,13 @@ def test_the_fragment_resets_the_page_number(viewer):
     assert "lk=" not in response.headers["HX-Push-Url"]
 
 
-def test_the_fragment_carries_the_status_into_the_address_bar(viewer):
-    response = viewer.get(
-        reverse(FRAGMENT),
-        {"otsing": "x", "seis": SEARCH_OPEN},
-        headers={"HX-Current-URL": "https://dash.orgusaar.ee/oigusloome/?seis=toos"},
-    )
-
-    assert "seis=toos" in response.headers["HX-Push-Url"]
-
-
-def test_a_cleared_box_pushes_the_unfiltered_page(viewer):
-    """An empty term removes its key rather than pushing `?otsing=`."""
-    response = viewer.get(reverse(FRAGMENT), {"otsing": ""})
-
-    assert "otsing=" not in response.headers["HX-Push-Url"]
-
-
-def test_the_fragment_still_offers_the_status_chips(viewer, make_workbook, register_workbook):
-    """They live inside the swapped region precisely so each one carries the
-    term the reader has just typed; outside, they would still hold whatever was
-    there at page load."""
+def test_the_fragment_carries_the_search_term_into_the_result_count(
+    viewer, make_workbook, register_workbook
+):
+    """The register's own status, year and other filters live in the
+    persistent form, outside the swapped region — six controls is too many to
+    re-render on every keystroke, and none of them changes with the term.
+    What must still travel with a keystroke is the result itself."""
     publish(
         [synthetic_row(record_id="SYN-1", topic="Käibemaksu teema", source_row=2)],
         make_workbook,
@@ -499,8 +487,8 @@ def test_the_fragment_still_offers_the_status_chips(viewer, make_workbook, regis
 
     content = viewer.get(reverse(FRAGMENT), {"otsing": "Käibemaksu"}).content.decode()
 
-    assert "Välja läinud" in content
-    assert "otsing=K%C3%A4ibemaksu" in content
+    assert "Käibemaksu teema" in content
+    assert "1 kirje." in content
 
 
 def test_the_fragment_is_behind_the_viewer_gate(client):
