@@ -488,7 +488,7 @@ def test_the_fragment_carries_the_search_term_into_the_result_count(
     content = viewer.get(reverse(FRAGMENT), {"otsing": "Käibemaksu"}).content.decode()
 
     assert "Käibemaksu teema" in content
-    assert "otsing=K%C3%A4ibemaksu" in content
+    assert "1 kirje." in content
 
 
 def test_the_fragment_is_behind_the_viewer_gate(client):
