@@ -19,7 +19,7 @@ list.
 <section aria-labelledby="section-headline" class="dk-section">
   <h2 id="section-headline" class="sr-only">Peamised näitajad</h2>
   {% if view.headline %}
-    <dl class="dk-kpi-strip">
+    <dl class="dk-kpi-strip{% if view.headline|length == 3 %} dk-kpi-strip-trio{% endif %}">
       {% for card in view.headline %}
         <div class="flex flex-col gap-1 px-4 py-3 sm:px-5">
           <dt class="text-sm text-text-secondary">{{ card.label }}</dt>
