@@ -37,12 +37,12 @@ the two it is so a template never has to guess.
 from __future__ import annotations
 
 from collections.abc import Iterable, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal
 
-from django.db.models import Count, Sum
-from django.db.models.functions import TruncMonth, TruncYear
+from django.db.models import Sum
+from django.db.models.functions import TruncMonth
 
 from apps.visibility.ga4_selectors import Coverage as Ga4Coverage
 from apps.visibility.ga4_selectors import current_days, current_pages, get_coverage
@@ -392,12 +392,8 @@ def get_totals(window: ComparisonWindow, **filters) -> CommerceTotals:
 
 
 def get_member_split(window: ComparisonWindow, **filters) -> dict[str, CommerceTotals]:
-    """Totals per member status. Read only when the gate allows it.
-
-    The selector always works; whether the interface may show it is
-    `ShopCoverage.member_semantics_verified`, checked by the caller. Keeping the
-    gate out of here means a later verification flips one flag rather than
-    reinstating a query.
+    """Totals per member status. Used only by one product's own detail page now
+    — the overview's member breakdown left with the Ostud tab on 2026-08-18.
     """
     if not window.has_commerce:
         return {}
@@ -417,11 +413,8 @@ def get_member_split(window: ComparisonWindow, **filters) -> dict[str, CommerceT
 
 
 def get_payment_split(window: ComparisonWindow, **filters) -> dict[str, CommerceTotals]:
-    """Totals per payment class.
-
-    Worth showing even while the member dimension is gated: it is the difference
-    between value that settled immediately and value that was invoiced and whose
-    receipt this application cannot see.
+    """Totals per payment class. Used only by one product's own detail page now
+    — the overview's payment breakdown left with the Ostud tab on 2026-08-18.
     """
     if not window.has_commerce:
         return {}
@@ -548,10 +541,31 @@ class ProductRow:
     information_page_views: PageViewFigure | None = None
     event_page_views: PageViewFigure | None = None
     conversion_units: Decimal = ZERO
+    #: Units in the equal-length window immediately before this one, when one
+    #: was requested. Zero, never `None` — a product with no previous activity
+    #: is the ordinary case `is_new` below is for, not an unmeasured one.
+    previous_units: Decimal = ZERO
 
     @property
     def product_type_label(self) -> str:
         return ProductType(self.product_type).label
+
+    @property
+    def change(self) -> Decimal:
+        return self.units - self.previous_units
+
+    @property
+    def is_new(self) -> bool:
+        """Nothing before, something now — which has no percentage."""
+        return self.previous_units == 0 and self.units > 0
+
+    @property
+    def percentage_change(self) -> Decimal | None:
+        if self.previous_units == 0:
+            return None
+        return ((self.units - self.previous_units) / self.previous_units * 100).quantize(
+            Decimal("1")
+        )
 
     @property
     def denominator_path(self) -> str:
@@ -709,6 +723,8 @@ def build_product_rows(
     category_term_ids: Sequence[int] = (),
     member_status: str = "",
     search: str = "",
+    previous_start: date | None = None,
+    previous_end: date | None = None,
 ) -> tuple[ProductRow, ...]:
     """Every product in scope, with Commerce measures and web figures attached.
 
@@ -722,6 +738,11 @@ def build_product_rows(
     sorting both have to run across all of it — a product ranked #347 is exactly
     the kind somebody looks up, and searching the visible rows would answer only
     for rows already on screen. The caller slices.
+
+    `previous_start`/`previous_end` are optional and, when given, attach each
+    row's units from the equal-length window before this one — the same grouped
+    query `get_product_movers` already runs, joined here so a table of every
+    product can state a change without a second round trip per row.
     """
     if not window.has_commerce:
         return ()
@@ -732,6 +753,7 @@ def build_product_rows(
         "member_status": member_status,
     }
     commerce = _measures(_facts_in_window(window, **filters))
+    previous_units = _units_by_product(previous_start, previous_end, **filters)
     # The conversion numerator reads the *web* window, never the Commerce one.
     conversion = (
         _measures(_facts_in_window(window, start=window.web_start, end=window.web_end, **filters))
@@ -809,6 +831,7 @@ def build_product_rows(
                 ),
                 event_page_views=figures.get(event_path) if event_path else None,
                 conversion_units=(conversion.get(pk, {}).get("units") or ZERO),
+                previous_units=previous_units.get(pk, ZERO),
             )
         )
     return tuple(rows)
@@ -1100,145 +1123,8 @@ def get_product_movers(
     return tuple(risers[:limit]), tuple(fallers[:limit])
 
 
-@dataclass(frozen=True)
-class CategoryMoverRow:
-    """One category's change in acquired units between two equal windows."""
-
-    category_name: str
-    current_units: Decimal
-    previous_units: Decimal
-
-    @property
-    def name(self) -> str:
-        return self.category_name or "Kategooriata"
-
-    @property
-    def change(self) -> Decimal:
-        return self.current_units - self.previous_units
-
-    @property
-    def is_new(self) -> bool:
-        return self.previous_units == 0 and self.current_units > 0
-
-    @property
-    def percentage_change(self) -> Decimal | None:
-        if self.previous_units == 0:
-            return None
-        return (self.change / self.previous_units * 100).quantize(Decimal("1"))
-
-
-def get_category_movers(
-    *,
-    current_start: date | None,
-    current_end: date | None,
-    previous_start: date | None,
-    previous_end: date | None,
-    limit: int = 5,
-    **filters,
-) -> tuple[tuple[CategoryMoverRow, ...], tuple[CategoryMoverRow, ...]]:
-    """The categories that rose and fell most, by absolute unit change.
-
-    Built from the same two grouped queries the product movers use, rolled up
-    through each product's current category. Ranked on absolute movement for the
-    same reason: a category that went from one unit to four has grown 300% and
-    is not the story of the period.
-
-    Uncategorised products are kept as their own bucket rather than dropped, so
-    the movers reconcile with the totals.
-    """
-    if previous_start is None or previous_end is None:
-        return (), ()
-
-    current = _units_by_product(current_start, current_end, **filters)
-    previous = _units_by_product(previous_start, previous_end, **filters)
-    if not current and not previous:
-        return (), ()
-
-    names = {
-        snapshot.product_id: snapshot.category_name
-        for snapshot in latest_snapshots().only("product_id", "category_name")
-    }
-    buckets: dict[str, list[Decimal]] = {}
-    for pk in set(current) | set(previous):
-        if pk not in names:
-            continue
-        bucket = buckets.setdefault(names[pk] or "", [ZERO, ZERO])
-        bucket[0] += current.get(pk, ZERO)
-        bucket[1] += previous.get(pk, ZERO)
-
-    rows = [
-        CategoryMoverRow(category_name=name, current_units=now, previous_units=before)
-        for name, (now, before) in buckets.items()
-    ]
-    risers = sorted([r for r in rows if r.change > 0], key=lambda r: (-r.change, r.name))
-    fallers = sorted([r for r in rows if r.change < 0], key=lambda r: (r.change, r.name))
-    return tuple(risers[:limit]), tuple(fallers[:limit])
-
-
 # ---------------------------------------------------------------------------
 # Web effectiveness
-# ---------------------------------------------------------------------------
-
-#: Below this many product-page views inside the comparison window a rate is not
-#: offered as a ranking position. Deliberately a round, explainable number
-#: rather than a derived one: with a denominator of nine views a single
-#: acquisition swings the rate by eleven points, and no threshold computed from
-#: this data would be more defensible than one a reader can hold in their head.
-MIN_VIEWS_FOR_OPPORTUNITY = 100
-
-
-@dataclass(frozen=True)
-class OpportunityRow:
-    source_product_id: int
-    title: str
-    category_name: str
-    views: int
-    units: Decimal
-    rate: Decimal | None
-
-
-def get_web_opportunities(
-    rows: Sequence[ProductRow], *, limit: int = 5, minimum_views: int = MIN_VIEWS_FOR_OPPORTUNITY
-) -> tuple[tuple[OpportunityRow, ...], tuple[OpportunityRow, ...]]:
-    """Products with attention but weak acquisition, and the reverse.
-
-    Both lists require a real denominator: a product with four measured views
-    and one acquisition has a rate of 25 per 100 and belongs in neither list.
-    Derived from rows already built, so this costs no query at all.
-    """
-    eligible: list[OpportunityRow] = []
-    for row in rows:
-        # The acquisition page, whichever it is for this family — so an event
-        # registration is judged on its event page rather than excluded for
-        # having no product page.
-        figure = row.denominator_page_views
-        if figure is None or figure.views is None or figure.views < minimum_views:
-            continue
-        rate = row.acquisitions_per_hundred
-        if rate is None:
-            continue
-        eligible.append(
-            OpportunityRow(
-                source_product_id=row.source_product_id,
-                title=row.title,
-                category_name=row.category_name,
-                views=figure.views,
-                units=row.conversion_units,
-                rate=rate,
-            )
-        )
-    if not eligible:
-        return (), ()
-
-    # Weak acquisition despite attention: the lowest rates among the pages that
-    # actually get looked at, biggest audience first where rates tie.
-    weak = sorted(eligible, key=lambda r: (r.rate, -r.views))[:limit]
-    # Strong acquisition on comparatively little traffic: highest rate first,
-    # and among equal rates the one with least traffic is the more striking.
-    strong = sorted(eligible, key=lambda r: (-r.rate, r.views))[:limit]
-    return tuple(weak), tuple(strong)
-
-
 #: The share of demand the long-tail statistic is measured against. A round
 #: number chosen for being conventional and legible rather than derived: the
 #: statement is "how few products carry most of the shop", and eighty per cent
@@ -1327,194 +1213,6 @@ def concentration_share(
     return (sum(amounts[:top], ZERO) / total * 100).quantize(Decimal("1"))
 
 
-@dataclass(frozen=True)
-class YearPoint:
-    """One calendar year of Commerce activity, and whether it is a whole one."""
-
-    year: int
-    orders: int
-    units: Decimal
-    ordered_value_net: Decimal
-    #: Whether the selected window covers less than the whole calendar year.
-    #: True for the first year of a history that begins in October and for the
-    #: last year of an export that stops in August — and a bar drawn without
-    #: saying so reads as a collapse rather than as a year still in progress.
-    is_partial: bool = False
-    covered_from: date | None = None
-    covered_to: date | None = None
-
-
-def get_yearly_series(window: ComparisonWindow, **filters) -> tuple[YearPoint, ...]:
-    """Acquisitions and value per calendar year, marking the incomplete ones.
-
-    Partial is decided against the window the figures were actually read from,
-    not against the wall clock: a year is whole here when the selected window
-    contains all of it. That makes the first year of the Commerce history
-    (beginning 22 October 2020) and the year the manual export stops in both
-    honest without either needing a special case.
-    """
-    if not window.has_commerce:
-        return ()
-    rows = (
-        _facts_in_window(window, **filters)
-        .annotate(bucket=TruncYear("report_date"))
-        .values("bucket")
-        .annotate(orders=Sum("order_count"), units=Sum("units"), value=Sum("ordered_value_net"))
-        .order_by("bucket")
-    )
-    points: list[YearPoint] = []
-    for row in rows:
-        year = row["bucket"].year
-        first, last = date(year, 1, 1), date(year, 12, 31)
-        covered_from = max(first, window.commerce_start)
-        covered_to = min(last, window.commerce_end)
-        points.append(
-            YearPoint(
-                year=year,
-                orders=row["orders"] or 0,
-                units=row["units"] or ZERO,
-                ordered_value_net=row["value"] or ZERO,
-                is_partial=covered_from > first or covered_to < last,
-                covered_from=covered_from,
-                covered_to=covered_to,
-            )
-        )
-    return tuple(points)
-
-
-@dataclass(frozen=True)
-class MixPoint:
-    """One month's free/paid split, or an unclassified one."""
-
-    month: date
-    free: Decimal | None
-    paid: Decimal | None
-    unknown: Decimal | None
-
-    @property
-    def is_known(self) -> bool:
-        return self.free is not None and self.paid is not None
-
-    @property
-    def free_share(self) -> Decimal | None:
-        """Free units over the units that were **classified**, as a percentage."""
-        if not self.is_known:
-            return None
-        classified = (self.free or ZERO) + (self.paid or ZERO)
-        if classified <= 0:
-            return None
-        return (self.free / classified * 100).quantize(Decimal("0.1"))
-
-
-def get_free_paid_series(window: ComparisonWindow, **filters) -> tuple[MixPoint, ...]:
-    """The free/paid mix month by month.
-
-    A month the source never classified yields `None` on both sides rather than
-    zeros, so a schema 1.0 stretch of history stays visibly unclassified instead
-    of reading as a period when nothing was free.
-    """
-    if not window.has_commerce:
-        return ()
-    rows = (
-        _facts_in_window(window, **filters)
-        .annotate(bucket=TruncMonth("report_date"))
-        .values("bucket")
-        .annotate(free=Sum("free_units"), paid=Sum("paid_units"), unknown=Sum("unknown_units"))
-        .order_by("bucket")
-    )
-    return tuple(
-        MixPoint(
-            month=row["bucket"],
-            free=row["free"],
-            paid=row["paid"],
-            unknown=row["unknown"],
-        )
-        for row in rows
-    )
-
-
-@dataclass(frozen=True)
-class CatalogueSummary:
-    """What the current catalogue snapshot holds. A present-tense fact.
-
-    Deliberately separate from every historical series on the page: this counts
-    what the last import observed in the shop today, and says nothing about what
-    was on sale in 2021.
-    """
-
-    products: int = 0
-    by_type: dict[str, int] = field(default_factory=dict)
-    with_list_price: int = 0
-    with_member_price: int = 0
-    free_listed: int = 0
-    published: int = 0
-    publicly_listed: int | None = None
-    with_acquisition_path: int = 0
-
-    @property
-    def has_products(self) -> bool:
-        return self.products > 0
-
-
-def get_catalogue_summary(*, listing_gate_open: bool) -> CatalogueSummary:
-    """Counts over the latest current snapshot of every product. Two queries.
-
-    `publicly_listed` is `None` unless the listing gate is open. "Published in
-    Drupal" and "listed in the public shop" are two different facts and the
-    audit found 273 of the first against 144 of the second; presenting the
-    second before anybody has explained that gap would be a claim this
-    application cannot support.
-    """
-    rows = latest_snapshots().values_list(
-        "product_id",
-        "product__product_type",
-        "list_price_net",
-        "member_price_net",
-        "published",
-        "publicly_listed",
-    )
-    by_type: dict[str, int] = {}
-    products = 0
-    with_list_price = 0
-    with_member_price = 0
-    free_listed = 0
-    published = 0
-    listed = 0
-    product_pks: list[int] = []
-
-    for pk, product_type, list_price, member_price, is_published, is_listed in rows:
-        products += 1
-        product_pks.append(pk)
-        by_type[product_type] = by_type.get(product_type, 0) + 1
-        if list_price is not None:
-            with_list_price += 1
-            if list_price == 0:
-                free_listed += 1
-        if member_price is not None:
-            with_member_price += 1
-        if is_published:
-            published += 1
-        if is_listed:
-            listed += 1
-
-    pages = paths_by_product(tuple(product_pks))
-    snapshot_types = dict(latest_snapshots().values_list("product_id", "product__product_type"))
-    with_path = sum(
-        1 for pk, roles in pages.items() if denominator_path(snapshot_types.get(pk, ""), roles)
-    )
-
-    return CatalogueSummary(
-        products=products,
-        by_type=by_type,
-        with_list_price=with_list_price,
-        with_member_price=with_member_price,
-        free_listed=free_listed,
-        published=published,
-        publicly_listed=listed if listing_gate_open else None,
-        with_acquisition_path=with_path,
-    )
-
-
 def get_product(source_product_id: int) -> ShopProduct | None:
     return ShopProduct.objects.filter(source_product_id=source_product_id).first()
 
@@ -1527,43 +1225,26 @@ def latest_snapshot_for(product: ShopProduct) -> ShopProductSnapshot | None:
     )
 
 
-def catalogue_counts() -> dict[str, int]:
-    """How many products the catalogue holds, per type. Aggregate only."""
-    rows = latest_snapshots().values("product__product_type").annotate(total=Count("product_id"))
-    return {row["product__product_type"]: row["total"] for row in rows}
-
-
 __all__ = [
     "CONVERSION_BASE",
     "LONG_TAIL_SHARE",
-    "MIN_VIEWS_FOR_OPPORTUNITY",
-    "CatalogueSummary",
     "CategoryRow",
     "CommerceTotals",
     "ComparisonWindow",
     "Concentration",
     "MixBreakdown",
-    "MixPoint",
     "MoverRow",
-    "OpportunityRow",
     "WebAggregate",
-    "YearPoint",
     "aggregate_web",
     "concentration_share",
     "denominator_path",
     "distinct_orders_supported",
-    "get_catalogue_summary",
     "get_concentration",
     "get_distinct_orders",
-    "get_free_paid_series",
     "get_monthly_distinct_orders",
-    "get_yearly_series",
-    "CategoryMoverRow",
-    "get_category_movers",
     "long_tail_count",
     "get_free_paid_split",
     "get_product_movers",
-    "get_web_opportunities",
     "MemberStatus",
     "MonthPoint",
     "PageViewFigure",
@@ -1574,12 +1255,11 @@ __all__ = [
     "acquisitions_per_hundred",
     "build_category_rows",
     "build_product_rows",
-    "catalogue_counts",
     "get_categories",
-    "get_member_split",
     "get_monthly_series",
-    "get_payment_split",
     "get_product",
+    "get_member_split",
+    "get_payment_split",
     "get_shop_coverage",
     "get_totals",
     "latest_snapshot_for",

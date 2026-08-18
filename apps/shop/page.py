@@ -23,13 +23,12 @@ from dataclasses import dataclass, field
 from datetime import timedelta
 from decimal import Decimal
 
-from apps.core.formatting import euros, group_thousands, long_date, month_and_year
+from apps.core.formatting import euros, group_thousands, long_date
 from apps.dashboard.sparkline import TrendSource, build_trend_chart
 
 from .comparison import FLAT, MetricComparison, derive_period_pair
 from .models import MemberStatus, PageRole, PaymentClass, ProductType
 from .periods import (
-    FOCUSES,
     METRIC_ORDERS,
     METRIC_UNITS,
     METRIC_VALUE,
@@ -53,22 +52,13 @@ from .periods import (
     resolve_period,
 )
 from .selectors import (
-    MIN_VIEWS_FOR_OPPORTUNITY,
-    CategoryRow,
     ComparisonWindow,
     ProductRow,
     acquisitions_per_hundred,
-    aggregate_web,
-    build_category_rows,
     build_product_rows,
     denominator_path,
-    distinct_orders_supported,
-    get_catalogue_summary,
-    get_categories,
-    get_category_movers,
     get_concentration,
     get_distinct_orders,
-    get_free_paid_series,
     get_free_paid_split,
     get_member_split,
     get_monthly_distinct_orders,
@@ -78,8 +68,6 @@ from .selectors import (
     get_product_movers,
     get_shop_coverage,
     get_totals,
-    get_web_opportunities,
-    get_yearly_series,
     latest_snapshot_for,
     page_views_in_window,
     paths_by_product,
@@ -169,14 +157,6 @@ class TypeOption:
 
 
 @dataclass(frozen=True)
-class CategoryOption:
-    term_id: int
-    label: str
-    is_active: bool
-    query: str
-
-
-@dataclass(frozen=True)
 class SortOption:
     key: str
     label: str
@@ -189,10 +169,54 @@ class ProductPresenter:
     """One ranking row, already formatted."""
 
     row: ProductRow
+    #: This row's position in the whole ordered result set, not just the page
+    #: it landed on — so page two starts at 26, not back at 1.
+    rank: int = 0
+    #: This row's units as a share of every row in the same result set —
+    #: `None` when the caller has not supplied one, which a template reads as
+    #: no `Osa` figure rather than a division by zero.
+    total_units: Decimal | None = None
+    #: Whether a previous equal-length window was joined at all. Without this,
+    #: a row whose `previous_units` defaults to zero because no window was
+    #: requested is indistinguishable from one that was compared and is
+    #: genuinely new — the same distinction `PeriodPair.is_available` makes
+    #: for every other comparison on this page.
+    has_comparison: bool = False
 
     @property
     def source_product_id(self) -> int:
         return self.row.source_product_id
+
+    @property
+    def share(self) -> str:
+        if not self.total_units or self.total_units <= 0:
+            return DASH
+        return f"{(self.row.units / self.total_units * 100):.0f}%".replace(".", ",")
+
+    @property
+    def change_label(self) -> str:
+        """The movement since the equal-length previous window, worded exactly
+        as the movers list already words it — `uus`, `±N%`, or `—` when there
+        is no previous window to compare against at all.
+        """
+        if not self.has_comparison:
+            return DASH
+        if self.row.is_new:
+            return "uus"
+        percentage = self.row.percentage_change
+        if percentage is None:
+            return DASH
+        return f"{int(percentage):+d}%".replace("-", "−")
+
+    @property
+    def change_direction(self) -> str:
+        if not self.has_comparison:
+            return "flat"
+        if self.row.is_new or (self.row.percentage_change or 0) > 0:
+            return "up"
+        if self.row.percentage_change is not None and self.row.percentage_change < 0:
+            return "down"
+        return "flat"
 
     @property
     def title(self) -> str:
@@ -244,39 +268,6 @@ class ProductPresenter:
     @property
     def information_url(self) -> str:
         return f"{PUBLIC_BASE}{self.row.information_path}" if self.row.information_path else ""
-
-
-@dataclass(frozen=True)
-class CategoryPresenter:
-    row: CategoryRow
-
-    @property
-    def name(self) -> str:
-        return self.row.category_name or "Kategooriata"
-
-    @property
-    def product_count(self) -> str:
-        return group_thousands(self.row.product_count)
-
-    @property
-    def orders(self) -> str:
-        return group_thousands(self.row.orders)
-
-    @property
-    def units(self) -> str:
-        return group_thousands(int(self.row.units))
-
-    @property
-    def value(self) -> str:
-        return euros(self.row.ordered_value_net)
-
-    @property
-    def views(self) -> str:
-        return _figure(self.row.product_page_views)
-
-    @property
-    def rate(self) -> str:
-        return _rate(self.row.acquisitions_per_hundred)
 
 
 def _sort_key(sort: str):
@@ -372,77 +363,6 @@ class MoverPresenter:
 
 
 @dataclass(frozen=True)
-class CategoryMoverPresenter:
-    """One category's movement, formatted the same way a product's is."""
-
-    row: object
-
-    @property
-    def name(self) -> str:
-        return self.row.name
-
-    @property
-    def change_label(self) -> str:
-        change = int(self.row.change)
-        return f"{change:+d}".replace("-", "−")
-
-    @property
-    def context(self) -> str:
-        if self.row.is_new:
-            return "uus perioodil"
-        percentage = self.row.percentage_change
-        return "" if percentage is None else f"{int(percentage):+d}%".replace("-", "−")
-
-    @property
-    def context_title(self) -> str:
-        if self.row.is_new:
-            return "Eelmisel perioodil oste ei olnud."
-        return ""
-
-
-@dataclass(frozen=True)
-class RankingBar:
-    """One row of the ranking: which product, in which category, how many.
-
-    No `width` any more. It was a 0–100 geometry value for a bar under every
-    row, and the bar came off when the ranking went from three lines a product
-    to one — it encoded the quantity the count states exactly, on rows already
-    ordered by it. A field computed on every render and printed nowhere is the
-    thing that later gets read as though it were still on the page.
-    """
-
-    source_product_id: int
-    title: str
-    category_name: str
-    value: str
-
-
-@dataclass(frozen=True)
-class OpportunityPresenter:
-    row: object
-
-    @property
-    def title(self) -> str:
-        return self.row.title
-
-    @property
-    def source_product_id(self) -> int:
-        return self.row.source_product_id
-
-    @property
-    def views(self) -> str:
-        return group_thousands(self.row.views)
-
-    @property
-    def units(self) -> str:
-        return group_thousands(int(self.row.units))
-
-    @property
-    def rate(self) -> str:
-        return _rate(self.row.rate)
-
-
-@dataclass(frozen=True)
 class MixPresenter:
     """The free/paid split as one part-to-whole bar."""
 
@@ -456,16 +376,6 @@ class MixPresenter:
     paid_label: str = ""
     previous_note: str = ""
     has_unknown: bool = False
-
-
-@dataclass(frozen=True)
-class FocusOption:
-    """One entry in the focus navigation."""
-
-    key: str
-    label: str
-    is_active: bool
-    query: str
 
 
 @dataclass(frozen=True)
@@ -497,26 +407,6 @@ class BarRow:
 
 
 @dataclass(frozen=True)
-class YearPresenter:
-    """One calendar year, with its incompleteness stated rather than implied."""
-
-    year: str
-    units: str
-    value: str
-    orders: str
-    width: float
-    is_partial: bool
-    covered_label: str = ""
-
-    @property
-    def partial_note(self) -> str:
-        """What a partial year actually covers, in words a chart cannot show."""
-        if not self.is_partial:
-            return ""
-        return f"osaline aasta · {self.covered_label}"
-
-
-@dataclass(frozen=True)
 class PaymentMixPresenter:
     """Ordered value by payment mode. Never a statement about settlement."""
 
@@ -528,45 +418,17 @@ class PaymentMixPresenter:
 
 
 @dataclass(frozen=True)
-class WebCoveragePresenter:
-    """How much of the selected population the web figures cover."""
-
-    measured: int = 0
-    without_path: int = 0
-    without_measurement: int = 0
-    total: int = 0
-    summary: str = ""
-    has_population: bool = False
-
-
-@dataclass(frozen=True)
-class CataloguePresenter:
-    """The current catalogue snapshot, as present-tense facts."""
-
-    has_products: bool = False
-    products: str = DASH
-    by_type: tuple[BarRow, ...] = ()
-    with_list_price: str = DASH
-    with_member_price: str = DASH
-    free_listed: str = DASH
-    published: str = DASH
-    publicly_listed: str = DASH
-    listing_gate_open: bool = False
-    with_acquisition_path: str = DASH
-
-
-@dataclass(frozen=True)
-class MemberSplitPresenter:
-    """The member dimension, shown only when the gate is open."""
-
-    is_open: bool = False
-    rows: tuple[BarRow, ...] = ()
-    value_rows: tuple[BarRow, ...] = ()
-
-
-@dataclass(frozen=True)
 class ShopOverview:
-    """Everything the E-pood overview renders."""
+    """Everything the E-pood overview renders.
+
+    One page since 2026-08-18, not four tabs. `Ülevaade`, `Tooted`, the trend
+    and the top movers are what is left; `Ostud` (payment and member split),
+    `Nähtavus` (web-effectiveness) and Tooted's own category, concentration and
+    catalogue sections came off with the tab strip they lived in. Nothing here
+    computes a figure those views used that this one does not also need — a
+    member split and a catalogue count are still built, but only for one
+    product's own detail page, in `build_product_detail` below.
+    """
 
     has_source: bool
     as_of_label: str
@@ -577,25 +439,13 @@ class ShopOverview:
 
     period: object = None
     periods: tuple = ()
+    product_type: str = ""
     type_options: tuple[TypeOption, ...] = ()
-    category_options: tuple[CategoryOption, ...] = ()
     sort_options: tuple[SortOption, ...] = ()
-
-    orders: str = DASH
-    units: str = DASH
-    value: str = DASH
-    product_views: str = DASH
-    rate: str = DASH
-
-    invoice_value: str = DASH
-    settled_value: str = DASH
 
     member_gate_open: bool = False
     listing_gate_open: bool = False
 
-    months: tuple = ()
-    max_month_units: int = 0
-    categories: tuple[CategoryPresenter, ...] = ()
     products: tuple[ProductPresenter, ...] = ()
 
     search: str = ""
@@ -607,12 +457,8 @@ class ShopOverview:
     previous_query: str = ""
     next_query: str = ""
 
-    # --- the redesign ----------------------------------------------------
-    #: The three headline figures, already compared.
+    #: The three headline figures, plus the free/paid card, already compared.
     kpis: tuple[KpiCard, ...] = ()
-    #: The web pair, kept apart from the headline so the GA4 caveats do not have
-    #: to be explained beside the Commerce figures.
-    web_kpis: tuple[KpiCard, ...] = ()
     comparison_label: str = ""
     comparison_available: bool = False
     #: Whether the order figure counts distinct orders or order lines.
@@ -620,75 +466,33 @@ class ShopOverview:
     trend: object = None
     trend_metric: str = ""
     trend_options: tuple = ()
-    risers: tuple[MoverPresenter, ...] = ()
-    fallers: tuple[MoverPresenter, ...] = ()
-    ranking: tuple[RankingBar, ...] = ()
-    ranking_note: str = ""
     mix: MixPresenter = field(default_factory=MixPresenter)
-    weak_acquisition: tuple[OpportunityPresenter, ...] = ()
-    strong_acquisition: tuple[OpportunityPresenter, ...] = ()
-    opportunity_threshold: int = 0
     period_options_primary: tuple = ()
     period_options_secondary: tuple = ()
 
-    # --- the intelligence layer ------------------------------------------
-    #: Which analytical view is on screen, and the links to the others.
-    focus: str = ""
-    focus_label: str = ""
-    focus_options: tuple[FocusOption, ...] = ()
-    #: Ready-made links to each view by key, so a template can point at one
-    #: without indexing into `focus_options` by position.
-    focus_links: dict = field(default_factory=dict)
     #: Type-aware wording for every acquisition figure on the page.
     units_label: str = "Ostetud"
     units_noun: str = "ühikut"
-    views_label: str = "Ostulehe vaatamised"
-    rate_label: str = "Oste / 100 vaatamist"
-    #: Long-term history.
-    years: tuple[YearPresenter, ...] = ()
-    months_bars: tuple[BarRow, ...] = ()
-    free_paid_series: tuple[BarRow, ...] = ()
-    free_paid_series_known: bool = False
-    #: Structure and composition.
-    payment_mix: PaymentMixPresenter = field(default_factory=PaymentMixPresenter)
-    member_split: MemberSplitPresenter = field(default_factory=MemberSplitPresenter)
-    concentration: object = None
+
+    # --- Lepingupõhjad: always the document family, whatever a reader has
+    # chosen in Tooted below it. Contract templates carry the shop, and this
+    # section states that rather than following the reader's own filter. ----
+    document_risers: tuple[MoverPresenter, ...] = ()
+    document_fallers: tuple[MoverPresenter, ...] = ()
+    document_note: str = ""
+    document_orders: str = DASH
+    document_orders_label: str = "Tellimused"
+    document_value: str = DASH
+
+    # --- Tooted: the whole catalogue, one table -----------------------------
     concentration_note: str = ""
-    long_tail_note: str = ""
-    value_concentration_note: str = ""
-    #: Rankings for the deeper views.
-    category_bars: tuple[BarRow, ...] = ()
-    value_bars: tuple[BarRow, ...] = ()
-    value_category_bars: tuple[BarRow, ...] = ()
-    value_type_bars: tuple[BarRow, ...] = ()
-    type_bars: tuple[BarRow, ...] = ()
-    category_risers: tuple = ()
-    category_fallers: tuple = ()
-    #: Web.
-    web_coverage: WebCoveragePresenter = field(default_factory=WebCoveragePresenter)
-    #: Catalogue, present tense.
-    catalogue: CataloguePresenter = field(default_factory=CataloguePresenter)
-    #: Data quality.
+    physical_note: str = ""
+
+    #: Data quality, read by `/haldus/`.
     schema_version: str = ""
     distinct_orders_available: bool = False
     free_paid_available: bool = False
     page_detail_complete: bool = False
-
-    @property
-    def is_overview(self) -> bool:
-        return self.focus == "ulevaade"
-
-    @property
-    def is_purchases(self) -> bool:
-        return self.focus == "ostud"
-
-    @property
-    def is_products(self) -> bool:
-        return self.focus == "tooted"
-
-    @property
-    def is_visibility(self) -> bool:
-        return self.focus == "nahtavus"
 
     @property
     def has_rows(self) -> bool:
@@ -808,11 +612,9 @@ def build_overview(
     search: str,
     sort: str,
     page: int,
-    focus=None,
     metric: str = METRIC_UNITS,
 ) -> ShopOverview:
     coverage = get_shop_coverage()
-    focus = focus if focus is not None else FOCUSES[0]
     if not coverage.has_data:
         return ShopOverview(
             has_source=False,
@@ -821,51 +623,11 @@ def build_overview(
             window=ComparisonWindow(None, None, None, None),
             web_interval_label="",
             web_is_partial=False,
-            focus=focus.key,
-            focus_label=focus.label,
         )
 
     resolved = resolve_period(period_key, date_from, date_to, anchor=coverage.coverage_end)
     window = resolve_comparison(start=resolved.start, end=resolved.end, shop=coverage)
 
-    # The member control is built but withheld: the source has not established
-    # that its member flag describes the moment of the transaction rather than
-    # the customer's standing today.
-    member_gate_open = coverage.member_semantics_verified
-    effective_member = member_status if member_gate_open else ""
-
-    filters = {
-        "product_types": (product_type,) if product_type else (),
-        "category_term_ids": categories,
-        "member_status": effective_member,
-    }
-
-    totals = get_totals(window, **filters)
-    payments = get_payment_split(window, **filters)
-    rows = build_product_rows(window, search=search, **filters)
-    ordered = sorted(rows, key=_sort_key(sort))
-
-    total_products = len(ordered)
-    total_pages = max(1, -(-total_products // PAGE_SIZE))
-    page = min(max(page, 1), total_pages)
-    visible = ordered[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
-
-    category_rows = sorted(
-        build_category_rows(rows), key=lambda row: (-row.units, row.category_name.casefold())
-    )
-
-    months = get_monthly_series(window, **filters)
-    max_units = max((int(point.units) for point in months), default=0)
-
-    # The period's own acquisition-page views, from the rows already loaded
-    # rather than re-queried, so the headline and the table agree — and over
-    # **unique** paths, so two event products sharing one event page contribute
-    # that page's traffic once rather than twice.
-    web = aggregate_web(rows)
-    total_views = web.views
-    conversion_units = web.units
-
-    # --- the comparison, and everything derived from it -------------------
     pair = derive_period_pair(
         current_start=window.commerce_start,
         current_end=window.commerce_end,
@@ -876,31 +638,28 @@ def build_overview(
         if pair.is_available
         else ComparisonWindow(None, None, None, None)
     )
-    previous_totals = get_totals(previous_window, **filters) if pair.is_available else None
 
-    # Distinct orders where the source can answer the population **now on
-    # screen**, order lines where it cannot.
-    #
-    # `ShopDailySummary` is keyed by day and product type only. A category,
-    # member or search filter narrows past that grain, and reusing the stored
-    # total would put the whole type's order count beside one category's units
-    # and value — two populations, one row, nothing saying so. So the guard is
-    # checked before the query, not after it, and the label follows the metric.
-    supports_distinct = distinct_orders_supported(
-        category_term_ids=categories, member_status=effective_member, search=search
-    )
-    current_orders = (
-        get_distinct_orders(
-            start=window.commerce_start, end=window.commerce_end, product_type=product_type
-        )
-        if supports_distinct
-        else None
-    )
+    # The member control is built but withheld: the source has not established
+    # that its member flag describes the moment of the transaction rather than
+    # the customer's standing today.
+    member_gate_open = coverage.member_semantics_verified
+    effective_member = member_status if member_gate_open else ""
+
+    # --- the headline: every product, every family. The KPI strip, the trend
+    # and the free/paid card no longer follow the Tooted type filter below them
+    # — that filter narrows one table, not the whole page. --------------------
+    totals = get_totals(window)
+    previous_totals = get_totals(previous_window) if pair.is_available else None
+    mix = get_free_paid_split(window)
+    previous_mix = get_free_paid_split(previous_window) if pair.is_available else None
+
+    # `ShopDailySummary` is keyed by day and product type only, so an unfiltered
+    # headline always qualifies for the stored distinct-order total — there is
+    # no narrower population here for it to misrepresent.
+    current_orders = get_distinct_orders(start=window.commerce_start, end=window.commerce_end)
     orders_are_distinct = current_orders is not None
     previous_orders = (
-        get_distinct_orders(
-            start=pair.previous_start, end=pair.previous_end, product_type=product_type
-        )
+        get_distinct_orders(start=pair.previous_start, end=pair.previous_end)
         if pair.is_available and orders_are_distinct
         else (previous_totals.orders if previous_totals else None)
     )
@@ -910,6 +669,7 @@ def build_overview(
     units_cmp = MetricComparison.of(
         totals.units, previous_totals.units if previous_totals else None, period=pair
     )
+    orders_label = "Tellimused" if orders_are_distinct else "Tellimusridu"
     orders_cmp = MetricComparison.of(current_orders, previous_orders, period=pair)
     value_cmp = MetricComparison.of(
         totals.ordered_value_net,
@@ -917,112 +677,24 @@ def build_overview(
         period=pair,
     )
 
-    mix = get_free_paid_split(window, **filters)
-    previous_mix = get_free_paid_split(previous_window, **filters) if pair.is_available else None
-
-    words = vocabulary_for(product_type)
-
-    # Why the order label moves: `Tellimused` is only true when the stored
-    # distinct-order summary answers this exact population. Otherwise the figure
-    # counts order *lines*, is a different and larger number, and says so.
-    if orders_are_distinct:
-        orders_label = "Tellimused"
-        orders_note = ""
-    else:
-        orders_label = "Tellimusridu"
-        orders_note = (
-            "kitsendatud valikul loetakse tooteridu"
-            if supports_distinct is False
-            else "eri tellimuste arv ei ole imporditud"
-        )
-
     kpis = (
         _kpi(
-            words.units_label,
-            units_cmp,
-            formatter=lambda v: group_thousands(int(v)),
-            unit=words.units_noun,
+            "Ostetud ühikud", units_cmp, formatter=lambda v: group_thousands(int(v)), unit="ühikut"
         ),
-        _kpi(
-            orders_label,
-            orders_cmp,
-            formatter=lambda v: group_thousands(int(v)),
-            secondary=orders_note,
-        ),
-        _kpi(
-            "Tellitud väärtus",
-            value_cmp,
-            formatter=euros,
-            unit="KM-ta",
-            secondary=(
-                f"{mix.free_share:.0f}% ostudest tasuta".replace(".", ",")
-                if mix.free_share is not None
-                else ""
-            ),
-        ),
+        _kpi(orders_label, orders_cmp, formatter=lambda v: group_thousands(int(v))),
+        _kpi("Tellitud väärtus", value_cmp, formatter=euros, unit="KM-ta"),
     )
 
-    risers, fallers = get_product_movers(
-        current_start=window.commerce_start,
-        current_end=window.commerce_end,
-        previous_start=pair.previous_start,
-        previous_end=pair.previous_end,
-        **filters,
-    )
-
-    # Ranking: the products already loaded, largest first. The order is the
-    # comparison now that the bars are gone; `ranking_note` below carries the
-    # one thing the order does not say, which is what share of everything these
-    # ten are.
-    ranked = sorted(rows, key=lambda r: (-r.units, r.title.casefold()))[:10]
-    ranking = tuple(
-        RankingBar(
-            source_product_id=r.source_product_id,
-            title=r.title,
-            category_name=r.category_name,
-            value=group_thousands(int(r.units)),
-        )
-        for r in ranked
-    )
-    concentration = get_concentration(rows, top=10)
-    value_concentration = get_concentration(rows, top=10, by_value=True)
-    share = concentration.top_share
-
-    weak, strong = get_web_opportunities(rows)
-    category_risers, category_fallers = get_category_movers(
-        current_start=window.commerce_start,
-        current_end=window.commerce_end,
-        previous_start=pair.previous_start,
-        previous_end=pair.previous_end,
-        **filters,
-    )
-
-    # --- the trend, on whichever metric was asked for ---------------------
-    #
-    # The order series draws distinct orders when the summary can answer this
-    # population and order lines when it cannot, matching the KPI above it. Two
-    # series on one page that disagree about what an order is would be worse
-    # than offering only one.
+    # --- the trend, on whichever metric was asked for ----------------------
+    months = get_monthly_series(window)
+    previous_months = get_monthly_series(previous_window) if pair.is_available else ()
     monthly_orders = (
-        dict(
-            get_monthly_distinct_orders(
-                start=window.commerce_start,
-                end=window.commerce_end,
-                product_type=product_type,
-            )
-        )
+        dict(get_monthly_distinct_orders(start=window.commerce_start, end=window.commerce_end))
         if orders_are_distinct
         else {}
     )
-    previous_months = get_monthly_series(previous_window, **filters) if pair.is_available else ()
     previous_monthly_orders = (
-        dict(
-            get_monthly_distinct_orders(
-                start=pair.previous_start,
-                end=pair.previous_end,
-                product_type=product_type,
-            )
-        )
+        dict(get_monthly_distinct_orders(start=pair.previous_start, end=pair.previous_end))
         if orders_are_distinct and pair.is_available
         else {}
     )
@@ -1038,10 +710,9 @@ def build_overview(
             return [(point.month, float(point.orders)) for point in points]
         return [(point.month, float(point.units)) for point in points]
 
-    trend_label = {
-        METRIC_VALUE: "Tellitud väärtus",
-        METRIC_ORDERS: orders_label,
-    }.get(metric, words.trend_label)
+    trend_label = {METRIC_VALUE: "Tellitud väärtus", METRIC_ORDERS: orders_label}.get(
+        metric, "Ostetud"
+    )
 
     trend = _trend_chart(
         _series(months, monthly_orders),
@@ -1051,6 +722,79 @@ def build_overview(
         offset_days=pair.length_days,
     )
 
+    # --- Lepingupõhjad: always the document family, whatever a reader has
+    # chosen for Tooted below. Contract templates carry the shop, and this
+    # section states that rather than following the reader's own filter. ----
+    document_types = (ProductType.DOCUMENT,)
+    document_totals = get_totals(window, product_types=document_types)
+    document_mix = get_free_paid_split(window, product_types=document_types)
+    document_orders = get_distinct_orders(
+        start=window.commerce_start, end=window.commerce_end, product_type=ProductType.DOCUMENT
+    )
+    document_risers, document_fallers = get_product_movers(
+        current_start=window.commerce_start,
+        current_end=window.commerce_end,
+        previous_start=pair.previous_start,
+        previous_end=pair.previous_end,
+        product_types=document_types,
+    )
+    document_words = vocabulary_for(ProductType.DOCUMENT)
+    document_note_parts = [
+        f"{group_thousands(int(document_totals.units))} {document_words.units_noun} ostetud"
+    ]
+    if document_mix.free_share is not None:
+        document_note_parts.append(
+            f"{document_mix.free_share:.0f}% ostudest tasuta".replace(".", ",")
+        )
+    document_note = " · ".join(document_note_parts)
+    if pair.is_available:
+        document_note = f"{document_note} — muutus: {pair.current_label} vs {pair.previous_label}"
+
+    # --- Tooted: the whole catalogue, one table, filtered by the reader's own
+    # type chip and search term. ---------------------------------------------
+    filters = {
+        "product_types": (product_type,) if product_type else (),
+        "category_term_ids": categories,
+        "member_status": effective_member,
+    }
+    rows = build_product_rows(
+        window,
+        search=search,
+        previous_start=pair.previous_start if pair.is_available else None,
+        previous_end=pair.previous_end if pair.is_available else None,
+        **filters,
+    )
+    ordered = sorted(rows, key=_sort_key(sort))
+    total_products = len(ordered)
+    total_pages = max(1, -(-total_products // PAGE_SIZE))
+    page = min(max(page, 1), total_pages)
+    visible = ordered[(page - 1) * PAGE_SIZE : page * PAGE_SIZE]
+
+    total_current_units = sum((row.units for row in rows), Decimal(0))
+    rank_offset = (page - 1) * PAGE_SIZE
+    products = tuple(
+        ProductPresenter(
+            row=row,
+            rank=rank_offset + index,
+            total_units=total_current_units,
+            has_comparison=pair.is_available,
+        )
+        for index, row in enumerate(visible, start=1)
+    )
+
+    concentration = get_concentration(rows, top=10)
+    share = concentration.top_share
+    concentration_note = (
+        f"Top 10 toodet moodustavad {share}% kõigist ostudest." if share is not None else ""
+    )
+
+    physical_totals = get_totals(window, product_types=(ProductType.PHYSICAL_PRODUCT,))
+    physical_note = (
+        f"Füüsilistest toodetest osteti perioodil "
+        f"{group_thousands(int(physical_totals.units))} ühikut "
+        f"({euros(physical_totals.ordered_value_net)} KM-ta)."
+    )
+
     state = {
         "product_type": product_type,
         "categories": categories,
@@ -1058,229 +802,6 @@ def build_overview(
         "sort": sort if sort != SORT_UNITS else "",
         "member_status": effective_member,
     }
-
-    def _focus_query(key: str) -> str:
-        """A link to another view, carrying everything already chosen."""
-        query = build_query(
-            period_key=resolved.key,
-            start=resolved.start,
-            end=resolved.end,
-            focus=key,
-            metric=metric,
-            **state,
-        )
-        return f"?{query}"
-
-    # --- long-term history, structure and composition ---------------------
-    years = get_yearly_series(window, **filters)
-    max_year_units = max((int(point.units) for point in years), default=0)
-    year_rows = tuple(
-        YearPresenter(
-            year=str(point.year),
-            units=group_thousands(int(point.units)),
-            value=euros(point.ordered_value_net),
-            orders=group_thousands(point.orders),
-            width=_width(int(point.units), max_year_units),
-            is_partial=point.is_partial,
-            covered_label=(
-                f"{long_date(point.covered_from)}–{long_date(point.covered_to)}"
-                if point.is_partial
-                else ""
-            ),
-        )
-        for point in years
-    )
-
-    mix_series = get_free_paid_series(window, **filters)
-    free_paid_bars = tuple(
-        BarRow(
-            label=month_and_year(point.month),
-            value=f"{point.free_share:.0f}%".replace(".", ","),
-            width=float(point.free_share),
-            note=f"{group_thousands(int(point.free or 0))} tasuta, "
-            f"{group_thousands(int(point.paid or 0))} tasulist",
-        )
-        for point in mix_series
-        if point.free_share is not None
-    )
-
-    # `build_order_structure`, `build_attention_matrix` and `build_signals` were
-    # called here until 2026-08-16. The three sections they fed — `Tellimuse
-    # struktuur`, `Mis vajab tähelepanu?` and the attention matrix — came off
-    # the page during the declutter, and the builders outlived them by a round:
-    # pure functions over rows already in memory, so they cost no query and
-    # nothing failed. They are gone now, with their results and the page fields
-    # that carried them, because "every focus builds only what it renders" is
-    # the rule this module states about itself.
-
-    # --- composition breakdowns ------------------------------------------
-    #
-    # Units and ordered value only. Distinct orders are deliberately absent from
-    # every per-type breakdown: one Commerce order may carry a document and a
-    # physical product, so it belongs to two type rows and adding them would
-    # count it twice — the exact error `ShopDailySummary`'s blank-type row
-    # exists to avoid.
-    type_totals: dict[str, list] = {}
-    for row in rows:
-        bucket = type_totals.setdefault(row.product_type, [Decimal(0), Decimal(0)])
-        bucket[0] += row.units
-        bucket[1] += row.ordered_value_net
-    type_bars = _bars(
-        sorted(
-            (
-                (
-                    ProductType(key).label,
-                    group_thousands(int(amounts[0])),
-                    int(amounts[0]),
-                    euros(amounts[1]),
-                )
-                for key, amounts in type_totals.items()
-            ),
-            key=lambda item: -item[2],
-        )
-    )
-    value_type_bars = _bars(
-        sorted(
-            (
-                (
-                    ProductType(key).label,
-                    euros(amounts[1]),
-                    int(amounts[1]),
-                    f"{group_thousands(int(amounts[0]))} {words.units_noun}",
-                )
-                for key, amounts in type_totals.items()
-            ),
-            key=lambda item: -item[2],
-        )
-    )
-
-    category_bars = _bars(
-        (
-            row.category_name or "Kategooriata",
-            group_thousands(int(row.units)),
-            int(row.units),
-            f"{row.product_count} toodet",
-        )
-        for row in category_rows[:12]
-    )
-    value_category_bars = _bars(
-        sorted(
-            (
-                (
-                    row.category_name or "Kategooriata",
-                    euros(row.ordered_value_net),
-                    int(row.ordered_value_net),
-                    f"{group_thousands(int(row.units))} {words.units_noun}",
-                )
-                for row in category_rows
-            ),
-            key=lambda item: -item[2],
-        )[:12]
-    )
-    value_ranked = sorted(rows, key=lambda r: (-r.ordered_value_net, r.title.casefold()))[:10]
-    value_bars = _bars(
-        (
-            row.title,
-            euros(row.ordered_value_net),
-            int(row.ordered_value_net),
-            f"{group_thousands(int(row.units))} {words.units_noun}",
-        )
-        for row in value_ranked
-    )
-
-    payment_rows = [
-        (PaymentClass.INVOICE, "Arve"),
-        (PaymentClass.BANK_OR_CARD, "Pangalink või kaart"),
-        (PaymentClass.UNKNOWN, "Teadmata"),
-    ]
-    payment_present = [
-        (label, payments[key].ordered_value_net)
-        for key, label in payment_rows
-        if payments.get(key) and payments[key].ordered_value_net > 0
-    ]
-    payment_mix = PaymentMixPresenter(
-        is_known=bool(payment_present),
-        rows=_bars(((label, euros(amount), int(amount), "") for label, amount in payment_present)),
-        invoice_value=_payment_value(payments, PaymentClass.INVOICE),
-        settled_value=_payment_value(payments, PaymentClass.BANK_OR_CARD),
-        unknown_value=_payment_value(payments, PaymentClass.UNKNOWN),
-    )
-
-    member_totals = get_member_split(window, **filters) if member_gate_open else {}
-    member_labels = [
-        (MemberStatus.MEMBER, "Liige"),
-        (MemberStatus.NON_MEMBER, "Mitteliige"),
-        (MemberStatus.UNKNOWN, "Teadmata"),
-    ]
-    member_presenter = MemberSplitPresenter(
-        is_open=member_gate_open,
-        rows=_bars(
-            (
-                (
-                    label,
-                    group_thousands(int(member_totals[key].units)),
-                    int(member_totals[key].units),
-                    "",
-                )
-                for key, label in member_labels
-                if member_totals.get(key)
-            )
-        ),
-        value_rows=_bars(
-            (
-                (
-                    label,
-                    euros(member_totals[key].ordered_value_net),
-                    int(member_totals[key].ordered_value_net),
-                    "",
-                )
-                for key, label in member_labels
-                if member_totals.get(key)
-            )
-        ),
-    )
-
-    coverage_summary = web.coverage
-    web_coverage = WebCoveragePresenter(
-        measured=coverage_summary.measured,
-        without_path=coverage_summary.without_path,
-        without_measurement=coverage_summary.without_measurement,
-        total=coverage_summary.total,
-        has_population=coverage_summary.has_population,
-        summary=(
-            f"{group_thousands(coverage_summary.measured)} / "
-            f"{group_thousands(coverage_summary.total)} valitud tootest on "
-            "sellel vahemikul mõõdetud ostuleht."
-            if coverage_summary.has_population
-            else ""
-        ),
-    )
-
-    catalogue = get_catalogue_summary(listing_gate_open=coverage.public_listing_semantics_verified)
-    catalogue_presenter = CataloguePresenter(
-        has_products=catalogue.has_products,
-        products=group_thousands(catalogue.products),
-        by_type=_bars(
-            sorted(
-                (
-                    (ProductType(key).label, group_thousands(count), count, "")
-                    for key, count in catalogue.by_type.items()
-                ),
-                key=lambda item: -item[2],
-            )
-        ),
-        with_list_price=group_thousands(catalogue.with_list_price),
-        with_member_price=group_thousands(catalogue.with_member_price),
-        free_listed=group_thousands(catalogue.free_listed),
-        published=group_thousands(catalogue.published),
-        publicly_listed=(
-            group_thousands(catalogue.publicly_listed)
-            if catalogue.publicly_listed is not None
-            else DASH
-        ),
-        listing_gate_open=coverage.public_listing_semantics_verified,
-        with_acquisition_path=group_thousands(catalogue.with_acquisition_path),
-    )
 
     return ShopOverview(
         has_source=True,
@@ -1293,111 +814,12 @@ def build_overview(
         web_is_partial=window.web_is_partial,
         period=resolved,
         periods=period_options(resolved, **state),
+        product_type=product_type,
         type_options=_type_options(product_type, resolved, state),
-        category_options=_category_options(categories, resolved, state),
         sort_options=_sort_options(sort, resolved, state),
-        orders=group_thousands(totals.orders),
-        units=group_thousands(int(totals.units)),
-        value=euros(totals.ordered_value_net),
-        product_views=_figure(total_views),
-        rate=_rate(acquisitions_per_hundred(conversion_units, total_views)),
-        invoice_value=euros(
-            payments.get(PaymentClass.INVOICE).ordered_value_net
-            if payments.get(PaymentClass.INVOICE)
-            else Decimal(0)
-        ),
-        settled_value=euros(
-            payments.get(PaymentClass.BANK_OR_CARD).ordered_value_net
-            if payments.get(PaymentClass.BANK_OR_CARD)
-            else Decimal(0)
-        ),
         member_gate_open=member_gate_open,
         listing_gate_open=coverage.public_listing_semantics_verified,
-        kpis=kpis,
-        web_kpis=(
-            _kpi(
-                words.views_label,
-                MetricComparison.of(total_views or 0, None),
-                formatter=lambda v: _figure(total_views),
-                comparison_label=(
-                    f"{long_date(window.web_start)}–{long_date(window.web_end)}"
-                    if window.has_web
-                    else ""
-                ),
-            ),
-            _kpi(
-                words.rate_label,
-                MetricComparison.of(0, None),
-                formatter=lambda v: _rate(acquisitions_per_hundred(conversion_units, total_views)),
-            ),
-        )
-        if window.has_web
-        else (),
-        comparison_label=pair.previous_label,
-        comparison_available=pair.is_available,
-        orders_are_distinct=orders_are_distinct,
-        trend=trend,
-        risers=tuple(MoverPresenter(row) for row in risers),
-        fallers=tuple(MoverPresenter(row) for row in fallers),
-        ranking=ranking,
-        ranking_note=(f"Top 10 moodustavad {share}% ostudest." if share is not None else ""),
-        focus=focus.key,
-        focus_label=focus.label,
-        focus_options=_focus_options(focus.key, resolved, state, metric),
-        focus_links={item.key: _focus_query(item.key) for item in FOCUSES},
-        units_label=words.units_label,
-        units_noun=words.units_noun,
-        views_label=words.views_label,
-        rate_label=words.rate_label,
-        trend_metric=metric,
-        trend_options=_metric_options(metric, resolved, state, focus.key, orders_label),
-        years=year_rows,
-        free_paid_series=free_paid_bars,
-        free_paid_series_known=bool(free_paid_bars),
-        payment_mix=payment_mix,
-        member_split=member_presenter,
-        concentration=concentration,
-        concentration_note=(
-            f"Top 10 toodet moodustavad {share}% ostetud ühikutest." if share is not None else ""
-        ),
-        long_tail_note=(
-            f"80% ostudest tuleb {concentration.long_tail_count} tootest "
-            f"({concentration.population} seast)."
-            if concentration.long_tail_count is not None
-            else ""
-        ),
-        value_concentration_note=(
-            f"Top 10 toodet moodustavad {value_concentration.top_share}% tellitud väärtusest."
-            if value_concentration.top_share is not None
-            else ""
-        ),
-        category_bars=category_bars,
-        value_bars=value_bars,
-        value_category_bars=value_category_bars,
-        value_type_bars=value_type_bars,
-        type_bars=type_bars,
-        category_risers=tuple(CategoryMoverPresenter(row) for row in category_risers),
-        category_fallers=tuple(CategoryMoverPresenter(row) for row in category_fallers),
-        web_coverage=web_coverage,
-        catalogue=catalogue_presenter,
-        schema_version=coverage.schema_version,
-        distinct_orders_available=orders_are_distinct,
-        free_paid_available=mix.is_known,
-        page_detail_complete=window.page_detail_complete,
-        mix=_mix_presenter(mix, previous_mix),
-        weak_acquisition=tuple(OpportunityPresenter(row) for row in weak),
-        strong_acquisition=tuple(OpportunityPresenter(row) for row in strong),
-        opportunity_threshold=MIN_VIEWS_FOR_OPPORTUNITY,
-        period_options_primary=tuple(
-            option for option in period_options(resolved, **state) if option.period.is_primary
-        ),
-        period_options_secondary=tuple(
-            option for option in period_options(resolved, **state) if not option.period.is_primary
-        ),
-        months=months,
-        max_month_units=max_units,
-        categories=tuple(CategoryPresenter(row) for row in category_rows),
-        products=tuple(ProductPresenter(row) for row in visible),
+        products=products,
         search=search,
         sort=sort,
         page=page,
@@ -1405,19 +827,37 @@ def build_overview(
         total_products=total_products,
         result_summary=_result_summary(total_products, search),
         previous_query=build_query(
-            period_key=resolved.key,
-            start=resolved.start,
-            end=resolved.end,
-            page=page - 1,
-            **state,
+            period_key=resolved.key, start=resolved.start, end=resolved.end, page=page - 1, **state
         ),
         next_query=build_query(
-            period_key=resolved.key,
-            start=resolved.start,
-            end=resolved.end,
-            page=page + 1,
-            **state,
+            period_key=resolved.key, start=resolved.start, end=resolved.end, page=page + 1, **state
         ),
+        kpis=kpis,
+        comparison_label=pair.previous_label,
+        comparison_available=pair.is_available,
+        orders_are_distinct=orders_are_distinct,
+        trend=trend,
+        mix=_mix_presenter(mix, previous_mix),
+        period_options_primary=tuple(
+            option for option in period_options(resolved, **state) if option.period.is_primary
+        ),
+        period_options_secondary=tuple(
+            option for option in period_options(resolved, **state) if not option.period.is_primary
+        ),
+        trend_metric=metric,
+        trend_options=_metric_options(metric, resolved, state, orders_label),
+        document_risers=tuple(MoverPresenter(row) for row in document_risers),
+        document_fallers=tuple(MoverPresenter(row) for row in document_fallers),
+        document_note=document_note,
+        document_orders=(group_thousands(document_orders) if document_orders is not None else DASH),
+        document_orders_label="Tellimused",
+        document_value=euros(document_totals.ordered_value_net),
+        concentration_note=concentration_note,
+        physical_note=physical_note,
+        schema_version=coverage.schema_version,
+        distinct_orders_available=orders_are_distinct,
+        free_paid_available=mix.is_known,
+        page_detail_complete=window.page_detail_complete,
     )
 
 
@@ -1438,33 +878,8 @@ def _decimal(value: Decimal | None) -> str:
     return f"{value:.2f}".replace(".", ",")
 
 
-def _focus_options(active: str, resolved, state: dict, metric: str) -> tuple[FocusOption, ...]:
-    """The five views, each carrying the period and filters already chosen.
-
-    Every link goes through `build_query`, so moving between views preserves the
-    reader's whole state — and the URL stays bookmarkable, shareable and
-    reload-safe because the state lives in it rather than in a session.
-    """
-    return tuple(
-        FocusOption(
-            key=focus.key,
-            label=focus.label,
-            is_active=focus.key == active,
-            query=build_query(
-                period_key=resolved.key,
-                start=resolved.start,
-                end=resolved.end,
-                focus=focus.key,
-                metric=metric,
-                **state,
-            ),
-        )
-        for focus in FOCUSES
-    )
-
-
 def _metric_options(
-    active: str, resolved, state: dict, focus_key: str, orders_label: str
+    active: str, resolved, state: dict, orders_label: str
 ) -> tuple[MetricOption, ...]:
     """Which series the trend may draw.
 
@@ -1487,7 +902,6 @@ def _metric_options(
                 period_key=resolved.key,
                 start=resolved.start,
                 end=resolved.end,
-                focus=focus_key,
                 metric=key,
                 **state,
             ),
@@ -1510,27 +924,6 @@ def _type_options(active: str, resolved, state: dict) -> tuple[TypeOption, ...]:
                     start=resolved.start,
                     end=resolved.end,
                     **{**state, "product_type": key},
-                ),
-            )
-        )
-    return tuple(out)
-
-
-def _category_options(active: tuple[int, ...], resolved, state: dict) -> tuple[CategoryOption, ...]:
-    out = []
-    for term_id, name in get_categories():
-        is_active = term_id in active
-        chosen = tuple(t for t in active if t != term_id) if is_active else (*active, term_id)
-        out.append(
-            CategoryOption(
-                term_id=term_id,
-                label=name or f"#{term_id}",
-                is_active=is_active,
-                query=build_query(
-                    period_key=resolved.key,
-                    start=resolved.start,
-                    end=resolved.end,
-                    **{**state, "categories": chosen},
                 ),
             )
         )
@@ -1837,7 +1230,6 @@ __all__ = [
     "PARAM_MEMBER",
     "PARAM_SEARCH",
     "PARAM_TYPE",
-    "CategoryPresenter",
     "ProductDetail",
     "ProductPresenter",
     "ShopOverview",

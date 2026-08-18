@@ -84,6 +84,12 @@ class PeriodPair:
             return ""
         return f"{self.previous_start:%d.%m.%Y}–{self.previous_end:%d.%m.%Y}"
 
+    @property
+    def current_label(self) -> str:
+        if not self.has_current:
+            return ""
+        return f"{self.current_start:%d.%m.%Y}–{self.current_end:%d.%m.%Y}"
+
 
 def derive_period_pair(
     *,

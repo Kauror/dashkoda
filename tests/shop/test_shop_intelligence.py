@@ -12,14 +12,9 @@ from __future__ import annotations
 from decimal import Decimal
 
 from apps.shop.periods import (
-    DEFAULT_FOCUS,
-    FOCUS_PRODUCTS,
-    FOCUS_PURCHASES,
-    FOCUSES,
     METRIC_UNITS,
     METRIC_VALUE,
     build_query,
-    parse_focus,
     parse_metric,
 )
 from apps.shop.selectors import (
@@ -125,34 +120,8 @@ def test_an_empty_previous_window_is_not_a_product_launch():
 
 
 # ---------------------------------------------------------------------------
-# Focus and metric state
+# Query state
 # ---------------------------------------------------------------------------
-
-
-def test_the_retired_value_focus_lands_on_ostud_not_the_overview():
-    """`vaartus` merged into `Ostud` on 2026-08-16 and is still in shared links.
-
-    The failure this guards against is silent: an unknown key falls back to
-    `Ülevaade`, so leaving `vaartus` to fall through would answer a request for
-    value with the one view that does not carry it, and nothing would look
-    broken.
-    """
-    from apps.shop.periods import RETIRED_FOCUS_VALUE
-
-    assert parse_focus(RETIRED_FOCUS_VALUE).key == FOCUS_PURCHASES
-    assert parse_focus(RETIRED_FOCUS_VALUE) is not DEFAULT_FOCUS
-    assert RETIRED_FOCUS_VALUE not in {focus.key for focus in FOCUSES}
-
-
-def test_an_unknown_focus_lands_on_the_overview():
-    """A rotted bookmark must render a page, not raise."""
-    assert parse_focus("ei-ole-olemas") is DEFAULT_FOCUS
-    assert parse_focus(None) is DEFAULT_FOCUS
-    assert parse_focus("") is DEFAULT_FOCUS
-
-
-def test_a_known_focus_resolves_to_itself():
-    assert parse_focus(FOCUS_PRODUCTS).key == FOCUS_PRODUCTS
 
 
 def test_an_unknown_metric_falls_back_to_units():
@@ -160,24 +129,18 @@ def test_an_unknown_metric_falls_back_to_units():
     assert parse_metric(METRIC_VALUE) == METRIC_VALUE
 
 
-def test_the_default_focus_is_omitted_from_a_url():
-    """`/epood/` stays the canonical address for the default view."""
-    query = build_query(period_key="1a", focus=DEFAULT_FOCUS.key)
-
-    assert "fookus" not in query
-
-
-def test_a_focus_link_carries_the_rest_of_the_state():
+def test_a_query_carries_every_control_a_reader_has_set():
+    """The tab strip that once made this a *focus* link retired on 2026-08-18;
+    every control still composes onto the one remaining route."""
     query = build_query(
         period_key="90",
-        focus=FOCUS_PRODUCTS,
         product_type="document",
         categories=(159,),
         search="tööleping",
     )
 
-    assert "fookus=tooted" in query
     assert "periood=90" in query
     assert "liik=document" in query
     assert "kategooria=159" in query
     assert "otsing=t" in query
+    assert "fookus" not in query

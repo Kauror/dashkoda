@@ -1,9 +1,11 @@
 {% comment %}
-The headline figures and how they moved.
+The headline figures and how they moved, plus the free/paid card as a fourth
+member of the same strip.
 
 Context:
-  kpis                 – a tuple of page.KpiCard
+  kpis                 – a tuple of page.KpiCard (three, since 2026-08-18)
   comparison_available – whether a previous equal-length window exists at all
+  mix                   – page.MixPresenter, the fourth card
 
 Direction is an arrow **and** a sign as well as a colour, so the change survives
 greyscale, a monochrome print and colour blindness.
@@ -17,12 +19,12 @@ The three states below are deliberately distinct, and none of them is a zero:
     would reach behind the imported history. Comparing a year against the 83
     days that happen to precede it is worse than showing nothing, because the
     reader cannot see that the denominator was short.
+
+`dk-kpi-strip` alone divides four cards evenly at `xl` — three KPIs and the mix
+card, with no modifier needed the way three cards alone once needed
+`dk-kpi-strip-trio` to avoid an empty fourth cell.
 {% endcomment %}
-{% comment %}
-`dk-kpi-strip-trio` at three cards, or the fourth cell of the `xl` grid sits
-empty beside them — the same treatment the Liikmeskond and Koduleht strips use.
-{% endcomment %}
-<div class="dk-kpi-strip{% if kpis|length == 3 %} dk-kpi-strip-trio{% endif %}">
+<div class="dk-kpi-strip">
   {% for kpi in kpis %}
     <article class="flex flex-col gap-2 px-4 py-4">
       <h3 class="text-sm font-medium text-text-secondary">{{ kpi.label }}</h3>
@@ -46,4 +48,28 @@ empty beside them — the same treatment the Liikmeskond and Koduleht strips use
       {% if kpi.secondary %}<p class="dk-meta">{{ kpi.secondary }}</p>{% endif %}
     </article>
   {% endfor %}
+
+  {% if mix.is_known %}
+    <article class="flex flex-col gap-2 px-4 py-4">
+      <h3 class="text-sm font-medium text-text-secondary">Tasuta ja tasulised ostud</h3>
+      {% comment %}
+      SVG geometry, not an inline style — the Content Security Policy is
+      `style-src 'self'`. Two segments always fill the bar because the shares
+      are of the classified total; an unclassified remainder is stated below
+      rather than stretching one segment to cover it.
+      {% endcomment %}
+      <svg viewBox="0 0 100 8" preserveAspectRatio="none" class="h-2 w-full" aria-hidden="true" focusable="false">
+        <rect x="0" y="0" width="{{ mix.free_percent|stringformat:'.3f' }}" height="8" class="fill-brand"/>
+        <rect x="{{ mix.free_percent|stringformat:'.3f' }}" y="0" width="{{ mix.paid_percent|stringformat:'.3f' }}" height="8" class="fill-series-3"/>
+      </svg>
+      <p class="flex flex-wrap items-baseline justify-between gap-x-4 text-sm">
+        <span class="text-text">{{ mix.free_label }} <span class="dk-meta">· {{ mix.free_units }}</span></span>
+        <span class="text-text-secondary">{{ mix.paid_label }} <span class="dk-meta">· {{ mix.paid_units }}</span></span>
+      </p>
+      {% if mix.previous_note %}<p class="dk-meta">{{ mix.previous_note }}</p>{% endif %}
+      {% if mix.has_unknown %}
+        <p class="dk-meta">Määramata: {{ mix.unknown_units }} ühikut — need ei ole osakaalu sees.</p>
+      {% endif %}
+    </article>
+  {% endif %}
 </div>

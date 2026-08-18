@@ -44,7 +44,6 @@ PARAM_SEARCH = "otsing"
 PARAM_SORT = "sort"
 PARAM_PAGE = "lk"
 PARAM_MEMBER = "liikmestaatus"
-PARAM_FOCUS = "fookus"
 #: The trend's metric. Estonian like every other parameter this page owns, so
 #: the query string reads in one language.
 PARAM_METRIC = "naitaja"
@@ -53,62 +52,6 @@ CUSTOM_KEY = "kohandatud"
 ALL_KEY = "koik"
 
 MAX_SEARCH_LENGTH = 120
-
-
-# ---------------------------------------------------------------------------
-# Focus
-# ---------------------------------------------------------------------------
-
-
-@dataclass(frozen=True)
-class Focus:
-    """One analytical view of the same dataset, at one URL.
-
-    E-pood stays a single route. A focus is a *lens* over the period and filters
-    already chosen, not a separate page with separate state — which is what lets
-    a reader change the product type on `Ostud` and find the same type still
-    selected when they move to `Nähtavus`.
-    """
-
-    key: str
-    label: str
-
-
-FOCUS_OVERVIEW = "ulevaade"
-FOCUS_PURCHASES = "ostud"
-FOCUS_PRODUCTS = "tooted"
-FOCUS_VISIBILITY = "nahtavus"
-#: Retired on 2026-08-16, when `Tellitud väärtus` merged into `Ostud`. The key
-#: is kept because it is in shared links and in readers' history — `parse_focus`
-#: resolves it to `Ostud`, which is where its sections went.
-RETIRED_FOCUS_VALUE = "vaartus"
-
-FOCUSES: tuple[Focus, ...] = (
-    # The per-focus `question` sentence went with the heading block that
-    # rendered it (2026-08-16): the active chip names the view, and the
-    # sections name their subjects.
-    Focus(key=FOCUS_OVERVIEW, label="Ülevaade"),
-    Focus(key=FOCUS_PURCHASES, label="Ostud"),
-    Focus(key=FOCUS_PRODUCTS, label="Tooted"),
-    Focus(key=FOCUS_VISIBILITY, label="Nähtavus"),
-)
-
-DEFAULT_FOCUS = FOCUSES[0]
-
-_FOCUS_BY_KEY = {focus.key: focus for focus in FOCUSES}
-
-
-def parse_focus(raw: str | None) -> Focus:
-    """The requested view, or the overview. An unknown key is never an error.
-
-    `vaartus` is not unknown, though — it is retired. Left to fall through it
-    would land on `Ülevaade`, which is the one view that does not hold what the
-    reader asked for; it resolves to `Ostud`, which absorbed those sections.
-    """
-    key = (raw or "").strip()
-    if key == RETIRED_FOCUS_VALUE:
-        return _FOCUS_BY_KEY[FOCUS_PURCHASES]
-    return _FOCUS_BY_KEY.get(key, DEFAULT_FOCUS)
 
 
 # ---------------------------------------------------------------------------
@@ -176,6 +119,12 @@ class ResolvedShopPeriod:
     @property
     def label(self) -> str:
         return self.period.label
+
+    @property
+    def range_label(self) -> str:
+        if self.start is None or self.end is None:
+            return ""
+        return f"{self.start:%d.%m.%Y}–{self.end:%d.%m.%Y}"
 
     @property
     def query(self) -> str:
@@ -246,22 +195,19 @@ def build_query(
     sort: str = "",
     member_status: str = "",
     page: int | None = None,
-    focus: str = "",
     metric: str = "",
 ) -> str:
     """One URL's worth of validated state.
 
     Every control links through here, which is what makes the controls compose:
-    changing the period keeps the type, the categories and the search, changing
-    the focus keeps all of those, and paging keeps everything.
+    changing the period keeps the type, the categories and the search, and
+    paging keeps everything.
 
-    The default focus and the default metric are omitted rather than written
-    out, so the plain `/epood/` address stays the canonical one and a shared
-    link carries only what the sharer actually changed.
+    The default metric is omitted rather than written out, so the plain
+    `/epood/` address stays the canonical one and a shared link carries only
+    what the sharer actually changed.
     """
     parts = []
-    if focus and focus != DEFAULT_FOCUS.key:
-        parts.append(f"{PARAM_FOCUS}={quote(focus)}")
     parts.append(f"{PARAM_PERIOD}={quote(period_key)}")
     if period_key == CUSTOM_KEY:
         if start is not None:
@@ -347,23 +293,13 @@ def parse_sort(raw: str | None) -> str:
 __all__ = [
     "ALL_KEY",
     "CUSTOM_KEY",
-    "DEFAULT_FOCUS",
     "DEFAULT_PERIOD",
-    "FOCUSES",
-    "FOCUS_OVERVIEW",
-    "FOCUS_PRODUCTS",
-    "FOCUS_PURCHASES",
-    "RETIRED_FOCUS_VALUE",
-    "FOCUS_VISIBILITY",
     "MAX_SEARCH_LENGTH",
     "METRIC_KEYS",
     "METRIC_ORDERS",
     "METRIC_UNITS",
     "METRIC_VALUE",
-    "PARAM_FOCUS",
     "PARAM_METRIC",
-    "Focus",
-    "parse_focus",
     "parse_metric",
     "PARAM_CATEGORY",
     "PARAM_FROM",

@@ -2,29 +2,19 @@
 {% load membership_format %}
 
 {% comment %}
-The E-pood overview, arranged as a reading order rather than as a list of
-widgets:
+E-pood, in one scroll since 2026-08-18.
 
-  headline → trend → what changed → what was bought → free/paid →
-  web effectiveness → explorer → methodology
+This was four tabs — `Ülevaade`, `Ostud`, `Tooted`, `Nähtavus` — until the
+tab strip retired the same day Koduleht's did. `Ostud` (payment and member
+split), `Nähtavus` (web-effectiveness) and Tooted's own category,
+concentration and catalogue sections went with it; what is left is the
+headline, the trend, the movers and the whole product table, which is what a
+reader actually came back for. `Andmete kohta` stayed on `/haldus/`, where it
+moved on 2026-08-17.
 
-Four things this layout is deliberately not:
-
-  * **not a wall of controls.** Product type is a segmented control, the period
-    row carries five options rather than seven, and categories and custom dates
-    sit inside disclosures. A reader choosing a period should not have to read
-    a menu first;
-  * **not prose-first.** The methodology that used to sit between the reader and
-    the first number now lives in `Andmete kohta` at the foot. A caveat
-    interrupts the reading order only where its absence would cause an
-    immediate false reading — the comparison interval beside the web figures,
-    and the two-page note beside the rate;
-  * **not four equal KPIs.** Three Commerce measures carry the headline; the web
-    pair has its own section, which is what removes the need to explain GA4
-    coverage beside the acquisition count;
-  * **not a section header that restates its own section.** A heading carries no
-    subtitle where the subtitle only said in a sentence what the numbers below
-    it already say. The remaining notes are the ones that change a reading.
+The order is the order the questions are asked: how much did the shop sell,
+how did that move day by day, which contract templates moved most, and then
+every product, searchable and ranked.
 
 A dash is still a dash. `—` means not measured; `0` means measured and zero.
 Nothing here turns one into the other.
@@ -35,19 +25,10 @@ Nothing here turns one into the other.
 {% block content %}
 <div class="flex min-w-0 flex-col gap-5">
 
-  {% comment %}
-  Heading only. The coverage line that used to sit here — as-of date, order
-  history, web interval — left the top on 2026-08-16, into `Andmete kohta` at
-  the foot. That whole disclosure moved again on 2026-08-17, to `/haldus/`,
-  along with every other domain's — see
-  `apps/shop/templates/shop/admin/_data_about.html`. Nothing here lets the
-  page imply the extract is live.
-  {% endcomment %}
-  <header class="flex min-w-0 flex-col gap-1">
-    <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">E-pood</h1>
-  </header>
-
   {% if not overview.has_source %}
+    <header class="flex min-w-0 flex-col gap-1">
+      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">E-pood</h1>
+    </header>
     <section aria-labelledby="section-empty" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="E-poe andmed" heading_id="section-empty" description="Ühtegi väljavõtet ei ole imporditud." badge_label="Lisamisel" badge_variant="neutral" only %}
       <div class="dk-section-body">
@@ -56,52 +37,27 @@ Nothing here turns one into the other.
     </section>
   {% else %}
 
-    {# ---------------- focus navigation ---------------- #}
-    {% include "shop/_focus_nav.html" %}
+    {# ---------------- Title, period, range ---------------- #}
+    <header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
+      <h1 class="text-2xl font-semibold tracking-tight text-text sm:text-3xl">E-pood</h1>
 
-    {% comment %}
-    The focus name and its question used to repeat here, under the navigation
-    that had just said both — the active chip names the view, and the sections
-    below name their subjects. Same removal the other dashboards made.
-    {% endcomment %}
-
-    {# ---------------- controls ---------------- #}
-    <div class="flex min-w-0 flex-col gap-2">
-      <nav aria-label="Tooteliik" class="flex flex-wrap gap-1.5">
-        {% for option in overview.type_options %}
-          <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-             href="?{{ option.query }}"
-             {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
-        {% endfor %}
-      </nav>
-
-      <div class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">
-        <nav aria-label="Periood" class="flex flex-wrap gap-1.5">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <nav aria-label="Periood" class="flex flex-wrap items-center gap-1 rounded-md border border-border bg-surface p-1">
           {% for option in overview.period_options_primary %}
             <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
                href="?{{ option.query }}"
                {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
           {% endfor %}
-        </nav>
-
-        {% comment %}
-        Everything a reader reaches for second: the long period, a custom range
-        and the category filter. A disclosure rather than a permanently visible
-        row, because the wall of category chips was the densest thing on the
-        old page and is used least.
-        {% endcomment %}
-        <details class="min-w-0">
-          <summary class="dk-chip cursor-pointer">Rohkem filtreid</summary>
-          <div class="mt-2 flex min-w-0 flex-col gap-3 rounded-lg border border-border p-3">
-            <nav aria-label="Pikem periood" class="flex flex-wrap gap-1.5">
-              {% for option in overview.period_options_secondary %}
-                <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-                   href="?{{ option.query }}"
-                   {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
-              {% endfor %}
-            </nav>
-
-            {% if overview.period.period.is_custom %}
+          <details class="relative"{% if overview.period.period.is_custom %} open{% endif %}>
+            <summary class="dk-chip{% if overview.period.period.is_custom %} dk-chip-active{% endif %} cursor-pointer list-none">Vali vahemik</summary>
+            <div class="absolute right-0 z-10 mt-2 flex min-w-max flex-col gap-3 rounded-lg border border-border bg-surface p-3 shadow-lg">
+              <nav aria-label="Pikem periood" class="flex flex-wrap gap-1.5">
+                {% for option in overview.period_options_secondary %}
+                  <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+                     href="?{{ option.query }}"
+                     {% if option.is_active %}aria-current="true"{% endif %}>{{ option.period.label }}</a>
+                {% endfor %}
+              </nav>
               <form method="get" class="flex min-w-0 flex-wrap items-end gap-2">
                 <input type="hidden" name="periood" value="{{ overview.period.key }}">
                 <div class="flex flex-col gap-1">
@@ -114,39 +70,20 @@ Nothing here turns one into the other.
                 </div>
                 <button type="submit" class="dk-button dk-button-secondary">Näita</button>
               </form>
-            {% endif %}
-
-            {% if overview.category_options %}
-              <nav aria-label="Kategooria" class="flex flex-wrap gap-1.5">
-                {% for option in overview.category_options %}
-                  <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
-                     href="?{{ option.query }}"
-                     {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
-                {% endfor %}
-              </nav>
-            {% endif %}
-          </div>
-        </details>
+            </div>
+          </details>
+        </nav>
+        <span class="dk-meta">{{ overview.period.range_label }}</span>
       </div>
-    </div>
+    </header>
 
-    {# ---------------- 1. headline ---------------- #}
+    {# ---------------- Primary figures ---------------- #}
     <section aria-labelledby="section-kpis" class="dk-section">
       <h2 id="section-kpis" class="sr-only">Valitud perioodi näitajad</h2>
-      {% include "shop/_kpi_strip.html" with kpis=overview.kpis comparison_available=overview.comparison_available only %}
+      {% include "shop/_kpi_strip.html" with kpis=overview.kpis comparison_available=overview.comparison_available mix=overview.mix only %}
     </section>
 
-    {% if overview.is_overview %}
-
-    {# ---------------- 2. web readout ---------------- #}
-    {% comment %}
-    `Veeb ja ostmine` — the acquisition-page views and the per-hundred rate —
-    left the overview on 2026-08-16. Both figures are still on `Nähtavus`,
-    which is the focus whose subject they are; this was the second place they
-    appeared, with the narrower-window caveat that had to travel with them.
-    {% endcomment %}
-
-    {# ---------------- 3. trend ---------------- #}
+    {# ---------------- Ostmine ajas ---------------- #}
     <section aria-labelledby="section-trend" class="dk-section">
       {% include "dashboard/components/section_header.html" with title="Ostmine ajas" heading_id="section-trend" only %}
       <div class="dk-section-body flex flex-col gap-3">
@@ -159,118 +96,38 @@ Nothing here turns one into the other.
       </div>
     </section>
 
-    {# ---------------- 4. what changed ---------------- #}
-    {% if overview.comparison_available %}
-      <section aria-labelledby="section-movers" class="dk-section">
-        {% comment %}
-        `Perioodi muutus`, the name Koduleht's identical vs-previous-window
-        section already wears. `Mis muutus?` stays on the dashboards whose
-        comparison is a year-on-year or report-to-report question.
-        {% endcomment %}
-        {% include "dashboard/components/section_header.html" with title="Perioodi muutus" heading_id="section-movers" only %}
-        <div class="dk-section-body grid grid-cols-1 gap-5 lg:grid-cols-2">
-          <div class="min-w-0">
-            <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem kasvanud</h3>
-            {% include "shop/_movers.html" with movers=overview.risers only %}
+    {# ---------------- Lepingupõhjad ---------------- #}
+    {% comment %}
+    Always the document family — contract templates carry this shop, and this
+    section states that rather than following whatever a reader has chosen in
+    Tooted below it. `document_note` and the totals line are built from the
+    same document-scoped KPIs, never from the page-wide headline above.
+    {% endcomment %}
+    {% if overview.document_risers or overview.document_fallers %}
+      <section aria-labelledby="section-lepingud" class="dk-section">
+        {% include "dashboard/components/section_header.html" with title="Lepingupõhjad" heading_id="section-lepingud" description=overview.document_note only %}
+        <div class="dk-section-body flex flex-col gap-4">
+          <div class="grid grid-cols-1 gap-5 lg:grid-cols-2">
+            <div class="min-w-0">
+              <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem kasvanud</h3>
+              {% include "shop/_movers.html" with movers=overview.document_risers only %}
+            </div>
+            <div class="min-w-0">
+              <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem langenud</h3>
+              {% include "shop/_movers.html" with movers=overview.document_fallers only %}
+            </div>
           </div>
-          <div class="min-w-0">
-            <h3 class="mb-2 text-sm font-semibold text-text">Kõige rohkem langenud</h3>
-            {% include "shop/_movers.html" with movers=overview.fallers only %}
-          </div>
-        </div>
-      </section>
-    {% endif %}
-
-    {# ---------------- 5. what is acquired ---------------- #}
-    <section aria-labelledby="section-ranking" class="dk-section">
-      {% include "dashboard/components/section_header.html" with title="Mida osteti?" heading_id="section-ranking" only %}
-      <div class="dk-section-body flex flex-col gap-3">
-        {% if overview.ranking %}
-          {% comment %}
-          One line per product, which is what the ranking on Nähtavus already
-          does. It used to be three: the title and its count, a full-width bar
-          under them, and the category on a line of its own — 54 pixels a row,
-          so ten products filled a screen and a half to say ten numbers.
-
-          The bar is gone rather than shrunk. It encoded the same quantity the
-          count states exactly, ranked rows are already ordered by it, and the
-          note below gives the one comparison a bar could not: what share of all
-          purchases these ten are. The category moves onto the title's line as a
-          muted suffix, the way the content ranking marks a page's type.
-          {% endcomment %}
-          <div class="w-full min-w-0 overflow-x-auto">
-            <table class="w-full min-w-max border-collapse text-sm">
-              <caption class="sr-only">Enim ostetud tooted valitud perioodil</caption>
-              <thead>
-                <tr>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">#</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase">Toode</th>
-                  <th scope="col" class="border-b border-border px-3 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase">Ostud</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for bar in overview.ranking %}
-                  <tr>
-                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text-muted">{{ forloop.counter }}</td>
-                    <th scope="row" class="border-b border-border px-3 py-1.5 text-left font-normal">
-                      <a class="dk-link" href="{% url 'shop-product' bar.source_product_id %}">{{ bar.title }}</a>
-                      {% if bar.category_name %}<span class="dk-meta"> · {{ bar.category_name }}</span>{% endif %}
-                    </th>
-                    <td class="border-b border-border px-3 py-1.5 text-right tabular-nums text-text">{{ bar.value }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
-          </div>
-          {% if overview.ranking_note %}<p class="dk-meta">{{ overview.ranking_note }}</p>{% endif %}
-          <p><a class="dk-link" href="{{ overview.focus_links.tooted }}">Vaata kõiki tooteid</a></p>
-        {% else %}
-          {% include "dashboard/components/empty_state.html" with message="Selle perioodi kohta oste ei ole." only %}
-        {% endif %}
-      </div>
-    </section>
-
-    {# ---------------- 6. free vs paid ---------------- #}
-    {% if overview.mix.is_known %}
-      <section aria-labelledby="section-mix" class="dk-section">
-        {% include "dashboard/components/section_header.html" with title="Tasuta ja tasulised ostud" heading_id="section-mix" only %}
-        <div class="dk-section-body flex flex-col gap-2">
-          <svg viewBox="0 0 100 8" preserveAspectRatio="none" class="h-4 w-full" role="img"
-               aria-label="Tasuta {{ overview.mix.free_units }} ühikut, tasuline {{ overview.mix.paid_units }} ühikut">
-            <rect x="0" y="0" width="100" height="8" rx="2" class="fill-elevated"/>
-            <rect x="0" y="0" width="{{ overview.mix.free_percent|stringformat:'.2f' }}" height="8" rx="2" class="fill-brand"/>
-          </svg>
-          <p class="flex flex-wrap items-baseline justify-between gap-x-4 text-sm">
-            <span class="text-text">{{ overview.mix.free_label }} <span class="dk-meta">({{ overview.mix.free_units }} ühikut)</span></span>
-            <span class="text-text-secondary">{{ overview.mix.paid_label }} <span class="dk-meta">({{ overview.mix.paid_units }} ühikut)</span></span>
+          <p class="flex flex-wrap gap-x-6 gap-y-1 text-sm">
+            <span class="text-text-secondary">{{ overview.document_orders_label }} <span class="font-semibold tabular-nums text-text">{{ overview.document_orders }}</span></span>
+            <span class="text-text-secondary">Ostude väärtus <span class="font-semibold tabular-nums text-text">{{ overview.document_value }}</span></span>
           </p>
-          {% if overview.mix.previous_note %}<p class="dk-meta">{{ overview.mix.previous_note }}</p>{% endif %}
-          {% if overview.mix.has_unknown %}
-            <p class="dk-meta">Määramata: {{ overview.mix.unknown_units }} ühikut — need ei ole osakaalu sees.</p>
-          {% endif %}
         </div>
       </section>
     {% endif %}
 
-    {# ---------------- 7. attention signals — removed 2026-08-16 ---------------- #}
-    {% comment %}
-    `Tasub vaadata` and its five rule-based observations left the overview. The
-    rules themselves are untouched in `apps/shop/intelligence.py`; nothing on
-    this page composes them now.
-    {% endcomment %}
+    {# ---------------- Tooted ---------------- #}
+    {% include "shop/_explorer.html" %}
 
-    {% elif overview.is_purchases %}
-      {% include "shop/_focus_ostud.html" %}
-    {% elif overview.is_products %}
-      {% include "shop/_focus_tooted.html" %}
-    {% elif overview.is_visibility %}
-      {% include "shop/_focus_nahtavus.html" %}
-    {% endif %}
-
-    {% comment %}
-    `Andmete kohta` moved off this page to `/haldus/` on 2026-08-17, whole —
-    see `apps/shop/templates/shop/admin/_data_about.html`.
-    {% endcomment %}
   {% endif %}
 </div>
 {% endblock %}

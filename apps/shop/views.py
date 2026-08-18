@@ -11,7 +11,6 @@ from .models import MemberStatus, ProductType
 from .page import build_overview, build_product_detail
 from .periods import (
     PARAM_CATEGORY,
-    PARAM_FOCUS,
     PARAM_FROM,
     PARAM_MEMBER,
     PARAM_METRIC,
@@ -21,7 +20,6 @@ from .periods import (
     PARAM_SORT,
     PARAM_TO,
     PARAM_TYPE,
-    parse_focus,
     parse_int_list,
     parse_metric,
     parse_page,
@@ -43,13 +41,14 @@ def _member_status(raw: str | None) -> str:
 
 @require_GET
 def shop_overview(request):
-    """Which E-pood products are acquired, and how that relates to traffic.
+    """Which E-pood products are acquired.
 
     Every parameter is validated before it reaches a selector: an unreadable
-    period, a reversed range, an unknown product type, an unknown focus, a
-    rotted page number and an oversized search term each resolve to something
-    renderable. An unrecognised focus lands on the overview rather than raising,
-    so a shared link that outlives a rename still opens the page.
+    period, a reversed range, an unknown product type, a rotted page number and
+    an oversized search term each resolve to something renderable rather than
+    an error. A stray `?fookus=` from a bookmark made before the page became one
+    scroll is simply an unread parameter now — it renders the same page every
+    other address does.
     """
     overview = build_overview(
         period_key=request.GET.get(PARAM_PERIOD),
@@ -61,7 +60,6 @@ def shop_overview(request):
         search=parse_search(request.GET.get(PARAM_SEARCH)),
         sort=parse_sort(request.GET.get(PARAM_SORT)),
         page=parse_page(request.GET.get(PARAM_PAGE)),
-        focus=parse_focus(request.GET.get(PARAM_FOCUS)),
         metric=parse_metric(request.GET.get(PARAM_METRIC)),
     )
     return render(

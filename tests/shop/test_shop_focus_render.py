@@ -1,4 +1,4 @@
-"""Every focus view actually renders, checked without a database.
+"""E-pood actually renders, checked without a database.
 
 This exists because of a specific and repeated failure mode in this repository:
 a template that compiles, a view that returns, and a section that silently
@@ -13,6 +13,9 @@ templates — which needs no PostgreSQL and therefore runs everywhere.
 The assertions are about what must never reach a reader: an inline style the
 Content Security Policy forbids, an untranslated placeholder, and the specific
 words this domain refuses to say.
+
+The page was four tabs until 2026-08-18; one render now covers everything a
+reader sees, where four renders — one per focus — used to.
 """
 
 from __future__ import annotations
@@ -23,13 +26,8 @@ import pytest
 from django.template.loader import render_to_string
 
 from apps.shop.models import ProductType
-from apps.shop.page import (
-    ProductDetail,
-    ShopOverview,
-    _focus_options,
-    _metric_options,
-)
-from apps.shop.periods import FOCUSES, METRIC_UNITS, resolve_period
+from apps.shop.page import KpiCard, MixPresenter, ProductDetail, ShopOverview
+from apps.shop.periods import resolve_period
 from apps.shop.selectors import ComparisonWindow
 from apps.shop.vocabulary import vocabulary_for
 
@@ -64,32 +62,31 @@ def _forbidden_in(html: str) -> list[str]:
     return [f"{word} ({why})" for word, why in FORBIDDEN.items() if word in lowered]
 
 
-def _state():
-    return {
-        "product_type": "",
-        "categories": (),
-        "search": "",
-        "sort": "",
-        "member_status": "",
-    }
-
-
-def _overview(focus) -> ShopOverview:
+def _overview(*, as_of_label: str = "11.08.2026") -> ShopOverview:
     resolved = resolve_period("1a", None, None, anchor=ANCHOR)
     window = ComparisonWindow(dt.date(2025, 8, 12), ANCHOR, dt.date(2025, 8, 12), ANCHOR)
     return ShopOverview(
         has_source=True,
-        as_of_label="11.08.2026",
+        as_of_label=as_of_label,
         coverage_label="22.10.2020–11.08.2026",
         window=window,
         web_interval_label="16.06.2023–11.08.2026",
         web_is_partial=True,
         period=resolved,
-        focus=focus.key,
-        focus_label=focus.label,
-        focus_options=_focus_options(focus.key, resolved, _state(), METRIC_UNITS),
-        focus_links={item.key: f"?fookus={item.key}" for item in FOCUSES},
-        trend_options=_metric_options(METRIC_UNITS, resolved, _state(), focus.key, "Tellimusridu"),
+        kpis=(
+            KpiCard(label="Ostetud ühikud", value="746", unit="ühikut"),
+            KpiCard(label="Tellimused", value="449"),
+            KpiCard(label="Tellitud väärtus", value="5\xa0070\xa0€", unit="KM-ta"),
+        ),
+        mix=MixPresenter(
+            is_known=True,
+            free_units="553",
+            paid_units="193",
+            free_percent=74.1,
+            paid_percent=25.9,
+            free_label="Tasuta 74%",
+            paid_label="Tasuline 26%",
+        ),
     )
 
 
@@ -100,54 +97,41 @@ def _render(template: str, context: dict) -> str:
     )
 
 
-@pytest.mark.parametrize("focus", FOCUSES, ids=[focus.key for focus in FOCUSES])
-def test_every_focus_view_renders(focus):
-    html = _render("shop/overview.html", {"overview": _overview(focus)})
+def test_the_overview_renders():
+    html = _render("shop/overview.html", {"overview": _overview()})
 
-    # The label appears in the navigation; the per-focus question sentence
-    # left the page with the heading block that rendered it (2026-08-16).
-    assert focus.label in html
+    assert "E-pood" in html
+    assert "Ostmine ajas" in html
+    assert "Tooted" in html
 
 
-@pytest.mark.parametrize("focus", FOCUSES, ids=[focus.key for focus in FOCUSES])
-def test_no_focus_view_emits_an_inline_style(focus):
+def test_the_overview_emits_no_inline_style():
     """The CSP is `style-src 'self'`; a proportion may only be geometry."""
-    html = _render("shop/overview.html", {"overview": _overview(focus)})
+    html = _render("shop/overview.html", {"overview": _overview()})
 
     assert 'style="' not in html
 
 
-@pytest.mark.parametrize("focus", FOCUSES, ids=[focus.key for focus in FOCUSES])
-def test_no_focus_view_uses_a_forbidden_word(focus):
-    html = _render("shop/overview.html", {"overview": _overview(focus)})
+def test_the_overview_uses_no_forbidden_word():
+    html = _render("shop/overview.html", {"overview": _overview()})
 
-    assert not _forbidden_in(html), f"{focus.key} printed: {_forbidden_in(html)}"
-
-
-def test_the_focus_navigation_marks_the_current_view_for_a_screen_reader():
-    html = _render("shop/overview.html", {"overview": _overview(FOCUSES[2])})
-
-    assert 'aria-current="page"' in html
+    assert not _forbidden_in(html), _forbidden_in(html)
 
 
-def test_every_focus_is_reachable_from_every_other_one():
-    html = _render("shop/overview.html", {"overview": _overview(FOCUSES[0])})
-
-    for focus in FOCUSES[1:]:
-        assert f"fookus={focus.key}" in html, f"{focus.key} was unreachable"
-
-
-@pytest.mark.parametrize("focus", FOCUSES, ids=[focus.key for focus in FOCUSES])
-def test_the_as_of_date_no_longer_appears_on_any_focus(focus):
+def test_the_as_of_date_does_not_appear_on_the_overview():
     """`Andmete kohta`, and the as-of date inside it, left this page whole.
 
     Both moved off the dashboard to `/haldus/` on 2026-08-17 — see
     `apps/shop/templates/shop/admin/_data_about.html`, which is where
     `test_admin_area.py` now asserts the date arrived.
-    """
-    html = _render("shop/overview.html", {"overview": _overview(focus)})
 
-    assert "11.08.2026" not in html
+    A distinct as-of date from the period's own range, because the header now
+    legitimately states the selected period's dates and a shared anchor would
+    make the two indistinguishable.
+    """
+    html = _render("shop/overview.html", {"overview": _overview(as_of_label="31.12.2099")})
+
+    assert "31.12.2099" not in html
     assert "Andmete kohta" not in html
 
 
@@ -159,8 +143,6 @@ def test_a_page_without_a_source_still_renders():
         window=ComparisonWindow(None, None, None, None),
         web_interval_label="",
         web_is_partial=False,
-        focus="ulevaade",
-        focus_label="Ülevaade",
     )
 
     html = _render("shop/overview.html", {"overview": overview})
