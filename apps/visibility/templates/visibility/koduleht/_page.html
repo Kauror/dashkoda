@@ -168,25 +168,36 @@ back button.
 {# ---------------- One page's own analysis ---------------- #}
 {% if page.query.detail %}
   <section aria-labelledby="section-leht" class="dk-section">
-    {% include "dashboard/components/section_header.html" with title="Ühe lehe analüüs" heading_id="section-leht" description=page.detail_title only %}
+    {% include "dashboard/components/section_header.html" with title="Ühe lehe analüüs" heading_id="section-leht" only %}
     <div class="dk-section-body flex flex-col gap-4">
       {% if page.detail %}
-        {% if page.detail_readouts %}
-          <dl class="flex flex-wrap gap-x-8 gap-y-3">
-            {% for readout in page.detail_readouts %}
-              <div class="flex min-w-0 flex-col gap-0.5">
-                <dt class="text-sm text-text-secondary">{{ readout.label }}</dt>
-                <dd class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ readout.value }}</dd>
-                {% if readout.note %}<dd class="dk-meta">{{ readout.note }}</dd>{% endif %}
-              </div>
-            {% endfor %}
-          </dl>
-        {% endif %}
+        {% comment %}
+        The title and the path are both shown because neither replaces the
+        other: a catalogued page has a title somebody wrote, and the path is
+        what the measurement is actually keyed by.
+        {% endcomment %}
+        <div class="flex flex-col gap-1">
+          <h3 class="text-lg font-semibold text-text">{{ page.detail_title }}</h3>
+          <p class="dk-meta break-all">{{ page.detail.path }}</p>
+        </div>
+
+        <dl class="flex flex-wrap gap-x-8 gap-y-3">
+          {% for readout in page.detail_readouts %}
+            <div class="flex min-w-0 flex-col gap-0.5">
+              <dt class="text-sm text-text-secondary">{{ readout.label }}</dt>
+              <dd class="text-lg font-semibold tracking-tight tabular-nums text-text">{{ readout.value }}</dd>
+              {% if readout.note %}<dd class="dk-meta">{{ readout.note }}</dd>{% endif %}
+            </div>
+          {% endfor %}
+        </dl>
+
         {% if page.detail_chart %}
           {% include "dashboard/components/chart_figure.html" with chart=page.detail_chart only %}
         {% endif %}
+
+        <p><a class="dk-link" href="?{{ page.clear_detail_query }}">← Tagasi tulemuste juurde</a></p>
       {% else %}
-        {% include "dashboard/components/empty_state.html" with message="Sellel lehel ei ole valitud perioodil mõõdetud vaatamisi." only %}
+        {% include "dashboard/components/empty_state.html" with message="Sellele aadressile ei ole mõõtmisandmeid." detail="Leht võib olla olemas, kuid GA4 ei ole selle kohta ridu kogunud. Mõõtmata ei ole sama mis null vaatamist." only %}
       {% endif %}
     </div>
   </section>

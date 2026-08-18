@@ -42,7 +42,9 @@ async function openKoduleht(page) {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
 }
 
-test("the overview strip names every audience and no website figure", async ({ page }) => {
+test("the overview strip names every audience and no website figure", async ({
+  page,
+}) => {
   const errors = watchConsole(page);
 
   await signIn(page);
@@ -59,7 +61,9 @@ test("the overview strip names every audience and no website figure", async ({ p
   expect(errors).toEqual([]);
 });
 
-test("the audience strip never scrolls the overview sideways", async ({ page }) => {
+test("the audience strip never scrolls the overview sideways", async ({
+  page,
+}) => {
   await signIn(page);
 
   await expectNoHorizontalOverflow(page);
@@ -86,41 +90,61 @@ test("the old address still reaches the page", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
 });
 
-test("an uncollected source says so rather than drawing an empty chart", async ({ page }) => {
+test("an uncollected source says so rather than drawing an empty chart", async ({
+  page,
+}) => {
   const errors = watchConsole(page);
 
   await openKoduleht(page);
 
-  await expect(page.getByText("Google Analyticsi andmeid ei ole veel kogutud.").first()).toBeVisible();
+  await expect(
+    page.getByText("Google Analyticsi andmeid ei ole veel kogutud.").first(),
+  ).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("the focus navigation offers every view", async ({ page }) => {
+test("there is no focus navigation left to choose a question from", async ({
+  page,
+}) => {
   await openKoduleht(page);
 
-  const views = page.getByRole("navigation", { name: "Vaade" });
-  for (const label of ["Ülevaade", "Sisu ja lehed", "Kanalid"]) {
-    await expect(views.getByRole("link", { name: label, exact: true })).toBeVisible();
+  /*
+   * The tab strip retired on 2026-08-18. It made a reader choose a question
+   * before seeing a single answer, and the same figures were built two and
+   * three times across the three views it offered. All five keys still
+   * resolve — see the test below — but nothing renders a control for them.
+   */
+  await expect(page.getByRole("navigation", { name: "Vaade" })).toHaveCount(0);
+  // Scoped to `main`: `Ülevaade` is also the sidebar's name for the home page,
+  // which is a different link and stays.
+  const main = page.locator("main");
+  for (const label of ["Sisu ja lehed", "Kanalid", "Liiklus", "Lehed"]) {
+    await expect(
+      main.getByRole("link", { name: label, exact: true }),
+    ).toHaveCount(0);
   }
-  // The two retired views are not offered — their bookmarks resolve, their
-  // tabs are gone.
-  for (const label of ["Liiklus", "Lehed"]) {
-    await expect(views.getByRole("link", { name: label, exact: true })).toHaveCount(0);
-  }
+  // The period control is the one navigation the page still carries.
+  await expect(page.getByRole("navigation", { name: "Periood" })).toBeVisible();
 });
 
-test("each focus view is a real URL that renders on its own", async ({ page }) => {
+test("each focus view is a real URL that renders on its own", async ({
+  page,
+}) => {
   // Not an SPA: every view is bookmarkable, shareable and reload-safe. The two
   // retired keys stay in the list on purpose: a saved link must keep rendering.
   await signIn(page);
 
   for (const focus of ["ulevaade", "liiklus", "sisu", "kanalid", "lehed"]) {
     await page.goto(`/koduleht/?fookus=${focus}`);
-    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Koduleht");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+      "Koduleht",
+    );
   }
 });
 
-test("an unknown focus renders the overview rather than an error", async ({ page }) => {
+test("an unknown focus renders the overview rather than an error", async ({
+  page,
+}) => {
   await signIn(page);
   await page.goto("/koduleht/?fookus=ei-ole-olemas");
 
@@ -133,21 +157,28 @@ test("the social channel band is not on this page", async ({ page }) => {
   // first test in this file covers.
   await openKoduleht(page);
 
-  await expect(page.getByRole("heading", { name: "Facebooki jälgijad", exact: true })).toHaveCount(
-    0,
-  );
-  await expect(page.getByRole("heading", { name: "Uudiskirjad", exact: true })).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Facebooki jälgijad", exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "Uudiskirjad", exact: true }),
+  ).toHaveCount(0);
   await expect(page.getByText("Sotsiaalmeedia")).toHaveCount(0);
 });
 
 test("the page shows no fabricated audience figure", async ({ page }) => {
   await openKoduleht(page);
 
-  const text = await page.evaluate(() => document.querySelector("main").innerText);
+  const text = await page.evaluate(
+    () => document.querySelector("main").innerText,
+  );
 
   // The stale thresholds are the only digits an empty page states, and they
   // describe the freshness rule rather than an audience.
-  const withoutThresholds = text.replace(/Vananenuks märgitakse pärast \d+ päeva\./g, "");
+  const withoutThresholds = text.replace(
+    /Vananenuks märgitakse pärast \d+ päeva\./g,
+    "",
+  );
   expect(withoutThresholds).not.toMatch(/\d/);
 });
 
@@ -156,7 +187,9 @@ test("an empty page ships no chart bundle", async ({ page }) => {
   await openKoduleht(page);
 
   const scripts = await page.evaluate(() =>
-    Array.from(document.querySelectorAll("script[src]")).map((node) => node.getAttribute("src")),
+    Array.from(document.querySelectorAll("script[src]")).map((node) =>
+      node.getAttribute("src"),
+    ),
   );
   expect(scripts.some((src) => src.includes("charts.js"))).toBe(false);
 });
@@ -188,7 +221,10 @@ test("the page stays usable at 200% zoom", async ({ page }) => {
   // Measured from the desktop viewport only, as the shell suite does. Halving
   // 320 px would ask the layout to hold up at 160, which is below every width
   // the design system supports and is not what 200% zoom means to a reader.
-  test.skip(page.viewportSize().width < 1024, "measured from the desktop viewport");
+  test.skip(
+    page.viewportSize().width < 1024,
+    "measured from the desktop viewport",
+  );
 
   await openKoduleht(page);
 
@@ -196,7 +232,10 @@ test("the page stays usable at 200% zoom", async ({ page }) => {
   // viewport rather than by setting CSS zoom, which does not scale the layout
   // viewport and makes overflow measurements meaningless.
   const { width, height } = page.viewportSize();
-  await page.setViewportSize({ width: Math.round(width / 2), height: Math.round(height / 2) });
+  await page.setViewportSize({
+    width: Math.round(width / 2),
+    height: Math.round(height / 2),
+  });
 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expectNoHorizontalOverflow(page);
