@@ -365,6 +365,10 @@ class CohortStats:
     p25: int | None = None
     median: int | None = None
     p75: int | None = None
+    #: The 90th percentile. Only the distribution chart's own shape sentence
+    #: reads this — the benchmark ratio elsewhere in this module still turns
+    #: on the median and the quartiles, unchanged.
+    p90: int | None = None
 
     @property
     def is_usable(self) -> bool:
@@ -411,6 +415,7 @@ def cohort_stats(
         p25=percentile(ordered, 0.25),
         median=percentile(ordered, 0.5),
         p75=percentile(ordered, 0.75),
+        p90=percentile(ordered, 0.90),
     )
 
 

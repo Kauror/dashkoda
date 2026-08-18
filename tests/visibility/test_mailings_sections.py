@@ -182,15 +182,22 @@ def test_the_website_page_renders_with_newsletter_data_present(viewer_client):
 
 
 def test_the_news_archive_is_unchanged(viewer_client):
-    """Every control the archive had while the newsletters sat beside it."""
+    """Every control the archive had while the newsletters sat beside it.
+
+    `Avaldamisperiood` moved to the page header on 2026-08-18 and is `Periood`
+    there now — one control governing the whole page rather than the
+    archive's own; see `apps/news/page.py`. The archive's own heading became
+    visible the same day, as `Uudised` rather than the old sr-only `Uudiste
+    arhiiv`.
+    """
     content = page(viewer_client.get(NEWS_URL, ARCHIVE))
 
     for control in (
-        "Avaldamisperiood",
+        "Periood",
         "Uudise liik",
         "Järjestus:",
         "Otsi uudist",
-        "Uudiste arhiiv",
+        "Uudised",
     ):
         assert control in content, f"the news archive lost {control}"
 

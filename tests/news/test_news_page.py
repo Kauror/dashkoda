@@ -1,9 +1,9 @@
-"""The focus navigation and the overview's four measures.
+"""The overview's four measures, and the one window that now governs them.
 
 The overview is the screen somebody opens with a question, so these tests are
 about whether it answers one — and about the two ways it could look like it did
 when it had not: a placeholder standing in for a figure that does not exist, and
-a control that silently governs the wrong question.
+a window silently clipped without saying so.
 """
 
 from __future__ import annotations
@@ -14,12 +14,6 @@ import pytest
 
 from apps.news import analytics, page
 from apps.news.categories import NewsCategory
-from apps.news.focus import (
-    FOCUS_OVERVIEW,
-    FOCUSES,
-    parse_focus,
-)
-from apps.news.measurement import resolve_reading
 from tests.news.conftest import COVERAGE_END, COVERAGE_START, article
 
 pytestmark = pytest.mark.django_db
@@ -34,29 +28,25 @@ def coverage():
 # -- every view renders against nothing at all --------------------------------
 
 
-@pytest.mark.parametrize("focus", [one.key for one in FOCUSES])
-def test_every_focus_renders_with_no_data_whatsoever(viewer_client, focus):
+def test_the_page_renders_with_no_data_whatsoever(viewer_client):
     """A dashboard that 500s on an unconnected source is worse than no dashboard.
 
     The regression this exists for: `eligible_cohort` short-circuited to a bare
     `none()` when GA4 held nothing, so the correlated subquery went looking for
-    window-bound columns that had never been annotated and `fookus=moju` raised
-    `FieldError`. Every test seeded some GA4, so every test passed — only an
-    empty database could find it, and this is that database.
-
-    Driven through the real view rather than the builders, so a template that
-    reaches for a figure the builder did not produce fails here too.
+    window-bound columns that had never been annotated and the page raised
+    `FieldError`. Driven through the real view rather than the builders, so a
+    template that reaches for a figure the builder did not produce fails here
+    too.
     """
     from django.urls import reverse
 
-    response = viewer_client.get(reverse("news"), {"fookus": focus})
+    response = viewer_client.get(reverse("news"))
 
     assert response.status_code == 200
     assert "Uudised" in response.content.decode()
 
 
-@pytest.mark.parametrize("focus", [one.key for one in FOCUSES])
-def test_every_focus_renders_with_articles_but_no_analytics(viewer_client, focus):
+def test_the_page_renders_with_articles_but_no_analytics(viewer_client):
     """The other half-connected state: a catalogue and no measurement.
 
     News collection and GA4 are separate sources with separate schedules, so
@@ -67,79 +57,73 @@ def test_every_focus_renders_with_articles_but_no_analytics(viewer_client, focus
 
     article("lugu", published=dt.date(2026, 3, 1))
 
-    response = viewer_client.get(reverse("news"), {"fookus": focus})
+    response = viewer_client.get(reverse("news"))
 
     assert response.status_code == 200
 
 
-# -- focus navigation ---------------------------------------------------------
+@pytest.mark.parametrize("stray", ["fookus=moju", "fookus=arhiiv", "loetud=90", "vaade=kuu"])
+def test_a_retired_parameter_from_an_old_bookmark_is_simply_unread(viewer_client, stray):
+    """Three focuses and a second window all merged onto this one page.
+
+    `fookus=`, `loetud=` and `vaade=` are none of them parsed any more — a
+    bookmark carrying one still opens the page, exactly as an unrecognised
+    query parameter always has.
+    """
+    from django.urls import reverse
+
+    response = viewer_client.get(f"{reverse('news')}?{stray}")
+
+    assert response.status_code == 200
+    assert "Uudised" in response.content.decode()
 
 
-@pytest.mark.parametrize(
-    "raw,expected",
-    [
-        (None, FOCUS_OVERVIEW),
-        ("", FOCUS_OVERVIEW),
-        ("ulevaade", FOCUS_OVERVIEW),
-        # Retired 2026-08-16: the publishing material lives on the overview.
-        ("avaldamine", FOCUS_OVERVIEW),
-        # Retired 2026-08-17: `moju`'s one remaining chart and `arhiiv`'s
-        # whole table both merged onto the same one view.
-        ("moju", FOCUS_OVERVIEW),
-        ("arhiiv", FOCUS_OVERVIEW),
-        ("zzz", FOCUS_OVERVIEW),
-        ("../../etc", FOCUS_OVERVIEW),
-    ],
-)
-def test_an_unreadable_focus_resolves_to_the_overview(raw, expected):
-    assert parse_focus(raw).key == expected
+# -- the read window is the same window as the publication window, clipped ----
 
 
-def test_the_default_focus_is_not_written_into_the_url():
-    """`/uudised/` and `/uudised/?fookus=ulevaade` are one address, not two."""
-    options = page.focus_options(parse_focus(None), state="periood=90")
-
-    assert len(options) == 1
-    assert options[0].focus.key == FOCUS_OVERVIEW
-    assert options[0].query == "periood=90"
-
-
-def test_every_focus_link_carries_the_pages_state():
-    options = page.focus_options(parse_focus("moju"), state="periood=1a&kategooria=meie_uudised")
-
-    for option in options:
-        assert "periood=1a" in option.query
-        assert "kategooria=meie_uudised" in option.query
-
-
-# -- the measurement window is anchored to the data, not to today -------------
-
-
-def test_the_measurement_window_ends_at_the_last_collected_day(ga4):
-    """Today is never collected, so a window ending today ends in nothing."""
+def test_the_read_window_matches_the_period_when_it_fits_inside_coverage(ga4):
     ga4()
 
-    reading = resolve_reading("30", coverage=coverage())
+    period = page.resolve_period("30", today=COVERAGE_END)
+    start, end, truncated = page._reading_window(period, coverage=coverage())
 
-    assert reading.end == COVERAGE_END
-    assert reading.start == COVERAGE_END - dt.timedelta(days=29)
-    assert not reading.is_truncated
+    assert start == period.start
+    assert end == period.end
+    assert not truncated
 
 
-def test_a_window_longer_than_the_history_is_clipped_and_says_so(ga4):
+def test_an_open_ended_period_reads_the_whole_coverage(ga4):
+    """`Kõik` has no bounds of its own — the read window borrows coverage's."""
     ga4()
 
-    reading = resolve_reading("1a", coverage=coverage())
+    period = page.resolve_period("koik")
+    start, end, truncated = page._reading_window(period, coverage=coverage())
 
-    assert reading.start == COVERAGE_START
-    assert reading.is_truncated
-    assert reading.days < 365
+    assert start == COVERAGE_START
+    assert end == COVERAGE_END
+    assert not truncated
 
 
-def test_an_unreadable_measurement_window_is_the_default(ga4):
+def test_a_period_reaching_past_coverage_is_clipped_and_says_so(ga4):
     ga4()
 
-    assert resolve_reading("zzz", coverage=coverage()).key == "30"
+    period = page.resolve_period("1a", today=COVERAGE_END)
+    start, end, truncated = page._reading_window(period, coverage=coverage())
+
+    assert start == COVERAGE_START
+    assert end == COVERAGE_END
+    assert truncated
+
+
+def test_no_coverage_at_all_leaves_the_read_window_empty():
+    from apps.visibility.ga4_selectors import Coverage
+
+    period = page.resolve_period("30", today=COVERAGE_END)
+    start, end, truncated = page._reading_window(period, coverage=Coverage())
+
+    assert start is None
+    assert end is None
+    assert not truncated
 
 
 # -- the four measures --------------------------------------------------------
@@ -149,7 +133,20 @@ def headline(built, key):
     return next((one for one in built["headlines"] if one.key == key), None)
 
 
-def test_the_overview_answers_the_four_questions(ga4):
+def _overview(*, period_key="koik", today=None, cohorts=None):
+    period = page.resolve_period(period_key, today=today)
+    coverage_ = coverage()
+    start, end, _ = page._reading_window(period, coverage=coverage_)
+    return page.build_overview(
+        period=period,
+        coverage=coverage_,
+        read_start=start,
+        read_end=end,
+        cohorts=cohorts if cohorts is not None else {},
+    )
+
+
+def test_the_overview_answers_the_first_three_questions(ga4):
     published = dt.date(2026, 3, 1)
     views = {}
     for index in range(12):
@@ -157,39 +154,28 @@ def test_the_overview_answers_the_four_questions(ga4):
         views[item.path] = {published: 40 + index}
     ga4(views=views, site_views_per_day=1000)
 
-    built = page.build_overview(
-        reading=resolve_reading("30", coverage=coverage()),
-        period=page.resolve_period("koik"),
-        coverage=coverage(),
-    )
+    built = _overview()
 
     assert headline(built, "published").value == "12"
-    # `Tüüpiline esimene kuu` left the strip on 2026-08-16 and the cohort behind
-    # it is no longer walked for this view. Asserted as an absence rather than
-    # by pinning the whole set: which of the readership measures exist depends
-    # on what this fixture happens to seed, and that is a different test's
-    # subject.
-    assert headline(built, "typical_month") is None
-    assert "typical_month" not in {h.key for h in built["headlines"]}
+    assert headline(built, "news_views") is not None
+    assert headline(built, "news_share") is not None
 
 
 def test_a_measure_with_no_data_is_absent_rather_than_zero(ga4):
     """Three honest figures beat four where the fourth is invented.
 
     With no GA4 rows at all there is no readership figure, no share and no
-    median — and a card reading `0` would look exactly like a measurement.
+    typical-month figure — and a card reading `0` would look exactly like a
+    measurement.
     """
     article("lugu", published=dt.date(2026, 3, 1))
 
-    built = page.build_overview(
-        reading=resolve_reading("30", coverage=coverage()),
-        period=page.resolve_period("koik"),
-        coverage=coverage(),
-    )
+    built = _overview()
 
     assert headline(built, "published") is not None
     assert headline(built, "news_views") is None
     assert headline(built, "news_share") is None
+    assert headline(built, "typical_first_month") is None
 
 
 def test_the_share_change_is_in_percentage_points(ga4):
@@ -199,11 +185,10 @@ def test_the_share_change_is_in_percentage_points(ga4):
     item = article("lugu", published=dt.date(2026, 2, 1))
     ga4(views={item.path: {current_day: 100, previous_day: 200}}, site_views_per_day=1000)
 
-    built = page.build_overview(
-        reading=resolve_reading("30", coverage=coverage()),
-        period=page.resolve_period("koik"),
-        coverage=coverage(),
-    )
+    # A thirty-day window, not `Kõik`: `Kõik`'s read window is the whole
+    # six-month coverage span, whose own "previous equal window" reaches
+    # behind every seeded day and leaves no comparison to assert against.
+    built = _overview(period_key="30", today=COVERAGE_END)
 
     share = headline(built, "news_share")
     assert share is not None
@@ -216,16 +201,12 @@ def test_the_publication_measure_never_annualises(ga4):
     for index in range(11):
         article(f"lugu-{index}", published=COVERAGE_END - dt.timedelta(days=index))
 
-    built = page.build_overview(
-        reading=resolve_reading("30", coverage=coverage()),
-        period=page.resolve_period("30", today=COVERAGE_END),
-        coverage=coverage(),
-    )
+    built = _overview(period_key="30", today=COVERAGE_END)
 
     published = headline(built, "published")
     assert published.value == "11"
     for forbidden in ("aastas", "kuus", "nädalas"):
-        assert forbidden not in published.detail
+        assert forbidden not in published.change
 
 
 def test_the_publication_split_shows_unknown_rather_than_hiding_it(ga4):
@@ -234,97 +215,40 @@ def test_the_publication_split_shows_unknown_rather_than_hiding_it(ga4):
     article("sober", published=COVERAGE_END, category=NewsCategory.PARTNER)
     article("teadmata", published=COVERAGE_END, category="")
 
-    built = page.build_overview(
-        reading=resolve_reading("30", coverage=coverage()),
-        period=page.resolve_period("30", today=COVERAGE_END),
-        coverage=coverage(),
-    )
+    built = _overview(period_key="30", today=COVERAGE_END)
 
-    # The split left the KPI caption on 2026-08-16. What must not happen is the
-    # unclassified articles becoming invisible, so the assertion follows them to
-    # `Andmete kohta`, where `Kataloogi ulatus` counts them.
+    # The split lives in `page.counted`, built by `build_publishing`, not in the
+    # headline. What must not happen is the unclassified articles becoming
+    # invisible, so the assertion follows them to `Andmete kohta`, where
+    # `Kataloogi ulatus` counts them.
     assert not headline(built, "published").parts
     assert analytics.catalogue_facts(coverage())["unclassified"] == 1
 
 
-# -- the two time questions stay apart ----------------------------------------
-
-
-def test_publication_and_measurement_windows_are_separate_controls(ga4):
-    """The rule the whole page is built around.
-
-    An article published long ago and read today is invisible to the publication
-    window and top of the measurement one. If one control governed both, one of
-    these two assertions would have to fail.
-    """
-    old = article("2026-jaanuar", published=dt.date(2026, 1, 5))
-    ga4(views={old.path: {COVERAGE_END: 500}})
-
-    reading = resolve_reading("30", coverage=coverage())
-    recent_publication = page.resolve_period("30", today=COVERAGE_END)
-
-    # Published months ago: absent from a thirty-day publication window.
-    assert analytics.published_between(recent_publication.start, recent_publication.end).total == 0
-    # Read this month: top of a thirty-day measurement window.
-    ranked = list(analytics.most_read(start=reading.start, end=reading.end, limit=5))
-    assert [row.path for row in ranked] == [old.path]
-
-
-def test_signals_state_evidence_and_never_a_cause(ga4):
-    """Evidence, never explanation — now asserted where the signals still are.
-
-    `Tähelepanu` left the overview on 2026-08-16 and `build_overview` stopped
-    composing it. `Alla tavapärase` on `Uudiste mõju` is the same kind of
-    statement from the same cohorts, and it is the one that still reaches a
-    reader, so the rule is asserted against it.
-    """
-    published = dt.date(2026, 2, 1)
+def test_the_typical_first_month_states_its_own_population(ga4):
+    published = dt.date(2026, 1, 15)
     views = {}
-    for index in range(12):
+    for index in range(15):
         item = article(f"tavaline-{index}", published=published)
-        views[item.path] = {published: 100}
-    weak = article("vaikne", published=published)
-    views[weak.path] = {published: 1}
+        views[item.path] = {COVERAGE_END - dt.timedelta(days=29): 10 + index}
     ga4(views=views)
 
-    built = page.build_impact(
-        reading=resolve_reading("30", coverage=coverage()),
-        coverage=coverage(),
-        lens=page.parse_lens(None),
-    )
+    impact = page.build_impact(coverage=coverage())
+    built = _overview(cohorts=impact["cohorts"])
 
-    text = " ".join(signal.evidence + signal.label for signal in built["below_normal"])
-    for forbidden in ("pealkiri", "peaks", "sest", "halb", "vale"):
-        assert forbidden not in text.lower()
+    typical = headline(built, "typical_first_month")
+    if typical is not None:
+        assert "uudise põhjal" in typical.note
 
 
-def test_the_overview_no_longer_pays_for_what_it_stopped_showing(ga4):
-    """Three sections left the overview; three builders had to stop running.
+# -- what build_impact still computes ------------------------------------------
 
-    `changes`, `first_week` and `signals` each cost at least one query, and this
-    module's rule is that a focus builds only what it renders. Absent keys, not
-    empty ones — an empty tuple would mean the work ran and found nothing.
-    """
+
+def test_build_impact_only_carries_the_distribution_and_its_cohorts(ga4):
+    """Three separate rankings and a lens picker retired between 2026-08-16 and
+    2026-08-18; the distribution chart is the one section that survived."""
     article("lugu", published=dt.date(2026, 3, 1))
 
-    built = page.build_overview(
-        reading=resolve_reading("30", coverage=coverage()),
-        period=page.resolve_period("koik"),
-        coverage=coverage(),
-    )
+    built = page.build_impact(coverage=coverage())
 
-    assert set(built) == {"headlines", "most_read"}
-
-
-def test_the_impact_view_no_longer_pays_for_its_removed_sections(ga4):
-    """Same rule, other focus: two sections went, two selectors stopped running."""
-    article("lugu", published=dt.date(2026, 3, 1))
-
-    built = page.build_impact(
-        reading=resolve_reading("30", coverage=coverage()),
-        coverage=coverage(),
-        lens=page.parse_lens(None),
-    )
-
-    for absent in ("concentration", "categories", "lens_question"):
-        assert absent not in built
+    assert set(built) == {"distribution", "cohorts"}

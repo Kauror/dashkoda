@@ -1,6 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { expectNoHorizontalOverflow, signIn, watchConsole } from "../helpers.js";
+import {
+  expectNoHorizontalOverflow,
+  signIn,
+  watchConsole,
+} from "../helpers.js";
 
 /*
  * The news archive, against a seeded catalogue.
@@ -17,6 +21,11 @@ import { expectNoHorizontalOverflow, signIn, watchConsole } from "../helpers.js"
  * and the archive follows. What is left to assert here is the section itself:
  * rows have a measured height, and every control the archive ever had still
  * works.
+ *
+ * The archive's own period chips, reached at `Avaldatud:`, moved to the page
+ * header on 2026-08-18 and are named `Periood` there now — one control
+ * governing the whole page rather than the archive's own. `apps/news/page.py`
+ * states why that merge is safe.
  *
  * The compactness is the product requirement, so it is asserted as one: rows
  * have a measured height and carry no summary.
@@ -57,8 +66,10 @@ test("the archive's own controls are all present", async ({ page }) => {
   await signIn(page);
   await page.goto("/uudised/?periood=koik");
 
-  await expect(page.getByRole("heading", { level: 1, name: "Uudised" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Avaldamisperiood" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Uudised" }),
+  ).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Periood" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Enim vaadatud" })).toBeVisible();
 });
 
@@ -77,16 +88,24 @@ test("rows are compact and carry no article summary", async ({ page }) => {
    * The old rows ran 100–150px because each carried a multi-line RSS summary.
    * The ceiling allows a deliberately absurd seeded headline to wrap onto a
    * second line — that is the title column doing its job — while still failing
-   * if a summary or a second metadata line ever comes back.
+   * if a summary or a second metadata line ever comes back. Raised from 72 to
+   * 76 on 2026-08-18, when `Liik` and `vs tüüpiline` joined the row: two more
+   * cells at the row's own line height nudge a two-line title's row a few
+   * pixels taller under sub-pixel layout rounding, which is not the summary
+   * text this ceiling exists to catch.
    */
-  expect(Math.max(...heights)).toBeLessThan(72);
+  expect(Math.max(...heights)).toBeLessThan(76);
   // And an ordinary row is one line.
-  const typical = heights.slice().sort((a, b) => a - b)[Math.floor(heights.length / 2)];
+  const typical = heights.slice().sort((a, b) => a - b)[
+    Math.floor(heights.length / 2)
+  ];
   expect(typical).toBeLessThan(46);
 
   // And the summary text itself is absent. The seed writes a fixed sentence
   // into every article's summary, so if any of it rendered this would find it.
-  await expect(page.locator("main")).not.toContainText("Sünteetiline kokkuvõte");
+  await expect(page.locator("main")).not.toContainText(
+    "Sünteetiline kokkuvõte",
+  );
 });
 
 test("a period selects articles by publication date", async ({ page }) => {
@@ -100,20 +119,23 @@ test("a period selects articles by publication date", async ({ page }) => {
   const recent = await page.locator("main table tbody tr").count();
 
   expect(all).toBeGreaterThan(recent);
-  // Scoped to the archive: the overview carries its own, separate "Avaldatud"
-  // period control now that both sections share one page, and an unscoped
-  // locator matches both.
-  await expect(
-    page.locator(ARCHIVE).getByRole("link", { name: "30 päeva" }),
-  ).toHaveAttribute("aria-current", "true");
+  // The one period control lives in the page header since 2026-08-18, not
+  // inside the archive section — there is only the one instance now, so an
+  // unscoped locator is unambiguous.
+  await expect(page.getByRole("link", { name: "30 päeva" })).toHaveAttribute(
+    "aria-current",
+    "page",
+  );
 });
 
-test("a custom range exposes its two date fields and applies them", async ({ page }) => {
+test("a custom range exposes its two date fields and applies them", async ({
+  page,
+}) => {
   oncePerRun();
   await signIn(page);
   await page.goto("/uudised/");
 
-  await page.locator(ARCHIVE).getByRole("link", { name: "Kohandatud" }).click();
+  await page.getByRole("link", { name: "Kohandatud" }).click();
   const from = page.getByLabel("Alates");
   const to = page.getByLabel("Kuni");
   await expect(from).toBeVisible();
@@ -121,7 +143,9 @@ test("a custom range exposes its two date fields and applies them", async ({ pag
 
   // A reversed pair is normalised by the server rather than refused, and the
   // fields then show the window that was actually applied.
-  await page.goto("/uudised/?periood=kohandatud&alates=2099-01-01&kuni=2020-01-01");
+  await page.goto(
+    "/uudised/?periood=kohandatud&alates=2099-01-01&kuni=2020-01-01",
+  );
   await expect(page.getByLabel("Alates")).toHaveValue("2020-01-01");
   await expect(page.getByLabel("Kuni")).toHaveValue("2099-01-01");
 });
@@ -133,9 +157,11 @@ test("the view column shows measured figures and a dash where nothing was measur
   await signIn(page);
   await page.goto("/uudised/?periood=koik");
 
+  // The fourth cell, not the last: `Liik` and `vs tüüpiline` joined the table
+  // on 2026-08-18, after `Lehevaatamised` rather than before it.
   const views = await page.evaluate(() =>
     Array.from(document.querySelectorAll("main table tbody tr")).map((row) =>
-      row.lastElementChild.textContent.trim(),
+      row.children[3].textContent.trim(),
     ),
   );
 
@@ -158,15 +184,19 @@ test("pagination walks the archive and keeps the query", async ({ page }) => {
   const section = page.locator(ARCHIVE);
   await expect(section).toContainText(/Lehekülg 1 \/ [2-9]/);
 
-  const firstPage = await page.locator("main table tbody tr").first().innerText();
+  const firstPage = await page
+    .locator("main table tbody tr")
+    .first()
+    .innerText();
   await section.getByRole("link", { name: "Järgmine" }).click();
 
   await expect(section).toContainText(/Lehekülg 2 \//);
-  await expect(page.getByRole("link", { name: "Enim vaadatud" })).toHaveAttribute(
-    "aria-current",
-    "true",
-  );
-  expect(await page.locator("main table tbody tr").first().innerText()).not.toBe(firstPage);
+  await expect(
+    page.getByRole("link", { name: "Enim vaadatud" }),
+  ).toHaveAttribute("aria-current", "true");
+  expect(
+    await page.locator("main table tbody tr").first().innerText(),
+  ).not.toBe(firstPage);
 });
 
 test("an article title opens the original on Koda.ee", async ({ page }) => {
@@ -180,7 +210,9 @@ test("an article title opens the original on Koda.ee", async ({ page }) => {
   await expect(link).toHaveAttribute("href", /koda\.ee/);
 });
 
-test("the archive is readable without dragging it sideways", async ({ page }) => {
+test("the archive is readable without dragging it sideways", async ({
+  page,
+}) => {
   /*
    * Runs at every width. Every other table on this dashboard is `min-w-max` and
    * scrolls inside its wrapper, which suits a row of figures with a natural

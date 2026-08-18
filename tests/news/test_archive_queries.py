@@ -34,6 +34,13 @@ TODAY = dt.date(2026, 8, 11)
 #: it merged — unseen, because that run and the merge run after it were both
 #: cancelled early. The catalogue-wide questions are one conditional aggregate
 #: now, which is why the number went down rather than up.
+#:
+#: The archive table grew a `vs tüüpiline` column on 2026-08-18, which reads
+#: `analytics.benchmark_cohorts` — three more queries, one per cohort — but only
+#: when GA4 coverage exists. This fixture seeds no GA4 data at all, so
+#: `benchmark_cohorts` short-circuits to `{}` before it queries anything and the
+#: budget here stays four; a coverage-backed budget belongs in a fixture that
+#: seeds `ga4()`, not this one.
 EXPECTED_QUERIES = 4
 
 
