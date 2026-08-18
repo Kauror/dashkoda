@@ -71,9 +71,10 @@ def test_the_chosen_ordering_survives_a_keystroke():
 
     assert '<input type="hidden" name="sort"' in markup
     # `fookus` carries no state here any more: the register moved onto
-    # `Ülevaade` on 2026-08-17, which is also `parse_focus`'s default, so a
-    # keystroke that pushes a URL with no focus at all already opens where the
-    # register renders.
+    # `Ülevaade` on 2026-08-17, and the page stopped reading `fookus` at all
+    # on 2026-08-18 — a keystroke that pushes a URL with no focus at all
+    # already opens where the register renders, because that is the only
+    # page there is now.
     assert '<input type="hidden" name="fookus"' not in markup
     assert "fookus" not in PROGRAMME_PARAMS
 

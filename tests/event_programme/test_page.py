@@ -24,7 +24,6 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import strip_tags
 
-from apps.event_programme.intelligence import FOCUS_OVERVIEW
 from apps.event_programme.models import EventProgrammeItem
 from apps.event_programme.selectors import PAGE_SIZE, get_current_event_programme_snapshot
 
@@ -42,20 +41,19 @@ NAME_CELL = 1
 
 
 class RegisterClient:
-    """A viewer that always asks for the register.
+    """A viewer that always asks for `/sundmused/`.
 
-    The register moved onto `Ülevaade` on 2026-08-17 and no longer has a focus
-    of its own, but `Ülevaade` is also `parse_focus`'s default — so asking for
-    it explicitly keeps every test in this module pinned to the page the
-    register actually renders on, the same way it was pinned to `?fookus=` when
-    the register was its own tab.
+    The register moved onto the page unconditionally on 2026-08-17, and the
+    page itself stopped reading `fookus` at all on 2026-08-18, so there is no
+    longer a parameter to pin — every request already reaches the page the
+    register renders on.
     """
 
     def __init__(self, client):
         self._client = client
 
     def get(self, path, data=None, **extra):
-        return self._client.get(path, {"fookus": FOCUS_OVERVIEW, **(data or {})}, **extra)
+        return self._client.get(path, data or {}, **extra)
 
 
 @pytest.fixture

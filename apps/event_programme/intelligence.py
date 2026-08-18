@@ -1,27 +1,14 @@
-"""The Sündmused intelligence dashboard: one page, three focus views.
+"""The Sündmused intelligence dashboard: one page since 2026-08-18.
 
-`/sundmused/` answers different questions for different readers, and it answers
-them in one place rather than in three routes. `?fookus=` chooses which
-analytical surface is on screen; the programme itself, the year control and the
-provenance block are constant.
-
-    ulevaade       what does the programme look like right now, row by row
-    maht           how much, and when
-    formaadid      what kinds of events, and how that has shifted
-
-`Huvi` and `Planeerimine` came off on 2026-08-15. `Ürituste nimekiri` — the
-exact register, searchable and filterable — followed on 2026-08-17: its whole
-content moved onto `Ülevaade`, so a reader no longer leaves the answer to reach
-the rows behind it. `intelligence.py` still knows nothing about the register
-itself; `page.py` still builds it, and `views.py` now attaches it to the
-overview response rather than gating it behind its own focus.
-
-Two properties are load-bearing.
-
-**Only the active focus is computed.** A reader on `Maht` does not pay for the
-register's paginated query, and a reader on `Ülevaade` does not pay for the
-formats ranking. This is why the builders below are separate functions rather
-than one dataclass that fills every field.
+`/sundmused/` was three focus views chosen by `?fookus=` — `Ülevaade`, `Maht`,
+`Formaadid` — until they became one scroll: the headline, both volume charts,
+the type/mode breakdown, price structure and delivery mix over time, the two
+standing lists, and the searchable programme register underneath all of it.
+`Huvi` and `Planeerimine` came off earlier, on 2026-08-15; the theme-only
+charts (`Teemad`, `Teemade muutus`) and the duration ranking left with this
+round, because none of the three is in the page Kaur asked for. An old
+`?fookus=` value — including `maht` or `formaadid` — is simply unread now, the
+same as any other unrecognised query parameter.
 
 **The year is an event cohort, never a measurement window.** `2026` means
 "events whose own start date falls in 2026". Their public pages may have been
@@ -30,9 +17,9 @@ chosen by the analyses that need them and are labelled where they appear. One
 control that silently meant three different periods at once is the specific
 confusion this page is built to avoid.
 
-Nothing here writes an interpretation. Every line of `Mis muutus?` is a
-comparison of two figures the reader can find elsewhere on the page, and no
-metric on this dashboard explains *why* a number moved.
+Every comparison on the page is a fold of two figures a reader could find
+elsewhere — never a generated sentence, and never a claim about *why* a
+number moved.
 """
 
 from __future__ import annotations
@@ -66,45 +53,12 @@ from .selectors import (
     get_event_programme_filter_options,
 )
 
-FOCUS_OVERVIEW = "ulevaade"
-FOCUS_VOLUME = "maht"
-FOCUS_FORMATS = "formaadid"
-
-#: The navigation, in reading order: the answer, then the two structural
-#: analyses.
-#:
-#: `Huvi` and `Planeerimine` were the fourth and fifth and came off on
-#: 2026-08-15 at the board's request; `Ürituste nimekiri` was the third and came
-#: off on 2026-08-17, its whole content folded into `Ülevaade` rather than
-#: retired. None of the three keys is parsed any more, so an old `?fookus=huvi`
-#: or `?fookus=programm` bookmark falls through `parse_focus` to `Ülevaade`
-#: exactly as any other unreadable value does — the documented behaviour of
-#: this page, and why no redirect is needed.
-FOCUS_LABELS: tuple[tuple[str, str], ...] = (
-    (FOCUS_OVERVIEW, "Ülevaade"),
-    (FOCUS_VOLUME, "Maht ja kalender"),
-    (FOCUS_FORMATS, "Formaadid ja teemad"),
-)
-
-FOCUS_VALUES = tuple(key for key, _label in FOCUS_LABELS)
-
 ALL_YEARS_LABEL = "Kõik aastad"
 
 #: How many events the overview previews. Five is a glance; twenty is a list the
-#: reader has to work through, and `Programm` is where a list belongs.
+#: reader has to work through, and the programme register below it is where a
+#: list belongs.
 PREVIEW_LIMIT = 5
-
-#: How many themes the mix-over-time chart tracks. Beyond this a stacked bar
-#: becomes a colour puzzle, and the ranking beside it carries the detail.
-MIX_KEYS = 5
-
-
-@dataclass(frozen=True)
-class FocusLink:
-    key: str
-    label: str
-    url: str
-    is_active: bool
 
 
 @dataclass(frozen=True)
@@ -117,35 +71,27 @@ class YearLink:
 
 @dataclass(frozen=True)
 class Headline:
-    """One primary answer. `value` is `None` when the source cannot supply it.
+    """One of the four KPI cards, its comparison folded into its own note.
 
-    `label` is optional. The overview's two figures carry no caption since
-    2026-08-15 — the board struck them — and say what they count in `unit`
-    instead, so the card reads `12 sündmust järgmise 30 päeva jooksul` rather
-    than a bare number under a heading.
+    `label` is the card's title now — since 2026-08-18 the four are titled
+    cards again, each with a real label, rather than the two bare `value unit`
+    sentences the board reduced this strip to on 2026-08-15. `change`/
+    `direction` carry a year-on-year comparison the same way every other
+    dashboard's headline does: an arrow and a signed figure, never a colour
+    alone.
     """
 
     value: str | None
     label: str = ""
     unit: str = ""
     note: str = ""
-    detail: str = ""
-
-
-@dataclass(frozen=True)
-class Change:
-    """One deterministic comparison for `Mis muutus?`.
-
-    Never an interpretation: the label names the two things compared and the
-    note states the period. Nothing here says a change is good, bad, caused by
-    anything, or likely to continue.
-    """
-
-    label: str
-    value: str
     change: str = ""
+    change_label: str = ""
     direction: str = ""
-    note: str = ""
+
+    @property
+    def has_change(self) -> bool:
+        return bool(self.change)
 
 
 @dataclass(frozen=True)
@@ -201,8 +147,17 @@ class DataCoverage:
 
 @dataclass(frozen=True)
 class OverviewView:
+    """Everything one render of `/sundmused/` draws, now that it is one page.
+
+    `Maht ja kalender` and `Formaadid ja teemad` folded in whole on
+    2026-08-18: `year_chart`/`month_chart`/`quarters` were `VolumeView`'s,
+    `delivery_over_time` was `FormatsView`'s. Their theme-only charts —
+    `Teemad`, `Teemade muutus` — and the duration ranking did not fold in;
+    none of the three is in the page Kaur asked for, so nothing here builds
+    them any more.
+    """
+
     headline: tuple[Headline, ...] = ()
-    changes: tuple[Change, ...] = ()
     types: analytics.Distribution | None = None
     delivery: analytics.Distribution | None = None
     upcoming: tuple[EventPreview, ...] = ()
@@ -212,27 +167,10 @@ class OverviewView:
     #: focus came off. `None` when the programme records no price status at all,
     #: which is also what keeps the chart bundle off this page.
     price_chart: charts.ChartPayload | None = None
-
-
-@dataclass(frozen=True)
-class VolumeView:
-    volume: analytics.VolumeSummary | None = None
     year_chart: charts.ChartPayload | None = None
     month_chart: charts.ChartPayload | None = None
-    seasonality_chart: charts.ChartPayload | None = None
-    duration_chart: charts.ChartPayload | None = None
     quarters: tuple[analytics.Category, ...] = ()
-
-
-@dataclass(frozen=True)
-class FormatsView:
-    types: analytics.Distribution | None = None
-    tags: analytics.Distribution | None = None
-    delivery: analytics.Distribution | None = None
-    state: analytics.TemporalState | None = None
-    tag_chart: charts.ChartPayload | None = None
     delivery_over_time: charts.ChartPayload | None = None
-    tag_over_time: charts.ChartPayload | None = None
 
 
 @dataclass(frozen=True)
@@ -240,15 +178,11 @@ class IntelligencePage:
     """One rendered state of `/sundmused/`."""
 
     summary: EventProgrammeSummary
-    focus: str = FOCUS_OVERVIEW
-    focus_links: tuple[FocusLink, ...] = ()
     year: int | None = None
     year_links: tuple[YearLink, ...] = ()
     period_label: str = ALL_YEARS_LABEL
     quality: DataCoverage = field(default_factory=DataCoverage)
     overview: OverviewView | None = None
-    volume: VolumeView | None = None
-    formats: FormatsView | None = None
 
     @property
     def has_data(self) -> bool:
@@ -256,22 +190,19 @@ class IntelligencePage:
 
     @property
     def draws_charts(self) -> bool:
-        """Whether this focus loads the chart bundle at all.
+        """Whether the chart bundle is worth loading at all.
 
-        ECharts is over a megabyte, so it ships only to a view that draws
-        something.
-
-        `Ülevaade` is the conditional one: it drew nothing until
-        `Hinnastruktuur` moved onto it, and the register's own table draws
-        nothing either — so the bundle still depends on whether the programme
-        records a price, not on which focus is active. Asking the built view
-        rather than the focus key keeps the bundle off a page with no canvas —
-        the rule this property has always enforced, now that one focus can go
-        either way.
+        ECharts is over a megabyte. The by-year and by-month charts draw
+        whenever the programme has any dated event at all, so in practice this
+        is `has_data` restated — but it stays a real check rather than an
+        assumption, because an empty programme draws nothing and should not
+        pay for the bundle either.
         """
-        if self.focus in (FOCUS_VOLUME, FOCUS_FORMATS):
-            return True
-        return bool(self.overview and self.overview.price_chart)
+        view = self.overview
+        return bool(
+            view
+            and (view.price_chart or view.year_chart or view.month_chart or view.delivery_over_time)
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -279,29 +210,17 @@ class IntelligencePage:
 # ---------------------------------------------------------------------------
 
 
-def parse_focus(raw) -> str:
-    """A known focus, or `Ülevaade`. An unknown value is never an error page."""
-    return raw if raw in FOCUS_VALUES else FOCUS_OVERVIEW
-
-
-def focus_url(focus: str, *, year: int | None) -> str:
-    query = [("fookus", focus), ("year", str(year) if year is not None else YEAR_ALL)]
+def year_url(*, year: int | None) -> str:
+    query = [("year", str(year) if year is not None else YEAR_ALL)]
     return f"{reverse('events')}?{urlencode(query)}"
 
 
-def _focus_links(focus: str, *, year: int | None) -> tuple[FocusLink, ...]:
-    return tuple(
-        FocusLink(key=key, label=label, url=focus_url(key, year=year), is_active=key == focus)
-        for key, label in FOCUS_LABELS
-    )
-
-
-def _year_links(options, *, focus: str, year: int | None) -> tuple[YearLink, ...]:
+def _year_links(options, *, year: int | None) -> tuple[YearLink, ...]:
     links = [
         YearLink(
             value=str(value),
             label=str(value),
-            url=focus_url(focus, year=value),
+            url=year_url(year=value),
             is_active=year == value,
         )
         for value in options.years
@@ -310,7 +229,7 @@ def _year_links(options, *, focus: str, year: int | None) -> tuple[YearLink, ...
         YearLink(
             value=YEAR_ALL,
             label=ALL_YEARS_LABEL,
-            url=focus_url(focus, year=None),
+            url=year_url(year=None),
             is_active=year is None,
         )
     )
@@ -392,87 +311,122 @@ def _direction(value) -> str:
     return "up" if value > 0 else "down"
 
 
-def _changes(snapshot, *, year: int | None, today: date) -> tuple[Change, ...]:
-    """Deterministic year-on-year comparisons. No causes, no adjectives.
+def _headlines(
+    snapshot, *, year: int | None, today: date, total: int, state, quarters, starting: int
+) -> tuple[Headline, ...]:
+    """The four cards the page leads with, each carrying its own comparison.
 
-    The whole-programme comparison and the year-to-date one are **separate
-    lines**, because they answer different questions and averaging them would
-    compare a full schedule against eight months of one.
+    Four again since 2026-08-18 — the board reduced this strip to two bare
+    `value unit` sentences on 2026-08-15, and Kaur's mockup restored the other
+    two rather than repeating them lower as a separate `Mis muutus?` list. The
+    two comparisons this function used to hand back as standalone `Change`
+    rows are exactly the notes on cards two and four now; nothing about what
+    they compare changed; only where they render did.
     """
-    if year is None:
-        return ()
     by_year = analytics.counts_by_year(snapshot)
-    previous = year - 1
-    if previous not in by_year:
-        return ()
+    previous = year - 1 if year is not None else None
+    has_previous = year is not None and previous in by_year
 
-    # The programme count, the median planning lead and the fastest-growing
-    # theme were struck on 2026-08-15. What is left is the two comparisons a
-    # reader acts on: how much has started this year against the same point
-    # last year, and how the online share moved.
-    rows: list[Change] = []
+    period_words = (
+        "kogu programmis"
+        if year is None
+        else "aasta algusest"
+        if year == today.year
+        else f"{year}. aastal"
+    )
 
-    if year == today.year:
+    cards = [
+        Headline(
+            label=f"Sündmusi programmis {year}" if year is not None else "Sündmusi programmis",
+            value=integer(total),
+            note=f"toimunud {integer(state.past)} · tulemas {integer(state.upcoming)}",
+        )
+    ]
+
+    if has_previous and year == today.year:
         ytd_now = analytics.count_year_to_date(snapshot, year=year, today=today)
         ytd_then = analytics.count_year_to_date(snapshot, year=previous, today=today)
         ytd_delta = ytd_now - ytd_then
-        rows.append(
-            Change(
-                label="Alanud 1. jaanuarist tänaseni",
+        cards.append(
+            Headline(
+                label="Alanud 1. jaanuarist",
                 value=integer(ytd_now),
                 change=signed_integer(ytd_delta) if ytd_delta else "muutumatu",
+                change_label=f"{signed_integer(ytd_delta)} vs {previous}. aasta sama kuupäev",
                 direction=_direction(ytd_delta),
+                note=f"vs {previous}",
             )
         )
-
-    # Delivery-mode shift, stated as a share of each year's own programme.
-    modes = analytics.delivery_mode_by_year(snapshot, years=(previous, year))
-    online_now = next((row for row in modes[year].all_rows if row.key == "online"), None)
-    online_then = next((row for row in modes[previous].all_rows if row.key == "online"), None)
-    if online_now and online_then and modes[year].total and modes[previous].total:
-        shift = online_now.share - online_then.share
-        rows.append(
-            Change(
-                label="Veebis toimuvate osakaal",
-                value=percent(online_now.share),
-                # Percentage **points**, not percent. A share moving from 20% to
-                # 25% has risen five points and by a quarter, and writing the
-                # first as "+5%" is how the two get confused.
-                change=percentage_points(shift),
-                direction=_direction(shift),
-                note=f"{previous}. aastal {percent(online_then.share)}",
-            )
+    else:
+        cards.append(
+            Headline(label="Alanud 1. jaanuarist", value=integer(state.past), note=period_words)
         )
 
-    return tuple(rows)
+    quarter_note = ""
+    if year == today.year:
+        current_quarter = _quarter_number_for(today)
+        remaining = [
+            row for row in quarters if row.count and _quarter_number(row.key) >= current_quarter
+        ]
+        if remaining:
+            quarter_note = " · ".join(f"{row.key} {integer(row.count)}" for row in remaining)
+            quarter_note = f"{quarter_note} sündmust"
+    cards.append(
+        Headline(
+            label="Järgmise kuu jooksul",
+            value=integer(starting),
+            unit="sündmust",
+            note=quarter_note,
+        )
+    )
+
+    if has_previous:
+        modes = analytics.delivery_mode_by_year(snapshot, years=(previous, year))
+        online_now = next((row for row in modes[year].all_rows if row.key == "online"), None)
+        online_then = next((row for row in modes[previous].all_rows if row.key == "online"), None)
+        if online_now and online_then and modes[year].total and modes[previous].total:
+            shift = online_now.share - online_then.share
+            cards.append(
+                Headline(
+                    label="Veebis toimuvate osakaal",
+                    value=percent(online_now.share),
+                    # Percentage **points**, not percent. A share moving from
+                    # 20% to 25% has risen five points and by a quarter, and
+                    # writing the first as "+5%" is how the two get confused.
+                    change=percentage_points(shift),
+                    change_label=f"{percentage_points(shift)} vs {previous}",
+                    direction=_direction(shift),
+                    note=f"vs {previous} ({percent(online_then.share)})",
+                )
+            )
+
+    return tuple(cards)
+
+
+def _quarter_number(key: str) -> int:
+    return int(key[1]) if key.startswith("Q") and len(key) == 2 else 0
+
+
+def _quarter_number_for(today: date) -> int:
+    return (today.month - 1) // 3 + 1
 
 
 def build_overview(snapshot, *, year: int | None, today: date) -> OverviewView:
     cohort = analytics.population(snapshot, year=year)
+    total = cohort.count()
     state = analytics.temporal_state(cohort, today=today)
     starting = count_events_starting_within(snapshot)
+    volume = analytics.build_volume(snapshot, year=year, today=today)
 
-    # Two figures, each stating its own scope in the line the reader already
-    # reads. The board struck the programme count and the median planning lead
-    # on 2026-08-15, and struck the captions and `Seisuga` rows off the two that
-    # stayed — so a figure that does not name what it counts would now be a bare
-    # number with nothing beside it.
-    if year is None:
-        period_words = "kogu programmis"
-    elif year == today.year:
-        period_words = "aasta algusest"
-    else:
-        period_words = f"{year}. aastal"
-    headline = [
-        Headline(
-            value=integer(starting),
-            # `kuu` rather than `{NEAR_TERM_DAYS} päeva` since 2026-08-16. The
-            # wording no longer derives from the constant, so if the window ever
-            # stops being thirty days this string has to change with it.
-            unit="sündmust järgmise kuu jooksul",
-        ),
-        Headline(value=integer(state.past), unit=f"sündmust toimunud {period_words}"),
-    ]
+    headline = _headlines(
+        snapshot,
+        year=year,
+        today=today,
+        total=total,
+        state=state,
+        quarters=volume.quarters,
+        starting=starting,
+    )
 
     upcoming = list(
         analytics.items_for(snapshot)
@@ -509,9 +463,11 @@ def build_overview(snapshot, *, year: int | None, today: date) -> OverviewView:
 
     prices = analytics.build_prices(snapshot, year=year)
 
+    years = tuple(sorted(analytics.counts_by_year(snapshot)))
+    delivery_years = analytics.delivery_mode_by_year(snapshot, years=years)
+
     return OverviewView(
-        headline=tuple(headline),
-        changes=_changes(snapshot, year=year, today=today),
+        headline=headline,
         types=analytics.labelled_distribution(
             cohort,
             key_field="event_type_key",
@@ -542,68 +498,17 @@ def build_overview(snapshot, *, year: int | None, today: date) -> OverviewView:
             if prices.status.total
             else None
         ),
-    )
-
-
-# ---------------------------------------------------------------------------
-# Volume
-# ---------------------------------------------------------------------------
-
-
-def build_volume_view(snapshot, *, year: int | None, today: date) -> VolumeView:
-    volume = analytics.build_volume(snapshot, year=year, today=today)
-    return VolumeView(
-        volume=volume,
+        # `Maht ja kalender`'s two charts, folded in whole on 2026-08-18.
         year_chart=charts.events_by_year_chart(volume),
-        month_chart=(charts.events_by_month_chart(volume, year=year) if year is not None else None),
-        seasonality_chart=charts.seasonality_chart(volume),
-        duration_chart=charts.ranking_chart(
-            volume.durations,
-            payload_id="events-duration",
-            title="Sündmuste kestus",
-            question="Kui pikad Koja sündmused on?",
-            footnotes=(
-                "Kestus on kalendripäevades algusest lõpuni, mitte koolitustundides.",
-                "Üks mitmepäevane programm on üks sündmus, mitte mitu.",
-            ),
-            empty_message="Sel perioodil pole kuupäevaga sündmusi.",
+        month_chart=(
+            charts.events_by_month_with_typical_chart(volume, year=year)
+            if year is not None
+            else None
         ),
         quarters=volume.quarters,
-    )
-
-
-# ---------------------------------------------------------------------------
-# Formats
-# ---------------------------------------------------------------------------
-
-
-def build_formats(snapshot, *, year: int | None, today: date) -> FormatsView:
-    cohort = analytics.population(snapshot, year=year)
-    types = analytics.labelled_distribution(
-        cohort, key_field="event_type_key", label_field="event_type_label", dimension="type"
-    )
-    tags = analytics.labelled_distribution(
-        cohort, key_field="tag_key", label_field="tag_label", dimension="tag"
-    )
-    delivery = analytics.delivery_mode_distribution(cohort)
-
-    years = tuple(sorted(analytics.counts_by_year(snapshot)))
-    delivery_years = analytics.delivery_mode_by_year(snapshot, years=years)
-    top_tags = tuple((row.key, row.label) for row in tags.rows[:MIX_KEYS] if not row.is_unknown)
-    tag_years = analytics.tag_mix_by_year(
-        snapshot, years=years, keys=tuple(key for key, _label in top_tags)
-    )
-
-    return FormatsView(
-        types=types,
-        tags=tags,
-        delivery=delivery,
-        state=analytics.temporal_state(cohort, today=today),
-        tag_chart=charts.ranking_chart(
-            tags,
-            payload_id="events-tags",
-            title="Teemad",
-        ),
+        # `Formaadid ja teemad`'s delivery-over-time chart, folded in the same
+        # round. Its theme charts and the duration ranking did not fold in —
+        # neither is in the page Kaur asked for.
         delivery_over_time=charts.mix_over_time_chart(
             delivery_years,
             payload_id="events-delivery-years",
@@ -615,22 +520,7 @@ def build_formats(snapshot, *, year: int | None, today: date) -> FormatsView:
                 (analytics.UNKNOWN_KEY, analytics.UNKNOWN_LABEL),
             ),
         ),
-        tag_over_time=(
-            charts.mix_over_time_chart(
-                tag_years,
-                payload_id="events-tags-years",
-                title="Teemade muutus",
-                keys=(*top_tags, ("_other", "Muu")),
-            )
-            if top_tags
-            else None
-        ),
     )
-
-
-# ---------------------------------------------------------------------------
-# Attention
-# ---------------------------------------------------------------------------
 
 
 # ---------------------------------------------------------------------------
@@ -641,11 +531,10 @@ def build_formats(snapshot, *, year: int | None, today: date) -> FormatsView:
 def build_intelligence_page(
     summary: EventProgrammeSummary, params, *, today: date | None = None
 ) -> IntelligencePage:
-    """Read the programme once and shape the requested focus."""
+    """Read the programme once and build the one page."""
     today = today or timezone.localdate()
     snapshot = summary.snapshot
     options = get_event_programme_filter_options(snapshot)
-    focus = parse_focus(params.get("fookus"))
 
     raw_year = params.get("year")
     if raw_year == YEAR_ALL:
@@ -659,14 +548,12 @@ def build_intelligence_page(
 
     page = IntelligencePage(
         summary=summary,
-        focus=focus,
-        focus_links=_focus_links(focus, year=year),
         year=year,
-        year_links=_year_links(options, focus=focus, year=year),
+        year_links=_year_links(options, year=year),
         period_label=str(year) if year is not None else ALL_YEARS_LABEL,
-        # No focus asks for the Commerce columns now that `Huvi` is gone. The
-        # parameter stays on `build_coverage` because the registration join is
-        # real and reported elsewhere; nothing this page renders reads it.
+        # `include_commerce` stays off: no chart on this page reads the
+        # registration join, only `/haldus/` does, and that block builds its
+        # own coverage separately.
         quality=build_coverage(snapshot),
     )
     if snapshot is None:
@@ -674,32 +561,17 @@ def build_intelligence_page(
 
     from dataclasses import replace
 
-    if focus == FOCUS_OVERVIEW:
-        return replace(page, overview=build_overview(snapshot, year=year, today=today))
-    if focus == FOCUS_VOLUME:
-        return replace(page, volume=build_volume_view(snapshot, year=year, today=today))
-    if focus == FOCUS_FORMATS:
-        return replace(page, formats=build_formats(snapshot, year=year, today=today))
-    return page
+    return replace(page, overview=build_overview(snapshot, year=year, today=today))
 
 
 __all__ = [
     "ALL_YEARS_LABEL",
-    "FOCUS_FORMATS",
-    "FOCUS_LABELS",
-    "FOCUS_OVERVIEW",
-    "FOCUS_VALUES",
-    "FOCUS_VOLUME",
-    "Change",
     "DataCoverage",
     "EventPreview",
-    "FormatsView",
     "Headline",
     "IntelligencePage",
     "OverviewView",
-    "VolumeView",
     "build_coverage",
     "build_intelligence_page",
-    "focus_url",
-    "parse_focus",
+    "year_url",
 ]

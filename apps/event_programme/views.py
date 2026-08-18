@@ -22,25 +22,23 @@ from apps.dashboard.navigation import NAVIGATION
 
 # The one deliberate cross-domain read on this page. `apps.events` is a separate
 # feed with separate snapshots; nothing below merges it into the programme.
-from .intelligence import FOCUS_OVERVIEW, build_intelligence_page
+from .intelligence import build_intelligence_page
 from .page import build_programme_page
 from .selectors import get_event_programme_summary
 
 
 @require_GET
 def event_programme_overview(request):
-    """One route, three focus views.
+    """One route, one page, since 2026-08-18.
 
-    Ürituste nimekiri stopped being one of them on 2026-08-17: its register is
-    now part of `Ülevaade`, so `Ülevaade` is the only focus that costs the
-    paginated query over the whole programme and the only one that builds a
-    `ProgrammePage`. A reader on `Maht` or `Formaadid` pays for neither, which
-    is the property that lets this page carry three analyses without becoming
-    three pages.
+    `Maht ja kalender` and `Formaadid ja teemad` were separate focuses until
+    then; both folded onto the one page whole, alongside the programme
+    register that had already folded in on 2026-08-17. A stray `?fookus=`
+    from an older bookmark is simply an unread parameter now.
 
-    The public Koda.ee calendar is **not** read here any more. It was only ever
-    on this page inside `Andmete kohta`, and that block moved to `/haldus/` on
-    2026-08-15 — so this request no longer pays for a feed nothing it renders
+    The public Koda.ee calendar is **not** read here. It was only ever on
+    this page inside `Andmete kohta`, and that block moved to `/haldus/` on
+    2026-08-15 — so this request never pays for a feed nothing it renders
     would show.
     """
     summary = get_event_programme_summary()
@@ -56,11 +54,7 @@ def event_programme_overview(request):
             "freshness": current_freshness(summary),
             "summary": summary,
             "intelligence": intelligence,
-            "page": (
-                build_programme_page(summary, request.GET)
-                if intelligence.focus == FOCUS_OVERVIEW
-                else None
-            ),
+            "page": build_programme_page(summary, request.GET),
         },
     )
 
@@ -84,11 +78,6 @@ PROGRAMME_FIELDS = (
 
 #: Everything this page understands, `page` included. Only these reach a
 #: pushed URL, because that value ends up in somebody's address bar.
-#:
-#: `fookus` is not among them: `Ülevaade` is where the register lives and is
-#: also `parse_focus`'s default, so a pushed URL with no focus at all already
-#: opens on the register — carrying the key forward would only risk pinning a
-#: reader to a focus value that stops existing the next time this page changes.
 PROGRAMME_PARAMS = (*PROGRAMME_FIELDS, "page")
 
 

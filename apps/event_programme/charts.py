@@ -170,14 +170,16 @@ def events_by_year_chart(volume) -> ChartPayload:
     )
 
 
-def events_by_month_chart(volume, *, year: int) -> ChartPayload:
-    """Which months are busiest in this year's programme?
+def events_by_month_with_typical_chart(volume, *, year: int) -> ChartPayload:
+    """`Kuude lõikes`, with the typical month riding alongside as a line.
 
-    Twelve bars, future months included. This is a **programme**, not a
-    year-to-date total: an event scheduled for November is already a decision
-    and belongs on the drawing in August. For the current year the bar is split
-    into what has finished and what is still ahead, because those are different
-    facts; for a past year the split would be twelve identical statements.
+    The same Toimunud/Tulemas stacked bars `events_by_month_chart` draws, plus
+    `seasonality_chart`'s median-per-month as a third series on the same axis
+    — a dashed line rather than a fourth bar, so a reader reads it as context
+    for the year rather than as one more thing the programme did. Its own
+    caveats travel with it: only complete years feed the median, and it is a
+    description of history, never a forecast for the months still ahead in
+    `year`.
     """
     months = volume.months
     if not months or not any(row.count for row in months):
@@ -185,13 +187,20 @@ def events_by_month_chart(volume, *, year: int) -> ChartPayload:
             "events-by-month", "Sündmused kuude lõikes", "Sel perioodil pole kuupäevaga sündmusi."
         )
 
+    seasonal_by_month = {row.month: row for row in volume.seasonality}
     split = any(row.completed is not None for row in months)
+    years = volume.complete_years
+    typical_label = f"Tüüpiline kuu (mediaan {years[0]}–{years[-1]})" if years else "Tüüpiline kuu"
+
     tooltips: dict[str, dict] = {}
     for row in months:
         rows: list[tuple[str, str]] = [("Sündmusi", integer(row.count))]
         if split and row.count:
             rows.append(("Toimunud", integer(row.completed or 0)))
             rows.append(("Tulemas", integer(row.upcoming or 0)))
+        typical = seasonal_by_month.get(row.month)
+        if typical is not None:
+            rows.append(("Tüüpiline", integer(round(typical.median))))
         tooltips[str(row.month)] = _tip(f"{row.label} {year}", tuple(rows))
 
     labels = [row.label for row in months]
@@ -214,31 +223,60 @@ def events_by_month_chart(volume, *, year: int) -> ChartPayload:
             _bar_series("Sündmusi", [{"value": row.count, "tip": str(row.month)} for row in months])
         ]
 
+    if seasonal_by_month:
+        series.append(
+            {
+                "name": typical_label,
+                "type": "line",
+                "lineStyle": {"type": "dashed"},
+                "symbol": "none",
+                "data": [
+                    {
+                        "value": (
+                            seasonal_by_month[row.month].median
+                            if row.month in seasonal_by_month
+                            else None
+                        ),
+                        "tip": str(row.month),
+                    }
+                    for row in months
+                ],
+            }
+        )
+
     option = {
         "grid": dict(GRID),
         "tooltip": {"trigger": "axis"},
-        "legend": {"show": split, "bottom": 0},
+        "legend": {"show": True, "bottom": 0},
         "xAxis": {"type": "category", "data": labels},
         "yAxis": {"type": "value", "minInterval": 1},
         "series": series,
         "dashkoda": {"tooltip": tooltips},
     }
 
-    headers = ("Kuu", "Sündmusi") + (("Toimunud", "Tulemas") if split else ())
+    headers = ("Kuu", "Sündmusi") + (("Toimunud", "Tulemas") if split else ()) + ("Tüüpiline",)
     return ChartPayload(
         payload_id="events-by-month",
-        title=f"Sündmused kuude lõikes — {year}",
-        question="Millised kuud on kõige tihedamad?",
+        title=f"Kuude lõikes — {year}",
+        question="Millised kuud on kõige tihedamad, ja kas see on tavapärane?",
         option=option,
         table_headers=headers,
         table_rows=tuple(
             (row.label, integer(row.count))
             + ((integer(row.completed or 0), integer(row.upcoming or 0)) if split else ())
+            + (
+                (
+                    integer(round(seasonal_by_month[row.month].median))
+                    if row.month in seasonal_by_month
+                    else "–"
+                ),
+            )
             for row in months
         ),
         summary=(
             f"Tulpdiagramm: {year}. aasta sündmuste arv kuude kaupa, "
-            f"kokku {integer(sum(row.count for row in months))} sündmust."
+            f"kokku {integer(sum(row.count for row in months))} sündmust, "
+            f"koos tüüpilise kuu mediaaniga."
         ),
         footnotes=(
             (
@@ -247,75 +285,11 @@ def events_by_month_chart(volume, *, year: int) -> ChartPayload:
             )
             if split
             else ()
-        ),
-        size="medium",
-    )
-
-
-def seasonality_chart(volume) -> ChartPayload:
-    """What does a typical year look like?
-
-    The **median** of complete years, because one exceptional autumn moves a
-    mean of eight observations a long way. The mean travels in the table beside
-    it rather than on the drawing, so the two are comparable without competing.
-
-    This describes what has happened. It is not a forecast and nothing extends
-    it into a month that has not occurred.
-    """
-    rows = volume.seasonality
-    if not rows:
-        return _empty(
-            "events-seasonality",
-            "Tüüpiline sündmuste arv kuude kaupa",
-            "Hooajalisuse näitamiseks on vaja vähemalt kahte täisaastat.",
         )
-
-    tooltips = {
-        str(row.month): _tip(
-            row.label,
-            (
-                ("Mediaan", integer(round(row.median))),
-                ("Keskmine", f"{row.mean:.1f}".replace(".", ",")),
-            ),
-            f"{row.years} täisaasta põhjal.",
-        )
-        for row in rows
-    }
-    option = {
-        "grid": dict(GRID),
-        "tooltip": {"trigger": "axis"},
-        "legend": {"show": False},
-        "xAxis": {"type": "category", "data": [row.label for row in rows]},
-        "yAxis": {"type": "value", "minInterval": 1},
-        "series": [
-            _bar_series("Mediaan", [{"value": row.median, "tip": str(row.month)} for row in rows])
-        ],
-        "dashkoda": {"tooltip": tooltips},
-    }
-    years = volume.complete_years
-    return ChartPayload(
-        payload_id="events-seasonality",
-        title="Tüüpiline sündmuste arv kuude kaupa",
-        question="Millised kuud on tavaliselt tihedad ja millised vaiksed?",
-        observation_label=f"{len(years)} täisaastat: {years[0]}–{years[-1]}" if years else "",
-        option=option,
-        table_headers=("Kuu", "Mediaan", "Keskmine", "Aastaid"),
-        table_rows=tuple(
-            (
-                row.label,
-                integer(round(row.median)),
-                f"{row.mean:.1f}".replace(".", ","),
-                str(row.years),
-            )
-            for row in rows
-        ),
-        summary=(
-            f"Tulpdiagramm: tüüpiline sündmuste arv kuude kaupa, {len(years)} täisaasta mediaanina."
-        ),
-        footnotes=(
-            "Ainult täisaastad. Käimasolev aasta ja osaline esimene aasta on välja jäetud, "
-            "sest pool aastat andmeid ei kirjelda detsembrit.",
-            "See on kirjeldus, mitte prognoos.",
+        + (
+            ("Tüüpiline kuu on täisaastate mediaan; see on kirjeldus, mitte prognoos.",)
+            if seasonal_by_month
+            else ()
         ),
         size="medium",
     )
@@ -553,9 +527,7 @@ __all__ = [
     "ChartPayload",
     "Readout",
     "attention_ranking_chart",
-    "events_by_month_chart",
     "events_by_year_chart",
     "mix_over_time_chart",
     "ranking_chart",
-    "seasonality_chart",
 ]
