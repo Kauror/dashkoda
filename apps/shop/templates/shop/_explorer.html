@@ -1,32 +1,41 @@
 {% comment %}
-The whole-population product explorer.
+Tooted — the whole catalogue, one table.
 
-Search, sorting and paging all run on the server across every product in scope,
-never across the rows currently on screen — a product ranked #347 is exactly the
-kind somebody looks up, and a client-side filter would answer only for the
-twenty-five already rendered.
+Search, sorting and paging all run on the server across every product in
+scope, never across the rows currently on screen — a product ranked #347 is
+exactly the kind somebody looks up, and a client-side filter would answer only
+for the rows already rendered.
 
-Five columns, and the category rides inside the product cell as muted secondary
-text rather than taking a column of its own. On a phone that is the difference
-between a readable table and seven numeric columns nobody can scan; the table
-scrolls inside its own wrapper so the page never scrolls sideways.
+Rank, product, category, units, share and change: six columns, category as its
+own now rather than muted text under the title, because `Osa` and `Muutus`
+already crowd the row and a title carrying its category as a suffix read as
+one more thing squeezed into the same line.
 
-Sorting lives on the headers, so the control sits on the thing it orders.
-`aria-sort` carries the state for a screen reader; the arrow is the visual echo
-of it rather than the only signal.
+The type chips choose which family this table shows and nothing else on the
+page — the KPI strip, the trend and Lepingupõhjad above stay unfiltered, since
+narrowing "how much did the shop sell" to one product family the moment a
+reader is browsing that family would say something the reader never asked.
 {% endcomment %}
 <section id="tooted" aria-labelledby="section-products" class="dk-section">
-  {% include "dashboard/components/section_header.html" with title="Kõik tooted" heading_id="section-products" only %}
+  {% include "dashboard/components/section_header.html" with title="Tooted" heading_id="section-products" only %}
   <div class="dk-section-body flex flex-col gap-3">
+    <nav aria-label="Tooteliik" class="flex flex-wrap gap-1.5">
+      {% for option in overview.type_options %}
+        <a class="dk-chip{% if option.is_active %} dk-chip-active{% endif %}"
+           href="?{{ option.query }}#tooted"
+           {% if option.is_active %}aria-current="true"{% endif %}>{{ option.label }}</a>
+      {% endfor %}
+    </nav>
+
     <div class="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
       <p class="dk-meta">{{ overview.result_summary }}</p>
       <form method="get" class="flex min-w-0 flex-wrap items-center gap-2">
         <input type="hidden" name="periood" value="{{ overview.period.key }}">
-        <input type="hidden" name="fookus" value="{{ overview.focus }}">
         {% if overview.period.period.is_custom %}
           <input type="hidden" name="alates" value="{{ overview.period.start|date:'Y-m-d' }}">
           <input type="hidden" name="kuni" value="{{ overview.period.end|date:'Y-m-d' }}">
         {% endif %}
+        {% if overview.product_type %}<input type="hidden" name="liik" value="{{ overview.product_type }}">{% endif %}
         <label for="otsing" class="sr-only">Otsi toodet</label>
         <input type="search" id="otsing" name="otsing" value="{{ overview.search }}"
                maxlength="120" placeholder="Otsi toodet, teed või ID-d…" class="dk-input w-full min-w-0 sm:w-64">
@@ -40,39 +49,44 @@ of it rather than the only signal.
           <caption class="sr-only">E-poe tooted valitud perioodil</caption>
           <thead>
             <tr>
-              {% for option in overview.sort_options %}
-                <th scope="col" class="border-b border-border px-2 py-1.5 text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3 {% if forloop.first %}w-full text-left{% else %}text-right{% endif %}"
-                    {% if option.is_active %}aria-sort="descending"{% endif %}>
-                  <a class="hover:underline" href="?{{ option.query }}">{{ option.label }}{% if option.is_active %} ↓{% endif %}</a>
-                </th>
-              {% endfor %}
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">#</th>
+              <th scope="col" class="w-full border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Toode</th>
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-left text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Kategooria</th>
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Ostud</th>
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Osa</th>
+              <th scope="col" class="border-b border-border px-2 py-1.5 text-right text-micro font-semibold tracking-wide text-text-muted uppercase sm:px-3">Muutus</th>
             </tr>
           </thead>
           <tbody>
             {% for row in overview.products %}
               <tr>
+                <td class="border-b border-border px-2 py-1.5 text-right align-top tabular-nums text-text-muted sm:px-3">{{ row.rank }}</td>
                 <th scope="row" class="border-b border-border px-2 py-1.5 text-left align-top font-normal break-all sm:px-3 sm:break-words">
                   <a class="dk-link" href="{% url 'shop-product' row.source_product_id %}">{{ row.title }}</a>
-                  <span class="block dk-meta">{{ row.category_name }}</span>
                 </th>
+                <td class="border-b border-border px-2 py-1.5 text-left align-top break-words dk-meta sm:px-3">{{ row.category_name }}</td>
                 <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text sm:px-3">{{ row.units }}</td>
-                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.value }}</td>
-                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.product_views }}</td>
-                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.rate }}</td>
+                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums text-text-secondary sm:px-3">{{ row.share }}</td>
+                <td class="border-b border-border px-2 py-1.5 text-right align-top whitespace-nowrap tabular-nums sm:px-3 {% if row.change_direction == 'up' %}text-success{% elif row.change_direction == 'down' %}text-danger{% else %}text-text-secondary{% endif %}">{{ row.change_label }}</td>
               </tr>
             {% endfor %}
           </tbody>
         </table>
       </div>
 
-      {% if overview.total_pages > 1 %}
+      {% if overview.concentration_note or overview.physical_note %}
+        <p class="dk-meta">
+          {{ overview.concentration_note }}{% if overview.concentration_note and overview.physical_note %} · {% endif %}{{ overview.physical_note }}
+        </p>
+      {% endif %}
+
+      {% if overview.has_previous or overview.has_next %}
         <nav aria-label="Toodete leheküljed" class="flex flex-wrap items-center justify-between gap-3">
           {% if overview.has_previous %}
-            <a class="dk-button dk-button-secondary" href="?{{ overview.previous_query }}">Eelmine</a>
+            <a class="dk-link" href="?{{ overview.previous_query }}#tooted">Eelmine</a>
           {% else %}<span></span>{% endif %}
-          <span class="dk-meta">Lehekülg {{ overview.page }} / {{ overview.total_pages }}</span>
           {% if overview.has_next %}
-            <a class="dk-button dk-button-secondary" href="?{{ overview.next_query }}">Järgmine</a>
+            <a class="dk-link" href="?{{ overview.next_query }}#tooted">Näita rohkem</a>
           {% else %}<span></span>{% endif %}
         </nav>
       {% endif %}

@@ -12,24 +12,37 @@ import { expectNoHorizontalOverflow, signIn } from "../helpers.js";
  *
  * The seed still builds a schema 1.0 package, so this suite exercises the
  * fallback path: order **lines** rather than distinct orders, and no free/paid
- * bar. That is deliberate until the seed is raised to 2.0 — the fallback is the
+ * card. That is deliberate until the seed is raised to 2.0 — the fallback is the
  * state a real 1.0 dataset is in, and it needs covering too.
+ *
+ * The tab strip — `Ülevaade`, `Ostud`, `Tooted`, `Nähtavus` — retired on
+ * 2026-08-18, the same round Koduleht's did. Tooted's table is on the one
+ * remaining page now, not behind a focus; every `fookus` value still resolves
+ * rather than erroring, because a bookmark made before the retirement must
+ * still open something.
  */
 
-test("the ranking never scrolls sideways with real titles", async ({ page }) => {
+test("the ranking never scrolls sideways with real titles", async ({
+  page,
+}) => {
   await signIn(page);
   await page.goto("/epood/?periood=koik");
 
-  await expect(page.getByRole("heading", { level: 1, name: "E-pood" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "E-pood" }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });
 
 test("the product detail never scrolls sideways", async ({ page }) => {
-  // Reached through the explorer, which lives on the `Tooted` focus. The
-  // overview's ranking is a top ten; this product is not in it.
+  // Reached through Tooted's own table. The top of that table is a top ten;
+  // this product is not in it.
   await signIn(page);
-  await page.goto("/epood/?fookus=tooted&periood=koik");
-  await page.getByRole("link", { name: /Sünteetiline lepingu näidis 1$/ }).first().click();
+  await page.goto("/epood/?periood=koik");
+  await page
+    .getByRole("link", { name: /Sünteetiline lepingu näidis 1$/ })
+    .first()
+    .click();
 
   await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
   await expectNoHorizontalOverflow(page);
@@ -60,13 +73,19 @@ test("the export states its own date, in Admin", async ({ page }) => {
 
   await method.locator("summary").click();
 
-  await expect(method.getByText(/väljavõte seisuga \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
-  await expect(method.getByText(/Tellimuste ajalugu algab \d{2}\.\d{2}\.\d{4}/)).toBeVisible();
+  await expect(
+    method.getByText(/väljavõte seisuga \d{2}\.\d{2}\.\d{4}/),
+  ).toBeVisible();
+  await expect(
+    method.getByText(/Tellimuste ajalugu algab \d{2}\.\d{2}\.\d{4}/),
+  ).toBeVisible();
   await expect(page.getByText("sünkroonitud")).toHaveCount(0);
   await expect(page.getByText("automaatselt uuendatud")).toHaveCount(0);
 });
 
-test("value is labelled as ordered value, never as revenue", async ({ page }) => {
+test("value is labelled as ordered value, never as revenue", async ({
+  page,
+}) => {
   await signIn(page);
   await page.goto("/epood/?periood=koik");
 
@@ -78,7 +97,15 @@ test("value is labelled as ordered value, never as revenue", async ({ page }) =>
   await expect(page.getByText("Müük", { exact: true })).toHaveCount(0);
 });
 
-test("the headline carries three commerce measures, not four", async ({ page }) => {
+test("the headline carries three commerce measures under this schema", async ({
+  page,
+}) => {
+  /*
+   * Three cards, not four: the fourth slot is the free/paid card, gated on
+   * `mix.is_known`, and this seed's schema 1.0 package carries no free/paid
+   * classification. A schema 2.0 dataset draws a fourth card in the same
+   * strip — see the host-only render tests for that shape.
+   */
   await signIn(page);
   await page.goto("/epood/?periood=koik");
 
@@ -86,20 +113,26 @@ test("the headline carries three commerce measures, not four", async ({ page }) 
   await expect(strip.locator("article")).toHaveCount(3);
 });
 
-test("search finds a product that is not on the first page", async ({ page }) => {
+test("search finds a product that is not on the first page", async ({
+  page,
+}) => {
   /*
    * The point of searching the whole population rather than the visible rows:
-   * this product sits past the ranking's page of twenty-five.
+   * this product sits past the table's first page of twenty-five.
    */
   await signIn(page);
-  await page.goto("/epood/?fookus=tooted&periood=koik");
+  await page.goto("/epood/?periood=koik");
   await page.getByLabel("Otsi toodet").fill("Sünteetiline lepingu näidis 28");
   await page.getByRole("button", { name: "Otsi" }).click();
 
-  await expect(page.locator("#tooted").getByRole("link", { name: /näidis 28/ })).toBeVisible();
+  await expect(
+    page.locator("#tooted").getByRole("link", { name: /näidis 28/ }),
+  ).toBeVisible();
 });
 
-test("the methodology is on /haldus/, collapsed, not on the overview", async ({ page }) => {
+test("the methodology is on /haldus/, collapsed, not on the overview", async ({
+  page,
+}) => {
   await signIn(page);
   await page.goto("/epood/?periood=koik");
   await expect(page.locator("main")).not.toContainText("ei liideta");
@@ -129,75 +162,67 @@ test("the member split withholding reason lives on /haldus/, not the overview", 
   await expect(page.getByText(/ei ole kinnitanud/)).toBeVisible();
 });
 
-test("the explorer drops the information column", async ({ page }) => {
-  // The explorer lives on the `Tooted` focus now, not under the overview.
-  await signIn(page);
-  await page.goto("/epood/?fookus=tooted&periood=koik");
-
-  const headers = page.locator("#tooted thead th");
-  await expect(headers).toHaveCount(5);
-  await expect(page.locator("#tooted").getByText("Tutvustus")).toHaveCount(0);
-});
-
-test("every focus view opens and none scrolls sideways", async ({ page }) => {
+test("Tooted carries rank, category, share and change — no page-view column", async ({
+  page,
+}) => {
   /*
-   * The five views are one route in five states. Each is reached by its own URL
-   * so a bookmark and the back button both work, and each is checked for
-   * horizontal overflow — the recurring layout bug in this repository is an
-   * uncontained `sr-only` note widening the whole document while the table
-   * inside it scrolls correctly and looks innocent.
+   * Both page-view columns left with Nähtavus on 2026-08-18, whole. `Osa` and
+   * `Muutus` are new: a product's share of the current result set and its
+   * movement since the equal-length previous window, next to the rank and the
+   * category — which is its own column now rather than a subtitle under the
+   * product's title.
    */
   await signIn(page);
+  await page.goto("/epood/?periood=koik");
 
-  for (const focus of ["ulevaade", "ostud", "tooted", "nahtavus"]) {
-    await page.goto(`/epood/?fookus=${focus}&periood=koik`);
-    await expect(page.getByRole("heading", { level: 1, name: "E-pood" })).toBeVisible();
-    await expect(page.locator('nav[aria-label="Vaade"] a[aria-current="page"]')).toHaveCount(1);
-    await expectNoHorizontalOverflow(page);
-  }
-
-  // `vaartus` merged into `ostud` on 2026-08-16. A shared link still opens the
-  // sections it was pointing at, so it is checked as an alias rather than
-  // dropped from the loop — landing it on the overview would be silent.
-  await page.goto("/epood/?fookus=vaartus&periood=koik");
+  const headers = page.locator("#tooted thead th");
+  await expect(headers).toHaveCount(6);
+  await expect(page.locator("#tooted").getByText("Tutvustus")).toHaveCount(0);
+  await expect(page.locator("#tooted").getByText("Vaatamised")).toHaveCount(0);
   await expect(
-    page.locator('nav[aria-label="Vaade"] a[aria-current="page"]'),
-  ).toHaveText("Ostud");
+    page.locator("#tooted").getByText("Kategooria", { exact: true }),
+  ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "Tellitud väärtus kategooria järgi" }),
+    page.locator("#tooted").getByText("Osa", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.locator("#tooted").getByText("Muutus", { exact: true }),
   ).toBeVisible();
 });
 
-test("an unknown focus falls back to the overview rather than erroring", async ({ page }) => {
-  await signIn(page);
-  await page.goto("/epood/?fookus=ei-ole-olemas");
-
-  await expect(page.getByRole("heading", { level: 1, name: "E-pood" })).toBeVisible();
-  // The per-focus heading block went with the declutter; the active chip is
-  // what names the view now.
-  await expect(
-    page.locator('nav[aria-label="Vaade"] a[aria-current="page"]'),
-  ).toHaveText("Ülevaade");
-});
-
-test("changing the focus keeps the period and the product type", async ({ page }) => {
-  await signIn(page);
-  await page.goto("/epood/?periood=90&liik=document");
-  await page.locator('nav[aria-label="Vaade"]').getByRole("link", { name: "Ostud" }).click();
-
-  await expect(page).toHaveURL(/fookus=ostud/);
-  await expect(page).toHaveURL(/periood=90/);
-  await expect(page).toHaveURL(/liik=document/);
-});
-
-test("a period past the export offers no web comparison", async ({ page }) => {
+test("a stray focus parameter from an old bookmark still opens the page", async ({
+  page,
+}) => {
   /*
-   * GA4 keeps collecting for ten days after the seeded export stops. Those days
-   * must never appear as traffic divided by no orders.
+   * The tab strip retired on 2026-08-18. Nothing reads `fookus` any more, so
+   * every value — current, retired, or invented — is simply an unread query
+   * parameter now, and every one of them opens the same page.
    */
+  await signIn(page);
+
+  for (const focus of [
+    "ulevaade",
+    "ostud",
+    "tooted",
+    "nahtavus",
+    "vaartus",
+    "ei-ole-olemas",
+  ]) {
+    await page.goto(`/epood/?fookus=${focus}&periood=koik`);
+    await expect(
+      page.getByRole("heading", { level: 1, name: "E-pood" }),
+    ).toBeVisible();
+    await expect(page.locator('nav[aria-label="Vaade"]')).toHaveCount(0);
+    await expectNoHorizontalOverflow(page);
+  }
+});
+
+test("a period past the export still renders", async ({ page }) => {
   await signIn(page);
   await page.goto("/epood/?periood=30");
 
-  await expect(page.getByRole("heading", { level: 1, name: "E-pood" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { level: 1, name: "E-pood" }),
+  ).toBeVisible();
   await expectNoHorizontalOverflow(page);
 });

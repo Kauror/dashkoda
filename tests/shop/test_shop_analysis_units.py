@@ -5,17 +5,17 @@ from __future__ import annotations
 from decimal import Decimal
 
 from apps.shop.selectors import (
-    MIN_VIEWS_FOR_OPPORTUNITY,
     MixBreakdown,
     MoverRow,
     PageViewFigure,
     ProductRow,
     concentration_share,
-    get_web_opportunities,
 )
 
 
-def product(pk: int, *, units="0", views=None, conversion_units=None, title=None) -> ProductRow:
+def product(
+    pk: int, *, units="0", views=None, conversion_units=None, title=None, previous_units="0"
+) -> ProductRow:
     figure = None if views is None else PageViewFigure(path=f"/p/{pk}", views=views)
     return ProductRow(
         source_product_id=pk,
@@ -29,6 +29,7 @@ def product(pk: int, *, units="0", views=None, conversion_units=None, title=None
         units=Decimal(units),
         product_page_views=figure,
         conversion_units=Decimal(conversion_units if conversion_units is not None else units),
+        previous_units=Decimal(previous_units),
     )
 
 
@@ -111,43 +112,25 @@ def test_concentration_reports_the_share_of_the_largest_products():
 
 
 # ---------------------------------------------------------------------------
-# Web opportunities
+# The row's own change, joined from a previous-window query
 # ---------------------------------------------------------------------------
+#
+# `get_web_opportunities` and the Nähtavus tab it fed left the page on
+# 2026-08-18. `ProductRow.is_new`/`percentage_change` are what replaced its
+# per-row comparison on Tooted's table — the same arithmetic `MoverRow` above
+# already carries, mirrored onto the row every product renders from.
 
 
-def test_a_tiny_denominator_is_never_classified():
-    """One acquisition on four views is not a 25-per-100 success story."""
-    rows = [product(1, units="1", views=4)]
+def test_a_row_with_no_previous_activity_is_new_rather_than_infinite():
+    row = product(1, units="37", previous_units="0")
 
-    weak, strong = get_web_opportunities(rows)
-
-    assert weak == ()
-    assert strong == ()
+    assert row.is_new is True
+    assert row.percentage_change is None
+    assert row.change == Decimal("37")
 
 
-def test_an_unmeasured_product_is_never_classified():
-    rows = [product(1, units="50", views=None)]
+def test_a_row_percentage_is_derived_the_same_way_a_mover_is():
+    row = product(1, units="68", previous_units="100")
 
-    weak, strong = get_web_opportunities(rows)
-
-    assert weak == ()
-    assert strong == ()
-
-
-def test_attention_without_acquisition_and_its_opposite_are_separated():
-    busy_but_quiet = product(1, units="5", views=5000, title="Palju vaatamisi")
-    quiet_but_busy = product(2, units="60", views=MIN_VIEWS_FOR_OPPORTUNITY, title="Tugev ost")
-    rows = [busy_but_quiet, quiet_but_busy]
-
-    weak, strong = get_web_opportunities(rows)
-
-    assert [r.title for r in weak][0] == "Palju vaatamisi"
-    assert [r.title for r in strong][0] == "Tugev ost"
-
-
-def test_the_threshold_is_inclusive_at_its_boundary():
-    rows = [product(1, units="10", views=MIN_VIEWS_FOR_OPPORTUNITY)]
-
-    weak, _ = get_web_opportunities(rows)
-
-    assert len(weak) == 1
+    assert row.change == Decimal("-32")
+    assert row.percentage_change == Decimal("-32")

@@ -97,8 +97,17 @@ So the two surfaces name it differently, and the difference is not cosmetic:
 
 | Surface | Label | Why |
 | --- | --- | --- |
-| `/epood/` overview | **Tellimusridu** | the sum spans products, so an order is counted once per product it contained |
+| `/epood/` overview | **Tellimused** | the headline is unfiltered since 2026-08-18, which always stays inside the summary's day × type grain |
 | `/epood/toode/<id>/` | **Tellimused** | the sum spans one product's cells, so each order appears once |
+
+Before 2026-08-18 the overview's own type, category, member and search filters
+narrowed the headline too, and a narrowing past the summary's grain fell back
+to `Tellimusridu`. The headline no longer takes any of those filters — only
+Tooted's table does, and it names no order figure at all — so that fallback is
+now unreachable from the overview and is exercised only through
+`distinct_orders_supported()` directly, in `tests/shop/test_shop_intelligence.py`,
+and through `Lepingupõhjad`'s own document-only order count, which stays inside
+the grain for the same reason a bare product-type filter always did.
 
 On the published dataset that is **5 551 order lines against 4 009 distinct
 orders** — calling the overview figure "orders" overstates it by 38.5%. Both
@@ -355,41 +364,48 @@ Three outcomes:
 
 ## The pages
 
-`/epood/` — one route in five analytical states, selected by `?fookus=` and
-defaulting to the overview. An unknown value resolves to the overview rather
-than raising, so a link that outlives a rename still opens.
+`/epood/` — one page since 2026-08-18. It was four tabs — `Ülevaade`, `Ostud`,
+`Tooted`, `Nähtavus` — chosen by `?fookus=` and defaulting to the overview; the
+tab strip retired the same round Koduleht's did, and `Ostud` (payment and
+member split), `Nähtavus` (web-effectiveness) and Tooted's own category,
+concentration and catalogue sections retired with it. `fookus` is no longer
+read at all — an old bookmark carrying it simply opens the one remaining page,
+which is what an unrecognised query parameter always does.
 
-| Focus | Answers |
-| --- | --- |
-| `ulevaade` | what is happening, and what deserves attention |
-| `ostud` | how acquisition activity develops over time, in units and in euros |
-| `tooted` | which products and categories carry the shop |
-| `nahtavus` | what gets attention, what gets acquired, where the evidence supports acting |
+The page, top to bottom:
 
-`vaartus` was a fifth focus until 2026-08-16, when it merged into `ostud`. Its
-first section was `ostud`'s first section — the same `overview.trend` and the
-same metric switch, headed `Tellitud väärtus ajas` instead of `Ostmine ajas` —
-so the two views drew one chart under two names. The three cuts that are
-genuinely about money moved across and sit directly under their volume
-counterparts, which is what makes the difference between them visible.
+- **the headline** — three Commerce KPIs (units, orders, ordered value) and a
+  fourth free/paid card, all read from the **whole** catalogue regardless of
+  what a reader has chosen in Tooted below. A reader browsing one product
+  family should not silently see "how much did the shop sell" narrow to that
+  family;
+- **Ostmine ajas** — the trend, on whichever of units, orders or value the
+  metric switch carries, unfiltered for the same reason;
+- **Lepingupõhjad** — always the document family specifically, whatever a
+  reader has chosen in Tooted. Contract templates carry this shop, so this
+  section states that outright rather than following a filter — the risers and
+  fallers, the order count and the ordered value are all read with
+  `product_types=(ProductType.DOCUMENT,)`, never with the reader's own type
+  choice;
+- **Tooted** — every product, one table, filterable by family and searchable
+  across the whole population. Rank, product, category, units, this row's
+  share of the current result set, and its movement since the equal-length
+  previous window — `Osa` and `Muutus`, both new. A concentration note and a
+  physical-products note close it: how much of the table the top ten carry,
+  and how many physical-product units moved this period, which the ranking
+  itself would otherwise bury under the document family's volume.
 
-`parse_focus` resolves `vaartus` to `ostud` rather than letting it fall through
-to the overview, because a shared link asking for value would otherwise land on
-the one view that does not carry it.
+Search runs over the whole product population, matching title, canonical path
+or Commerce ID, and composes with the type filter and the period through
+`periods.build_query` — so the URL stays bookmarkable, shareable and
+reload-safe because the state lives in it.
 
-Every control composes through `periods.build_query`, so changing the focus
-keeps the period, product type, categories and search — and the URL stays
-bookmarkable, shareable and reload-safe because the state lives in it. Search
-runs over the whole product population, matching title, canonical path or
-Commerce ID.
-
-Two rules the interface follows throughout. The generic word for a unit is
-**`Soetatud`**, not `Ostetud`, because a large share of the templates are free
-and an event registration is not a purchase; each family may narrow it, so an
-event says `Registreerimised` — never `Osalejad`, which is not a fact this
-dataset holds. And the attention list in `Tasub vaadata` is built from explicit
-thresholds on measured figures: no composite score, and no sentence about *why*
-anything moved.
+The generic word for a unit is **`Ostetud`** — `Soetatud` until 2026-08-16,
+when the owner asked for the plainer word after being shown what it costs:
+roughly three quarters of acquisitions are free, and "Ostetud" reads as "we
+sold this much" where the measurement is "this many were taken". Each family
+may narrow it, so an event says `Registreerimised` — never `Osalejad`, which
+is not a fact this dataset holds.
 
 `/epood/toode/<commerce id>/` — one product: its Commerce figures, both
 page-view counts, the information → product → acquisition steps for a template

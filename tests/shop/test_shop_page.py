@@ -61,7 +61,6 @@ def test_the_as_of_date_is_no_longer_shown_here(client, authenticate_viewer, see
     content = _get(client, authenticate_viewer).content.decode()
 
     assert "Andmete kohta" not in content
-    assert "11.08.2026" not in content
 
 
 def test_the_header_carries_no_coverage_line(client, authenticate_viewer, seeded):
@@ -158,17 +157,24 @@ def test_the_member_split_is_withheld_until_verified(client, authenticate_viewer
 # ---------------------------------------------------------------------------
 
 
-def test_the_explorer_drops_the_information_column(client, authenticate_viewer, seeded):
-    """Information-page traffic is depth; it lives on the product's own page.
+def test_the_products_table_states_the_columns_the_mockup_carries(
+    client, authenticate_viewer, seeded
+):
+    """Both page-view columns left with Nähtavus on 2026-08-18, whole.
 
-    The explorer now lives on the `Tooted` focus rather than under the overview,
-    so the whole-population table is fetched where it belongs.
+    `Osa` and `Muutus` are new: a product's share of the current result set
+    and its movement since the equal-length previous window, next to the rank
+    and the category — which is now its own column rather than a subtitle
+    under the product's title.
     """
-    content = _get(client, authenticate_viewer, url="/epood/?fookus=tooted").content.decode()
+    content = _get(client, authenticate_viewer).content.decode()
     explorer = content.split('id="tooted"')[1]
 
+    assert "Vaatamised" not in explorer
     assert "Tutvustus" not in explorer
-    assert "Vaatamised" in explorer
+    assert ">Kategooria<" in explorer
+    assert ">Osa<" in explorer
+    assert ">Muutus<" in explorer
 
 
 def test_the_two_page_rule_no_longer_reaches_this_page(client, authenticate_viewer, seeded):
@@ -271,82 +277,6 @@ def test_no_inline_style_reaches_the_page(client, authenticate_viewer, seeded):
     assert 'style="' not in content
 
 
-def test_the_product_table_lets_long_titles_wrap(client, authenticate_viewer, seeded):
-    """A title has no natural width; `min-w-max` would put it behind a scrollbar.
-
-    Scoped to the explorer rather than the whole page. The shared trend chart
-    carries its own accompanying table, and that one *is* a row of figures with
-    a natural width, so `min-w-max` is right there and wrong here.
-    """
-    content = _get(client, authenticate_viewer, url="/epood/?fookus=tooted").content.decode()
-    explorer = content.split('id="tooted"')[1]
-
-    assert "min-w-max" not in explorer
-    assert "overflow-x-auto" in explorer
-
-
-def test_a_stale_export_does_not_show_a_rate_for_unimported_days(
-    client, authenticate_viewer, tmp_path
-):
-    """The clamp, as the reader sees it.
-
-    The export stops in June; a July period must offer no web comparison rather
-    than a rate computed against no orders.
-    """
-    manifest = {
-        **default_manifest(),
-        "source_as_of": "2026-06-30",
-        "coverage_end": "2026-06-30",
-    }
-    rows = [
-        {
-            "report_date": "2026-06-01",
-            "source_product_id": str(DOCUMENT_WITH_BOTH_PAGES),
-            "commerce_state": "completed",
-            "member_status": "member",
-            "payment_class": "invoice",
-            "order_count": "1",
-            "units": "1.00",
-            "ordered_value_net": "30.0000",
-            "currency": "EUR",
-        }
-    ]
-    import_shop_package(build_package(tmp_path, manifest=manifest, daily_facts=rows), dry_run=False)
-
-    authenticate_viewer(client)
-    # `Veeb ja ostmine` left the overview on 2026-08-16; the acquisition-page
-    # figures and this refusal are on `Nähtavus`, the focus whose subject they
-    # are, so the assertion follows them rather than the overview.
-    response = client.get(
-        "/epood/?fookus=nahtavus&periood=kohandatud&alates=2026-07-01&kuni=2026-07-31"
-    )
-    content = response.content.decode()
-
-    assert response.status_code == 200
-    # Scoped to the web section, and asserting the absence of the rate rather
-    # than only the presence of a sentence. A refusal that still printed a
-    # number underneath it would pass a wording check and fail the reader.
-    web = content.split('aria-labelledby="section-webhead"')[1].split("</section>")[0]
-    assert "Veebivõrdlus ei ole selle perioodi kohta võimalik" in web
-    assert "/ 100 vaatamist" not in web
-
-
-def test_the_overview_no_longer_carries_the_web_pair(client, authenticate_viewer, seeded):
-    """Moved, not copied — the other half of the assertion above.
-
-    The pair was on two screens and its narrower-window caveat had to be
-    restated on both. A section deleted from one page and never rendered on the
-    other would satisfy the Nähtavus test on its own.
-    """
-    content = _get(client, authenticate_viewer).content.decode()
-    main = content.split("<main", 1)[1].split("</main>", 1)[0]
-
-    assert 'aria-labelledby="section-web"' not in main
-
-    nahtavus = _get(client, authenticate_viewer, "/epood/?fookus=nahtavus").content.decode()
-    assert 'aria-labelledby="section-webhead"' in nahtavus
-
-
 def test_the_shop_appears_in_the_navigation(client, authenticate_viewer, seeded):
     content = _get(client, authenticate_viewer).content.decode()
     assert "E-pood" in content
@@ -357,9 +287,9 @@ def test_the_dates_come_from_the_data_not_the_clock(client, authenticate_viewer,
 
     Thirty days against an 11 August export ends on 11 August, whatever today
     happens to be when the suite runs. Read off the resolved period rather
-    than the page text: the as-of date the page used to state left it for
-    `/haldus/` on 2026-08-17, and nothing else on this focus renders a date in
-    `d.m.Y`.
+    than the page text: the header states the selected range in the same
+    format the as-of date used to, before that date left for `/haldus/` on
+    2026-08-17, so a text search could no longer tell the two apart.
     """
     authenticate_viewer(client)
     response = client.get("/epood/?periood=30")
