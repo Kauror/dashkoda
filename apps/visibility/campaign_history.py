@@ -36,6 +36,7 @@ from datetime import date
 from django.core.paginator import Paginator
 from django.db.models import Max, Min
 
+from .mailings_period import ResolvedMailingsPeriod
 from .registry import spec_for
 from .smaily_campaigns import OTHER_KEY, OTHER_LABEL
 from .smaily_segments import NEWSLETTERS
@@ -179,16 +180,25 @@ def _options(active: str, search: str) -> tuple[HistoryOption, ...]:
 
 def build_campaign_history(
     *,
+    period: ResolvedMailingsPeriod | None = None,
     newsletter_key: str | None = None,
     search: str | None = None,
     page: str | int | None = None,
+    click_benchmarks: dict[str, float] | None = None,
 ) -> CampaignHistory:
-    """One page of the archive, narrowed by type and subject."""
+    """One page of the archive, narrowed by type, subject and the page's period.
+
+    `period` is the one control `/otsepostitused/` now shows in its header,
+    governing this table the same way it governs the comparison rates and the
+    chart above it — `None` keeps this function's old behaviour, every
+    completed send, for any caller that has no period of its own.
+    """
     active = parse_newsletter(newsletter_key)
     term = parse_search(search)
     metric = None if active == ALL_NEWSLETTERS else active
+    start, end = period.bounds() if period is not None else (None, None)
 
-    queryset = campaign_queryset(metric=metric, search=term)
+    queryset = campaign_queryset(metric=metric, search=term, start=start, end=end)
     paginator = Paginator(queryset, PER_PAGE)
 
     # Over the whole filtered set, not the page. The summary states a count and
@@ -205,7 +215,7 @@ def build_campaign_history(
     current = paginator.get_page(number)
 
     return CampaignHistory(
-        rows=describe_campaigns(current.object_list),
+        rows=describe_campaigns(current.object_list, click_benchmarks=click_benchmarks),
         options=_options(active, term),
         search=term,
         active=active,

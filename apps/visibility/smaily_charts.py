@@ -20,7 +20,14 @@ draws two units against two axes.
 from __future__ import annotations
 
 from apps.core.chart_payload import ChartPayload, Readout
-from apps.core.formatting import integer, percent, short_date
+from apps.core.formatting import (
+    integer,
+    month_and_year,
+    month_name,
+    percent,
+    percentage_points,
+    short_date,
+)
 
 #: Chart geometry. Its own copy rather than an import from the news charts:
 #: those numbers are that module's to change, and a shared constant across two
@@ -110,4 +117,82 @@ def newsletter_rates(sends) -> ChartPayload:
     )
 
 
-__all__ = ["ChartPayload", "Readout", "newsletter_rates"]
+def monthly_open_rate(rows, *, newsletter_label: str) -> ChartPayload:
+    """One newsletter's weighted open rate, one point per calendar month.
+
+    A single line rather than the per-send open+click pair `newsletter_rates`
+    draws: this chart answers "is the trend moving", which a month's worth of
+    sends folded into one point makes readable in a way a dense per-send line
+    is not. Click rate is not drawn here — see `newsletter_rates` for it,
+    still exact to a send.
+    """
+    labels = [month_name(row.month.month, short=True) for row in rows]
+    values = [round(row.open_rate * 100, 1) if row.open_rate is not None else None for row in rows]
+
+    # The last measured point carries its own value on the drawing — every
+    # other point's figure is in the accessible table below it.
+    last_measured = max((i for i, value in enumerate(values) if value is not None), default=None)
+    series_data = [
+        {"value": value, "label": {"show": index == last_measured}}
+        for index, value in enumerate(values)
+    ]
+
+    option = {
+        "grid": GRID,
+        "xAxis": _axis(labels),
+        "yAxis": {"type": "value", "splitLine": {"show": True}, "min": 0, "max": 100},
+        "series": [
+            {
+                "name": "Avamismäär",
+                "type": "line",
+                "data": series_data,
+                "smooth": False,
+                "showSymbol": True,
+                "symbolSize": 6,
+                "connectNulls": False,
+                "label": {
+                    "position": "top",
+                    "fontSize": 12,
+                    "fontWeight": 600,
+                    "formatter": "{c} %",
+                },
+            }
+        ],
+        "tooltip": {"trigger": "axis"},
+        "animation": True,
+    }
+
+    rows_with_data = list(zip(labels, values, strict=True))
+    dated = [(row.month, rate) for row, rate in zip(rows, values, strict=True) if rate is not None]
+    footnote = ""
+    if len(dated) >= 2:
+        _, first_rate = dated[0]
+        _, last_rate = dated[-1]
+        peak_month, _ = max(dated, key=lambda item: item[1])
+        trough_month, _ = min(dated, key=lambda item: item[1])
+        change = last_rate - first_rate
+        footnote = (
+            f"Avamismäär on perioodi jooksul muutunud {percentage_points(change)} "
+            f"— tipp {month_and_year(peak_month)}, madalseis {month_and_year(trough_month)}."
+        )
+
+    return ChartPayload(
+        payload_id="mailings-monthly-open-rate",
+        title="Avamismäär kuude lõikes",
+        question=f"{newsletter_label} · {integer(len(rows))} kuud" if rows else newsletter_label,
+        option=option,
+        table_headers=("Kuu", "Avamismäär"),
+        table_rows=tuple(
+            (month, percent(rate) if rate is not None else "–") for month, rate in rows_with_data
+        ),
+        summary=(
+            f"Joondiagramm {newsletter_label} avamismäärast kuude lõikes, "
+            f"{integer(len(rows))} kuu ulatuses."
+        ),
+        empty_message="Sellel uudiskirjal ei ole veel mõõdetud kuid.",
+        footnotes=(footnote,) if footnote else (),
+        size="medium",
+    )
+
+
+__all__ = ["ChartPayload", "Readout", "monthly_open_rate", "newsletter_rates"]

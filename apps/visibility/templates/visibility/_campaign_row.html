@@ -53,4 +53,14 @@ contract every outbound link on this dashboard follows.
   <td class="border-b border-border px-3 py-2 text-right tabular-nums text-text-secondary">
     {{ issue.click_rate_label|default:"—" }}
   </td>
+  {% comment %}
+  This send's click rate against its own newsletter's trailing 12-month
+  average — not the fair, completed-window benchmark this dashboard has no
+  need for elsewhere, since a send is either complete or it is not still
+  measuring. `—` where no average exists yet: a newsletter younger than a
+  year, or a send that matches none of the three.
+  {% endcomment %}
+  <td class="hidden border-b border-border px-3 py-2 text-right tabular-nums sm:table-cell {% if issue.benchmark_direction == 'up' %}text-success{% elif issue.benchmark_direction == 'down' %}text-danger{% else %}text-text-muted{% endif %}">
+    {{ issue.benchmark|default:"—" }}
+  </td>
 </tr>

@@ -1,23 +1,40 @@
 """What the Otsepostitused page says.
 
 `Otsepostitused` is the Chamber's newsletter intelligence: how each list
-performs, how the recent sends compare with the block before them, which sends
-did best, and — one route along — every campaign ever sent.
+performs, how one newsletter's month-by-month open rate has moved, which sends
+did best, and — on the same screen now — every campaign ever sent.
 
 ## Where this came from
 
 The material was the fifth focus of `/uudised/`, and its composition lived in
 `apps/news/page.py` while the presenters and every Smaily query lived here. It
 is one section now, at `/otsepostitused/` under Koduleht, and the composition
-has come to sit beside the data it composes. **Nothing was reimplemented.**
-`smaily_selectors` answers exactly the questions it answered before, with the
-same aggregates over the same windows, and `newsletter_page.py` still builds
-the searchable sends section it always did.
+has come to sit beside the data it composes. `smaily_selectors` answers the
+questions it always answered, plus the date-windowed ones this round added —
+see `apps/visibility/mailings_period.py`.
 
-So the arithmetic in this module is the arithmetic that was in `news.page`,
-moved: same block size, same weighted rates, same five-row rankings. If a
-figure here disagrees with what Uudised used to show, that is a defect and not
-a redefinition.
+## One period, since 2026-08-18
+
+The mockup this round rebuilt the page to shows one `Periood` picker governing
+the whole page, the same interface merge `apps/news/page.py` made for
+`/uudised/` the same day, for the same reason: a hidden second window the
+reader never asked for is worse than one range applied consistently. Before
+this the comparison table read "the twelve most recent sends" — a **count**
+window, chosen because newsletter cadence is irregular and an equal date span
+compares e-Teataja's weekly issues against e-Vestnik's occasional ones unfairly.
+That reasoning has not stopped being true; it has stopped being what this page
+shows by default. `get_newsletter_aggregate` (the count-window function) is
+still here, unused by this module, for whichever future view still needs the
+fairer footing.
+
+## A newsletter is always selected now
+
+The landing state used to show only the three-row comparison and nothing that
+needed one newsletter picked. The mockup shows the fuller page — the chart, the
+rankings — without a click first, so the page now defaults to the first
+newsletter in the registry (e-Teataja, the largest list) rather than to
+nothing. Picking eNews or e-Vestnik still switches every one-newsletter section
+to it.
 
 ## Two things this must never do
 
@@ -31,19 +48,29 @@ a redefinition.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date, timedelta
 
-from apps.core.change import ChangeRow, direction_of, share_percent
-from apps.core.formatting import integer, percentage_points, signed_integer
+from django.utils import timezone
+
+from apps.core.change import share_percent
+from apps.core.formatting import integer
 
 from . import smaily_charts
+from .mailings_period import ResolvedMailingsPeriod, resolve_period
 from .smaily_segments import NEWSLETTERS
 from .smaily_selectors import (
-    DEFAULT_AGGREGATE_ISSUES,
-    get_campaign_performance,
-    get_newsletter_aggregate,
+    count_sends_between,
+    get_monthly_open_rate,
+    get_newsletter_aggregate_between,
+    get_subscriber_series,
 )
 
-#: How many recent sends the rate history draws.
+#: The newsletter shown when none is chosen. The first (and largest) list in
+#: the registry, matching the mockup's default e-Teataja chart.
+DEFAULT_NEWSLETTER = NEWSLETTERS[0].metric
+
+#: How many recent sends the rate history draws, when a caller still wants the
+#: per-send chart rather than the monthly one this round added.
 SENDS_LIMIT = 24
 
 #: How many sends a ranking lists.
@@ -51,28 +78,46 @@ RANKING_LIMIT = 5
 
 #: How deep the ranking looks before sorting. A bound rather than the whole
 #: history: fourteen years of e-Teataja is thousands of rows, and the strongest
-#: five sends of the last two hundred is the question anybody is actually
+#: five sends of the selected period is the question anybody is actually
 #: asking.
 RANKING_DEPTH = 200
+
+#: The click-rate benchmark's own window, independent of the page's period
+#: picker. A twelve-month trailing average is what "vs keskmine" compares
+#: every send against — including a send from three years ago, if `Kõik` is
+#: selected — so the benchmark cannot itself be the selected window without
+#: becoming circular for anyone comparing a send against the very average it
+#: is part of.
+BENCHMARK_WINDOW_DAYS = 365
+
+
+@dataclass(frozen=True)
+class NewsletterRow:
+    """One newsletter's own line in the comparison. Never added to another's."""
+
+    metric: str
+    label: str
+    subscribers: str = ""
+    open_rate: str = ""
+    click_rate: str = ""
+    sends_per_year: str = ""
 
 
 @dataclass(frozen=True)
 class MailingsPage:
-    """Everything the Otsepostitused overview renders.
+    """Everything the Otsepostitused overview renders."""
 
-    `selected_newsletter` empty means no newsletter is chosen: the page shows
-    the comparison across all three and nothing that would need one of them
-    picked. That is the landing state, not an error state.
-    """
-
-    #: One line per newsletter, never summed.
-    comparison: tuple = field(default_factory=tuple)
-    recent: object | None = None
-    previous: object | None = None
-    changes: tuple[ChangeRow, ...] = field(default_factory=tuple)
-    sends: object | None = None
+    period: ResolvedMailingsPeriod
+    #: One line per newsletter, never summed — see this module's own docstring
+    #: for why no field on this page adds the three lists together.
+    comparison: tuple[NewsletterRow, ...] = field(default_factory=tuple)
+    chart: object | None = None
     rankings: dict = field(default_factory=dict)
     selected_newsletter: str = ""
+    selected_label: str = ""
+    #: Each of the three newsletters' own trailing 12-month click rate, keyed
+    #: by metric — what the archive's `vs keskmine` column reads.
+    click_benchmarks: dict[str, float] = field(default_factory=dict)
 
     @property
     def has_selection(self) -> bool:
@@ -82,121 +127,56 @@ class MailingsPage:
     def has_rankings(self) -> bool:
         return bool(self.rankings.get("by_open") or self.rankings.get("by_click"))
 
+    @property
+    def selected_benchmark(self) -> float | None:
+        return self.click_benchmarks.get(self.selected_newsletter)
 
-def build_mailings_page(
-    *, newsletter_key: str = "", sends_limit: int = SENDS_LIMIT
-) -> MailingsPage:
-    """The overview, reading only what the state on screen actually renders.
+    @property
+    def selected_benchmark_label(self) -> str:
+        benchmark = self.selected_benchmark
+        return share_percent(benchmark) if benchmark is not None else ""
 
-    With no newsletter chosen this is three aggregate queries and nothing else:
-    the rate history, the block comparison and the rankings all describe one
-    newsletter, and running them for a page that shows none would be three
-    views' worth of queries behind a table of three rows.
-    """
-    comparison = tuple(_summary(spec.metric) for spec in NEWSLETTERS)
 
-    if not newsletter_key:
-        return MailingsPage(comparison=comparison)
-
-    # One block size for both slices, so "the twelve before" is always the same
-    # twelve the recent figure is quoted over.
-    recent = get_newsletter_aggregate(newsletter_key, limit=DEFAULT_AGGREGATE_ISSUES)
-    previous = get_newsletter_aggregate(
-        newsletter_key, limit=DEFAULT_AGGREGATE_ISSUES, offset=DEFAULT_AGGREGATE_ISSUES
+def _newsletter_row(
+    spec, *, period: ResolvedMailingsPeriod, sends_since: date, today: date
+) -> NewsletterRow:
+    aggregate = get_newsletter_aggregate_between(spec.metric, start=period.start, end=period.end)
+    series = get_subscriber_series(spec.metric)
+    sends_per_year = count_sends_between(
+        start=sends_since, end=today + timedelta(days=1), metric=spec.metric
     )
-    sends = [
-        send
-        for send in get_campaign_performance(metric=newsletter_key, limit=sends_limit)
-        if send.has_statistics
-    ]
-    sends.reverse()
-
-    return MailingsPage(
-        comparison=comparison,
-        recent=recent,
-        previous=previous,
-        changes=_changes(recent, previous),
-        sends=smaily_charts.newsletter_rates(sends) if sends else None,
-        rankings=_rankings(newsletter_key),
-        selected_newsletter=newsletter_key,
+    return NewsletterRow(
+        metric=spec.metric,
+        label=aggregate.label or spec.label,
+        subscribers=integer(series.latest.subscribers) if series.latest else "",
+        open_rate=share_percent(aggregate.open_rate) if aggregate.has_data else "",
+        click_rate=share_percent(aggregate.click_rate) if aggregate.has_data else "",
+        sends_per_year=integer(sends_per_year),
     )
 
 
-def _summary(metric: str) -> dict:
-    """One newsletter's own line in the comparison. Never added to another's.
-
-    The label comes from the visibility registry through the aggregate, which is
-    the one place a newsletter is named; `smaily_segments` maps segments to
-    newsletters and does not carry display text.
-
-    Carries only the two rates. Send and delivery counts left this comparison
-    on 2026-08-17 — they duplicated the newsletter card above rather than
-    telling the reader anything the rates didn't.
-    """
-    aggregate = get_newsletter_aggregate(metric)
-    return {
-        "metric": metric,
-        "label": aggregate.label,
-        "open_rate": share_percent(aggregate.open_rate),
-        "click_rate": share_percent(aggregate.click_rate),
-    }
+def click_benchmarks_for(*, today: date) -> dict[str, float]:
+    """Every newsletter's own trailing 12-month click rate, where it exists."""
+    since = today - timedelta(days=BENCHMARK_WINDOW_DAYS - 1)
+    benchmarks = {}
+    for spec in NEWSLETTERS:
+        aggregate = get_newsletter_aggregate_between(spec.metric, start=since, end=today)
+        if aggregate.has_data and aggregate.click_rate is not None:
+            benchmarks[spec.metric] = aggregate.click_rate
+    return benchmarks
 
 
-def _changes(recent, previous) -> tuple[ChangeRow, ...]:
-    """Recent sends against the block before them, on weighted rates only.
-
-    Never the mean of per-send percentages: a send to 755 people and one to
-    20 616 are not two equally weighted observations, and averaging the
-    percentages would drag the headline towards whichever list is smallest.
-    Summed counts over summed counts is the only aggregate quoted.
-    """
-    if not recent.has_data or not previous.has_data:
-        return ()
-    rows = []
-    for label, current_value, earlier_value in (
-        ("Avamismäär", recent.open_rate, previous.open_rate),
-        ("Klikimäär", recent.click_rate, previous.click_rate),
-        ("Klikke avajate seas", recent.click_to_open_rate, previous.click_to_open_rate),
-    ):
-        if current_value is None or earlier_value is None:
-            continue
-        difference = (current_value - earlier_value) * 100
-        rows.append(
-            ChangeRow(
-                label=label,
-                current=share_percent(current_value),
-                previous=share_percent(earlier_value),
-                change=percentage_points(difference),
-                direction=direction_of(difference),
-            )
-        )
-    if recent.delivered and previous.delivered:
-        difference = recent.delivered - previous.delivered
-        rows.append(
-            ChangeRow(
-                label="Kättetoimetatud",
-                current=integer(recent.delivered),
-                previous=integer(previous.delivered),
-                change=signed_integer(difference),
-                direction=direction_of(difference),
-            )
-        )
-    return tuple(rows)
-
-
-def _rankings(metric: str, *, limit: int = RANKING_LIMIT) -> dict:
+def _rankings(metric: str, *, period: ResolvedMailingsPeriod, limit: int = RANKING_LIMIT) -> dict:
     """The strongest sends by rate, with the audience size beside each.
 
     A rate without its denominator misleads: 62% of 30 recipients and 41% of
     20 000 are not the same achievement, and only one of them is a newsletter.
-    Sends from other newsletters are not in here — `Muu` least of all, which is
-    not a newsletter but every other kind of letter the Chamber has ever sent.
     """
-    measured = [
-        send
-        for send in get_campaign_performance(metric=metric, limit=RANKING_DEPTH)
-        if send.has_statistics and send.delivered
-    ]
+    from .smaily_selectors import campaign_queryset, describe_campaigns
+
+    start, end = period.bounds()
+    campaigns = campaign_queryset(metric=metric, start=start, end=end)[:RANKING_DEPTH]
+    measured = [send for send in describe_campaigns(campaigns) if send.delivered]
     by_open = sorted(
         (send for send in measured if send.open_rate is not None),
         key=lambda send: send.open_rate,
@@ -210,9 +190,53 @@ def _rankings(metric: str, *, limit: int = RANKING_LIMIT) -> dict:
     return {"by_open": tuple(by_open), "by_click": tuple(by_click)}
 
 
+def build_mailings_page(
+    *,
+    newsletter_key: str = "",
+    period_key: str | None = None,
+    date_from: str | None = None,
+    date_to: str | None = None,
+    today: date | None = None,
+) -> MailingsPage:
+    """The overview, over the one period the page's header picks.
+
+    `newsletter_key` empty means the default newsletter, not "none" — see this
+    module's own docstring for why the landing state changed on 2026-08-18.
+    """
+    today = today or timezone.localdate()
+    period = resolve_period(period_key, date_from, date_to, today=today)
+    selected = newsletter_key or DEFAULT_NEWSLETTER
+    sends_since = today - timedelta(days=BENCHMARK_WINDOW_DAYS - 1)
+
+    comparison = tuple(
+        _newsletter_row(spec, period=period, sends_since=sends_since, today=today)
+        for spec in NEWSLETTERS
+    )
+
+    monthly = get_monthly_open_rate(selected, start=period.start, end=period.end)
+    selected_spec = next((spec for spec in NEWSLETTERS if spec.metric == selected), None)
+    selected_label = selected_spec.label if selected_spec else ""
+
+    return MailingsPage(
+        period=period,
+        comparison=comparison,
+        chart=smaily_charts.monthly_open_rate(monthly, newsletter_label=selected_label)
+        if monthly
+        else None,
+        rankings=_rankings(selected, period=period),
+        selected_newsletter=selected,
+        selected_label=selected_label,
+        click_benchmarks=click_benchmarks_for(today=today),
+    )
+
+
 __all__ = [
+    "BENCHMARK_WINDOW_DAYS",
+    "DEFAULT_NEWSLETTER",
     "RANKING_LIMIT",
     "SENDS_LIMIT",
     "MailingsPage",
+    "NewsletterRow",
     "build_mailings_page",
+    "click_benchmarks_for",
 ]
