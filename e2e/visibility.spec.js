@@ -123,8 +123,12 @@ test("there is no focus navigation left to choose a question from", async ({
       main.getByRole("link", { name: label, exact: true }),
     ).toHaveCount(0);
   }
-  // The period control is the one navigation the page still carries.
-  await expect(page.getByRole("navigation", { name: "Periood" })).toBeVisible();
+  /*
+   * The period control is the one navigation the page still carries — but not
+   * here: with no collected day there is no window to choose between, so the
+   * header gates it on `has_data`. The seeded suite asserts it is offered, and
+   * that a period the history cannot fill is offered inert rather than hidden.
+   */
 });
 
 test("each focus view is a real URL that renders on its own", async ({
