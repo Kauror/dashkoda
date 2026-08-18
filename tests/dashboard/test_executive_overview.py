@@ -563,9 +563,11 @@ def test_the_shop_card_never_calls_ordered_value_revenue():
         )
     )
 
-    # The domain's own period label, lower-cased. The card cannot say
-    # `viimase 30 päeva jooksul` unless the export's window is thirty days.
-    assert card.headline.unit == "viimased 30 päeva"
+    # What the figure counts. The window is the period line's job: the
+    # domain's `period_label` is a filter chip's caption — `1 a`, `30 p` — and
+    # `746 1 a` says neither what was counted nor over what.
+    assert card.headline.unit == "ühikut ostetud"
+    assert card.period_line == "3.07.26 – 1.08.26"
     labels = [fact.label for fact in card.facts]
     assert "Tellitud väärtus (KM-ta)" in labels
     words = " ".join(labels + [card.headline.unit]).casefold()

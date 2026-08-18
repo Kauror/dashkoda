@@ -621,10 +621,11 @@ def _shop_card(summary) -> ExecutiveDomainCard:
             period=summary.period_label,
             source=SOURCE_COMMERCE,
             value=integer(summary.units),
-            # The period's own words, from the domain. The card cannot say
-            # `viimase 30 päeva jooksul` unless the export's own window is
-            # thirty days, and `resolve_period` decides that rather than this.
-            unit=summary.period_label.lower(),
+            # What the figure counts, not when. `period_label` is a filter
+            # chip's caption — `1 a`, `30 p` — and reads as noise beside a
+            # number: `746 1 a` says neither what was counted nor over what.
+            # The window is the period line's job, in full dates.
+            unit="ühikut ostetud",
             as_of=summary.source_as_of,
             comparison=(
                 ExecutiveComparison(
