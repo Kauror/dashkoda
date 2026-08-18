@@ -98,12 +98,19 @@ def get(client, focus: str | None = None):
 
 
 def test_an_unknown_focus_falls_back_to_the_overview():
-    """A truncated link or an old bookmark must land somewhere real."""
+    """A truncated link or an old bookmark must land somewhere real.
+
+    `register`, `arvamused` and `tagasiside` are exactly that now: they left
+    the closed set on 2026-08-18, when the register explorer moved onto the
+    overview unconditionally and the other two folded into `toovoog`.
+    """
     assert parse_focus("nonsense") == "ulevaade"
     assert parse_focus(None) == "ulevaade"
     assert parse_focus("") == "ulevaade"
     assert parse_focus("../../etc/passwd") == "ulevaade"
-    assert parse_focus("REGISTER") == "register"
+    assert parse_focus("REGISTER") == "ulevaade"
+    assert parse_focus("arvamused") == "ulevaade"
+    assert parse_focus("tagasiside") == "ulevaade"
 
 
 def test_every_focus_renders(client, authenticate_viewer, register):
@@ -119,7 +126,7 @@ def test_an_unknown_focus_still_renders_the_overview(client, authenticate_viewer
 
     content = get(client, "midagi-muud")
 
-    assert "2026. aasta teemasid kokku" in content
+    assert "Teemasid 2026" in content
 
 
 def test_the_navigation_marks_exactly_one_focus_as_current(client, authenticate_viewer, register):
@@ -131,11 +138,11 @@ def test_the_navigation_marks_exactly_one_focus_as_current(client, authenticate_
     """
     authenticate_viewer(client)
 
-    content = get(client, "arvamused")
+    content = get(client, "toovoog")
     nav = content.split('aria-label="Õigusloome vaated"', 1)[1].split("</nav>", 1)[0]
 
     assert nav.count('aria-current="page"') == 1
-    assert "fookus=arvamused" in nav
+    assert "fookus=toovoog" in nav
 
 
 # --------------------------------------------------------------------------
@@ -148,21 +155,10 @@ def test_the_overview_carries_the_mandatory_headline_figures(client, authenticat
 
     content = get(client)
 
-    assert "2026. aasta teemasid kokku" in content
-    assert "2026. aastal arvamusi välja" in content
-    assert "Arvamuste muutus võrreldes eelmise aastaga" in content
+    assert "Teemasid 2026" in content
+    assert "Arvamusi välja 2026" in content
     assert "Hetkel töös" in content
-
-
-def test_the_overview_carries_the_mandatory_stage_chart(client, authenticate_viewer, register):
-    """The printed title states the total and left the page on 2026-08-17 —
-    see `title_hidden` on `active_stage_chart` — so the total is checked via
-    the canvas's `aria-label` instead, which carries the same figure."""
-    authenticate_viewer(client)
-
-    content = get(client)
-
-    assert re.search(r"\d aktiivset teemat jaguneb \d hetkeseisu vahel", content)
+    assert "Liikmed andsid tagasisidet" in content
 
 
 def test_the_workflow_focus_carries_both_monthly_charts(client, authenticate_viewer, register):
@@ -174,14 +170,17 @@ def test_the_workflow_focus_carries_both_monthly_charts(client, authenticate_vie
     assert "Välja saadetud arvamused kuude lõikes" in content
 
 
-def test_the_opinions_focus_carries_the_annual_and_response_charts(
+def test_the_workflow_focus_carries_the_combined_annual_and_response_charts(
     client, authenticate_viewer, register
 ):
+    """`Aastate lõikes` merged `Teemad aastate lõikes` and `Välja saadetud
+    arvamused aastate lõikes` into one chart on 2026-08-18, and `Arvamused`'s
+    response-window charts moved onto this focus whole."""
     authenticate_viewer(client)
 
-    content = get(client, "arvamused")
+    content = get(client, "toovoog")
 
-    assert "Välja saadetud arvamused aastate lõikes" in content
+    assert "Aastate lõikes" in content
     assert "Arvamuse esitamiseks antud keskmine aeg" in content
     # Both series, not the mean alone.
     assert "Mediaan" in content
@@ -192,7 +191,7 @@ def test_the_current_year_is_marked_as_partial(client, authenticate_viewer, regi
     """A partial bar that looks finished invites a false reading every January."""
     authenticate_viewer(client)
 
-    content = get(client, "arvamused")
+    content = get(client, "toovoog")
 
     assert "2026 (YTD)" in content
 
@@ -219,23 +218,6 @@ def test_no_member_response_rate_is_offered_anywhere(client, authenticate_viewer
         assert "Liikmete vastamismäär" not in content
         assert "vastamismäär:" not in content.lower()
         assert "vastamismäär on" not in content.lower()
-
-
-def test_the_feedback_view_states_what_it_is_not(client, authenticate_viewer, register):
-    """The card is still here; the caption that qualifies it is not, any more.
-
-    It moved to `Andmete seis` on 2026-08-16, and `Andmete seis` itself moved
-    to `/haldus/` on 2026-08-17 — see
-    `tests/dashboard/test_admin_area.py::test_the_legal_work_data_block_arrived`
-    for where the rule lives now. The card stays: `kokku` still invites the
-    misreading this page must not create.
-    """
-    authenticate_viewer(client)
-
-    content = get(client, "tagasiside")
-
-    assert "ei ole unikaalsete liikmete arv" not in content
-    assert "Liikmete tagasiside kokku" in content
 
 
 def test_a_measured_zero_stays_distinct_from_an_untracked_row(
@@ -282,11 +264,14 @@ def test_the_linked_sections_stay_on_the_default_focus(client, authenticate_view
 def test_the_chart_bundle_loads_only_where_something_is_drawn(
     client, authenticate_viewer, register
 ):
-    """It is over a megabyte, so the register must not pay for it."""
+    """It is over a megabyte, so the overview must not pay for it when it has
+    nothing to draw — this fixture's three topics sit under
+    `MIN_FEEDBACK_TOPICS_FOR_BREAKDOWN`, so the overview draws no chart at
+    all."""
     authenticate_viewer(client)
 
-    assert "build/charts.js" in get(client, "arvamused")
-    assert "build/charts.js" not in get(client, "register")
+    assert "build/charts.js" in get(client, "toovoog")
+    assert "build/charts.js" not in get(client)
 
 
 def test_every_chart_names_itself_for_a_reader_who_cannot_see_the_canvas(
@@ -296,7 +281,7 @@ def test_every_chart_names_itself_for_a_reader_who_cannot_see_the_canvas(
     is `chart.summary`, rendered as the canvas's own `aria-label`."""
     authenticate_viewer(client)
 
-    content = get(client, "arvamused")
+    content = get(client, "toovoog")
 
     assert "Andmed tabelina" not in content
     payload_count = content.count("data-chart-payload=")
@@ -318,24 +303,7 @@ def test_a_chart_payload_rides_in_a_non_executable_block(client, authenticate_vi
     """`json_script` is what keeps `script-src` at 'self' with no unsafe-eval."""
     authenticate_viewer(client)
 
-    assert 'type="application/json"' in get(client, "arvamused")
-
-
-def test_the_feedback_focus_no_longer_states_its_caveats_inline(
-    client, authenticate_viewer, register
-):
-    """`Kuidas neid arve lugeda` and its four caveats left this focus on
-    2026-08-17. What each one described is unchanged — feedback is still
-    counted, not people; a member is still not unique across topics; no
-    response rate is still ever computed — only the on-page statement of it
-    is gone."""
-    authenticate_viewer(client)
-
-    content = get(client, "tagasiside")
-
-    assert "Kuidas neid arve lugeda" not in content
-    assert "Vastamismäära ei arvutata" not in content
-    assert "sama liige võib anda tagasisidet" not in content
+    assert 'type="application/json"' in get(client, "toovoog")
 
 
 def test_the_page_no_longer_dates_the_data_by_the_workbook(client, authenticate_viewer, register):
@@ -348,15 +316,16 @@ def test_the_page_no_longer_dates_the_data_by_the_workbook(client, authenticate_
     assert "Andmed seisuga 10.08.2026" not in content
 
 
-def test_the_search_reaches_the_whole_register_from_the_overview(
-    client, authenticate_viewer, register
-):
-    """Burying it one click deep would undo the reason it was added."""
+def test_the_register_is_unconditional_on_the_overview(client, authenticate_viewer, register):
+    """It was one click away, behind its own focus, until 2026-08-18. Burying
+    the whole-register search a click deep would undo the reason it was
+    added in the first place."""
     authenticate_viewer(client)
 
     content = get(client)
 
-    assert 'id="section-search"' in content
+    assert 'id="section-register"' in content
+    assert 'id="otsing"' in content
 
 
 def test_without_a_snapshot_every_focus_is_an_empty_state(client, authenticate_viewer, db):

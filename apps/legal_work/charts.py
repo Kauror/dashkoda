@@ -30,6 +30,7 @@ from .analytics import (
     AnnualPoint,
     CategoryRow,
     FeedbackCategoryRow,
+    FeedbackCoverageYear,
     MonthlyFlow,
     ResponseWindowDistribution,
     ResponseWindowYear,
@@ -484,6 +485,117 @@ def annual_topics_chart(points: tuple[AnnualPoint, ...]) -> ChartPayload:
         ),
         summary=f"Teemade arv {len(points)} aasta lõikes; jooksev aasta on osaline.",
         empty_message="Teemasid ei ole.",
+        size="large",
+    )
+
+
+def annual_activity_chart(
+    topics: tuple[AnnualPoint, ...],
+    sent: tuple[AnnualPoint, ...],
+    coverage: tuple[FeedbackCoverageYear, ...],
+) -> ChartPayload:
+    """`Aastate lõikes` — topics, sent opinions and feedback coverage together.
+
+    Two bars rather than one each, because the question this draws is how the
+    two flows relate year to year, which two separate charts leave the reader
+    to eyeball across a scroll. The coverage line rides a second axis in
+    percent: it is a share of that year's topics, not a count, and sharing an
+    axis with the bars would draw a line pinned near zero beside bars in the
+    hundreds.
+
+    The line is `null`, not zero, for every year before feedback tracking
+    began — `FeedbackCoverageYear` only exists for years the source actually
+    measured, and a dashed line resting on the floor would read as "no member
+    ever responded" rather than "not measured yet".
+    """
+    years = sorted({point.year for point in topics} | {point.year for point in sent})
+    topics_by_year = {point.year: point for point in topics}
+    sent_by_year = {point.year: point for point in sent}
+    coverage_by_year = {point.year: point for point in coverage}
+
+    def _partial(point: AnnualPoint | None) -> bool:
+        return point is not None and point.is_partial
+
+    labels = [
+        f"{year} (YTD)"
+        if _partial(topics_by_year.get(year)) or _partial(sent_by_year.get(year))
+        else str(year)
+        for year in years
+    ]
+
+    def _bar_value(point: AnnualPoint | None):
+        if point is None:
+            return None
+        if point.is_partial:
+            return {"value": point.count, "itemStyle": {"color": "transparent", "borderWidth": 2}}
+        return point.count
+
+    def _share(year: FeedbackCoverageYear | None):
+        if year is None or year.total_topics == 0:
+            return None
+        return round(year.with_feedback / year.total_topics * 100.0, 1)
+
+    option = {
+        **_base_option(),
+        "xAxis": {"type": "category", "data": labels},
+        "yAxis": [
+            {"type": "value", "minInterval": 1},
+            {"type": "value", "name": "%", "min": 0, "max": 100, "splitLine": {"show": False}},
+        ],
+        "series": [
+            {
+                "type": "bar",
+                "name": "Teemad",
+                "data": [_bar_value(topics_by_year.get(year)) for year in years],
+            },
+            {
+                "type": "bar",
+                "name": "Välja saadetud arvamused",
+                "data": [_bar_value(sent_by_year.get(year)) for year in years],
+            },
+            {
+                "type": "line",
+                "name": "Teemade osakaal, kus liikmed andsid tagasisidet",
+                "yAxisIndex": 1,
+                "data": [_share(coverage_by_year.get(year)) for year in years],
+                "connectNulls": False,
+                "smooth": False,
+            },
+        ],
+    }
+
+    def _cell(value) -> str:
+        return integer(value) if value is not None else "–"
+
+    def _share_cell(year: int) -> str:
+        share = _share(coverage_by_year.get(year))
+        return f"{share:.1f}".replace(".", ",") + "%" if share is not None else "–"
+
+    return ChartPayload(
+        payload_id="legal-annual-activity",
+        title="Aastate lõikes",
+        question=(
+            "Kuidas teemade sissetulek, väljasaadetud arvamused ja liikmete "
+            "tagasiside kaetus aastate lõikes suhestuvad?"
+        ),
+        option=option,
+        table_headers=(
+            "Aasta",
+            "Teemad",
+            "Välja saadetud arvamused",
+            "Tagasisidega teemade osakaal",
+        ),
+        table_rows=tuple(
+            (
+                labels[index],
+                _cell(topics_by_year[year].count if year in topics_by_year else None),
+                _cell(sent_by_year[year].count if year in sent_by_year else None),
+                _share_cell(year),
+            )
+            for index, year in enumerate(years)
+        ),
+        summary=f"Teemad, välja saadetud arvamused ja tagasiside kaetus {len(years)} aasta lõikes.",
+        empty_message="Andmeid ei ole.",
         size="large",
     )
 

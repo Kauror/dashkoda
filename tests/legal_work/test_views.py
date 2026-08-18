@@ -74,10 +74,11 @@ def test_arrivals_are_no_longer_a_section_or_a_headline(
     this test asserted the phrase was still *somewhere*, which was true only
     because that readout survived the table.
 
-    The measurement is not lost: `topics_year_on_year` still drives the
-    `Uusi teemasid saabunud` comparison in `Mis muutus?`. That is not asserted
-    here, because the insight is conditional on a prior year being present in
-    the snapshot — a render check would pin the fixture's shape rather than the
+    The measurement is not lost: `topics_year_on_year` still drives the note
+    under `Teemasid {aasta}` in the headline strip — `Mis muutus?`, the section
+    that read it before, retired on 2026-08-18. That is not asserted here,
+    because the note is conditional on a prior year being present in the
+    snapshot — a render check would pin the fixture's shape rather than the
     page's rule. `tests/legal_work/test_executive_consistency.py` covers the
     selector itself.
     """
