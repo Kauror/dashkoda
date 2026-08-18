@@ -100,13 +100,20 @@ def test_the_fragment_pushes_otsepostitused(viewer_client):
 
 
 def test_the_fragment_carries_no_news_state(viewer_client):
-    """A news parameter on the current URL must not ride along.
+    """A news-only parameter on the current URL must not ride along.
 
     This section used to sit on `/uudised/` and carried the article archive's
-    period, category and ordering so a keystroke could not reset them. There is
-    no archive here, so those keys mean nothing on the page being pushed — and
-    an address holding parameters the page never reads is an address that lies
+    category and ordering so a keystroke could not reset them. There is no
+    archive here, so those keys mean nothing on the page being pushed — and an
+    address holding parameters the page never reads is an address that lies
     about what is on screen.
+
+    `periood` is not in this list any more: it named the news archive's
+    publication window before 2026-08-16, and it names this page's own period
+    picker since 2026-08-18 — see `apps/visibility/mailings_period.py`. The two
+    pages sharing a parameter *name* is not the state leak this test guards
+    against; `otsing` (the article search's own key, distinct from `otsi`)
+    still is.
     """
     response = viewer_client.get(
         reverse(ARCHIVE_SEARCH),
@@ -120,7 +127,7 @@ def test_the_fragment_carries_no_news_state(viewer_client):
     )
 
     pushed = response.headers["HX-Push-Url"]
-    for key in ("periood=", "kategooria=", "sort=", "otsing=", "fookus="):
+    for key in ("kategooria=", "sort=", "otsing=", "fookus="):
         assert key not in pushed
 
 

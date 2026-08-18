@@ -58,7 +58,14 @@ VISIBILITY_URL = "/koduleht/"
 ARCHIVE = {"fookus": "arhiiv"}
 
 #: The section headings each page is asserted to hold or not hold.
+#:
+#: `CARD_HEADING` was the audience card's own `<h3>` — a `channel_card` that
+#: opened the page and duplicated what `Kanalid` already said, one card down.
+#: It folded into that table on 2026-08-18, so what used to be `Uudiskirjad`
+#: as a heading is `Uudiskirjad` as one row's own label now — still checked
+#: for on Otsepostitused, no longer as a heading.
 CARD_HEADING = "Uudiskirjad"
+CHANNELS_HEADING = "Kanalid"
 SECTION_HEADING = "Uudiskirjade tulemused"
 SENDS_HEADING = "Saadetud uudiskirjad"
 
@@ -257,12 +264,12 @@ def test_the_news_overview_no_longer_summarises_the_newsletters(viewer_client):
 # ======================================================================
 
 
-def test_the_mailings_page_shows_the_newsletter_card(viewer_client):
+def test_the_mailings_page_shows_the_channels_table(viewer_client):
     read()
 
     content = page(viewer_client.get(MAILINGS_URL))
 
-    assert CARD_HEADING in content
+    assert CHANNELS_HEADING in content
     # e-Teataja is 100 members + 200 others, counted once.
     assert "300" in content
 
@@ -294,13 +301,20 @@ def test_the_card_lists_each_newsletter_and_totals_none_of_them(viewer_client):
 
 
 def test_a_newsletter_nobody_collected_stays_missing_rather_than_zero(viewer_client):
-    """Missing is not zero, on this page as on every other."""
+    """Missing is not zero, on this page as on every other.
+
+    `Kanalid`'s subscriber cell is a dash — `NewsletterRow.subscribers` is
+    only ever an `integer()` string or an empty one, never `"0"` — and the
+    row itself still renders, under its own name, rather than disappearing
+    with its one missing figure.
+    """
     read(drop=(2711,))
 
-    content = page(viewer_client.get(MAILINGS_URL))
+    response = viewer_client.get(MAILINGS_URL)
+    row = next(row for row in response.context["page"].comparison if row.metric == ENEWS)
 
-    assert "Sisestamata" in content
-    assert "eNews" in content
+    assert row.subscribers == ""
+    assert "eNews" in page(response)
 
 
 def test_the_mailings_page_shows_the_analytics_section_and_recent_sends(viewer_client):
@@ -377,12 +391,14 @@ def test_the_mailings_page_marks_itself_as_the_active_section(viewer_client):
     assert response.context["active_nav"] == "mailings"
 
 
-def test_the_mailings_page_reads_no_news_parameter(viewer_client):
-    """A period or a category on this address changes nothing and is carried nowhere.
+def test_the_mailings_page_reads_no_news_category(viewer_client):
+    """`kategooria` is the news archive's own parameter and carries nowhere here.
 
-    They were meaningful while this section shared a URL with the news archive.
-    It does not any more, and a link on this page that emitted `periood=1a` would
-    be handing the reader an address whose own page cannot read it back.
+    `periood` changed meaning on 2026-08-18: it used to be meaningless on this
+    address, and it is this page's own period picker now — see
+    `apps/visibility/mailings_period.py`. `kategooria` never had a meaning here
+    and still does not; a link on this page that emitted it would be handing
+    the reader an address whose own page cannot read it back.
     """
     read()
     send(1, "Aastakoosolek", newsletter=ENEWS)
@@ -395,7 +411,6 @@ def test_the_mailings_page_reads_no_news_parameter(viewer_client):
     )
 
     assert "Aastakoosolek" in content
-    assert "periood=1a" not in content
     assert "kategooria=meie_uudised" not in content
 
 

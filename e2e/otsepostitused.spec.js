@@ -30,26 +30,37 @@ test("the section renders at its own address", async ({ page }) => {
 
   await openMailings(page);
 
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
-  // The audience card, then the analytics section under it.
-  await expect(page.getByRole("heading", { name: "Uudiskirjad", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Otsepostitused",
+  );
+  // The old audience card folded into `Kanalid` on 2026-08-18 — see
+  // apps/visibility/mailings_page.py — then the analytics section under it.
+  await expect(
+    page.getByRole("heading", { name: "Kanalid", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Uudiskirjade tulemused", exact: true }),
   ).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test("one view, and the address the second one left still answers", async ({ page }) => {
+test("one view, and the address the second one left still answers", async ({
+  page,
+}) => {
   // `Saadetised` merged into `Ülevaade` on 2026-08-16. There is no view
   // navigation left to click, and the archive is a section of this page.
   await openMailings(page);
 
   await expect(page.getByRole("navigation", { name: "Vaade" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Otsepostitused",
+  );
 
   await page.goto(OLD_HISTORY);
   await expect(page).toHaveURL(/\/otsepostitused\/$|\/otsepostitused\/#/);
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Otsepostitused",
+  );
 });
 
 test("the newsletter filter chips work", async ({ page }) => {
@@ -61,7 +72,9 @@ test("the newsletter filter chips work", async ({ page }) => {
 
   await expect(page).toHaveURL(/uudiskiri=newsletter_eteataja/);
   // Still in the section rather than back at the landing state.
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("Otsepostitused");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText(
+    "Otsepostitused",
+  );
 });
 
 test("a filter chip carries no news parameter", async ({ page }) => {
@@ -84,9 +97,23 @@ test("a filter chip carries no news parameter", async ({ page }) => {
 test("the section shows no fabricated newsletter figure", async ({ page }) => {
   await openMailings(page);
 
-  await expect(page.getByText("Andmed puuduvad.").first()).toBeVisible();
+  // `Kanalid`'s own missing-vs-zero state: a dash for every rate and every
+  // subscriber count no reading exists for, never a `0`. The three rows
+  // still render, each under its own newsletter name.
+  const channels = page
+    .locator("section")
+    .filter({
+      has: page.getByRole("heading", { name: "Kanalid", exact: true }),
+    });
+  for (const label of ["e-Teataja", "eNews", "e-Vestnik"]) {
+    await expect(
+      channels.getByRole("rowheader", { name: label, exact: true }),
+    ).toBeVisible();
+  }
   await expect(
-    page.getByText("Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist."),
+    page.getByText(
+      "Saadetud uudiskirjad ilmuvad siia pärast esimest Smaily kogumist.",
+    ),
   ).toBeVisible();
 });
 

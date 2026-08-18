@@ -27,6 +27,7 @@ Every old address still resolves.
 
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.views.decorators.http import require_GET
 
 from apps.dashboard.freshness import current_freshness
@@ -37,7 +38,12 @@ from .campaign_history import PARAM_PAGE as PARAM_HISTORY_PAGE
 from .campaign_history import PARAM_SEARCH as PARAM_HISTORY_SEARCH
 from .campaign_history import build_campaign_history
 from .content_sections import PARAM_CONTENT
-from .mailings_page import build_mailings_page
+from .mailings_page import build_mailings_page, click_benchmarks_for
+from .mailings_period import PARAM_FROM as PARAM_MAILINGS_FROM
+from .mailings_period import PARAM_PERIOD as PARAM_MAILINGS_PERIOD
+from .mailings_period import PARAM_TO as PARAM_MAILINGS_TO
+from .mailings_period import period_options as mailings_period_options
+from .mailings_period import resolve_period as resolve_mailings_period
 from .newsletter_page import (
     ALL_NEWSLETTERS,
     PARAM_NEWSLETTER,
@@ -45,8 +51,7 @@ from .newsletter_page import (
     parse_newsletter,
 )
 from .newsletter_page import PARAM_SEARCH as PARAM_NEWSLETTER_SEARCH
-from .page import build_newsletter_slot
-from .selectors import get_visibility_summary
+from .smaily_campaigns import OTHER_KEY
 from .website_page import (
     FOCUS_CONTENT,
     PARAM_DETAIL,
@@ -266,7 +271,14 @@ HISTORY_ANCHOR = "#section-newsletter-analytics"
 
 
 #: What the send history understands.
-MAILINGS_HISTORY_PARAMS = (PARAM_NEWSLETTER, PARAM_HISTORY_SEARCH, PARAM_HISTORY_PAGE)
+MAILINGS_HISTORY_PARAMS = (
+    PARAM_NEWSLETTER,
+    PARAM_HISTORY_SEARCH,
+    PARAM_HISTORY_PAGE,
+    PARAM_MAILINGS_PERIOD,
+    PARAM_MAILINGS_FROM,
+    PARAM_MAILINGS_TO,
+)
 
 
 @require_GET
@@ -274,10 +286,10 @@ def mailings(request):
     """`Otsepostitused` — how the Chamber's newsletters perform.
 
     The Smaily intelligence that was `/uudised/?fookus=uudiskirjad`, at an
-    address of its own. Nothing about the figures changed in the move: the same
-    selectors answer the same questions over the same windows, and
-    `build_newsletter_section` renders the same searchable sends table it did
-    under Uudised.
+    address of its own. `build_newsletter_section` still renders the searchable
+    sends table it did under Uudised; `mailings_page.py` and `campaign_history.py`
+    read the one `Periood` control this round's mockup put in the header — see
+    `apps/visibility/mailings_period.py` for what that changed and did not.
 
     `Saadetised` merged into this page on 2026-08-16 at the owner's request. It
     was one table — every completed send, filtered and paginated — and this page
@@ -290,7 +302,18 @@ def mailings(request):
     render ever does.
     """
     newsletter_key = parse_newsletter(request.GET.get(PARAM_NEWSLETTER))
-    summary = get_visibility_summary()
+    selected = "" if newsletter_key in (ALL_NEWSLETTERS, OTHER_KEY) else newsletter_key
+    period = resolve_mailings_period(
+        request.GET.get(PARAM_MAILINGS_PERIOD),
+        request.GET.get(PARAM_MAILINGS_FROM),
+        request.GET.get(PARAM_MAILINGS_TO),
+    )
+    page = build_mailings_page(
+        newsletter_key=selected,
+        period_key=request.GET.get(PARAM_MAILINGS_PERIOD),
+        date_from=request.GET.get(PARAM_MAILINGS_FROM),
+        date_to=request.GET.get(PARAM_MAILINGS_TO),
+    )
     return render(
         request,
         "visibility/otsepostitused.html",
@@ -301,17 +324,14 @@ def mailings(request):
             # key and only the fragment endpoint renders it, so passing it here
             # would be a source-state query for something nothing displays. Each
             # figure on this page states its own recency where it needs to.
-            # `parse_newsletter` answers `koik` for "all three", which is not a
-            # newsletter the aggregates can be read for. The builder wants the
-            # empty string for that state, so the landing view asks for the
-            # comparison and nothing that would need one list chosen.
-            "page": build_mailings_page(
-                newsletter_key="" if newsletter_key == ALL_NEWSLETTERS else newsletter_key
+            "page": page,
+            # The header's own period chips. `page.selected_newsletter` rides
+            # along so switching the window keeps whichever newsletter is
+            # featured, the same way the archive's own period chips used to
+            # carry its sort and search.
+            "mailings_periods": mailings_period_options(
+                period, newsletter=page.selected_newsletter
             ),
-            # The same `ChannelSlot` the overall dashboard's band renders, from
-            # the same builder. No second newsletter card exists, and the three
-            # lists are never totalled.
-            "newsletter_slot": build_newsletter_slot(summary.newsletter),
             "newsletters": build_newsletter_section(
                 newsletter_key=request.GET.get(PARAM_NEWSLETTER),
                 search=request.GET.get(PARAM_NEWSLETTER_SEARCH),
@@ -325,11 +345,15 @@ def mailings(request):
             # 2026-08-16. `Saadetised` held nothing but this table, so it is
             # here rather than behind a second address — and it replaced the
             # fifteen most recent sends this page used to list, which were its
-            # first page with a limit on it.
+            # first page with a limit on it. `click_benchmarks` comes from
+            # `page` rather than a second computation: three more queries this
+            # render already paid for, not a fourth set of them.
             "history": build_campaign_history(
+                period=period,
                 newsletter_key=request.GET.get(PARAM_NEWSLETTER),
                 search=request.GET.get(PARAM_HISTORY_SEARCH),
                 page=request.GET.get(PARAM_HISTORY_PAGE),
+                click_benchmarks=page.click_benchmarks,
             ),
         },
     )
@@ -358,11 +382,20 @@ def mailings_history_search_fragment(request):
     """One page of the archive, for a reader typing in the subject box.
 
     Page one, always: a new term is a new question, and 3 194 sends narrowed to
-    four have no page 40.
+    four have no page 40. The period travels through untouched — a keystroke
+    narrows what the reader is already looking at, it does not reset the
+    window the header picked.
     """
+    period = resolve_mailings_period(
+        request.GET.get(PARAM_MAILINGS_PERIOD),
+        request.GET.get(PARAM_MAILINGS_FROM),
+        request.GET.get(PARAM_MAILINGS_TO),
+    )
     history = build_campaign_history(
+        period=period,
         newsletter_key=request.GET.get(PARAM_NEWSLETTER),
         search=request.GET.get(PARAM_HISTORY_SEARCH),
+        click_benchmarks=click_benchmarks_for(today=timezone.localdate()),
     )
     return search_fragment(
         request,

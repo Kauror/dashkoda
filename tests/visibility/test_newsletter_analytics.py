@@ -496,17 +496,25 @@ def test_the_page_reads_otsi_and_not_the_page_search(viewer_client):
     held a string — and would have emptied the news archive on every newsletter
     search. They are separate pages now, which makes the second half below a
     check that a stale parameter from an old link narrows nothing here.
+
+    Scoped to `history.rows` rather than the whole page: since 2026-08-18 the
+    page also carries a `Kõrgeim avamismäär`/`Kõrgeim klikimäär` ranking that
+    `otsi` does not filter by design — it ranks the period's sends, not a
+    search result — so both issues can legitimately appear there together
+    while the archive table beneath them is correctly narrowed to one.
     """
     read(DAY)
     issue(1, name="Kutse ärifoorumile")
     issue(2, name="Uudiskiri nr 400")
 
-    page = viewer_client.get(reverse(MAILINGS), {"otsi": "ärifoorum"}).content.decode()
-    assert "Kutse ärifoorumile" in page
-    assert "Uudiskiri nr 400" not in page
+    filtered = viewer_client.get(reverse(MAILINGS), {"otsi": "ärifoorum"})
+    names = [row.name for row in filtered.context["history"].rows]
+    assert "Kutse ärifoorumile" in names
+    assert "Uudiskiri nr 400" not in names
 
     # A parameter this page does not read narrows nothing: both issues are still
     # listed, because `otsing` never reaches a Smaily query.
-    other = viewer_client.get(reverse(MAILINGS), {"otsing": "ärifoorum"}).content.decode()
-    assert "Uudiskiri nr 400" in other
-    assert "Kutse ärifoorumile" in other
+    other = viewer_client.get(reverse(MAILINGS), {"otsing": "ärifoorum"})
+    other_names = [row.name for row in other.context["history"].rows]
+    assert "Uudiskiri nr 400" in other_names
+    assert "Kutse ärifoorumile" in other_names

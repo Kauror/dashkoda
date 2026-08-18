@@ -22,11 +22,13 @@ numbers the source never reported:
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 
 from django.db.models import Sum
+from django.db.models.functions import TruncMonth
 
-from apps.core.formatting import group_thousands, percent
+from apps.core.change import direction_of
+from apps.core.formatting import group_thousands, percent, percentage_points
 
 from .models import SmailyCampaign, SmailyCampaignStats, SmailySegmentDaily
 from .registry import spec_for
@@ -149,6 +151,11 @@ class CampaignPerformance:
     click_rate: float | None = None
     #: Already validated at import; empty when the template was deleted.
     preview_url: str = ""
+    #: This send's click rate against its own newsletter's trailing 12-month
+    #: average, in percentage points — `""` where no average exists yet (a
+    #: fresh newsletter, or a send that matches none of the three).
+    benchmark: str = ""
+    benchmark_direction: str = ""
 
     @property
     def has_preview(self) -> bool:
@@ -180,7 +187,13 @@ class CampaignPerformance:
         return percent(100 * self.click_rate) if self.click_rate is not None else ""
 
 
-def campaign_queryset(*, metric: str | None = None, search: str = ""):
+def campaign_queryset(
+    *,
+    metric: str | None = None,
+    search: str = "",
+    start: datetime | None = None,
+    end: datetime | None = None,
+):
     """Completed sends, newest first, optionally narrowed.
 
     **Every completed campaign is in here**, whether or not it was recognised as
@@ -191,7 +204,9 @@ def campaign_queryset(*, metric: str | None = None, search: str = ""):
 
     `metric` narrows to one newsletter; `OTHER_KEY` narrows to the sends that
     match none of them. `search` matches the stored subject, and never reaches
-    Smaily: this runs against PostgreSQL like every other page query.
+    Smaily: this runs against PostgreSQL like every other page query. `start`
+    and `end` are the half-open aware moments `MailingsPeriod.bounds()`
+    produces — `[start, end)` — left `None` for `Kõik`.
     """
     campaigns = SmailyCampaign.objects.all()
     if metric == OTHER_KEY:
@@ -203,6 +218,10 @@ def campaign_queryset(*, metric: str | None = None, search: str = ""):
         # `icontains` on the stored name. Bounded above, and a parameterised
         # query — the term never becomes SQL.
         campaigns = campaigns.filter(name__icontains=term)
+    if start is not None:
+        campaigns = campaigns.filter(completed_at__gte=start)
+    if end is not None:
+        campaigns = campaigns.filter(completed_at__lt=end)
     return campaigns.order_by("-completed_at", "-campaign_id")
 
 
@@ -233,21 +252,40 @@ def has_unclassified_campaigns() -> bool:
     return SmailyCampaign.objects.filter(newsletter="").exists()
 
 
-def describe_campaigns(campaigns) -> tuple[CampaignPerformance, ...]:
+def describe_campaigns(
+    campaigns, *, click_benchmarks: dict[str, float] | None = None
+) -> tuple[CampaignPerformance, ...]:
     """Attach the current statistics to an already-narrowed set of campaigns.
 
     One extra query for the whole page rather than one per row.
+
+    `click_benchmarks` is a newsletter metric mapped to its own trailing
+    12-month average click rate — see `get_newsletter_aggregate_between`. A
+    send whose newsletter has no entry (an unclassified `Muu` send, or a
+    newsletter too new for a trailing average) gets no benchmark rather than
+    one borrowed from a different population.
     """
     campaigns = list(campaigns)
     current = {
         row.campaign_id: row
         for row in SmailyCampaignStats.objects.filter(campaign__in=campaigns, is_current=True)
     }
+    click_benchmarks = click_benchmarks or {}
 
     rows = []
     for campaign in campaigns:
         stats = current.get(campaign.pk)
         registry_spec = spec_for(campaign.newsletter)
+        click_rate = stats.click_rate if stats else None
+
+        benchmark_text = ""
+        benchmark_direction = ""
+        average = click_benchmarks.get(campaign.newsletter)
+        if click_rate is not None and average is not None:
+            difference = (click_rate - average) * 100
+            benchmark_text = percentage_points(difference)
+            benchmark_direction = direction_of(difference)
+
         rows.append(
             CampaignPerformance(
                 campaign_id=campaign.campaign_id,
@@ -264,7 +302,9 @@ def describe_campaigns(campaigns) -> tuple[CampaignPerformance, ...]:
                 unique_clicks=stats.unique_click_count if stats else None,
                 unsubscribed=stats.unsubscribe_count if stats else None,
                 open_rate=stats.open_rate if stats else None,
-                click_rate=stats.click_rate if stats else None,
+                click_rate=click_rate,
+                benchmark=benchmark_text,
+                benchmark_direction=benchmark_direction,
             )
         )
     return tuple(rows)
@@ -380,9 +420,107 @@ def get_all_aggregates(*, limit: int = DEFAULT_AGGREGATE_ISSUES) -> tuple[Newsle
     return tuple(get_newsletter_aggregate(spec.metric, limit=limit) for spec in NEWSLETTERS)
 
 
+def get_newsletter_aggregate_between(
+    metric: str, *, start: datetime | None, end: datetime | None
+) -> NewsletterAggregate:
+    """One newsletter's totals across every completed send inside a window.
+
+    The same weighted arithmetic as `get_newsletter_aggregate` — summed counts
+    over summed counts, never the mean of per-send percentages — over a
+    **date** window instead of a **count** window. `apps/otsepostitused`'s one
+    period picker asks a calendar question ("how did e-Teataja do this
+    quarter"), which `get_newsletter_aggregate`'s block-of-issues slicing does
+    not answer; that function's own reasoning for slicing by count rather than
+    by date — cadence is irregular, so equal spans compare unequal issue
+    counts — still holds, and still governs anywhere that keeps asking the
+    count-window question instead.
+
+    `start`/`end` are the half-open aware moments `MailingsPeriod.bounds()`
+    produces — `[start, end)` — both `None` for `Kõik`.
+    """
+    registry_spec = spec_for(metric)
+    label = registry_spec.label if registry_spec else ""
+
+    campaigns = SmailyCampaign.objects.filter(newsletter=metric)
+    if start is not None:
+        campaigns = campaigns.filter(completed_at__gte=start)
+    if end is not None:
+        campaigns = campaigns.filter(completed_at__lt=end)
+    campaign_ids = list(campaigns.values_list("pk", flat=True))
+    if not campaign_ids:
+        return NewsletterAggregate(metric=metric, label=label)
+
+    measured = SmailyCampaignStats.objects.filter(campaign_id__in=campaign_ids, is_current=True)
+    totals = measured.aggregate(
+        delivered=Sum("delivered_count"),
+        opened=Sum("opened_count"),
+        clicks=Sum("unique_click_count"),
+        unsubscribed=Sum("unsubscribe_count"),
+    )
+    measured_count = measured.count()
+    return NewsletterAggregate(
+        metric=metric,
+        label=label,
+        campaigns=measured_count,
+        delivered=totals["delivered"],
+        opened=totals["opened"],
+        unique_clicks=totals["clicks"],
+        unsubscribed=totals["unsubscribed"],
+    )
+
+
+@dataclass(frozen=True)
+class MonthlyRate:
+    """One newsletter's weighted open rate for one calendar month."""
+
+    month: date
+    delivered: int
+    opened: int
+    open_rate: float | None
+
+
+def get_monthly_open_rate(
+    metric: str, *, start: datetime | None, end: datetime | None
+) -> tuple[MonthlyRate, ...]:
+    """One newsletter's weighted open rate per calendar month, oldest first.
+
+    Weighted the same way every rate on this page is: summed opens over summed
+    delivered *within the month*, never the mean of the month's own per-send
+    percentages. A month with no completed send inside the window is absent
+    rather than zero — nothing was measured, which is a different fact from
+    measuring nobody opening anything.
+    """
+    campaigns = SmailyCampaign.objects.filter(newsletter=metric)
+    if start is not None:
+        campaigns = campaigns.filter(completed_at__gte=start)
+    if end is not None:
+        campaigns = campaigns.filter(completed_at__lt=end)
+
+    rows = (
+        SmailyCampaignStats.objects.filter(campaign__in=campaigns, is_current=True)
+        .annotate(month=TruncMonth("campaign__completed_at"))
+        .values("month")
+        .annotate(delivered=Sum("delivered_count"), opened=Sum("opened_count"))
+        .order_by("month")
+    )
+    return tuple(
+        MonthlyRate(
+            month=row["month"].date(),
+            delivered=row["delivered"] or 0,
+            opened=row["opened"] or 0,
+            open_rate=(row["opened"] / row["delivered"])
+            if row["delivered"] and row["opened"] is not None
+            else None,
+        )
+        for row in rows
+        if row["delivered"]
+    )
+
+
 __all__ = [
     "MAX_SEARCH_LENGTH",
     "CampaignPerformance",
+    "MonthlyRate",
     "campaign_queryset",
     "describe_campaigns",
     "has_unclassified_campaigns",
@@ -392,6 +530,8 @@ __all__ = [
     "get_all_aggregates",
     "get_all_subscriber_series",
     "get_campaign_performance",
+    "get_monthly_open_rate",
     "get_newsletter_aggregate",
+    "get_newsletter_aggregate_between",
     "get_subscriber_series",
 ]
