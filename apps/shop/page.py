@@ -669,7 +669,13 @@ def build_overview(
     units_cmp = MetricComparison.of(
         totals.units, previous_totals.units if previous_totals else None, period=pair
     )
+    # The headline is unfiltered since 2026-08-18, so the only way this ever
+    # falls back to order lines now is a schema 1.0 source — there is no
+    # narrower selection left here for the fallback the summary grain guards
+    # against; that guard still applies, undiminished, to Lepingupõhjad and to
+    # `build_product_detail` below.
     orders_label = "Tellimused" if orders_are_distinct else "Tellimusridu"
+    orders_note = "" if orders_are_distinct else "eri tellimuste arv ei ole imporditud"
     orders_cmp = MetricComparison.of(current_orders, previous_orders, period=pair)
     value_cmp = MetricComparison.of(
         totals.ordered_value_net,
@@ -681,7 +687,12 @@ def build_overview(
         _kpi(
             "Ostetud ühikud", units_cmp, formatter=lambda v: group_thousands(int(v)), unit="ühikut"
         ),
-        _kpi(orders_label, orders_cmp, formatter=lambda v: group_thousands(int(v))),
+        _kpi(
+            orders_label,
+            orders_cmp,
+            formatter=lambda v: group_thousands(int(v)),
+            secondary=orders_note,
+        ),
         _kpi("Tellitud väärtus", value_cmp, formatter=euros, unit="KM-ta"),
     )
 
