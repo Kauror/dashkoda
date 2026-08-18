@@ -155,9 +155,17 @@ test("the strip carries four cells and the year's movement is one of them", asyn
   ]) {
     await expect(strip.getByText(label, { exact: false }).first()).toBeVisible();
   }
-  for (const word of ["liitunud", "väljaarvatud", "peatatud"]) {
+  for (const word of ["liitunud", "väljaarvatud"]) {
     await expect(strip.getByText(word, { exact: true }).first()).toBeVisible();
   }
+  /*
+   * The newest seeded report leaves `suspended_members` unreported on purpose,
+   * so the cell must show no third figure at all. A `0 peatatud` here would be
+   * the strip inventing a measurement — which is exactly the shape of defect
+   * the seed carries that gap to catch.
+   */
+  await expect(strip.getByText("peatatud", { exact: true })).toHaveCount(0);
+  await expect(strip.getByText(/0\s+peatatud/)).toHaveCount(0);
 });
 
 test("the range control sits on the heading row of the chart it governs", async ({

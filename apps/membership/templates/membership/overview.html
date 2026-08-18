@@ -639,12 +639,19 @@ by a rule written for this one.
 
         {% comment %}
         A section that draws its own heading has already placed its range
-        control there; what is left below is the toggles, which belong to a
-        chart rather than to the section's name.
+        control on that heading row. What is left here is the toggles, which
+        belong to a chart rather than to the section's name — and, for a section
+        with no drawn heading, the range control itself.
+
+        The guard is per-control rather than per-section: writing it as "titled
+        sections have no controls block" dropped `Uute liikmete dünaamika`'s two
+        toggles the moment it was introduced, because that section has a visible
+        title *and* controls. Both browser tests that drive those toggles caught
+        it, which is what they are for.
         {% endcomment %}
-        {% if section.has_controls and not section.show_title %}
+        {% if section.toggles or section.presets and not section.show_title %}
           <div class="flex flex-col gap-3">
-            {% if section.presets %}
+            {% if section.presets and not section.show_title %}
               {% comment %}
               Presets fill in the same two dates the fields below carry; they are
               a shortcut, not a second vocabulary. Only windows the history can
