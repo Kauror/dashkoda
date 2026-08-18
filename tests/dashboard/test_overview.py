@@ -21,9 +21,7 @@ TIMELINE_HEADING = "Järgmised 30 päeva"
 #: `Andmete seis` moved to `/haldus/` on 2026-08-15 and does not come back;
 #: `tests/dashboard/test_admin_area.py` proves it arrived.
 SECTION_TITLES = [
-    "Põhinäitajad",
     TIMELINE_HEADING,
-    "Praegu enim huvi",
     "Auditooriumid",
 ]
 
@@ -220,8 +218,9 @@ def test_overview_renders_no_fabricated_numbers(client, authenticate_viewer):
     assert not any(card.is_available for card in page.cards)
     assert not page.signals, "no source can support a signal"
     assert not page.upcoming
-    assert not page.available_interest
     assert not page.has_any_source
+    # Nothing has ever been imported, so there is no update moment to print.
+    assert page.updated_at is None
 
     visible_text = html_module.unescape(strip_tags(content))
     visible_text = visible_text.replace(TIMELINE_HEADING, "")
@@ -354,6 +353,8 @@ def test_the_audience_strip_is_no_longer_a_grid_of_large_cards(client, authentic
 
     assert "text-metric" not in strip, "the large KPI figure size belongs to a card"
     assert "Auditooriumid" in content
+    # One row per audience since 2026-08-18, not three sub-rows in one cell.
+    assert strip.count("uudiskiri") == 3
 
 
 def test_overview_keeps_logout_as_a_csrf_protected_post(client, authenticate_viewer):

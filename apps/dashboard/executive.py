@@ -1,10 +1,17 @@
 """Assemble the executive overview from the seven domain summaries.
 
 The main dashboard is the decision and navigation layer of DashKoda, not another
-analytical page. It answers, in this order: what needs management attention, what
-state the Chamber's activity domains are in, what is coming in the next thirty
-days, and what readers and members are paying attention to. Everything past that
-is a link to the dashboard that explains it.
+analytical page. It answers, in this order: what state the Chamber's activity
+domains are in, what needs management attention, what is coming in the next
+thirty days, and how large the audiences it owns are. Everything past that is a
+link to the dashboard that explains it.
+
+The cards come first as of 2026-08-18 and `Tähelepanu` follows them. A section
+of exceptions means nothing until the ordinary state is on screen, and it is
+frequently empty — a page that opens with an empty section reads as a broken
+one. `Praegu enim huvi` left the same day: which single page, article and
+product happened to lead is a browsing question, and the three domain cards
+already carry the volumes those leaders are a slice of.
 
 ## What this module is allowed to do
 
@@ -78,7 +85,7 @@ from apps.core.formatting import (
 )
 from apps.event_programme.executive import NEAR_TERM_DAYS, get_events_executive
 from apps.event_programme.selectors import get_event_programme_summary
-from apps.legal_work.executive import URGENT_DAYS, get_legal_work_executive
+from apps.legal_work.executive import get_legal_work_executive
 from apps.legal_work.selectors import get_legal_work_summary
 from apps.membership.executive import get_membership_executive
 from apps.membership.selectors import get_membership_summary
@@ -87,7 +94,7 @@ from apps.news.selectors import get_news_summary
 from apps.shop.executive import get_shop_executive
 from apps.visibility.executive import get_website_executive
 from apps.visibility.mailings_executive import get_mailings_executive
-from apps.visibility.page import build_channel_band
+from apps.visibility.page import build_audience_rows
 
 from .executive_models import (
     STATE_AVAILABLE,
@@ -101,13 +108,13 @@ from .executive_models import (
     ExecutiveDataStatus,
     ExecutiveDomainCard,
     ExecutiveFact,
-    ExecutiveInterestItem,
     ExecutiveLink,
     ExecutiveMetric,
     ExecutiveOverviewPage,
 )
 from .executive_signals import collect_signals
 from .executive_timeline import build_timeline
+from .freshness import latest_import_at
 
 SOURCE_PUBLIC_DIRECTORY = "Koda.ee liikmekataloog"
 SOURCE_INTERNAL_REPORT = "Koja sisemine liikmeskonna aruanne"
@@ -142,9 +149,8 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
     The four feed summaries arrive from the view, which also hands them to the
     shell freshness row — so each is read exactly once per request. The seven
     executive summaries are read here, once each, and every section below is
-    built from those same objects rather than from fresh queries: the cards, the
-    signals, the timeline, the interest strip and the data status all share one
-    read.
+    built from those same objects rather than from fresh queries: the cards,
+    the signals, the timeline and the data status all share one read.
     """
     membership_exec = get_membership_executive()
     legal_exec = get_legal_work_executive(legal_work)
@@ -174,13 +180,12 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
             )
         ),
         upcoming=build_timeline(legal_summary=legal_work, events_executive=events_exec),
-        interest=_interest_panels(website_exec, news_exec, shop_exec),
-        # Audiences only, and by construction rather than by argument: the band
-        # had a website slot until 2026-08-17, and it was removed there because
-        # this page was its only consumer. Sessions are the `Koduleht ja
-        # uudised` card's headline, and one measure under two labels on one page
-        # invites a reconciliation nobody can perform.
-        channels=build_channel_band(),
+        # One row per audience, largest first. Audiences only: the band had a
+        # website slot until 2026-08-17 and it was removed there, because
+        # sessions are the `Koduleht ja uudised` card's headline and one measure
+        # under two labels on one page invites a reconciliation nobody can
+        # perform. Sessions are visits, not an audience.
+        audiences=build_audience_rows(),
         data_status=_data_status(
             legal_work=legal_work,
             membership=membership,
@@ -190,6 +195,7 @@ def build_executive_overview(*, legal_work, membership, news, events) -> Executi
             website_exec=website_exec,
             shop_exec=shop_exec,
         ),
+        updated_at=latest_import_at(),
     )
 
 
@@ -267,24 +273,8 @@ def _membership_card(summary) -> ExecutiveDomainCard:
                 as_of=summary.internal_as_of,
             ),
         ),
-        period_line=_membership_period_line(summary),
         links=links,
     )
-
-
-def _membership_period_line(summary) -> str:
-    """Both currencies in one short line, or whichever of them exists.
-
-    Two dates rather than one, because this is the only card whose figures come
-    from two sources with two cadences. Naming just the newest would let a reader
-    read a monthly ratio as a daily one.
-    """
-    parts = []
-    if summary.total_as_of:
-        parts.append(f"kataloog {short_date(summary.total_as_of)}")
-    if summary.internal_as_of:
-        parts.append(f"sisemine aruanne {short_date(summary.internal_as_of)}")
-    return " · ".join(parts)
 
 
 def _membership_comparison(summary) -> ExecutiveComparison | None:
@@ -315,10 +305,12 @@ def _legal_card(summary) -> ExecutiveDomainCard:
     Output is not impact, and neither figure on this card is ever called `mõju`:
     the workbook records opinions sent, not provisions changed.
 
-    **A passed deadline is not here.** `overdue_pending` belongs to `Tähelepanu`,
-    where it arrives as the domain's own critical signal with a link to the list
-    the rows live in. Printing it as a fourth quiet fact would put the page's most
-    urgent number in its least urgent place.
+    **Neither deadline figure is here.** `overdue_pending` and `due_within_7`
+    are both `Tähelepanu`'s, where they arrive as the domain's own critical and
+    attention signals with a link to the list the rows live in. `due_within_7`
+    was a card fact until 2026-08-18 and was the page saying the same thing
+    twice, quietly in one place and urgently in another — and the quiet copy is
+    the one a reader meets first.
     """
     links = (ExecutiveLink(label="Vaata õigusloomet", url=reverse("legal-work")),)
     # `has_headline` says a snapshot exists; the headline itself is the open
@@ -350,21 +342,15 @@ def _legal_card(summary) -> ExecutiveDomainCard:
         ),
         facts=(
             ExecutiveFact(
-                label=f"Tähtaegu {URGENT_DAYS} päeva jooksul",
-                value=integer(summary.due_within_7) if summary.due_within_7 is not None else None,
-                source=SOURCE_LEGAL_WORKBOOK,
-                as_of=summary.reporting_date,
-            ),
-            ExecutiveFact(
                 label="Arvamusi saadetud tänavu",
                 value=integer(sent.current) if sent is not None else None,
                 source=SOURCE_LEGAL_WORKBOOK,
                 as_of=summary.reporting_date,
             ),
             ExecutiveFact(
-                # The comparison the old headline carried, kept as a fact so the
-                # like-for-like cutoff is still stated: both sides stop on the
-                # same calendar day.
+                # The baseline of the fact above, drawn quieter than it: both
+                # sides stop on the same calendar day, and the like-for-like
+                # cutoff is the whole reason the pair is worth printing.
                 label="Sama ajaks eelmisel aastal",
                 value=(
                     integer(sent.previous)
@@ -373,6 +359,7 @@ def _legal_card(summary) -> ExecutiveDomainCard:
                 ),
                 source=SOURCE_LEGAL_WORKBOOK,
                 as_of=summary.reporting_date,
+                is_secondary=True,
             ),
             ExecutiveFact(
                 label="Tänavusi teemasid",
@@ -384,11 +371,6 @@ def _legal_card(summary) -> ExecutiveDomainCard:
                 source=SOURCE_LEGAL_WORKBOOK,
                 as_of=summary.reporting_date,
             ),
-        ),
-        period_line=(
-            f"töövihiku seis {short_date(summary.reporting_date)}"
-            if summary.reporting_date
-            else "töövihiku seis"
         ),
         links=links,
     )
@@ -424,7 +406,7 @@ def _events_card(summary) -> ExecutiveDomainCard:
             # Self-describing, because the card prints no period row: the same
             # horizon the timeline below uses, so the two cannot describe
             # different sets of events.
-            unit=f"sündmust järgmise {NEAR_TERM_DAYS} päeva jooksul",
+            unit=f"järgmise {NEAR_TERM_DAYS} päeva jooksul",
             as_of=summary.observed_at,
             # No comparison: "events starting in the next thirty days a year
             # ago" is not a figure the programme holds. The year-to-date pair is
@@ -447,18 +429,8 @@ def _events_card(summary) -> ExecutiveDomainCard:
                 ),
                 source=SOURCE_EVENTS,
                 as_of=summary.observed_at,
+                is_secondary=True,
             ),
-            ExecutiveFact(
-                label="Toimunud sel aastal",
-                value=integer(summary.completed_ytd) if summary.completed_ytd is not None else None,
-                source=SOURCE_EVENTS,
-                as_of=summary.observed_at,
-            ),
-        ),
-        period_line=(
-            f"programmi seis {short_date(summary.observed_at)}"
-            if summary.observed_at
-            else "programmi seis"
         ),
         links=links,
     )
@@ -503,7 +475,7 @@ def _website_card(website, news) -> ExecutiveDomainCard:
             period=f"viimased {website.days} mõõdetud päeva",
             source=SOURCE_GA4,
             value=integer(website.sessions),
-            unit="külastust",
+            unit=f"külastust · {website.days} p",
             as_of=website.end,
             comparison=(
                 ExecutiveComparison(
@@ -519,16 +491,6 @@ def _website_card(website, news) -> ExecutiveDomainCard:
         ),
         facts=(
             ExecutiveFact(
-                label="Kaasatuse määr",
-                value=(
-                    percent(website.engagement_rate * 100)
-                    if website.engagement_rate is not None
-                    else None
-                ),
-                source=SOURCE_GA4,
-                as_of=website.end,
-            ),
-            ExecutiveFact(
                 label="Uudiste vaatamised",
                 value=integer(news.news_views) if news.news_views is not None else None,
                 source=SOURCE_GA4,
@@ -536,7 +498,11 @@ def _website_card(website, news) -> ExecutiveDomainCard:
                 url=reverse("news"),
             ),
             ExecutiveFact(
-                label="Uudiste osa kodulehe vaatamistest",
+                # `vaatamistest`, never `külastustest`. Both sides of this share
+                # are GA4 page views over the same days; spelling the
+                # denominator as visits would make the card claim a ratio
+                # between two different measures.
+                label="Uudiste osa vaatamistest",
                 value=percent(news.site_share * 100) if news.site_share is not None else None,
                 source=SOURCE_GA4,
                 as_of=news.end,
@@ -611,13 +577,13 @@ def _mailings_card(summary) -> ExecutiveDomainCard:
                 ),
                 source=SOURCE_SMAILY,
             ),
-            *(
-                ExecutiveFact(
-                    label=f"{other.label} avamismäär",
-                    value=percent(other.open_rate * 100) if other.has_open_rate else None,
-                    source=SOURCE_SMAILY,
-                )
-                for other in summary.others
+            ExecutiveFact(
+                # How much went out, which is the one thing the rates cannot
+                # say: a month with no letters and a month with four both have
+                # an open rate, and only one of them is a month of work.
+                label=f"Uudiskirju saadetud viimased {summary.cadence_days} päeva",
+                value=_sends_value(summary),
+                source=SOURCE_SMAILY,
             ),
         ),
         period_line=f"kaalutud viimase {summary.issues} saadetise peale",
@@ -655,7 +621,10 @@ def _shop_card(summary) -> ExecutiveDomainCard:
             period=summary.period_label,
             source=SOURCE_COMMERCE,
             value=integer(summary.units),
-            unit="ühikut ostetud",
+            # The period's own words, from the domain. The card cannot say
+            # `viimase 30 päeva jooksul` unless the export's own window is
+            # thirty days, and `resolve_period` decides that rather than this.
+            unit=summary.period_label.lower(),
             as_of=summary.source_as_of,
             comparison=(
                 ExecutiveComparison(
@@ -694,6 +663,21 @@ def _shop_card(summary) -> ExecutiveDomainCard:
     )
 
 
+def _sends_value(summary) -> str | None:
+    """Letters posted in the window, with the movement against the one before.
+
+    `None` when nothing was collected — never `0`, which would say the Chamber
+    sent nothing in a month it may simply never have been asked about. A genuine
+    nought is a real answer and prints, which is why the test is `is not None`.
+    """
+    if summary.sends_recent is None:
+        return None
+    change = summary.sends_change
+    if change is None or change == 0:
+        return integer(summary.sends_recent)
+    return f"{integer(summary.sends_recent)} ({signed_integer(change)})"
+
+
 def _direction(value) -> str:
     """`up`, `down` or `flat` from a signed number. `none` when unknown."""
     if value is None:
@@ -703,114 +687,6 @@ def _direction(value) -> str:
     if value < 0:
         return "down"
     return "flat"
-
-
-# ---------------------------------------------------------------------------
-# Praegu enim huvi
-# ---------------------------------------------------------------------------
-
-
-def _interest_panels(website, news, shop) -> tuple[ExecutiveInterestItem, ...]:
-    """Three columns, three metrics, three periods, no shared axis.
-
-    Page views, article views and acquired units are three different things. They
-    are shown side by side because a reader wants to know what is being used
-    *now*, not because the three numbers can be compared — which is why none of
-    them is drawn as a bar against the others and nothing here ranks them.
-
-    There were four. The next scheduled event left on 2026-08-17: it was the one
-    column that answered a different question — what is coming rather than what
-    is being attended to — and events already hold the card above and the whole
-    timeline between.
-    """
-    return (
-        _website_panel(website),
-        _news_panel(news),
-        _shop_panel(shop),
-    )
-
-
-def _website_panel(website) -> ExecutiveInterestItem:
-    """The leading page that is neither a news article nor an event page."""
-    page = website.top_page
-    if page is None:
-        return ExecutiveInterestItem(
-            domain_label="Koduleht",
-            domain_key="website",
-            title="",
-            unavailable_note="Mõõdetud lehtede andmed puuduvad.",
-        )
-    return ExecutiveInterestItem(
-        domain_label="Koduleht",
-        domain_key="website",
-        # `label` is the resolved title where DashKoda's own catalogues knew it
-        # and the decoded path where they did not. Never a title invented from
-        # a slug.
-        title=page.label,
-        metric_value=integer(page.page_views),
-        # `lehevaatamist`, not `külastust`. A page view is not a session and the
-        # two are never spelled the same way on this page.
-        metric_label="lehevaatamist",
-        period=f"viimased {website.days} mõõdetud päeva",
-        context=page.type_label,
-        url=page.url,
-        is_external=True,
-    )
-
-
-def _news_panel(news) -> ExecutiveInterestItem:
-    """The most-read article in the window, whenever it was published."""
-    article = news.top_article
-    if article is None:
-        return ExecutiveInterestItem(
-            domain_label="Uudised",
-            domain_key="news",
-            title="",
-            unavailable_note="Mõõdetud uudiste andmed puuduvad.",
-        )
-    published = getattr(article, "published_at", None)
-    return ExecutiveInterestItem(
-        domain_label="Uudised",
-        domain_key="news",
-        title=getattr(article, "title", "") or article.path,
-        metric_value=integer(news.top_article_views),
-        metric_label="vaatamist perioodil",
-        # No period range: the board struck it, and the publication date below
-        # is the one date a reader was using this panel for.
-        period="",
-        # Publication date beside the figure rather than folded into it: an old
-        # article leading the panel is a real and interesting result, and the
-        # reader has to be able to see that is what happened.
-        context=f"avaldatud {short_date(published)}" if published else "",
-        url=article.canonical_url,
-        is_external=True,
-    )
-
-
-def _shop_panel(shop) -> ExecutiveInterestItem:
-    """The most-acquired non-event product in the Commerce period."""
-    product = shop.top_product
-    if product is None:
-        return ExecutiveInterestItem(
-            domain_label="E-pood",
-            domain_key="shop",
-            title="",
-            unavailable_note="E-poe andmed puuduvad.",
-        )
-    return ExecutiveInterestItem(
-        domain_label="E-pood",
-        domain_key="shop",
-        title=product.title,
-        metric_value=integer(product.units),
-        metric_label="ühikut ostetud",
-        period=(
-            f"{short_date(shop.period_start)} – {short_date(shop.period_end)}"
-            if shop.period_start
-            else shop.period_label
-        ),
-        context=product.product_type_label,
-        url=reverse("shop"),
-    )
 
 
 # ---------------------------------------------------------------------------

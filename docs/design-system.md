@@ -182,7 +182,6 @@ context contract in a leading `{% comment %}` block.
 | `chart_figure` | one ECharts chart, plus the text summary and data table that always accompany it |
 | `trend_chart` | two or more dated series on one pair of axes, solid and dashed, with the same alternatives |
 | `channel_card` | one communication channel: a value, its provenance, or a truthful reason it has neither |
-| `channel_row` | the same `ChannelSlot`, compact, for the overview's `Auditooriumid` strip |
 | `executive_domain_card` | one domain on `Koja töölaud`: a figure, a comparison, two to four facts, a period and a way out |
 
 `kpi_card`'s detail rows link their label when the count has a section listing
@@ -259,14 +258,15 @@ The six-slot channel band uses `.dk-kpi-strip-wide`: one column below `sm`, two
 to `lg`, three to `2xl` and six above it. Six across at 1280 px would wrap the
 labels mid-word.
 
-`Koja töölaud` does not use that band. Six `channel_card` articles were the
-largest section of the front page and said less than any other, so the overview
-renders the same `ChannelSlot` objects through `channel_row` — a label, a figure
-at `text-base` rather than `text-metric`, and the observation date — in a
-three-column grid below the operational sections. Both components read the same
-slots from `apps/visibility/page.py`, so neither can describe a figure
-differently from the other, and the three states they must keep apart —
-planned, no data, observed — are kept apart identically in both.
+`Koja töölaud` does not use that band at all. Six `channel_card` articles were
+the largest section of the front page and said less than any other; the overview
+draws `AudienceRow` objects instead — one line per audience, name and figure,
+largest first — in a column beside the timeline. The rows come from
+`apps/visibility/page.build_audience_rows`, which reads the same
+`VisibilitySummary` the band reads, so a figure there and a figure on the
+Otsepostitused card cannot disagree. Nothing is summed: three newsletters whose
+overlap is unmeasured and four follower counts that are not subscriptions, and
+sorting them together does not make them one audience.
 
 ### Six domain cards, two rows
 

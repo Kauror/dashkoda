@@ -80,6 +80,24 @@ class SignalDirection(StrEnum):
     NONE = "none"
 
 
+class SignalTone(StrEnum):
+    """Whether the domain calls this good news, and only the domain may.
+
+    Direction is the arithmetic sign and priority is how much it matters;
+    neither says whether a reader should be pleased. A rise in unanswered
+    deadlines and a rise in the paid share are both `UP` and both `NOTABLE`
+    would be the same badge for opposite news.
+
+    `NEUTRAL` is the default and the honest one for most signals: a change worth
+    knowing is not automatically a change worth celebrating, and a page that
+    marked every rise positive would be as useless as one that marked none.
+    Only a domain that can say "this is the direction we want" sets `POSITIVE`.
+    """
+
+    POSITIVE = "positive"
+    NEUTRAL = "neutral"
+
+
 @dataclass(frozen=True)
 class DomainSignal:
     """One thing a domain thinks is worth the reader's attention.
@@ -104,6 +122,8 @@ class DomainSignal:
     evidence: str
     priority: SignalPriority = SignalPriority.NOTABLE
     direction: SignalDirection = SignalDirection.NONE
+    #: Whether the domain calls this good news. Neutral unless it says so.
+    tone: SignalTone = SignalTone.NEUTRAL
     href: str = ""
     #: The measurement's own as-of date, where it has one.
     as_of: date | None = None
@@ -123,4 +143,5 @@ __all__ = [
     "DomainSignal",
     "SignalDirection",
     "SignalPriority",
+    "SignalTone",
 ]

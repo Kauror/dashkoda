@@ -29,6 +29,15 @@ now that the newsletters have a dashboard of their own to own it from.
   overlap between the three is unmeasured — so there is no field here capable of
   holding a sum.
 
+## The cadence figure is a count of letters, not of readers
+
+`sends_recent` answers "how much did we send", which is the one thing on this
+card the rates cannot say: a month with no letters and a month with four both
+have an open rate, and only one of them is a month of work. It is deliberately
+**not** weighted, deduplicated or turned into a per-list figure — a letter is a
+letter, and the two campaigns one e-Teataja issue goes out as are two sends
+because that is how the Chamber posts it.
+
 ## Why e-Teataja leads
 
 It is the flagship: a regular cadence, by far the largest audience, and two
@@ -41,10 +50,17 @@ The other two appear as supporting rates, each under its own name.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from datetime import timedelta
+
+from django.utils import timezone
 
 from .registry import VisibilityMetric, spec_for
 from .smaily_segments import NEWSLETTERS
-from .smaily_selectors import DEFAULT_AGGREGATE_ISSUES, get_newsletter_aggregate
+from .smaily_selectors import (
+    DEFAULT_AGGREGATE_ISSUES,
+    count_sends_between,
+    get_newsletter_aggregate,
+)
 
 #: How many recent sends every rate on this card is weighted over — the
 #: selector's own default, so this card and the Otsepostitused page cannot state
@@ -53,6 +69,11 @@ NEWSLETTER_ISSUES = DEFAULT_AGGREGATE_ISSUES
 
 #: The letter the card leads with, for the reason in the module docstring.
 FLAGSHIP_METRIC = VisibilityMetric.NEWSLETTER_ETEATAJA
+
+#: The cadence window, and the length of the block it is compared against.
+#: Thirty days rather than a calendar month, so the comparison is two equal
+#: spans and not February against March.
+CADENCE_DAYS = 30
 
 
 @dataclass(frozen=True)
@@ -81,6 +102,19 @@ class MailingsExecutive:
     #: The other letters, in registry order, each on its own.
     others: tuple[NewsletterRates, ...] = ()
     issues: int = NEWSLETTER_ISSUES
+    #: Letters posted in the last `CADENCE_DAYS`, and in the equal span before.
+    #: Every newsletter and every one-off, because the question is how much went
+    #: out rather than how much of one list went out.
+    sends_recent: int | None = None
+    sends_previous: int | None = None
+    cadence_days: int = CADENCE_DAYS
+
+    @property
+    def sends_change(self) -> int | None:
+        """The movement in letters, or `None` with nothing to compare against."""
+        if self.sends_recent is None or self.sends_previous is None:
+            return None
+        return self.sends_recent - self.sends_previous
 
     @property
     def has_headline(self) -> bool:
@@ -118,6 +152,8 @@ def get_mailings_executive() -> MailingsExecutive:
     previous = get_newsletter_aggregate(
         FLAGSHIP_METRIC, limit=NEWSLETTER_ISSUES, offset=NEWSLETTER_ISSUES
     )
+    now = timezone.now()
+    window = timedelta(days=CADENCE_DAYS)
     others = tuple(
         rates
         for spec in NEWSLETTERS
@@ -130,6 +166,9 @@ def get_mailings_executive() -> MailingsExecutive:
         flagship_previous_open_rate=previous.open_rate if previous.has_data else None,
         others=others,
         issues=NEWSLETTER_ISSUES,
+        sends_recent=count_sends_between(start=now - window, end=now),
+        sends_previous=count_sends_between(start=now - window - window, end=now - window),
+        cadence_days=CADENCE_DAYS,
     )
 
 
@@ -154,6 +193,7 @@ def _rates(metric: str) -> NewsletterRates | None:
 
 
 __all__ = [
+    "CADENCE_DAYS",
     "FLAGSHIP_METRIC",
     "NEWSLETTER_ISSUES",
     "MailingsExecutive",

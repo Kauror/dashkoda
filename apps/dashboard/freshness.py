@@ -87,6 +87,34 @@ class FreshnessState:
         return base
 
 
+def latest_import_at():
+    """When any source this dashboard reads last published successfully.
+
+    The one timestamp the overview prints. It is **not** "the figures above are
+    current as of this": the seven sources are collected on seven cadences, and
+    `Andmete seis` at `/haldus/` is where each states its own date. What this
+    says is narrower and true — the last moment DashKoda finished taking data
+    in, from anywhere.
+
+    A run that succeeded without finding anything new still counts, because it
+    is still the last time the application looked and finished. `None` before
+    anything has ever been imported, which renders as no line at all rather
+    than as a date nobody can source.
+
+    One indexed read: `ImportRun` is ordered on its own timestamps and this asks
+    for a single row.
+    """
+    from apps.sources.models import ImportRun, ImportStatus
+
+    latest = (
+        ImportRun.objects.filter(status=ImportStatus.SUCCEEDED, finished_at__isnull=False)
+        .order_by("-finished_at")
+        .values_list("finished_at", flat=True)
+        .first()
+    )
+    return timezone.localtime(latest) if latest else None
+
+
 def current_freshness(*preloaded) -> FreshnessState:
     """Reduce every wired module's summary to the one shell freshness row.
 

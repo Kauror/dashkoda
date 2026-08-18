@@ -89,8 +89,9 @@ with the address** — same selectors, same windows, same weighting.
 
 | Metric | Definition | Source | Grain / time basis | Missing | Comparison | Executive use |
 | --- | --- | --- | --- | --- | --- | --- |
-| Uudiskirja avamis-/klikimäär | Weighted totals over the last 12 sends: opens ÷ delivered, clicks ÷ delivered; click-to-open separately | Smaily aggregates (`mailings_executive.get_mailings_executive`) | Send; slice over sends, not dates (cadence is irregular) | Card unavailable | Previous 12-send block, stated in **percentage points** | **Otsepostitused card headline** is e-Teataja's open rate; its click rate and the other two letters' open rates are the facts. **No audience figure anywhere on the card** (list overlap is unmeasured) |
-| Uudiskirjade nimekirjade suurus | Each list's current size, reported **on its own and never summed** — the overlap between the three is unmeasured | Smaily segments (`sync_smaily`) | Day; latest reading | `Sisestamata`, never zero | Previous reading | `Auditooriumid` strip on `/`, one row per list |
+| Uudiskirja avamis-/klikimäär | Weighted totals over the last 12 sends: opens ÷ delivered, clicks ÷ delivered; click-to-open separately | Smaily aggregates (`mailings_executive.get_mailings_executive`) | Send; slice over sends, not dates (cadence is irregular) | Card unavailable | Previous 12-send block, stated in **percentage points** | **Otsepostitused card headline** is e-Teataja's open rate, with its click rate beside it. **No audience figure anywhere on the card** (list overlap is unmeasured) |
+| Saadetud uudiskirju | Completed sends whose `completed_at` falls in the last 30 days — a count of **letters**, not of recipients. One issue posted to two lists is two sends, which is how the Chamber posts it | Smaily campaigns (`count_sends_between`) | Send; two equal 30-day spans | Absent, never `0` — a month nobody collected is not a month nobody sent | Preceding equal span, in letters | Card fact: how much went out, which the rates cannot say |
+| Uudiskirjade nimekirjade suurus | Each list's current size, reported **on its own and never summed** — the overlap between the three is unmeasured | Smaily segments (`sync_smaily`) | Day; latest reading | `Sisestamata`, never zero | Previous reading | `Auditooriumid` on `/`, one row per list, sorted among the social counts by size and added to nothing |
 
 ## E-pood
 
@@ -137,15 +138,25 @@ section is not rendered at all**, because a header and a line of reassurance
 teaches a reader to skim the one section that must never be skimmed.
 
 `Järgmised 30 päeva` holds the only two dated lanes (legal deadlines, scheduled
-events) and is named for the horizon it actually has. `Praegu enim huvi` is
-three columns — leading ordinary page, most-read article, most-acquired product —
-whose three metrics are not comparable and are never ranked against each other;
-the next scheduled event was a fourth column until 2026-08-17 and left because it
-answered a different question. `Auditooriumid` is the quietest section and the
-last: newsletter list sizes one per list and never totalled, and the four
-hand-entered social figures, which never borrow a collected feed's vocabulary. It
-omits the website slot, because sessions are a card headline above and one
-measure under two labels on one page invites a reconciliation nobody can perform.
+events) and is named for the horizon it actually has. An event that started
+before today carries **no date** in it and says `kestev`: a year-long programme
+that opened on 1 January is not a thing happening in the next thirty days.
+
+`Auditooriumid` sits beside the timeline and is the quietest thing on the page:
+one row per audience, largest first, newsletter list sizes and hand-entered
+social counts in one list and added to nothing. It omits the website, because
+sessions are a card headline above — and a session is a visit rather than an
+audience.
+
+`Praegu enim huvi` was a fourth section until 2026-08-18. Which single page,
+article and product happened to lead is a browsing question, and the three
+domain cards already carry the volumes those leaders are a slice of. The three
+domain fields behind it went with it, and with them three bounded queries per
+render.
+
+The footer prints `Uuendatud <date> kell <time>` — the last moment any source
+finished publishing successfully, and **not** a claim that every figure above is
+current as of then. It is absent before anything has ever been imported.
 
 Data quality lives at `/haldus/`. The overview carries one quiet `Andmete kohta`
 link and no source grid, no schema version, no import diagnostic and no coverage
