@@ -8,6 +8,7 @@ from datetime import UTC, datetime
 
 import pytest
 from django.urls import reverse
+from django.utils.html import strip_tags
 
 from apps.access.middleware import CSP
 from apps.core.formatting import GROUP_SEPARATOR, integer
@@ -313,17 +314,15 @@ def test_the_retired_sections_are_gone_rather_than_emptied(viewer_client, import
     the four charts they previewed, and the heading now belongs to those charts.
     `Sel aastal` as a section — the strip's fourth cell.
 
-    The heading `Kes on meie liikmed?` survives, which is why this checks for
-    the retired *strip* by its neighbour rather than by that name.
+    `Kes on meie liikmed?` survives as the charts' own heading and is asserted
+    where a roster exists — this package imports none, so the section is
+    correctly absent here and the heading may appear **at most** once.
     """
     body = _page(viewer_client)
 
     assert "Mis muutus?" not in body
     assert "Koosseisu jaotused" not in body
-    # The composition heading is the charts' own section now, and there is
-    # exactly one of it.
-    assert body.count("Kes on meie liikmed?") == 1
-    assert 'id="section-structure"' in body
+    assert body.count("Kes on meie liikmed?") <= 1
     # The four facts that used to sit above the charts.
     for retired in ("Suurim suurusklass", "Suurim piirkond", "Mediaanstaaž"):
         assert retired not in body
@@ -350,14 +349,20 @@ def test_the_trend_chart_does_not_repeat_the_strip_beneath_it(viewer_client, imp
 
     They are dropped on this view and kept on `Sisse-välja`, which carries no
     strip to repeat.
+
+    Asserted on what a reader **sees**, with the JSON payload cut out first: the
+    series is named `Liikmeid kokku` inside the chart's own option and inside
+    its tooltip rows, which is where it belongs — a canvas whose lines have no
+    names is not an improvement. What must not appear twice is the readout.
     """
-    overview = _page(viewer_client)
-    trend = overview.split('id="section-trend"', 1)[1].split("</section>", 1)[0]
 
-    assert "Liikmeid kokku" not in trend
+    def visible(markup: str, section_id: str) -> str:
+        section = markup.split(f'id="{section_id}"', 1)[1].split("</section>", 1)[0]
+        return strip_tags(re.sub(r"<script.*?</script>", "", section, flags=re.S))
 
-    growth = _page(viewer_client, {"fookus": "kasv"})
-    assert "Liikmeid kokku" in growth
+    assert "Liikmeid kokku" not in visible(_page(viewer_client), "section-trend")
+    # `Sisse-välja` draws the same chart with its readouts: no strip to repeat.
+    assert "Liikmeid kokku" in visible(_page(viewer_client, {"fookus": "kasv"}), "section-stock")
 
 
 def test_the_difference_is_never_presented_as_a_net_membership_change(
@@ -450,8 +455,11 @@ def test_one_word_per_quantity_for_joins_and_exclusions(viewer_client, imported_
     """
     body = _page(viewer_client)
 
-    assert ">Liitunud<" in body
-    assert ">Väljaarvatud<" in body
+    # Lower case since 2026-08-18: the strip's fourth cell writes the noun
+    # after the figure — `128 liitunud` — where a capital would read as the
+    # start of a sentence rather than as the unit of the number before it.
+    assert ">liitunud<" in body
+    assert ">väljaarvatud<" in body
     assert ">Liitus<" not in body
     assert "Välja arvati" not in body
     assert '"label": "Liitus"' not in body and '"label":"Liitus"' not in body
