@@ -71,6 +71,11 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Each probe starts a Python interpreter, and on the shared Unraid host a
+    # probe every 10 s kept the CPU out of deep idle. Nothing acts on the status
+    # while the container runs, so it is probed every 6 h; `start_interval`
+    # probes every 5 s until the first pass, so start-up is reported as quickly
+    # as before. Past start_period, an unhealthy container waits for the 6 h probe.
     healthcheck:
       test:
         - CMD
@@ -79,10 +84,11 @@ services:
         - >-
           import urllib.request;
           urllib.request.urlopen("http://127.0.0.1:8000/health/ready/", timeout=2)
-      interval: 10s
+      interval: 6h
       timeout: 3s
       retries: 5
-      start_period: 10s
+      start_period: 120s
+      start_interval: 5s
     restart: unless-stopped
     networks:
       - frontend
