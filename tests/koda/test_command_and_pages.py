@@ -466,7 +466,9 @@ def test_external_links_are_safe(viewer):
     """
     synchronize_news(collector=collector_returning(news_collection(2)))
 
-    body = viewer.get(reverse("news"), {"fookus": "arhiiv"}).content.decode()
+    # `periood=koik`: the synthetic articles carry fixed July 2026 dates, which
+    # the default 30-day window stopped reaching on 2026-08-20.
+    body = viewer.get(reverse("news"), {"periood": "koik"}).content.decode()
 
     assert 'target="_blank" rel="noopener noreferrer"' in body
     assert "uuel vahelehel" in body
