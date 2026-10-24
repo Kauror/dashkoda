@@ -104,10 +104,14 @@ services:
       test:
         - CMD-SHELL
         - pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"
-      interval: 5s
+      # Like web's: `pg_isready` is a Perl wrapper in this image, and only
+      # web's start-up `service_healthy` gate reads the status. Probed every
+      # 6 h, every 2 s until the first pass so web still starts promptly.
+      interval: 6h
       timeout: 5s
       retries: 10
-      start_period: 5s
+      start_period: 60s
+      start_interval: 2s
     volumes:
       - postgres_data:/var/lib/postgresql
     restart: unless-stopped
