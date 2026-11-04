@@ -31,7 +31,7 @@ the manually entered audience figures and the Google Analytics collector.
 The Compose runtime contains exactly two services:
 
 - `web` runs Gunicorn and Django as the non-root `dashkoda` user.
-- `db` runs PostgreSQL 18.4 with a persistent named volume.
+- `db` runs PostgreSQL 18.6 with a persistent named volume.
 
 PostgreSQL uses only the internal `backend` network. The web service joins that
 database network and a separate `frontend` network. PostgreSQL has no published
